@@ -1,3 +1,155 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer utilities {
+  .glass {
+    @apply bg-white/10 backdrop-blur-lg border border-white/20;
+  }
+  .glass-dark {
+    @apply bg-gray-900/60 backdrop-blur-xl border border-gray-700/50;
+  }
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500;
+  }
+  .animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient 8s ease infinite;
+  }
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Toast animations */
+@keyframes toast-enter {
+  0% {
+    opacity: 0;
+    transform: translateX(100%) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes toast-leave {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%) scale(0.9);
+  }
+}
+
+@keyframes toast-shrink {
+  0% {
+    width: 100%;
+  }
+  100% {
+    width: 0%;
+  }
+}
+
+@keyframes toast-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.animate-toast-enter {
+  animation: toast-enter 0.35s cubic-bezier(0.21, 1.02, 0.73, 1) forwards;
+}
+
+.animate-toast-leave {
+  animation: toast-leave 0.3s cubic-bezier(0.06, 0.71, 0.55, 1) forwards;
+}
+
+.animate-shrink {
+  animation: toast-shrink linear forwards;
+}
+
+.animate-toast-pulse {
+  animation: toast-pulse 1.5s ease-in-out infinite;
+}
+
+/* Modal animations */
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out forwards;
+}
+
+.animate-modal-in {
+  animation: modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+body {
+  @apply bg-gray-950 text-gray-100;
+}
+
+/* Custom scrollbar styles */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thumb-gray-700::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-thumb-gray-700::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thumb-gray-700::-webkit-scrollbar-thumb {
+  background-color: rgb(55 65 81);
+  border-radius: 4px;
+}
+
+.scrollbar-thumb-gray-700::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(75 85 99);
+}
+
+/* Hide scrollbar but allow scrolling on mobile */
+@media (max-width: 768px) {
+  .scrollbar-thin {
+    scrollbar-width: none;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    display: none;
+  }
+}

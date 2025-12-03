@@ -1,0 +1,12 @@
+# Block search engines from indexing admin and sensitive routes
+User-agent: *
+Disallow: /admin
+Disallow: /control-panel
+Disallow: /api/
+Disallow: /dashboard
+
+# Allow everything else
+Allow: /
+
+# Sitemap (optional - uncomment if you have one)
+# Sitemap: https://yourdomain.com/sitemap.xml

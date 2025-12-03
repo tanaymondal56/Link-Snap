@@ -15,16 +15,34 @@ const protect = async (req, res, next) => {
 
       req.user = await User.findById(decoded.id).select('-password -refreshTokens');
 
+      if (!req.user) {
+        res.status(401);
+        throw new Error('User not found');
+      }
+
+      if (!req.user.isActive) {
+        // Return ban response immediately without going through error handler
+        return res.status(403).json({
+          message: 'Your account has been suspended. Please contact support for assistance.',
+          banned: true,
+          bannedAt: req.user.bannedAt,
+          bannedUntil: req.user.bannedUntil,
+          bannedReason: req.user.bannedReason,
+          userEmail: req.user.email
+        });
+      }
+
       next();
     } catch (error) {
       console.error(error);
-      res.status(401);
-      const err = new Error('Not authorized, token failed');
-      next(err);
+      // Check if response already sent (for ban case)
+      if (!res.headersSent) {
+        res.status(401);
+        const err = new Error('Not authorized, token failed');
+        next(err);
+      }
     }
-  }
-
-  if (!token) {
+  } else if (!token) {
     res.status(401);
     const err = new Error('Not authorized, no token');
     next(err);
@@ -41,4 +59,7 @@ const admin = (req, res, next) => {
   }
 };
 
-export { protect, admin };
+// Alias for protect (used in admin routes)
+const verifyToken = protect;
+
+export { protect, admin, verifyToken };

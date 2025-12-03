@@ -1,0 +1,153 @@
+import { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import {
+  ArrowLeft,
+  Calendar,
+  Globe,
+  Smartphone,
+  Monitor,
+  Link as LinkIcon,
+  AlertCircle,
+} from 'lucide-react';
+import api from '../api/axios';
+import ClickChart from '../components/charts/ClickChart';
+import DeviceChart from '../components/charts/DeviceChart';
+import LocationChart from '../components/charts/LocationChart';
+
+const AnalyticsPage = () => {
+  const { id } = useParams();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get(`/analytics/${id}`);
+        setData(response.data);
+      } catch (err) {
+        console.error(err);
+        setError(err.response?.data?.message || 'Failed to load analytics');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) {
+      fetchAnalytics();
+    }
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-4xl mx-auto mt-10 px-4">
+        <div className="glass-dark p-8 rounded-2xl border border-red-500/20 text-center">
+          <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+            <AlertCircle size={32} />
+          </div>
+          <h3 className="text-xl font-bold text-white mb-2">Analytics Not Found</h3>
+          <p className="text-gray-400 mb-6">{error}</p>
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
+          >
+            <ArrowLeft size={18} /> Back to Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const { url, analytics } = data;
+  const totalClicks = url.clicks;
+
+  return (
+    <div className="space-y-8 pb-10">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-2 transition-colors"
+          >
+            <ArrowLeft size={16} /> Back to Dashboard
+          </Link>
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            Analytics for <span className="text-blue-400">/{url.shortId}</span>
+          </h1>
+          <a
+            href={url.originalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-gray-500 hover:text-gray-300 truncate max-w-md block mt-1"
+          >
+            {url.originalUrl}
+          </a>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="glass-dark px-4 py-2 rounded-xl border border-white/10 flex items-center gap-3">
+            <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400">
+              <LinkIcon size={20} />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">
+                Total Clicks
+              </p>
+              <p className="text-xl font-bold text-white">{totalClicks}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Chart */}
+      <div className="glass-dark p-6 rounded-2xl border border-white/5">
+        <div className="flex items-center gap-2 mb-6">
+          <Calendar className="text-blue-400" size={20} />
+          <h3 className="text-lg font-semibold text-white">Clicks Over Time (Last 7 Days)</h3>
+        </div>
+        <ClickChart data={analytics.clicksByDate} />
+      </div>
+
+      {/* Secondary Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Devices */}
+        <div className="glass-dark p-6 rounded-2xl border border-white/5">
+          <div className="flex items-center gap-2 mb-6">
+            <Smartphone className="text-purple-400" size={20} />
+            <h3 className="text-lg font-semibold text-white">Devices & Browsers</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <h4 className="text-sm font-medium text-gray-400 mb-4 text-center">Device Type</h4>
+              <DeviceChart data={analytics.clicksByDevice} />
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-gray-400 mb-4 text-center">Browser</h4>
+              <DeviceChart data={analytics.clicksByBrowser} />
+            </div>
+          </div>
+        </div>
+
+        {/* Locations */}
+        <div className="glass-dark p-6 rounded-2xl border border-white/5">
+          <div className="flex items-center gap-2 mb-6">
+            <Globe className="text-green-400" size={20} />
+            <h3 className="text-lg font-semibold text-white">Top Locations</h3>
+          </div>
+          <LocationChart data={analytics.clicksByLocation} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AnalyticsPage;
