@@ -1,12 +1,19 @@
-# Block search engines from indexing admin and sensitive routes
-User-agent: *
-Disallow: /admin
-Disallow: /control-panel
-Disallow: /api/
-Disallow: /dashboard
+# Link Snap - Robots.txt
+# Controls which pages search engines can crawl
 
-# Allow everything else
+User-agent: *
 Allow: /
 
-# Sitemap (optional - uncomment if you have one)
-# Sitemap: https://yourdomain.com/sitemap.xml
+# Disallow admin, dashboard, and private routes from indexing
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /account-suspended
+Disallow: /verify-email
+Disallow: /api/
+
+# Allow landing page and public info
+Allow: /login
+Allow: /register
+
+# Sitemap location (Update with your actual domain)
+Sitemap: https://linksnap.app/sitemap.xml

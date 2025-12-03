@@ -117,6 +117,45 @@
   animation: modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Alternating text animation */
+@keyframes text-alternate {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  95% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes text-alternate-reverse {
+  0%,
+  45% {
+    opacity: 0;
+  }
+  50%,
+  95% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-text-alternate {
+  animation: text-alternate 3s ease-in-out infinite;
+}
+
+.animate-text-alternate-reverse {
+  position: absolute;
+  left: 0;
+  animation: text-alternate-reverse 3s ease-in-out infinite;
+}
+
 body {
   @apply bg-gray-950 text-gray-100;
 }

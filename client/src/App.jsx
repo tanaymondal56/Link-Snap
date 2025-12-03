@@ -8,11 +8,13 @@ import { AuthProvider } from './context/AuthContext';
 import AuthModal from './components/AuthModal';
 import { useAuth } from './context/AuthContext';
 import ConfirmDialogProvider from './components/ui/ConfirmDialog';
+import DialogProvider from './components/ui/DialogProvider';
 
 // Lazy Loaded Pages
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const AccountSuspended = lazy(() => import('./pages/AccountSuspended'));
+const Changelog = lazy(() => import('./pages/Changelog'));
 const OverviewPage = lazy(() => import('./pages/OverviewPage'));
 const UserDashboard = lazy(() => import('./pages/UserDashboard'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
@@ -36,17 +38,29 @@ const AuthModalWrapper = () => {
 
 // Redirect old auth routes to home with modal
 const AuthRedirect = ({ tab }) => {
-  const { openAuthModal, user } = useAuth();
+  const { openAuthModal, user, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Wait for auth to finish loading
+    if (loading) return;
+
     if (user) {
       navigate('/dashboard', { replace: true });
     } else {
+      // Navigate first, then open modal after a small delay
       navigate('/', { replace: true });
-      openAuthModal(tab);
+      // Use setTimeout to ensure navigation completes before opening modal
+      setTimeout(() => {
+        openAuthModal(tab);
+      }, 100);
     }
-  }, [user, navigate, openAuthModal, tab]);
+  }, [user, loading, navigate, openAuthModal, tab]);
+
+  // Show loading while checking auth
+  if (loading) {
+    return <LoadingFallback />;
+  }
 
   return null;
 };
@@ -70,6 +84,9 @@ function AppContent() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/verify-email/:token" element={<VerifyEmail />} />
           </Route>
+
+          {/* Changelog Route - Standalone page */}
+          <Route path="/changelog" element={<Changelog />} />
 
           {/* Account Suspended Route - No layout needed */}
           <Route path="/account-suspended" element={<AccountSuspended />} />
@@ -116,7 +133,9 @@ function App() {
   return (
     <AuthProvider>
       <ConfirmDialogProvider>
-        <AppContent />
+        <DialogProvider>
+          <AppContent />
+        </DialogProvider>
       </ConfirmDialogProvider>
     </AuthProvider>
   );

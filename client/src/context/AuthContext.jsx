@@ -15,6 +15,14 @@ export const AuthProvider = ({ children }) => {
   // Check if user is logged in on mount
   useEffect(() => {
     const checkAuth = async (retryCount = 0) => {
+      // If no token exists, skip the API call entirely
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
       try {
         const { data } = await api.get('/auth/me');
         setUser(data);
@@ -40,7 +48,20 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
+    // Set a timeout to prevent infinite loading on mobile
+    const timeoutId = setTimeout(() => {
+      setLoading((current) => {
+        if (current) {
+          console.warn('Auth check timeout - proceeding without auth');
+          return false;
+        }
+        return current;
+      });
+    }, 8000); // 8 second timeout
+
     checkAuth();
+
+    return () => clearTimeout(timeoutId);
   }, []);
 
   const openAuthModal = (tab = 'login') => {

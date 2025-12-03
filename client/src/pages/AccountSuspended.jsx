@@ -14,6 +14,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import api from '../api/axios';
+import showToast from '../components/ui/Toast';
 
 // Read ban info from session storage (called once during module init)
 const getBanInfo = () => {
@@ -111,7 +112,10 @@ const AccountSuspended = () => {
 
     const appealToken = sessionStorage.getItem('banAppealToken');
     if (!appealToken) {
-      alert('Session expired. Please try logging in again to submit an appeal.');
+      showToast.error(
+        'Session expired. Please try logging in again to submit an appeal.',
+        'Session Expired'
+      );
       return;
     }
 
@@ -128,7 +132,10 @@ const AccountSuspended = () => {
     } catch (error) {
       console.error('Failed to submit appeal:', error);
       // Show error in form
-      alert(error.response?.data?.message || 'Failed to submit appeal. Please try again.');
+      showToast.error(
+        error.response?.data?.message || 'Failed to submit appeal. Please try again.',
+        'Appeal Failed'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -443,7 +450,11 @@ const AccountSuspended = () => {
 
         {/* Footer */}
         <p className="text-center text-gray-500 text-xs mt-6">
-          © {new Date().getFullYear()} Link Snap. All rights reserved.
+          © {new Date().getFullYear()}{' '}
+          <span className="font-bold bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+            Link Snap
+          </span>
+          . All rights reserved.
         </p>
       </div>
     </div>

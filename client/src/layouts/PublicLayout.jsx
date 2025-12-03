@@ -1,9 +1,51 @@
 import { Link, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { User, Shield } from 'lucide-react';
+import { User, Shield, History } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import api from '../api/axios';
 
 const PublicLayout = () => {
   const { user, logout, openAuthModal, isAdmin } = useAuth();
+  const [isWhitelistedIP, setIsWhitelistedIP] = useState(false);
+
+  // Check if current IP is whitelisted for admin access (only when not logged in)
+  useEffect(() => {
+    // Skip check if user is logged in - they'll see admin link via isAdmin
+    if (user) return;
+
+    let isMounted = true;
+
+    const checkAdminAccess = async () => {
+      try {
+        // Use GET instead of HEAD for more reliable error responses
+        await api.get('/admin/stats');
+        // If we get here (200), user is authenticated AND whitelisted
+        if (isMounted) setIsWhitelistedIP(true);
+      } catch (error) {
+        if (!isMounted) return;
+
+        const status = error.response?.status;
+        // 401 = IP allowed but not authenticated (this is what we want for localhost)
+        // 403 = IP allowed but not admin role
+        // 404 = IP blocked (route hidden)
+        // No response = backend unreachable
+        if (status === 401 || status === 403) {
+          setIsWhitelistedIP(true);
+        } else {
+          setIsWhitelistedIP(false);
+        }
+      }
+    };
+
+    checkAdminAccess();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  // Reset whitelist state when user logs in (computed, not in effect)
+  const showAdminLinkForWhitelistedIP = !user && isWhitelistedIP;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col">
@@ -47,6 +89,16 @@ const PublicLayout = () => {
                 </>
               ) : (
                 <>
+                  {showAdminLinkForWhitelistedIP && (
+                    <Link
+                      to="/admin"
+                      className="flex items-center gap-1.5 sm:gap-2 text-amber-400/70 hover:text-amber-300 px-2 sm:px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                      title="Admin Panel (Whitelisted IP)"
+                    >
+                      <Shield className="w-4 h-4" />
+                      <span className="hidden sm:inline">Admin</span>
+                    </Link>
+                  )}
                   <button
                     onClick={() => openAuthModal('login')}
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
@@ -71,8 +123,35 @@ const PublicLayout = () => {
       </main>
 
       <footer className="bg-gray-950 border-t border-white/5 py-8">
-        <div className="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
-          &copy; {new Date().getFullYear()} Link Snap. All rights reserved.
+        <div className="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm flex flex-col items-center gap-2">
+          <div className="flex items-center gap-1">
+            &copy; {new Date().getFullYear()}{' '}
+            <span className="group cursor-pointer">
+              <span className="font-bold bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent inline group-hover:hidden">
+                Link Snap
+              </span>
+              <span className="hidden group-hover:inline font-bold bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 bg-clip-text text-transparent animate-pulse">
+                Tanay&apos;s Creation 🚀
+              </span>
+            </span>
+            <span className="text-gray-500">. All rights reserved.</span>
+          </div>
+          <div className="text-xs text-gray-600">
+            <Link
+              to="/changelog"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300 transition-all"
+            >
+              <History size={12} />
+              v0.5.1-beta
+            </Link>{' '}
+            •{' '}
+            <span className="inline-block relative whitespace-nowrap">
+              <span className="animate-text-alternate">Made with ❤️</span>
+              <span className="animate-text-alternate-reverse font-bold bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent whitespace-nowrap">
+                Crafted by Tanay ✨
+              </span>
+            </span>
+          </div>
         </div>
       </footer>
     </div>

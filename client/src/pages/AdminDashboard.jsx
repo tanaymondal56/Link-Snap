@@ -2,6 +2,7 @@ import { useState, useEffect, Fragment } from 'react';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
 import { useConfirm } from '../context/ConfirmContext';
+import { useDialog } from '../components/ui/DialogProvider';
 import BanUserModal from '../components/BanUserModal';
 import UnbanUserModal from '../components/UnbanUserModal';
 import {
@@ -45,6 +46,7 @@ import {
 
 const AdminDashboard = () => {
   const confirm = useConfirm();
+  const { prompt } = useDialog();
   const [activeTab, setActiveTab] = useState('users'); // 'users', 'links', 'settings'
   const [stats, setStats] = useState({ totalUsers: 0, totalUrls: 0, totalClicks: 0 });
   const [users, setUsers] = useState([]);
@@ -186,10 +188,21 @@ const AdminDashboard = () => {
   };
 
   const handleRespondToAppeal = async (appealId, status, unbanUser = false) => {
-    const response =
-      status === 'approved'
-        ? prompt('Enter admin response (optional):')
-        : prompt('Enter reason for rejection:');
+    const response = await prompt({
+      title: status === 'approved' ? 'Approve Appeal' : 'Reject Appeal',
+      message:
+        status === 'approved'
+          ? 'Enter a response message for the user (optional):'
+          : 'Please provide a reason for rejecting this appeal:',
+      placeholder:
+        status === 'approved'
+          ? 'Your account has been reinstated...'
+          : 'Your appeal was rejected because...',
+      variant: status === 'approved' ? 'success' : 'error',
+      confirmText: status === 'approved' ? 'Approve' : 'Reject',
+      required: status === 'rejected',
+      multiline: true,
+    });
 
     if (response === null && status === 'rejected') return; // User cancelled
 

@@ -38,7 +38,15 @@ const AdminLayout = () => {
         await api.head('/admin/stats');
         setIsAllowedIP(true);
       } catch (error) {
-        if (error.response?.status === 404) {
+        // If backend is unreachable (no response), block access for security
+        if (!error.response) {
+          // Network error, timeout, or backend down - DENY access
+          console.warn('[Admin] Backend unreachable, denying access for security');
+          setIsAllowedIP(false);
+          return;
+        }
+
+        if (error.response.status === 404) {
           // Backend explicitly returned 404 (IP Blocked or Route Hidden)
           setIsAllowedIP(false);
         } else {
