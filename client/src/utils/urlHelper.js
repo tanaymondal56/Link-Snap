@@ -1,17 +1,28 @@
 export const getShortUrl = (shortId) => {
-    // Prefer a dedicated env var for the short URL domain
     const serverUrl = import.meta.env.VITE_SERVER_URL;
+    const isProduction = import.meta.env.PROD;
 
+    // In production: check if VITE_SERVER_URL is localhost
+    // If it is, use window.location.origin instead (for Cloudflare/deployed URLs)
+    if (isProduction) {
+        // If serverUrl is set and NOT localhost, use it
+        if (serverUrl && !serverUrl.includes('localhost') && !serverUrl.includes('127.0.0.1')) {
+            const cleanUrl = serverUrl.replace(/\/$/, '');
+            return `${cleanUrl}/${shortId}`;
+        }
+        // Otherwise use current browser origin (works with Cloudflare, etc.)
+        return `${window.location.origin}/${shortId}`;
+    }
+
+    // In development: use env vars or fallback to localhost:5000
     if (serverUrl) {
-        // Remove trailing slash if present
         const cleanUrl = serverUrl.replace(/\/$/, '');
         return `${cleanUrl}/${shortId}`;
     }
 
     // Fallback: Try to derive from API URL
     const apiUrl = import.meta.env.VITE_API_URL;
-    if (apiUrl) {
-        // If API is http://site.com/api, we want http://site.com
+    if (apiUrl && !apiUrl.startsWith('/')) {
         return `${apiUrl.replace('/api', '')}/${shortId}`;
     }
 

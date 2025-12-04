@@ -6,6 +6,7 @@ import BanHistory from '../models/BanHistory.js';
 import Appeal from '../models/Appeal.js';
 import { getCacheStats, clearCache, invalidateMultiple } from '../services/cacheService.js';
 import sendEmail from '../utils/sendEmail.js';
+import { suspensionEmail, reactivationEmail, appealDecisionEmail, testEmail } from '../utils/emailTemplates.js';
 
 // Helper function to calculate ban expiry date
 const calculateBanExpiry = (duration) => {
@@ -35,57 +36,17 @@ const sendBanNotificationEmail = async (user, isBanned, reason, bannedUntil) => 
             return;
         }
 
-        const subject = isBanned
-            ? 'Link Snap - Account Suspended'
-            : 'Link Snap - Account Reactivated';
-
-        let message;
+        let emailContent;
         if (isBanned) {
-            const untilText = bannedUntil
-                ? `until ${new Date(bannedUntil).toLocaleString()}`
-                : 'indefinitely';
-
-            message = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #ef4444;">⚠️ Account Suspended</h2>
-                    <p>Hello,</p>
-                    <p>Your Link Snap account has been suspended ${untilText}.</p>
-                    ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
-                    <p style="margin-top: 20px;">If you believe this is a mistake, you can submit an appeal from the account suspended page.</p>
-                    <p style="color: #666; font-size: 14px; margin-top: 30px;">
-                        - The Link Snap Team
-                    </p>
-                </div>
-            `;
+            emailContent = suspensionEmail(user, reason, bannedUntil);
         } else {
-            message = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #22c55e;">✅ Account Reactivated</h2>
-                    <p>Hello,</p>
-                    <p>Good news! Your Link Snap account has been reactivated.</p>
-                    <p>You can now log in and access your account normally.</p>
-                    <p style="margin-top: 20px;">
-                        <a href="${process.env.CLIENT_URL || 'http://localhost:5173'}/login" 
-                           style="background: linear-gradient(to right, #8b5cf6, #ec4899); 
-                                  color: white; 
-                                  padding: 12px 24px; 
-                                  text-decoration: none; 
-                                  border-radius: 8px; 
-                                  display: inline-block;">
-                            Log In Now
-                        </a>
-                    </p>
-                    <p style="color: #666; font-size: 14px; margin-top: 30px;">
-                        - The Link Snap Team
-                    </p>
-                </div>
-            `;
+            emailContent = reactivationEmail(user);
         }
 
         await sendEmail({
             email: user.email,
-            subject,
-            message
+            subject: emailContent.subject,
+            message: emailContent.html
         });
     } catch (error) {
         console.error('Failed to send ban notification email:', error.message);
@@ -355,6 +316,8 @@ export const getSettings = async (req, res) => {
 // @access  Admin
 export const updateSettings = async (req, res) => {
     try {
+        console.log('[updateSettings] Request received:', JSON.stringify(req.body, null, 2));
+
         let settings = await Settings.findOne();
         if (!settings) {
             settings = await Settings.create({});
@@ -364,7 +327,10 @@ export const updateSettings = async (req, res) => {
             requireEmailVerification,
             emailProvider,
             emailUsername,
-            emailPassword
+            emailPassword,
+            smtpHost,
+            smtpPort,
+            smtpSecure
         } = req.body;
 
         if (requireEmailVerification !== undefined) {
@@ -384,7 +350,22 @@ export const updateSettings = async (req, res) => {
             settings.emailPassword = emailPassword;
         }
 
+        // Custom SMTP settings
+        if (smtpHost !== undefined) {
+            settings.smtpHost = smtpHost;
+        }
+
+        if (smtpPort !== undefined) {
+            settings.smtpPort = smtpPort;
+        }
+
+        if (smtpSecure !== undefined) {
+            settings.smtpSecure = smtpSecure;
+        }
+
+        console.log('[updateSettings] Saving settings...');
         await settings.save();
+        console.log('[updateSettings] Settings saved successfully!');
 
         // Return settings with masked password
         const settingsObj = settings.toObject();
@@ -392,6 +373,7 @@ export const updateSettings = async (req, res) => {
 
         res.json(settingsObj);
     } catch (error) {
+        console.error('[updateSettings] ERROR:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -413,18 +395,13 @@ export const testEmailConfiguration = async (req, res) => {
             return res.status(400).json({ message: 'Email is not configured yet' });
         }
 
-        const sendEmail = (await import('../utils/sendEmail.js')).default;
+        const sendEmailUtil = (await import('../utils/sendEmail.js')).default;
+        const emailContent = testEmail();
 
-        await sendEmail({
+        await sendEmailUtil({
             email,
-            subject: 'Link Snap - Email Configuration Test',
-            message: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #8b5cf6;">✅ Email Configuration Test</h2>
-                    <p>Your email configuration is working correctly!</p>
-                    <p style="color: #666; font-size: 14px;">This is a test email from Link Snap admin panel.</p>
-                </div>
-            `,
+            subject: emailContent.subject,
+            message: emailContent.html,
         });
 
         res.json({ message: 'Test email sent successfully!' });
@@ -647,31 +624,12 @@ export const respondToAppeal = async (req, res) => {
             if (settings?.emailConfigured) {
                 const user = await User.findById(appeal.userId);
                 if (user) {
-                    const subject = status === 'approved'
-                        ? 'Link Snap - Appeal Approved'
-                        : 'Link Snap - Appeal Decision';
-
-                    const message = `
-                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                            <h2 style="color: ${status === 'approved' ? '#22c55e' : '#ef4444'};">
-                                ${status === 'approved' ? '✅ Appeal Approved' : '❌ Appeal Rejected'}
-                            </h2>
-                            <p>Hello,</p>
-                            <p>Your appeal has been reviewed and ${status}.</p>
-                            ${adminResponse ? `<p><strong>Admin Response:</strong> ${adminResponse}</p>` : ''}
-                            ${status === 'approved' && unbanUser
-                            ? '<p>Your account has been reactivated. You can now log in normally.</p>'
-                            : ''}
-                            <p style="color: #666; font-size: 14px; margin-top: 30px;">
-                                - The Link Snap Team
-                            </p>
-                        </div>
-                    `;
+                    const emailContent = appealDecisionEmail(user, status, adminResponse, unbanUser);
 
                     await sendEmail({
                         email: user.email,
-                        subject,
-                        message
+                        subject: emailContent.subject,
+                        message: emailContent.html
                     });
                 }
             }

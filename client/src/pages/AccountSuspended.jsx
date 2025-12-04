@@ -12,6 +12,8 @@ import {
   XCircle,
   FileText,
   Loader2,
+  Timer,
+  CalendarClock,
 } from 'lucide-react';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
@@ -35,16 +37,17 @@ const getBanInfo = () => {
 
 const AccountSuspended = () => {
   // Get the ban info from session storage on initial render
-  const [banInfo] = useState(getBanInfo);
+  const [banInfo, setBanInfo] = useState(getBanInfo);
   const [showAppealForm, setShowAppealForm] = useState(false);
   const [appealMessage, setAppealMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [appealStatus, setAppealStatus] = useState(null); // null, 'pending', 'approved', 'rejected'
   const [appealResponse, setAppealResponse] = useState(null);
-  const [checkingAppeal, setCheckingAppeal] = useState(false);
+  const [checkingAppeal, setCheckingAppeal] = useState(true); // Start as true to show loading
   const [isReactivated, setIsReactivated] = useState(false);
   const [appealsCount, setAppealsCount] = useState(0);
   const [maxAppeals, setMaxAppeals] = useState(3);
+  const [timeRemaining, setTimeRemaining] = useState(null);
 
   useEffect(() => {
     // Clear session storage after component mounts
@@ -56,13 +59,54 @@ const AccountSuspended = () => {
     // Keep email and token for appeal form
   }, []);
 
-  // Check if user already has an appeal
+  // Countdown timer for temporary bans
+  useEffect(() => {
+    if (!banInfo.bannedUntil) return;
+
+    const calculateTimeRemaining = () => {
+      const now = new Date().getTime();
+      const endTime = new Date(banInfo.bannedUntil).getTime();
+      const diff = endTime - now;
+
+      if (diff <= 0) {
+        setTimeRemaining(null);
+        setIsReactivated(true); // Ban expired
+        return null;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      return { days, hours, minutes, seconds, total: diff };
+    };
+
+    // Initial calculation
+    setTimeRemaining(calculateTimeRemaining());
+
+    // Update every second
+    const interval = setInterval(() => {
+      const remaining = calculateTimeRemaining();
+      setTimeRemaining(remaining);
+      if (!remaining) {
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [banInfo.bannedUntil]);
+
+  // Check if user already has an appeal and fetch fresh ban info
   useEffect(() => {
     const checkExistingAppeal = async () => {
       const appealToken = sessionStorage.getItem('banAppealToken');
       const email = banInfo.userEmail;
 
-      if (!email && !appealToken) return;
+      if (!email && !appealToken) {
+        setCheckingAppeal(false);
+        return;
+      }
 
       setCheckingAppeal(true);
       try {
@@ -88,6 +132,17 @@ const AccountSuspended = () => {
         if (data.hasAppeal) {
           setAppealStatus(data.status);
           setAppealResponse(data.adminResponse);
+        }
+
+        // Update ban info from server if available (handles re-ban scenarios)
+        if (data.banInfo) {
+          setBanInfo((prev) => ({
+            ...prev,
+            message: data.banInfo.message || prev.message,
+            reason: data.banInfo.reason || prev.reason,
+            bannedAt: data.banInfo.bannedAt || prev.bannedAt,
+            bannedUntil: data.banInfo.bannedUntil || null, // Use null if not set (permanent ban)
+          }));
         }
       } catch (error) {
         console.error('Failed to check appeal status:', error);
@@ -141,7 +196,7 @@ const AccountSuspended = () => {
     }
   };
 
-  const supportEmail = banInfo.support?.email || 'support@linksnap.com';
+  const supportEmail = banInfo.support?.email || 'support@example.com';
 
   // Format date
   const formatDate = (dateStr) => {
@@ -238,11 +293,44 @@ const AccountSuspended = () => {
                       {!bannedUntilFormatted && (
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-500">Duration</span>
-                          <span className="text-red-300">Indefinite</span>
+                          <span className="text-red-300">Permanent</span>
                         </div>
                       )}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Countdown Timer for Temporary Bans */}
+              {timeRemaining && (
+                <div className="bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-500/20 rounded-lg p-4 mb-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Timer className="w-4 h-4 text-orange-400" />
+                    <span className="text-orange-300 text-sm font-medium">Time Until Unban</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="bg-gray-800/50 rounded-lg p-2">
+                      <div className="text-xl font-bold text-white">{timeRemaining.days}</div>
+                      <div className="text-[10px] text-gray-500 uppercase">Days</div>
+                    </div>
+                    <div className="bg-gray-800/50 rounded-lg p-2">
+                      <div className="text-xl font-bold text-white">{timeRemaining.hours}</div>
+                      <div className="text-[10px] text-gray-500 uppercase">Hours</div>
+                    </div>
+                    <div className="bg-gray-800/50 rounded-lg p-2">
+                      <div className="text-xl font-bold text-white">{timeRemaining.minutes}</div>
+                      <div className="text-[10px] text-gray-500 uppercase">Mins</div>
+                    </div>
+                    <div className="bg-gray-800/50 rounded-lg p-2">
+                      <div className="text-xl font-bold text-orange-400">
+                        {timeRemaining.seconds}
+                      </div>
+                      <div className="text-[10px] text-gray-500 uppercase">Secs</div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 text-center mt-3">
+                    Your account will be automatically reactivated when the timer expires.
+                  </p>
                 </div>
               )}
 
@@ -303,16 +391,27 @@ const AccountSuspended = () => {
                       )}
 
                       {/* Appeal Limit Info */}
-                      <div className="mt-3 pt-3 border-t border-red-500/20 flex justify-between items-center">
-                        <span className="text-xs text-red-300/70">
-                          {appealsCount >= maxAppeals
-                            ? 'Maximum appeal limit reached.'
-                            : `${maxAppeals - appealsCount} appeal${maxAppeals - appealsCount !== 1 ? 's' : ''} remaining.`}
-                        </span>
-                        {appealsCount < maxAppeals && (
-                          <span className="text-[10px] text-red-300/50">
-                            You can submit a new appeal.
-                          </span>
+                      <div className="mt-3 pt-3 border-t border-red-500/20">
+                        {appealsCount >= maxAppeals ? (
+                          <div className="space-y-2">
+                            <p className="text-xs text-red-300 font-medium">
+                              Maximum appeal limit reached ({maxAppeals}/{maxAppeals})
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              You have exhausted all your appeal attempts. If you still believe this
+                              is a mistake, please contact us directly via email.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-red-300/70">
+                              {maxAppeals - appealsCount} appeal
+                              {maxAppeals - appealsCount !== 1 ? 's' : ''} remaining
+                            </span>
+                            <span className="text-[10px] text-gray-500">
+                              You can submit a new appeal below.
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -394,10 +493,40 @@ const AccountSuspended = () => {
               )}
 
               {/* Info Text */}
-              <p className="text-gray-400 text-center text-sm mb-6">
-                {banInfo.support?.message ||
-                  'If you believe this is a mistake or would like to appeal this decision, please contact our support team.'}
-              </p>
+              <div className="text-gray-400 text-center text-sm mb-6">
+                {appealsCount >= maxAppeals ? (
+                  <div className="space-y-2">
+                    <p>You have reached the maximum number of appeals.</p>
+                    {banInfo.bannedUntil ? (
+                      <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-left">
+                        <p className="text-orange-300 text-xs font-medium mb-1">Your options:</p>
+                        <ul className="text-xs text-gray-400 space-y-1">
+                          <li className="flex items-start gap-2">
+                            <Timer className="w-3 h-3 text-orange-400 mt-0.5 flex-shrink-0" />
+                            <span>
+                              Wait until your suspension expires on{' '}
+                              <span className="text-orange-300">
+                                {formatDate(banInfo.bannedUntil)}
+                              </span>
+                            </span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <Mail className="w-3 h-3 text-violet-400 mt-0.5 flex-shrink-0" />
+                            <span>Contact support via email for urgent matters</span>
+                          </li>
+                        </ul>
+                      </div>
+                    ) : (
+                      <p>Please contact support via email if you need further assistance.</p>
+                    )}
+                  </div>
+                ) : (
+                  <p>
+                    {banInfo.support?.message ||
+                      'If you believe this is a mistake or would like to appeal this decision, please contact our support team.'}
+                  </p>
+                )}
+              </div>
 
               {/* Contact Support */}
               <div className="bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 rounded-lg p-4 mb-6">

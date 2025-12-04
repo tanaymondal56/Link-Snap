@@ -35,14 +35,20 @@ export const AuthProvider = ({ children }) => {
           localStorage.removeItem('accessToken');
           setLoading(false);
         } else {
-          // For network errors (server restarting), retry up to 3 times
-          if (retryCount < 3) {
-            console.log(`Server unreachable, retrying... (${retryCount + 1}/3)`);
-            setTimeout(() => checkAuth(retryCount + 1), 1000); // Retry after 1s
+          // For network errors (server restarting), retry up to 5 times with longer delays
+          if (retryCount < 5) {
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); // Exponential backoff, max 10s
+            console.log(
+              `Server unreachable, retrying in ${delay / 1000}s... (${retryCount + 1}/5)`
+            );
+            setTimeout(() => checkAuth(retryCount + 1), delay);
           } else {
-            console.error('Auth check failed after retries', error);
+            // After all retries, keep the token but set user to null
+            // User can still interact with app and token refresh will handle re-auth
+            console.error('Auth check failed after retries - keeping token for later retry');
             setUser(null);
             setLoading(false);
+            // Don't remove token - let the user retry when server is back
           }
         }
       }
@@ -57,7 +63,7 @@ export const AuthProvider = ({ children }) => {
         }
         return current;
       });
-    }, 8000); // 8 second timeout
+    }, 15000); // 15 second timeout (increased from 8s)
 
     checkAuth();
 

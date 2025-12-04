@@ -42,6 +42,8 @@ import {
   FileText,
   MessageSquare,
   Loader2,
+  RefreshCw,
+  Timer,
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -64,6 +66,9 @@ const AdminDashboard = () => {
     emailProvider: 'gmail',
     emailUsername: '',
     emailPassword: '',
+    smtpHost: '',
+    smtpPort: 587,
+    smtpSecure: false,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
@@ -91,6 +96,9 @@ const AdminDashboard = () => {
 
   // Unban User Modal state
   const [unbanModalUser, setUnbanModalUser] = useState(null);
+
+  // Refreshing state
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Ban History and Appeals state
   const [userBanHistory, setUserBanHistory] = useState({});
@@ -138,6 +146,9 @@ const AdminDashboard = () => {
           emailProvider: data.emailProvider || 'gmail',
           emailUsername: data.emailUsername || '',
           emailPassword: '', // Don't populate password for security
+          smtpHost: data.smtpHost || '',
+          smtpPort: data.smtpPort || 587,
+          smtpSecure: data.smtpSecure || false,
         });
       }
     } catch (error) {
@@ -159,8 +170,8 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchUserAppeals = async (userId) => {
-    if (userAppeals[userId]) return; // Already loaded
+  const fetchUserAppeals = async (userId, forceRefresh = false) => {
+    if (userAppeals[userId] && !forceRefresh) return; // Already loaded
 
     setLoadingHistory((prev) => ({ ...prev, [userId]: 'appeals' }));
     try {
@@ -204,7 +215,8 @@ const AdminDashboard = () => {
       multiline: true,
     });
 
-    if (response === null && status === 'rejected') return; // User cancelled
+    // User cancelled the dialog
+    if (response === null) return;
 
     try {
       await api.patch(`/admin/appeals/${appealId}`, {
@@ -223,8 +235,10 @@ const AdminDashboard = () => {
         userAppeals[uid]?.some((a) => a._id === appealId)
       );
       if (userId) {
+        // Clear cached data and force refresh
         setUserAppeals((prev) => ({ ...prev, [userId]: undefined }));
-        fetchUserAppeals(userId);
+        // Use setTimeout to ensure state is updated before fetching
+        setTimeout(() => fetchUserAppeals(userId, true), 100);
       }
 
       if (status === 'approved' && unbanUser) {
@@ -241,6 +255,39 @@ const AdminDashboard = () => {
     fetchUsers();
     fetchSettings();
   }, []);
+
+  // Handle refresh all data
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        fetchStats(),
+        fetchUsers(),
+        activeTab === 'links' ? fetchLinks() : Promise.resolve(),
+        activeTab === 'settings' ? fetchSettings() : Promise.resolve(),
+      ]);
+
+      // Clear cached ban history and appeals
+      setUserBanHistory({});
+      setUserAppeals({});
+
+      // Re-fetch data for any currently expanded sections
+      Object.entries(expandedSection).forEach(([userId, section]) => {
+        if (section === 'history') {
+          // Use setTimeout to ensure state is cleared before re-fetching
+          setTimeout(() => fetchUserBanHistory(userId), 50);
+        } else if (section === 'appeals') {
+          setTimeout(() => fetchUserAppeals(userId, true), 50);
+        }
+      });
+
+      showToast.success('Data refreshed successfully', 'Refreshed');
+    } catch {
+      showToast.error('Failed to refresh data');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Fetch links when tab changes to links
   useEffect(() => {
@@ -519,6 +566,17 @@ const AdminDashboard = () => {
       showToast.warning('Please enter your email password or app password', 'Missing Field');
       return;
     }
+    // Validate SMTP fields if custom SMTP is selected
+    if (emailForm.emailProvider === 'smtp') {
+      if (!emailForm.smtpHost) {
+        showToast.warning('Please enter SMTP host', 'Missing Field');
+        return;
+      }
+      if (!emailForm.smtpPort) {
+        showToast.warning('Please enter SMTP port', 'Missing Field');
+        return;
+      }
+    }
 
     setSavingEmail(true);
     try {
@@ -529,6 +587,12 @@ const AdminDashboard = () => {
       // Only send password if provided (for updates, password is optional)
       if (emailForm.emailPassword) {
         payload.emailPassword = emailForm.emailPassword;
+      }
+      // Include SMTP settings if custom SMTP is selected
+      if (emailForm.emailProvider === 'smtp') {
+        payload.smtpHost = emailForm.smtpHost;
+        payload.smtpPort = parseInt(emailForm.smtpPort, 10);
+        payload.smtpSecure = emailForm.smtpSecure;
       }
 
       const { data } = await api.patch('/admin/settings', payload);
@@ -574,96 +638,425 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4 sm:space-y-6 lg:space-y-8">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 p-6 rounded-2xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-400 text-sm font-medium">Total Users</p>
-              <h3 className="text-3xl font-bold text-white mt-1">{stats.totalUsers}</h3>
+      <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6">
+        <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 p-3 sm:p-4 lg:p-6 rounded-xl sm:rounded-2xl">
+          <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-2">
+            <div className="text-center sm:text-left">
+              <p className="text-gray-400 text-xs sm:text-sm font-medium">Users</p>
+              <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mt-0.5 sm:mt-1">
+                {stats.totalUsers}
+              </h3>
             </div>
-            <div className="p-3 bg-purple-500/20 rounded-xl">
-              <Users className="w-6 h-6 text-purple-400" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 p-6 rounded-2xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-400 text-sm font-medium">Total Links</p>
-              <h3 className="text-3xl font-bold text-white mt-1">{stats.totalUrls}</h3>
-            </div>
-            <div className="p-3 bg-pink-500/20 rounded-xl">
-              <LinkIcon className="w-6 h-6 text-pink-400" />
+            <div className="p-2 sm:p-3 bg-purple-500/20 rounded-lg sm:rounded-xl hidden sm:block">
+              <Users className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" />
             </div>
           </div>
         </div>
 
-        <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 p-6 rounded-2xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-400 text-sm font-medium">Total Clicks</p>
-              <h3 className="text-3xl font-bold text-white mt-1">{stats.totalClicks}</h3>
+        <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 p-3 sm:p-4 lg:p-6 rounded-xl sm:rounded-2xl">
+          <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-2">
+            <div className="text-center sm:text-left">
+              <p className="text-gray-400 text-xs sm:text-sm font-medium">Links</p>
+              <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mt-0.5 sm:mt-1">
+                {stats.totalUrls}
+              </h3>
             </div>
-            <div className="p-3 bg-blue-500/20 rounded-xl">
-              <BarChart2 className="w-6 h-6 text-blue-400" />
+            <div className="p-2 sm:p-3 bg-pink-500/20 rounded-lg sm:rounded-xl hidden sm:block">
+              <LinkIcon className="w-5 h-5 sm:w-6 sm:h-6 text-pink-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 p-3 sm:p-4 lg:p-6 rounded-xl sm:rounded-2xl">
+          <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-2">
+            <div className="text-center sm:text-left">
+              <p className="text-gray-400 text-xs sm:text-sm font-medium">Clicks</p>
+              <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mt-0.5 sm:mt-1">
+                {stats.totalClicks}
+              </h3>
+            </div>
+            <div className="p-2 sm:p-3 bg-blue-500/20 rounded-lg sm:rounded-xl hidden sm:block">
+              <BarChart2 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex space-x-4 border-b border-gray-700">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-700 pb-3 sm:pb-0">
+        <div className="flex overflow-x-auto scrollbar-hide -mx-1 px-1 sm:mx-0 sm:px-0">
+          <button
+            className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
+              activeTab === 'users'
+                ? 'text-purple-400 border-b-2 border-purple-400'
+                : 'text-gray-400 hover:text-white'
+            }`}
+            onClick={() => setActiveTab('users')}
+          >
+            Users
+          </button>
+          <button
+            className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
+              activeTab === 'links'
+                ? 'text-purple-400 border-b-2 border-purple-400'
+                : 'text-gray-400 hover:text-white'
+            }`}
+            onClick={() => setActiveTab('links')}
+          >
+            <span className="hidden sm:inline">Links & Moderation</span>
+            <span className="sm:hidden">Links</span>
+          </button>
+          <button
+            className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
+              activeTab === 'settings'
+                ? 'text-purple-400 border-b-2 border-purple-400'
+                : 'text-gray-400 hover:text-white'
+            }`}
+            onClick={() => setActiveTab('settings')}
+          >
+            Settings
+          </button>
+        </div>
+
+        {/* Refresh Button */}
         <button
-          className={`pb-2 px-4 font-medium transition-colors ${
-            activeTab === 'users'
-              ? 'text-purple-400 border-b-2 border-purple-400'
-              : 'text-gray-400 hover:text-white'
-          }`}
-          onClick={() => setActiveTab('users')}
+          onClick={handleRefresh}
+          disabled={loading || isRefreshing}
+          className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-xl transition-all disabled:opacity-50 w-full sm:w-auto"
         >
-          Users
-        </button>
-        <button
-          className={`pb-2 px-4 font-medium transition-colors ${
-            activeTab === 'links'
-              ? 'text-purple-400 border-b-2 border-purple-400'
-              : 'text-gray-400 hover:text-white'
-          }`}
-          onClick={() => setActiveTab('links')}
-        >
-          Links & Moderation
-        </button>
-        <button
-          className={`pb-2 px-4 font-medium transition-colors ${
-            activeTab === 'settings'
-              ? 'text-purple-400 border-b-2 border-purple-400'
-              : 'text-gray-400 hover:text-white'
-          }`}
-          onClick={() => setActiveTab('settings')}
-        >
-          Settings
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
         </button>
       </div>
 
       {/* Content Area */}
-      <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 rounded-2xl overflow-hidden min-h-[400px]">
+      <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 rounded-xl sm:rounded-2xl overflow-hidden min-h-[300px] sm:min-h-[400px]">
         {/* USERS TAB */}
         {activeTab === 'users' && (
           <>
-            <div className="p-6 border-b border-gray-700/50 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-white">User Management</h2>
+            <div className="p-4 sm:p-6 border-b border-gray-700/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <h2 className="text-lg sm:text-xl font-bold text-white">User Management</h2>
               <button
                 onClick={() => setShowCreateUserModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium rounded-xl transition-all"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white text-sm sm:text-base font-medium rounded-xl transition-all w-full sm:w-auto justify-center"
               >
                 <UserPlus className="w-4 h-4" />
-                Create User
+                <span className="hidden sm:inline">Create User</span>
+                <span className="sm:hidden">Add User</span>
               </button>
             </div>
-            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+
+            {/* Mobile Card View for Users */}
+            <div className="md:hidden p-3 space-y-3">
+              {users.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 py-12">
+                  <Users className="w-12 h-12 text-gray-600" />
+                  <p className="text-gray-400 font-medium">No users found</p>
+                  <p className="text-gray-500 text-sm">Users will appear here once they register</p>
+                </div>
+              ) : (
+                users.map((user) => (
+                  <div
+                    key={user._id}
+                    className="bg-gray-800/30 border border-gray-700/50 rounded-xl overflow-hidden"
+                  >
+                    {/* User Header */}
+                    <div
+                      className="p-3 flex items-center gap-3 cursor-pointer"
+                      onClick={() =>
+                        setExpandedUserId(expandedUserId === user._id ? null : user._id)
+                      }
+                    >
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-sm font-bold text-white shrink-0">
+                        {user.firstName
+                          ? user.firstName[0].toUpperCase()
+                          : user.email[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium text-sm truncate">{user.email}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              user.role === 'admin'
+                                ? 'bg-purple-500/20 text-purple-300'
+                                : 'bg-gray-700 text-gray-300'
+                            }`}
+                          >
+                            {user.role}
+                          </span>
+                          {user.isActive !== false ? (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-500/20 text-green-300">
+                              Active
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-500/20 text-red-300">
+                              Banned
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button className="p-1.5 hover:bg-gray-700/50 rounded-lg">
+                        {expandedUserId === user._id ? (
+                          <ChevronUp size={16} className="text-gray-400" />
+                        ) : (
+                          <ChevronDown size={16} className="text-gray-400" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Expanded Content */}
+                    {expandedUserId === user._id && (
+                      <div className="border-t border-gray-700/50">
+                        {/* User Details */}
+                        <div className="p-3 space-y-2 text-sm">
+                          {(user.firstName || user.lastName) && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Name</span>
+                              <span className="text-white">
+                                {user.firstName} {user.lastName}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Joined</span>
+                            <span className="text-gray-300">
+                              {new Date(user.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          {user.bannedUntil && user.isActive === false && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Unbans</span>
+                              <span className="text-orange-400">
+                                {new Date(user.bannedUntil).toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                          {user.phone && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Phone</span>
+                              <span className="text-gray-300">{user.phone}</span>
+                            </div>
+                          )}
+                          {user.company && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Company</span>
+                              <span className="text-gray-300">{user.company}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div
+                          className="p-3 pt-0 flex flex-wrap gap-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => handleToggleUserRole(user._id, user.role)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              user.role === 'admin'
+                                ? 'bg-orange-500/20 text-orange-300 hover:bg-orange-500/30'
+                                : 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30'
+                            }`}
+                          >
+                            {user.role === 'admin' ? (
+                              <ShieldAlert size={12} />
+                            ) : (
+                              <Shield size={12} />
+                            )}
+                            {user.role === 'admin' ? 'Demote' : 'Promote'}
+                          </button>
+                          {user.role !== 'admin' && (
+                            <>
+                              <button
+                                onClick={() =>
+                                  handleToggleUserStatus(user._id, user.isActive !== false)
+                                }
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                  user.isActive !== false
+                                    ? 'bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30'
+                                    : 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
+                                }`}
+                              >
+                                {user.isActive !== false ? (
+                                  <Ban size={12} />
+                                ) : (
+                                  <CheckCircle size={12} />
+                                )}
+                                {user.isActive !== false ? 'Ban' : 'Activate'}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUser(user._id)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors"
+                              >
+                                <Trash2 size={12} />
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
+
+                        {/* History/Appeals Buttons */}
+                        <div className="px-3 pb-3 flex gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleSection(user._id, 'history');
+                            }}
+                            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              expandedSection[user._id] === 'history'
+                                ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                                : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+                            }`}
+                          >
+                            <History size={12} />
+                            History
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleSection(user._id, 'appeals');
+                            }}
+                            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              expandedSection[user._id] === 'appeals'
+                                ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
+                                : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+                            }`}
+                          >
+                            <FileText size={12} />
+                            Appeals
+                          </button>
+                        </div>
+
+                        {/* Ban History Panel - Mobile */}
+                        {expandedSection[user._id] === 'history' && (
+                          <div className="mx-3 mb-3 bg-gray-800/30 rounded-lg border border-gray-700/50 p-3">
+                            <h4 className="text-xs font-medium text-white mb-2 flex items-center gap-1.5">
+                              <History size={12} className="text-orange-400" />
+                              Ban History
+                            </h4>
+                            {loadingHistory[user._id] === 'history' ? (
+                              <div className="flex justify-center py-3">
+                                <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                              </div>
+                            ) : userBanHistory[user._id]?.length > 0 ? (
+                              <div className="space-y-2 max-h-40 overflow-y-auto">
+                                {userBanHistory[user._id].map((entry, idx) => (
+                                  <div
+                                    key={entry._id || idx}
+                                    className={`p-2 rounded-lg text-xs ${
+                                      entry.action === 'ban'
+                                        ? 'bg-red-500/10 border border-red-500/20'
+                                        : 'bg-green-500/10 border border-green-500/20'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span
+                                        className={`font-medium ${
+                                          entry.action === 'ban' ? 'text-red-300' : 'text-green-300'
+                                        }`}
+                                      >
+                                        {entry.action === 'ban' ? 'Banned' : 'Unbanned'}
+                                      </span>
+                                      <span className="text-gray-500 text-[10px]">
+                                        {new Date(entry.createdAt).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    {entry.reason && (
+                                      <p className="text-gray-400 mt-1 line-clamp-2">
+                                        {entry.reason}
+                                      </p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-gray-500 text-center py-2">No history</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Appeals Panel - Mobile */}
+                        {expandedSection[user._id] === 'appeals' && (
+                          <div className="mx-3 mb-3 bg-gray-800/30 rounded-lg border border-gray-700/50 p-3">
+                            <h4 className="text-xs font-medium text-white mb-2 flex items-center gap-1.5">
+                              <FileText size={12} className="text-violet-400" />
+                              Appeals
+                            </h4>
+                            {loadingHistory[user._id] === 'appeals' ? (
+                              <div className="flex justify-center py-3">
+                                <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                              </div>
+                            ) : userAppeals[user._id]?.length > 0 ? (
+                              <div className="space-y-2 max-h-40 overflow-y-auto">
+                                {userAppeals[user._id].map((appeal) => (
+                                  <div
+                                    key={appeal._id}
+                                    className={`p-2 rounded-lg text-xs border ${
+                                      appeal.status === 'pending'
+                                        ? 'bg-yellow-500/10 border-yellow-500/20'
+                                        : appeal.status === 'approved'
+                                          ? 'bg-green-500/10 border-green-500/20'
+                                          : 'bg-red-500/10 border-red-500/20'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                      <span
+                                        className={`font-medium capitalize ${
+                                          appeal.status === 'pending'
+                                            ? 'text-yellow-300'
+                                            : appeal.status === 'approved'
+                                              ? 'text-green-300'
+                                              : 'text-red-300'
+                                        }`}
+                                      >
+                                        {appeal.status}
+                                      </span>
+                                      <span className="text-gray-500 text-[10px]">
+                                        {new Date(appeal.createdAt).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    <p className="text-gray-300 line-clamp-2">{appeal.reason}</p>
+                                    {appeal.status === 'pending' && (
+                                      <div className="flex gap-1.5 mt-2">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRespondToAppeal(appeal._id, 'approved', true);
+                                          }}
+                                          className="flex-1 px-2 py-1 bg-green-500/20 text-green-300 rounded text-[10px] font-medium"
+                                        >
+                                          Approve & Unban
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRespondToAppeal(appeal._id, 'rejected');
+                                          }}
+                                          className="flex-1 px-2 py-1 bg-red-500/20 text-red-300 rounded text-[10px] font-medium"
+                                        >
+                                          Reject
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-gray-500 text-center py-2">No appeals</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Desktop Table View for Users */}
+            <div className="hidden md:block overflow-x-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
               <table className="w-full text-left min-w-[800px]">
                 <thead>
                   <tr className="bg-gray-800/80 text-gray-400 text-sm uppercase tracking-wider">
@@ -750,9 +1143,22 @@ const AdminDashboard = () => {
                               Unban Pending
                             </span>
                           ) : (
-                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-300 border border-red-500/30">
-                              Banned
-                            </span>
+                            <div className="flex flex-col gap-1">
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-300 border border-red-500/30 w-fit">
+                                Banned
+                              </span>
+                              {user.bannedUntil ? (
+                                <div
+                                  className="flex items-center gap-1 text-[10px] text-orange-400"
+                                  title={`Unbans: ${new Date(user.bannedUntil).toLocaleString()}`}
+                                >
+                                  <Timer size={10} />
+                                  <span>{new Date(user.bannedUntil).toLocaleDateString()}</span>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-red-400">Permanent</span>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="px-6 py-4 text-gray-400 text-sm">
@@ -1139,8 +1545,8 @@ const AdminDashboard = () => {
         {/* LINKS TAB */}
         {activeTab === 'links' && (
           <>
-            <div className="p-6 border-b border-gray-700/50 flex flex-col sm:flex-row justify-between items-center gap-4">
-              <h2 className="text-xl font-bold text-white">Global Link Management</h2>
+            <div className="p-4 sm:p-6 border-b border-gray-700/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+              <h2 className="text-lg sm:text-xl font-bold text-white">Link Management</h2>
               <div className="relative w-full sm:w-64">
                 <Search
                   className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
@@ -1155,7 +1561,134 @@ const AdminDashboard = () => {
                 />
               </div>
             </div>
-            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+
+            {/* Mobile Card View for Links */}
+            <div className="md:hidden p-3 space-y-3">
+              {links.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 py-12">
+                  <LinkIcon className="w-12 h-12 text-gray-600" />
+                  <p className="text-gray-400 font-medium">No links found</p>
+                  <p className="text-gray-500 text-sm text-center">
+                    {linkSearch
+                      ? 'Try a different search term'
+                      : 'Links will appear here once users create them'}
+                  </p>
+                </div>
+              ) : (
+                links.map((link) => {
+                  const isOwnerBanned = link.ownerBanned;
+                  const isDisabledByAdmin = !link.isActive;
+                  const isEffectivelyDisabled = isOwnerBanned || isDisabledByAdmin;
+
+                  return (
+                    <div
+                      key={link._id}
+                      className={`bg-gray-800/30 border rounded-xl overflow-hidden ${
+                        isOwnerBanned
+                          ? 'border-orange-500/30 bg-orange-500/5'
+                          : 'border-gray-700/50'
+                      }`}
+                    >
+                      {/* Link Header */}
+                      <div className="p-3">
+                        {/* Short ID and Status */}
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`font-mono text-sm font-medium ${
+                                isEffectivelyDisabled ? 'text-gray-500' : 'text-blue-400'
+                              }`}
+                            >
+                              /{link.shortId}
+                            </span>
+                            {link.customAlias && (
+                              <span
+                                className={`flex items-center gap-1 font-mono text-xs ${
+                                  isEffectivelyDisabled ? 'text-gray-500' : 'text-purple-400'
+                                }`}
+                              >
+                                <Sparkles size={10} />/{link.customAlias}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                link.isActive
+                                  ? 'bg-green-500/20 text-green-300'
+                                  : 'bg-red-500/20 text-red-300'
+                              }`}
+                            >
+                              {link.isActive ? 'Active' : 'Disabled'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Original URL */}
+                        <p
+                          className={`text-xs truncate mb-2 ${
+                            isEffectivelyDisabled ? 'text-gray-500' : 'text-gray-300'
+                          }`}
+                          title={link.originalUrl}
+                        >
+                          → {link.originalUrl}
+                        </p>
+
+                        {/* Owner and Date */}
+                        <div className="flex items-center justify-between text-[10px] text-gray-500">
+                          <div className="flex items-center gap-1">
+                            <span className="truncate max-w-[120px]">
+                              {link.createdBy?.email || 'Anonymous'}
+                            </span>
+                            {isOwnerBanned && (
+                              <span className="flex items-center gap-0.5 text-orange-400">
+                                <UserX size={10} />
+                                Banned
+                              </span>
+                            )}
+                          </div>
+                          <span>{new Date(link.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="px-3 pb-3 flex gap-2">
+                        <a
+                          href={link.originalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700/50 text-gray-300 hover:bg-gray-700 transition-colors"
+                        >
+                          <ExternalLink size={12} />
+                          Open
+                        </a>
+                        <button
+                          onClick={() => handleToggleLinkStatus(link._id, link.isActive)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            link.isActive
+                              ? 'bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30'
+                              : 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
+                          }`}
+                        >
+                          {link.isActive ? <ShieldAlert size={12} /> : <CheckCircle size={12} />}
+                          {link.isActive ? 'Disable' : 'Enable'}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteLink(link._id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors"
+                        >
+                          <Trash2 size={12} />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Desktop Table View for Links */}
+            <div className="hidden md:block overflow-x-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
               <table className="w-full text-left min-w-[900px]">
                 <thead>
                   <tr className="bg-gray-800/80 text-gray-400 text-sm uppercase tracking-wider">
@@ -1311,26 +1844,28 @@ const AdminDashboard = () => {
         {/* SETTINGS TAB */}
         {activeTab === 'settings' && (
           <>
-            <div className="p-6 border-b border-gray-700/50">
-              <h2 className="text-xl font-bold text-white">System Settings</h2>
+            <div className="p-4 sm:p-6 border-b border-gray-700/50">
+              <h2 className="text-lg sm:text-xl font-bold text-white">System Settings</h2>
             </div>
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
               {/* Email Verification Toggle */}
-              <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-xl border border-gray-700/50">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-purple-500/20 rounded-lg">
-                    <Settings className="w-6 h-6 text-purple-400" />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-800/50 rounded-xl border border-gray-700/50">
+                <div className="flex items-start sm:items-center gap-3 sm:gap-4">
+                  <div className="p-2 sm:p-3 bg-purple-500/20 rounded-lg shrink-0">
+                    <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-medium text-white">Email Verification</h3>
-                    <p className="text-sm text-gray-400">
-                      Require new users to verify their email address before logging in.
+                    <h3 className="text-base sm:text-lg font-medium text-white">
+                      Email Verification
+                    </h3>
+                    <p className="text-xs sm:text-sm text-gray-400">
+                      Require users to verify email before logging in.
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={handleToggleVerification}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors w-full sm:w-auto ${
                     settings.requireEmailVerification
                       ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
                       : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
@@ -1351,21 +1886,23 @@ const AdminDashboard = () => {
               </div>
 
               {/* Email Configuration Section */}
-              <div className="p-6 bg-gray-800/50 rounded-xl border border-gray-700/50">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-blue-500/20 rounded-lg">
-                      <Mail className="w-6 h-6 text-blue-400" />
+              <div className="p-4 sm:p-6 bg-gray-800/50 rounded-xl border border-gray-700/50">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 sm:mb-6">
+                  <div className="flex items-start sm:items-center gap-3 sm:gap-4">
+                    <div className="p-2 sm:p-3 bg-blue-500/20 rounded-lg shrink-0">
+                      <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-medium text-white">Email Configuration</h3>
-                      <p className="text-sm text-gray-400">
-                        Configure SMTP settings for sending verification and notification emails.
+                      <h3 className="text-base sm:text-lg font-medium text-white">
+                        Email Configuration
+                      </h3>
+                      <p className="text-xs sm:text-sm text-gray-400">
+                        Configure SMTP for verification emails.
                       </p>
                     </div>
                   </div>
                   <span
-                    className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs sm:text-sm font-medium self-start sm:self-auto ${
                       settings.emailConfigured
                         ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                         : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
@@ -1373,13 +1910,15 @@ const AdminDashboard = () => {
                   >
                     {settings.emailConfigured ? (
                       <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        Configured
+                        <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">Configured</span>
+                        <span className="sm:hidden">OK</span>
                       </>
                     ) : (
                       <>
-                        <AlertCircle className="w-4 h-4" />
-                        Not Configured
+                        <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">Not Configured</span>
+                        <span className="sm:hidden">Pending</span>
                       </>
                     )}
                   </span>
@@ -1417,6 +1956,69 @@ const AdminDashboard = () => {
                       </p>
                     )}
                   </div>
+
+                  {/* Custom SMTP Settings */}
+                  {emailForm.emailProvider === 'smtp' && (
+                    <>
+                      {/* SMTP Host */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          SMTP Host
+                        </label>
+                        <input
+                          type="text"
+                          value={emailForm.smtpHost}
+                          onChange={(e) => setEmailForm({ ...emailForm, smtpHost: e.target.value })}
+                          placeholder="smtp.example.com"
+                          className="w-full px-4 py-3 rounded-xl bg-gray-900/50 border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                        />
+                      </div>
+
+                      {/* SMTP Port and Secure */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            SMTP Port
+                          </label>
+                          <input
+                            type="number"
+                            value={emailForm.smtpPort}
+                            onChange={(e) =>
+                              setEmailForm({ ...emailForm, smtpPort: e.target.value })
+                            }
+                            placeholder="587"
+                            className="w-full px-4 py-3 rounded-xl bg-gray-900/50 border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Use SSL/TLS
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEmailForm({ ...emailForm, smtpSecure: !emailForm.smtpSecure })
+                            }
+                            className={`w-full px-4 py-3 rounded-xl border transition-all ${
+                              emailForm.smtpSecure
+                                ? 'bg-purple-500/20 border-purple-500 text-purple-400'
+                                : 'bg-gray-900/50 border-gray-700 text-gray-400'
+                            }`}
+                          >
+                            {emailForm.smtpSecure
+                              ? '✓ Enabled (Port 465)'
+                              : '✗ Disabled (Port 587)'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-gray-500">
+                        Common settings: Gmail (smtp.gmail.com:587), Outlook
+                        (smtp-mail.outlook.com:587), SendGrid (smtp.sendgrid.net:587), Mailgun
+                        (smtp.mailgun.org:587)
+                      </p>
+                    </>
+                  )}
 
                   {/* Email Username */}
                   <div>

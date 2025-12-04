@@ -1,7 +1,32 @@
 import axios from 'axios';
 
+// Dynamically determine API base URL
+// In production: use relative '/api' (works with Cloudflare, etc.)
+// In development: use VITE_API_URL or localhost
+const getBaseURL = () => {
+  const apiUrl = import.meta.env.VITE_API_URL;
+  const isProduction = import.meta.env.PROD;
+
+  // In production: always use relative path (same origin)
+  // This works with any domain (Cloudflare, custom domain, etc.)
+  if (isProduction) {
+    // If apiUrl is a full URL (not localhost), use it
+    if (apiUrl && !apiUrl.includes('localhost') && !apiUrl.includes('127.0.0.1') && !apiUrl.startsWith('/')) {
+      return apiUrl;
+    }
+    // Otherwise use relative path
+    return '/api';
+  }
+
+  // In development: use env var or fallback
+  if (apiUrl) {
+    return apiUrl;
+  }
+  return 'http://localhost:5000/api';
+};
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: getBaseURL(),
   withCredentials: true, // Important for cookies
   timeout: 10000, // 10 seconds timeout
 });
@@ -125,9 +150,15 @@ api.interceptors.response.use(
           window.location.href = '/account-suspended';
         }
 
-        // If refresh fails, clear token but DON'T redirect (let AuthContext handle it)
-        processQueue(refreshError, null);
-        localStorage.removeItem('accessToken');
+        // Only clear token on explicit auth failures (401/403), NOT on network errors
+        // This prevents logout when server is temporarily unavailable
+        if (refreshError.response?.status === 401 || refreshError.response?.status === 403) {
+          processQueue(refreshError, null);
+          localStorage.removeItem('accessToken');
+        } else {
+          // Network error or server unavailable - keep token and let user retry
+          processQueue(refreshError, null);
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

@@ -1,12 +1,14 @@
 import { Link, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { User, Shield, History } from 'lucide-react';
+import { User, Shield, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
+import { APP_VERSION, hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
 
 const PublicLayout = () => {
   const { user, logout, openAuthModal, isAdmin } = useAuth();
   const [isWhitelistedIP, setIsWhitelistedIP] = useState(false);
+  const [showNewBadge, setShowNewBadge] = useState(hasUnseenChangelog());
 
   // Check if current IP is whitelisted for admin access (only when not logged in)
   useEffect(() => {
@@ -52,12 +54,39 @@ const PublicLayout = () => {
       <nav className="border-b border-white/5 bg-gray-950/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
+            <div className="flex items-center gap-3">
               <Link
                 to="/"
                 className="text-2xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent hover:opacity-80 transition-opacity"
               >
                 Link Snap
+              </Link>
+              {/* Version badge with What's New indicator */}
+              <Link
+                to="/changelog"
+                onClick={() => {
+                  markChangelogAsSeen();
+                  setShowNewBadge(false);
+                }}
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300 transition-all text-xs font-medium group relative"
+              >
+                {showNewBadge && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                  </span>
+                )}
+                <Sparkles className="w-3 h-3" />
+                <span>v{APP_VERSION}</span>
+                {showNewBadge ? (
+                  <span className="text-emerald-400 text-[10px] font-semibold">
+                    What&apos;s New
+                  </span>
+                ) : (
+                  <span className="text-purple-400/50 text-[10px] group-hover:text-purple-300 transition-colors">
+                    Changelog
+                  </span>
+                )}
               </Link>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
@@ -141,8 +170,7 @@ const PublicLayout = () => {
               to="/changelog"
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300 transition-all"
             >
-              <History size={12} />
-              v0.5.1-beta
+              <Sparkles size={12} />v{APP_VERSION}
             </Link>{' '}
             •{' '}
             <span className="inline-block relative whitespace-nowrap">

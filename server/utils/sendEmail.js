@@ -47,11 +47,23 @@ const sendEmail = async (options) => {
                 },
             };
             break;
+        case 'smtp':
+            // Custom SMTP configuration
+            transporterConfig = {
+                host: settings.smtpHost,
+                port: settings.smtpPort || 587,
+                secure: settings.smtpSecure || false, // true for 465, false for other ports
+                auth: {
+                    user: settings.emailUsername,
+                    pass: decryptedPassword,
+                },
+            };
+            break;
         default:
             transporterConfig = {
-                host: process.env.SMTP_HOST || 'smtp.gmail.com',
-                port: process.env.SMTP_PORT || 587,
-                secure: false,
+                host: settings.smtpHost || process.env.SMTP_HOST || 'smtp.gmail.com',
+                port: settings.smtpPort || process.env.SMTP_PORT || 587,
+                secure: settings.smtpSecure || false,
                 auth: {
                     user: settings.emailUsername,
                     pass: decryptedPassword,

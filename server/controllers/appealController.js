@@ -148,6 +148,13 @@ export const checkAppealStatus = async (req, res) => {
             bannedAt: user.bannedAt
         }) : 0;
 
+        // Build banInfo for currently banned users
+        const banInfo = !user.isActive ? {
+            bannedAt: user.bannedAt,
+            bannedUntil: user.bannedUntil,
+            reason: user.bannedReason
+        } : null;
+
         // If user is currently banned, check if this appeal is relevant
         if (!user.isActive && user.bannedAt && appeal) {
             // If the appeal was created BEFORE the current ban, it's an old appeal.
@@ -157,7 +164,8 @@ export const checkAppealStatus = async (req, res) => {
                     hasAppeal: false,
                     isActive: user.isActive,
                     appealsCount: 0,
-                    maxAppeals: 3
+                    maxAppeals: 3,
+                    banInfo
                 });
             }
         }
@@ -167,7 +175,8 @@ export const checkAppealStatus = async (req, res) => {
                 hasAppeal: false,
                 isActive: user.isActive,
                 appealsCount: appealsCount,
-                maxAppeals: 3
+                maxAppeals: 3,
+                banInfo
             });
         }
 
@@ -179,7 +188,8 @@ export const checkAppealStatus = async (req, res) => {
             submittedAt: appeal.createdAt,
             reviewedAt: appeal.reviewedAt,
             appealsCount: appealsCount,
-            maxAppeals: 3
+            maxAppeals: 3,
+            banInfo
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

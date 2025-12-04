@@ -17,6 +17,7 @@ import {
   Sparkles,
   QrCode,
   Ban,
+  RefreshCw,
 } from 'lucide-react';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
@@ -38,6 +39,7 @@ const UserDashboard = () => {
   const [editingLink, setEditingLink] = useState(null);
   const [createdLink, setCreatedLink] = useState(null);
   const [ownerBanned, setOwnerBanned] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     fetchLinks();
@@ -55,7 +57,14 @@ const UserDashboard = () => {
       showToast.error('Please check your connection', 'Failed to Load');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchLinks();
+    showToast.success('Links refreshed', 'Updated');
   };
 
   // Handle new link created from modal
@@ -158,33 +167,45 @@ const UserDashboard = () => {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">My Links</h1>
-          <p className="text-gray-400 text-sm mt-1">
-            {links.length} link{links.length !== 1 ? 's' : ''} • {totalClicks} total click
-            {totalClicks !== 1 ? 's' : ''}
-          </p>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-white">My Links</h1>
+            <p className="text-gray-400 text-xs sm:text-sm mt-1">
+              {links.length} link{links.length !== 1 ? 's' : ''} • {totalClicks} click
+              {totalClicks !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white p-2.5 sm:py-2.5 sm:px-4 rounded-xl font-medium transition-all disabled:opacity-50"
+            title="Refresh links"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
         </div>
         <button
           onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white py-2.5 px-5 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30"
+          className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white py-2.5 px-5 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 w-full sm:w-auto sm:self-start"
         >
           <Plus size={18} />
-          Create New Link
+          <span className="sm:hidden">Create Link</span>
+          <span className="hidden sm:inline">Create New Link</span>
         </button>
       </div>
 
       {/* Search */}
-      <div className="flex gap-2 w-full">
-        <div className="relative flex-1 max-w-md">
+      <div className="w-full">
+        <div className="relative w-full sm:max-w-md">
           <Search
             className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
             size={16}
           />
           <input
             type="text"
-            placeholder="Search by title, URL or short code..."
+            placeholder="Search links..."
             className="w-full bg-gray-800/50 border border-gray-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -227,58 +248,62 @@ const UserDashboard = () => {
                 )}
 
                 {/* Main Card Content */}
-                <div className="p-5">
-                  <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+                <div className="p-3 sm:p-5">
+                  <div className="flex flex-col lg:flex-row lg:items-start gap-3 sm:gap-4">
                     {/* QR Code - Shows custom alias QR if available, otherwise random */}
                     <button
                       onClick={() => setQrModalLink(link)}
-                      className={`p-2 rounded-xl shadow-lg transition-transform cursor-pointer self-center lg:self-start shrink-0 ${
+                      className={`p-1.5 sm:p-2 rounded-lg sm:rounded-xl shadow-lg transition-transform cursor-pointer self-center lg:self-start shrink-0 ${
                         isLinkDisabled ? 'bg-gray-200 opacity-60' : 'bg-white hover:scale-105'
                       }`}
                       title="Click to view QR code"
                     >
                       <QRCodeSVG
                         value={getShortUrl(link.customAlias || link.shortId)}
-                        size={80}
+                        size={60}
                         level="H"
+                        className="sm:w-20 sm:h-20"
                       />
                     </button>
 
                     {/* Link Info */}
-                    <div className="flex-1 min-w-0 space-y-3">
+                    <div className="flex-1 min-w-0 space-y-2 sm:space-y-3">
                       {/* Title & Original URL */}
-                      <div>
+                      <div className="text-center lg:text-left">
                         <h3
-                          className={`font-semibold text-lg truncate ${isLinkDisabled ? 'text-gray-400' : 'text-white'}`}
+                          className={`font-semibold text-base sm:text-lg truncate ${isLinkDisabled ? 'text-gray-400' : 'text-white'}`}
                         >
                           {link.title || 'Untitled Link'}
                         </h3>
-                        <p className="text-gray-500 text-sm truncate" title={link.originalUrl}>
+                        <p
+                          className="text-gray-500 text-xs sm:text-sm truncate"
+                          title={link.originalUrl}
+                        >
                           → {link.originalUrl}
                         </p>
                       </div>
 
                       {/* Short Links */}
-                      <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-row gap-2 sm:gap-3">
                         {/* Custom Alias - Show First if exists */}
                         {link.customAlias && (
                           <div
-                            className={`flex items-center gap-2 rounded-lg px-3 py-2 ${
+                            className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 ${
                               isLinkDisabled
                                 ? 'bg-gray-800/30 border border-gray-700/30'
                                 : 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20'
                             }`}
                           >
                             <Sparkles
-                              size={14}
-                              className={
+                              size={12}
+                              className={`sm:w-[14px] sm:h-[14px] ${
                                 isLinkDisabled
                                   ? 'text-gray-500 shrink-0'
                                   : 'text-purple-400 shrink-0'
-                              }
+                              }`}
                             />
                             <span
-                              className={`font-mono text-sm truncate ${
+                              className={`font-mono text-xs sm:text-sm truncate ${
                                 isLinkDisabled
                                   ? 'text-gray-500 cursor-not-allowed'
                                   : 'text-purple-400 cursor-pointer hover:underline'
@@ -290,7 +315,7 @@ const UserDashboard = () => {
                             </span>
                             <button
                               onClick={() => !isLinkDisabled && copyToClipboard(link.customAlias)}
-                              className={`p-1 rounded transition-colors shrink-0 ${
+                              className={`p-0.5 sm:p-1 rounded transition-colors shrink-0 ${
                                 isLinkDisabled
                                   ? 'text-gray-600 cursor-not-allowed'
                                   : 'hover:bg-purple-500/20'
@@ -299,11 +324,14 @@ const UserDashboard = () => {
                               disabled={isLinkDisabled}
                             >
                               {copiedId === link.customAlias ? (
-                                <Check size={14} className="text-green-400" />
+                                <Check
+                                  size={12}
+                                  className="sm:w-[14px] sm:h-[14px] text-green-400"
+                                />
                               ) : (
                                 <Copy
-                                  size={14}
-                                  className={isLinkDisabled ? 'text-gray-600' : 'text-purple-400'}
+                                  size={12}
+                                  className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-600' : 'text-purple-400'}`}
                                 />
                               )}
                             </button>
@@ -312,10 +340,13 @@ const UserDashboard = () => {
                                 href={getShortUrl(link.customAlias)}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="p-1 hover:bg-purple-500/20 rounded transition-colors shrink-0"
+                                className="p-0.5 sm:p-1 hover:bg-purple-500/20 rounded transition-colors shrink-0"
                                 title="Open custom link"
                               >
-                                <ExternalLink size={14} className="text-purple-400" />
+                                <ExternalLink
+                                  size={12}
+                                  className="sm:w-[14px] sm:h-[14px] text-purple-400"
+                                />
                               </a>
                             )}
                           </div>
@@ -323,20 +354,20 @@ const UserDashboard = () => {
 
                         {/* Random Short ID */}
                         <div
-                          className={`flex items-center gap-2 rounded-lg px-3 py-2 ${
+                          className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 ${
                             isLinkDisabled
                               ? 'bg-gray-800/30 border border-gray-700/30'
                               : 'bg-gray-800/50 border border-gray-700/50'
                           }`}
                         >
                           <LinkIcon
-                            size={14}
-                            className={
+                            size={12}
+                            className={`sm:w-[14px] sm:h-[14px] ${
                               isLinkDisabled ? 'text-gray-500 shrink-0' : 'text-blue-400 shrink-0'
-                            }
+                            }`}
                           />
                           <span
-                            className={`font-mono text-sm truncate ${
+                            className={`font-mono text-xs sm:text-sm truncate ${
                               isLinkDisabled
                                 ? 'text-gray-500 cursor-not-allowed'
                                 : 'text-blue-400 cursor-pointer hover:underline'
@@ -348,7 +379,7 @@ const UserDashboard = () => {
                           </span>
                           <button
                             onClick={() => !isLinkDisabled && copyToClipboard(link.shortId)}
-                            className={`p-1 rounded transition-colors shrink-0 ${
+                            className={`p-0.5 sm:p-1 rounded transition-colors shrink-0 ${
                               isLinkDisabled
                                 ? 'text-gray-600 cursor-not-allowed'
                                 : 'hover:bg-blue-500/20'
@@ -357,11 +388,11 @@ const UserDashboard = () => {
                             disabled={isLinkDisabled}
                           >
                             {copiedId === link.shortId ? (
-                              <Check size={14} className="text-green-400" />
+                              <Check size={12} className="sm:w-[14px] sm:h-[14px] text-green-400" />
                             ) : (
                               <Copy
-                                size={14}
-                                className={isLinkDisabled ? 'text-gray-600' : 'text-blue-400'}
+                                size={12}
+                                className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-600' : 'text-blue-400'}`}
                               />
                             )}
                           </button>
@@ -370,10 +401,13 @@ const UserDashboard = () => {
                               href={getShortUrl(link.shortId)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-1 hover:bg-blue-500/20 rounded transition-colors shrink-0"
+                              className="p-0.5 sm:p-1 hover:bg-blue-500/20 rounded transition-colors shrink-0"
                               title="Open random link"
                             >
-                              <ExternalLink size={14} className="text-blue-400" />
+                              <ExternalLink
+                                size={12}
+                                className="sm:w-[14px] sm:h-[14px] text-blue-400"
+                              />
                             </a>
                           )}
                         </div>
@@ -381,68 +415,68 @@ const UserDashboard = () => {
                     </div>
 
                     {/* Stats & Actions */}
-                    <div className="flex flex-row lg:flex-col items-center lg:items-end gap-3 shrink-0">
+                    <div className="flex flex-row lg:flex-col items-center lg:items-end justify-center gap-2 sm:gap-3 shrink-0">
                       {/* Click Count */}
                       <div
-                        className={`flex items-center gap-2 rounded-lg px-3 py-1.5 ${
+                        className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1 sm:py-1.5 ${
                           isLinkDisabled
                             ? 'bg-gray-800/30 border border-gray-700/30'
                             : 'bg-purple-500/10 border border-purple-500/20'
                         }`}
                       >
                         <BarChart2
-                          size={14}
-                          className={isLinkDisabled ? 'text-gray-500' : 'text-purple-400'}
+                          size={12}
+                          className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-500' : 'text-purple-400'}`}
                         />
                         <span
-                          className={`font-medium text-sm ${isLinkDisabled ? 'text-gray-500' : 'text-purple-400'}`}
+                          className={`font-medium text-xs sm:text-sm ${isLinkDisabled ? 'text-gray-500' : 'text-purple-400'}`}
                         >
                           {link.clicks}
                         </span>
-                        <span className="text-gray-500 text-xs">clicks</span>
+                        <span className="text-gray-500 text-[10px] sm:text-xs">clicks</span>
                       </div>
 
                       {/* Date */}
-                      <span className="text-gray-500 text-xs">
+                      <span className="text-gray-500 text-[10px] sm:text-xs">
                         {new Date(link.createdAt).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
 
                   {/* Actions Bar */}
-                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-800">
-                    <div className="flex items-center gap-1">
+                  <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-800">
+                    <div className="flex items-center gap-0.5 sm:gap-1">
                       <button
                         onClick={() => setEditingLink(link)}
-                        className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors text-sm"
+                        className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors text-xs sm:text-sm"
                         title="Edit link"
                       >
-                        <Edit3 size={16} />
+                        <Edit3 size={14} className="sm:w-4 sm:h-4" />
                         <span className="hidden sm:inline">Edit</span>
                       </button>
                       <Link
                         to={`/dashboard/analytics/${link.shortId}`}
-                        className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors text-sm"
+                        className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors text-xs sm:text-sm"
                         title="View analytics"
                       >
-                        <BarChart2 size={16} />
+                        <BarChart2 size={14} className="sm:w-4 sm:h-4" />
                         <span className="hidden sm:inline">Analytics</span>
                       </Link>
                       <button
                         onClick={() => setQrModalLink(link)}
-                        className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-green-400 hover:bg-green-500/10 rounded-lg transition-colors text-sm"
+                        className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-green-400 hover:bg-green-500/10 rounded-lg transition-colors text-xs sm:text-sm"
                         title="View QR codes"
                       >
-                        <QrCode size={16} />
+                        <QrCode size={14} className="sm:w-4 sm:h-4" />
                         <span className="hidden sm:inline">QR</span>
                       </button>
                     </div>
                     <button
                       onClick={() => handleDelete(link._id)}
-                      className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-sm"
+                      className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-xs sm:text-sm"
                       title="Delete link"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={14} className="sm:w-4 sm:h-4" />
                       <span className="hidden sm:inline">Delete</span>
                     </button>
                   </div>

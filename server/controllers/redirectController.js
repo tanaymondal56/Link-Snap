@@ -923,6 +923,8 @@ const getInactiveLinkPage = (shortId) => `
 export const redirectUrl = async (req, res, next) => {
     const { shortId } = req.params;
 
+    console.log(`[Redirect] Processing shortId: ${shortId}`);
+
     try {
         // 1. Check cache first (fast path)
         const cached = getFromCache(shortId);
@@ -955,8 +957,11 @@ export const redirectUrl = async (req, res, next) => {
 
         if (!url) {
             // If not found, pass to next middleware (which might be frontend routing)
+            console.log(`[Redirect] URL not found for shortId: ${shortId}, passing to next middleware`);
             return next();
         }
+
+        console.log(`[Redirect] Found URL: ${url.originalUrl} for shortId: ${shortId}`);
 
         // 3. Store in cache for next time (include createdBy for ban check)
         setInCache(shortId, { ...url.toObject(), ownerId: url.createdBy });

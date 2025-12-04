@@ -1,8 +1,32 @@
 import User from '../models/User.js';
 import BanHistory from '../models/BanHistory.js';
+import Settings from '../models/Settings.js';
 import Url from '../models/Url.js';
 import { invalidateMultiple } from '../services/cacheService.js';
 import logger from '../utils/logger.js';
+import sendEmail from '../utils/sendEmail.js';
+import { reactivationEmail } from '../utils/emailTemplates.js';
+
+// Send reactivation email when temporary ban expires
+const sendBanExpiredEmail = async (user) => {
+    try {
+        const settings = await Settings.findOne();
+        if (!settings?.emailConfigured) {
+            return;
+        }
+
+        const emailContent = reactivationEmail(user);
+        await sendEmail({
+            email: user.email,
+            subject: emailContent.subject,
+            message: emailContent.html
+        });
+
+        logger.info(`Sent reactivation email to ${user.email}`);
+    } catch (error) {
+        logger.error(`Failed to send reactivation email to ${user.email}: ${error.message}`);
+    }
+};
 
 // Check and process expired temporary bans
 const processExpiredBans = async () => {
@@ -52,6 +76,9 @@ const processExpiredBans = async () => {
                     });
                     invalidateMultiple(allIds);
                 }
+
+                // Send reactivation email
+                sendBanExpiredEmail(user);
 
                 logger.info(`Auto-unbanned user ${user.email} after temporary ban expired`);
             } catch (error) {

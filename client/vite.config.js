@@ -19,13 +19,30 @@ export default defineConfig({
       overlay: true, // Shows errors in browser overlay
     }),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt', // Changed from autoUpdate to prevent unexpected page reloads
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
+        // Don't precache HTML files - let them be fetched fresh
+        globPatterns: ['**/*.{js,css,ico,png,svg,webp}'],
         // Don't cache API calls
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api/],
+        // Skip waiting for service worker activation
+        skipWaiting: false,
+        clientsClaim: false,
+        // Use network-first for HTML navigation requests
         runtimeCaching: [
+          {
+            // HTML pages - serve cache instantly, update in background
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'pages-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 // 1 day max cache
+              }
+            }
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',

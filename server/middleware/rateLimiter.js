@@ -1,23 +1,28 @@
 import rateLimit from 'express-rate-limit';
 
-// IPs that bypass rate limiting (localhost + whitelisted)
+// IPs that bypass rate limiting
+// Add your trusted IPs here:
 const whitelistedIPs = [
-    // Localhost variations
+    // Localhost variations (always included)
     '127.0.0.1',
     '::1',
     '::ffff:127.0.0.1',
-    'localhost',
 
-    // Add your trusted IPs here (same as ipWhitelist.js):
-    // '103.xxx.xxx.xxx',    // Home IP
-    // '192.168.1.100',      // Office IP
+    // Add your trusted IPs below:
+    // '203.0.113.50',    // Example: Your home public IP
+    // '198.51.100.25',   // Example: Office IP
+    // '10.0.0.50',       // Example: VPN IP
 ];
 
 const isWhitelisted = (ip) => {
     if (!ip) return false;
+
+    // Normalize IPv6-mapped IPv4 addresses
+    const normalizedIP = ip.replace(/^::ffff:/, '');
+
     return whitelistedIPs.some(whitelistedIP =>
         ip === whitelistedIP ||
-        ip.includes(whitelistedIP) ||
+        normalizedIP === whitelistedIP ||
         ip.startsWith('::ffff:127.')
     );
 };

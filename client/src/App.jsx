@@ -9,6 +9,8 @@ import AuthModal from './components/AuthModal';
 import { useAuth } from './context/AuthContext';
 import ConfirmDialogProvider from './components/ui/ConfirmDialog';
 import DialogProvider from './components/ui/DialogProvider';
+import PWAUpdatePrompt from './components/PWAUpdatePrompt';
+import PostUpdateChoiceModal from './components/PostUpdateChoiceModal';
 
 // Lazy Loaded Pages
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -68,6 +70,8 @@ const AuthRedirect = ({ tab }) => {
 function AppContent() {
   return (
     <>
+      {/* Handle post-update choice modal */}
+      <PostUpdateChoiceModal />
       <Toaster
         position="top-right"
         containerStyle={{
@@ -135,6 +139,8 @@ function App() {
       <ConfirmDialogProvider>
         <DialogProvider>
           <AppContent />
+          {/* PWA Update Prompt - shows when new version is available */}
+          <PWAUpdatePrompt />
         </DialogProvider>
       </ConfirmDialogProvider>
     </AuthProvider>

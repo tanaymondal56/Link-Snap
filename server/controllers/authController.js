@@ -6,6 +6,17 @@ import { registerSchema, loginSchema, updateProfileSchema } from '../validators/
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import sendEmail from '../utils/sendEmail.js';
+import { welcomeEmail, verificationEmail } from '../utils/emailTemplates.js';
+
+// Cookie settings - use 'strict' for permanent domains, 'lax' for tunnels/dev
+// Set COOKIE_SAMESITE=lax in .env if using temporary tunnels
+const getCookieSameSite = () => {
+  if (process.env.COOKIE_SAMESITE) {
+    return process.env.COOKIE_SAMESITE;
+  }
+  // Default: strict for production (most secure), lax for development
+  return process.env.NODE_ENV === 'production' ? 'strict' : 'lax';
+};
 
 // @desc    Register a new user
 // @route   POST /api/auth/register
@@ -55,19 +66,14 @@ const registerUser = async (req, res, next) => {
         verificationTokenExpires: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
       });
 
-      const verifyUrl = `${process.env.CLIENT_URL}/verify-email/${verificationToken}`;
-      const message = `
-        <h1>Email Verification</h1>
-        <p>Hi${firstName ? ` ${firstName}` : ''},</p>
-        <p>Please click the link below to verify your account:</p>
-        <a href="${verifyUrl}" clicktracking=off>${verifyUrl}</a>
-      `;
+      // Generate beautiful verification email
+      const emailContent = verificationEmail(user, verificationToken);
 
       try {
         await sendEmail({
           email: user.email,
-          subject: 'Link Snap - Verify your email',
-          message,
+          subject: emailContent.subject,
+          message: emailContent.html,
         });
 
         res.status(201).json({
@@ -93,11 +99,27 @@ const registerUser = async (req, res, next) => {
       user.refreshTokens.push(refreshToken);
       await user.save();
 
+      // Send welcome email (non-blocking)
+      try {
+        const settings = await Settings.findOne();
+        if (settings?.emailConfigured) {
+          const emailContent = welcomeEmail(user);
+          await sendEmail({
+            email: user.email,
+            subject: emailContent.subject,
+            message: emailContent.html,
+          });
+        }
+      } catch (emailError) {
+        console.error('Failed to send welcome email:', emailError.message);
+        // Don't fail registration if welcome email fails
+      }
+
       res.cookie('jwt', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        sameSite: getCookieSameSite(),
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       });
 
       res.status(201).json({
@@ -185,10 +207,11 @@ const loginUser = async (req, res, next) => {
           banned: true,
           bannedReason: user.bannedReason || 'Account suspended by administrator',
           bannedAt: user.bannedAt,
+          bannedUntil: user.bannedUntil,
           userEmail: user.email,
           appealToken,
           support: {
-            email: 'support@linksnap.com',
+            email: process.env.SUPPORT_EMAIL || 'support@example.com',
             message: 'If you believe this is a mistake, please contact our support team.'
           }
         });
@@ -235,8 +258,8 @@ const loginUser = async (req, res, next) => {
       res.cookie('jwt', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        sameSite: getCookieSameSite(),
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       });
 
       res.json({
@@ -280,7 +303,7 @@ const logoutUser = async (req, res, next) => {
       res.clearCookie('jwt', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: getCookieSameSite(),
       });
       return res.sendStatus(204);
     }
@@ -292,7 +315,7 @@ const logoutUser = async (req, res, next) => {
     res.clearCookie('jwt', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: getCookieSameSite(),
     });
     res.status(200).json({ message: 'Logged out successfully' });
   } catch (error) {
@@ -318,7 +341,7 @@ const refreshAccessToken = async (req, res, next) => {
       res.clearCookie('jwt', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+        sameSite: getCookieSameSite(),
       });
       return res.status(403).json({
         message: 'Your account has been suspended. Please contact support for assistance.',
@@ -346,8 +369,8 @@ const refreshAccessToken = async (req, res, next) => {
       res.cookie('jwt', newRefreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        sameSite: getCookieSameSite(),
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       });
 
       const accessToken = generateAccessToken(user._id);

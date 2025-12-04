@@ -171,7 +171,7 @@ A comprehensive list of planned features and improvements for the Link Snap URL 
 - Install on home screen
 - Offline access to dashboard
 - Push notifications
-- **Status:** Not Started
+- **Status:** ✅ Done (Configuration Ready)
 - **Effort:** Medium
 
 ### 21. Custom Branded Domain
@@ -1066,6 +1066,46 @@ A comprehensive list of planned features and improvements for the Link Snap URL 
 - **Status:** Not Started
 - **Effort:** High
 
+### 119. Traffic Throttling (Server Protection)
+
+- Limit clicks per second to destination
+- Queue users if limit reached ("You are #5 in line")
+- Prevent crashing small servers during viral spikes
+- **Status:** Not Started
+- **Effort:** High
+
+### 120. Geofencing (GPS Access Control)
+
+- Require physical presence to access link (Mobile)
+- Uses browser Geolocation API
+- Great for events, scavenger hunts, or local promos
+- **Status:** Not Started
+- **Effort:** High
+
+### 121. AI Artistic QR Codes
+
+- Generate visually stunning QR codes using Stable Diffusion
+- Blend logos and art seamlessly into the code
+- High scan rate maintenance
+- **Status:** Not Started
+- **Effort:** Very High
+
+### 122. Affiliate Disclosure Mode
+
+- Automatically show "This is an affiliate link" banner
+- Compliance with FTC guidelines
+- Sticky footer or top bar overlay
+- **Status:** Not Started
+- **Effort:** Low
+
+### 123. Sequential Redirects (Story Mode)
+
+- 1st click goes to URL A, 2nd click to URL B, etc.
+- Loop back to start or stay at end
+- Perfect for multi-step reveals or contests
+- **Status:** Not Started
+- **Effort:** Medium
+
 ---
 
 ## 💡 Quick Wins (Easy to Implement)
@@ -1215,7 +1255,7 @@ A comprehensive list of planned features and improvements for the Link Snap URL 
 | 🌐 Scaling & Performance        | 4        |
 | 🏆 Competitor-Inspired Features | 15       |
 | 💡 Quick Wins                   | 30       |
-| **Total Features**              | **145+** |
+| **Total Features**              | **150+** |
 
 ---
 

@@ -14,10 +14,11 @@ import {
   Loader2,
   AlertCircle,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
+import { APP_VERSION, hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
 import showToast from '../components/ui/Toast';
 import { getShortUrl } from '../utils/urlHelper';
-import { useAuth } from '../context/AuthContext';
 import LinkSuccessModal from '../components/LinkSuccessModal';
 
 // Helper to normalize URL (add https:// if missing)
@@ -53,10 +54,25 @@ const useDebounce = (value, delay) => {
   return debouncedValue;
 };
 
-// Get base domain
+// Get base domain and display version (truncated for long URLs)
 const getBaseDomain = () => {
   const fullUrl = getShortUrl('');
   return fullUrl.replace(/\/$/, '');
+};
+
+// Get a display-friendly version of the domain (truncate if too long)
+const getDisplayDomain = (fullDomain) => {
+  // Remove protocol for display
+  const domain = fullDomain.replace(/^https?:\/\//, '');
+
+  // If domain is short enough, show it all
+  if (domain.length <= 20) {
+    return domain;
+  }
+
+  // For long domains (like Cloudflare tunnels), truncate with ellipsis
+  // Show first 8 chars + ... + last 8 chars
+  return `${domain.slice(0, 8)}...${domain.slice(-8)}`;
 };
 
 const LandingPage = () => {
@@ -68,6 +84,7 @@ const LandingPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showNewBadge, setShowNewBadge] = useState(hasUnseenChangelog());
 
   // Alias availability state
   const [aliasStatus, setAliasStatus] = useState({
@@ -78,6 +95,7 @@ const LandingPage = () => {
 
   const debouncedAlias = useDebounce(customAlias, 400);
   const baseDomain = getBaseDomain();
+  const displayDomain = getDisplayDomain(baseDomain);
 
   // Check alias availability
   const checkAlias = useCallback(async (alias) => {
@@ -208,11 +226,23 @@ const LandingPage = () => {
                 </span>
                 Smart Analytics Included
               </div>
+              {/* Version badge - visible on mobile, matches desktop styling */}
               <Link
                 to="/changelog"
-                className="inline-flex items-center px-2.5 py-1 rounded-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-xs font-semibold text-purple-300 hover:from-purple-500/30 hover:to-pink-500/30 transition-all"
+                onClick={() => {
+                  markChangelogAsSeen();
+                  setShowNewBadge(false);
+                }}
+                className="sm:hidden inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300 transition-all text-xs font-medium relative"
               >
-                v0.5.1-beta
+                {showNewBadge && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                  </span>
+                )}
+                <Sparkles className="w-3 h-3" />
+                <span>v{APP_VERSION}</span>
               </Link>
             </div>
 
@@ -286,8 +316,11 @@ const LandingPage = () => {
                       <Sparkles size={14} className="text-purple-400" />
                     </label>
                     <div className="relative group">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none">
-                        {baseDomain}/
+                      <span
+                        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none truncate max-w-[45%]"
+                        title={baseDomain}
+                      >
+                        {displayDomain}/
                       </span>
                       <input
                         type="text"
@@ -300,7 +333,7 @@ const LandingPage = () => {
                                 ? 'border-red-500/50'
                                 : 'border-gray-700'
                         }`}
-                        style={{ paddingLeft: `${baseDomain.length * 7.5 + 20}px` }}
+                        style={{ paddingLeft: `${displayDomain.length * 7.5 + 28}px` }}
                         placeholder="my-brand"
                         value={customAlias}
                         onChange={handleAliasChange}

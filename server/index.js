@@ -1,5 +1,7 @@
+// Load environment variables FIRST - must be before any other imports
+import './config/env.js';
+
 import express from 'express';
-import dotenv from 'dotenv';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -19,10 +21,6 @@ import adminRoutes from './routes/adminRoutes.js';
 import appealRoutes from './routes/appealRoutes.js';
 import redirectRoutes from './routes/redirectRoutes.js';
 import { startBanScheduler } from './services/banScheduler.js';
-
-dotenv.config();
-
-connectDB();
 
 const app = express();
 
@@ -65,16 +63,27 @@ app.use(helmet({
 const allowedOrigins = [
   process.env.CLIENT_URL || 'http://localhost:3000',
   'http://localhost:3000',
-  'http://127.0.0.1:3000'
+  'http://127.0.0.1:3000',
+  // Add any tunnel URLs here if needed
 ];
+
+// In production, also allow the same origin (when client is served from server)
+if (process.env.NODE_ENV === 'production') {
+  allowedOrigins.push(process.env.CLIENT_URL);
+}
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
+    // Allow requests with no origin (like mobile apps, curl, or same-origin in production)
     if (!origin) return callback(null, true);
+
+    // In production, allow same-origin requests
+    if (process.env.NODE_ENV === 'production') {
+      return callback(null, true);
+    }
+
     if (allowedOrigins.indexOf(origin) === -1) {
-      // For development, you might want to allow all, but let's stick to the list
-      // Or just check if it includes localhost
+      // For development, allow localhost variants
       if (process.env.NODE_ENV === 'development' && (
         origin.includes('localhost') ||
         origin.includes('127.0.0.1') ||
@@ -100,38 +109,53 @@ app.use(mongoSanitize);
 app.use('/api', apiLimiter);
 app.use('/api/auth', authLimiter);
 
-// Routes
+// Routes (API routes first)
 app.use('/api/auth', authRoutes);
 app.use('/api/url', urlRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/appeals', appealRoutes);
-app.use('/', redirectRoutes);
 
-// Serve static assets in production
+// Serve static assets in production (BEFORE redirect routes)
 if (process.env.NODE_ENV === 'production') {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  // Assuming client build is in ../client/dist relative to server/index.js
-  // Adjust path if you deploy differently (e.g. copying dist to server folder)
-  app.use(express.static(path.join(__dirname, '../client/dist')));
+  // Serve static files from client build with proper cache headers
+  app.use(express.static(path.join(__dirname, '../client/dist'), {
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+      // For HTML files, don't cache to ensure fresh content
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+      // For JS/CSS with hash in filename, cache forever (immutable)
+      else if (filePath.match(/\.[a-f0-9]{8}\.(js|css)$/)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+      // For other assets (images, fonts, etc), short cache with revalidation
+      else {
+        res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate'); // 5 minutes
+      }
+    }
+  }));
+}
 
-  app.get('*', (req, res) => {
-    // Don't intercept API routes or redirect routes (which are handled above)
-    // But wait, redirectRoutes is mounted at '/', so it might conflict with static files if not careful.
-    // Actually, redirectRoutes handles /:shortId. Static files are specific paths.
-    // Express checks routes in order.
-    // If we put static files middleware BEFORE redirect routes, it might be safer for assets.
-    // But usually static files have extensions.
-    // Let's keep it simple: API first, then Redirects, then Static.
-    // Wait, if I have a route /dashboard, redirect controller might try to catch it as a shortId?
-    // We need to make sure redirect controller doesn't catch frontend routes.
-    // Frontend routes are handled by * here.
-    // But redirectRoutes is mounted at / and takes /:shortId.
-    // If I go to /dashboard, redirectRoutes sees shortId="dashboard".
-    // It will try to find a URL with shortId="dashboard". If not found, it 404s.
-    // We want it to fall through to the frontend index.html.
-    // So redirectController should call next() if not found?
-    // Or we should be more specific.
+// Short URL redirect routes (after static files, so JS/CSS/images are served directly)
+app.use('/', redirectRoutes);
+
+// SPA catch-all route (after redirect routes)
+if (process.env.NODE_ENV === 'production') {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  // Catch-all route for SPA - Express 5 uses {*param} syntax
+  // This handles all routes not matched by API or redirect routes
+  app.get('/{*splat}', (req, res) => {
+    console.log(`[SPA Catch-all] Serving index.html for: ${req.path}`);
+    // Set no-cache headers for SPA routes to ensure fresh content after builds
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(path.resolve(__dirname, '../client/dist/index.html'));
   });
 } else {
@@ -145,9 +169,21 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+// Start server only after database connection is established
+const startServer = async () => {
+  try {
+    await connectDB();
 
-  // Start the temporary ban scheduler
-  startBanScheduler();
-});
+    app.listen(PORT, () => {
+      logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+
+      // Start the temporary ban scheduler
+      startBanScheduler();
+    });
+  } catch (error) {
+    logger.error(`Failed to start server: ${error.message}`);
+    process.exit(1);
+  }
+};
+
+startServer();

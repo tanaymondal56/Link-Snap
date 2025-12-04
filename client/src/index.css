@@ -16,6 +16,14 @@
     background-size: 200% 200%;
     animation: gradient 8s ease infinite;
   }
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @keyframes gradient {
