@@ -10,13 +10,18 @@
   - _Crucial Rule_: **Do NOT store JWTs in localStorage** (vulnerable to XSS).
 - **CSRF Protection**: Essential when using cookies. Use `csurf` or the "Double Submit Cookie" pattern for stateless verification.
 - **Password Security**: Use `bcrypt` with a work factor (salt rounds) of at least 12. Enforce strong password policies (min length, special chars) using Zod.
+- **Email Verification**: Optional email verification flow with cryptographic tokens (24hr expiry). Configurable via admin Settings panel.
 
-### B. Input Validation & Sanitization (Restored)
+### B. Input Validation & Sanitization
 
 - **Zod Validation**: Use `zod` for strict schema validation on all incoming request bodies.
   - Ensure URLs are valid HTTP/HTTPS protocols (prevent `javascript:` URIs).
   - Sanitize "Custom Alias" to prevent injection or offensive terms.
-- **NoSQL Injection**: Sanitize all inputs before passing them to Mongoose queries. While Mongoose handles most, explicit checks on `$` operators in user input are required.
+- **NoSQL Injection Protection** (`server/middleware/sanitizer.js`):
+  - Custom `mongoSanitize` middleware applied globally.
+  - Recursively sanitizes `req.body`, `req.query`, and `req.params`.
+  - Blocks MongoDB operators (keys starting with `$`) and dot notation attacks.
+  - Removes `$` from start of string values to prevent injection.
 
 ### C. Network & Request Security
 
@@ -28,13 +33,28 @@
 - **HPP (HTTP Parameter Pollution)**: Use `hpp` middleware to prevent attacks that exploit duplicate query parameters.
 - **Information Hiding**: Disable `X-Powered-By` header. Ensure API errors do not leak stack traces in production.
 
-### D. Operational Security
+### D. Admin Panel Security
+
+- **IP Whitelist Protection** (`server/middleware/ipWhitelist.js`):
+  - Admin routes are protected by IP-based allowlist.
+  - Only localhost is allowed by default; additional IPs can be configured.
+  - Uses socket IP (not headers) to prevent IP spoofing.
+  - Returns **404 Not Found** (not 403) to hide existence of admin routes.
+- **Admin Role Verification** (`server/middleware/verifyAdmin.js`):
+  - Double-layer protection: IP whitelist + role check.
+  - Returns 404 to hide admin routes from unauthorized users.
+- **Login History Tracking** (`server/models/LoginHistory.js`):
+  - Records all login attempts (success/failure) with IP, user agent, and reason.
+  - Indexed for quick lookups by userId, IP, or email.
+  - Enables detection of brute force attacks and account security audits.
+
+### E. Operational Security
 
 - **Audit Logging**: Create a separate `AuditLog` collection. Record every critical action (User Ban, Link Deletion, Role Change).
 - **Dependency Scanning**: Integrate `npm audit` or Snyk into the CI/CD pipeline.
 - **Secret Management**: Never commit `.env`. Use a secrets manager in production.
 
-### E. Ban & Appeal System (Enhanced)
+### F. Ban & Appeal System (Enhanced)
 
 - **Secure Appeal Token**:
   - When a banned user attempts login, they receive a 403 Forbidden with a specialized, short-lived JWT (`appealToken`).
@@ -48,9 +68,28 @@
   - Admins can "Approve" an appeal without immediately unbanning the user.
   - Useful for probationary periods or requiring further action (e.g., "Delete the malicious link first").
   - System logs this specific state in `BanHistory`.
+- **Link Disabling on Ban**:
+  - Option to disable all user's links when banned (`disableLinksOnBan` flag).
+  - Redirect controller checks user ban status and returns 403 for disabled links.
+  - Links are automatically re-enabled when user is unbanned.
+- **Temporary Ban Scheduler** (`server/services/banScheduler.js`):
+  - Background job runs every minute to check for expired bans.
+  - Automatically unbans users when `bannedUntil` expires.
+  - Sends reactivation email notification to unbanned users.
+  - Logs action in `BanHistory` with `temp_ban_expired` type.
+  - Invalidates cache for user's links upon unban.
 - **Ban History Tracking**:
-  - Comprehensive log of all actions: `ban`, `unban`, `appeal_approved`.
+  - Comprehensive log of all actions: `ban`, `unban`, `appeal_approved`, `temp_ban_expired`.
   - Records who performed the action (Admin ID) and the reason.
+
+### G. PWA Security (Frontend)
+
+- **Tamper-Resistant Update Prompt** (`client/src/components/PWAUpdatePrompt.jsx`):
+  - Uses MutationObserver to detect and re-create overlay if removed via DevTools.
+  - Invisible blocker div intercepts all pointer and keyboard events.
+  - Body scroll lock prevents interaction with underlying app.
+  - Periodic interval check as backup detection mechanism.
+  - Users **cannot bypass** the mandatory update prompt.
 
 ---
 

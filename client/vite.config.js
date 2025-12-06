@@ -19,30 +19,24 @@ export default defineConfig({
       overlay: true, // Shows errors in browser overlay
     }),
     VitePWA({
-      registerType: 'prompt', // Changed from autoUpdate to prevent unexpected page reloads
+      // Use prompt mode to show mandatory update dialog
+      // The new SW will wait until user clicks Update
+      registerType: 'prompt',
       workbox: {
-        // Don't precache HTML files - let them be fetched fresh
-        globPatterns: ['**/*.{js,css,ico,png,svg,webp}'],
+        // Include index.html - required for navigateFallback to work
+        globPatterns: ['**/*.{js,css,ico,png,svg,webp,html}'],
         // Don't cache API calls
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api/],
-        // Skip waiting for service worker activation
+        navigateFallbackDenylist: [/^\/api/, /^\/__/],
+        // IMPORTANT: Must be false for prompt mode!
+        // skipWaiting:false means new SW waits until updateServiceWorker(true) is called
         skipWaiting: false,
+        // clientsClaim:false means old SW keeps control until page reload
         clientsClaim: false,
+        // Force SW update when any precached file changes
+        cleanupOutdatedCaches: true,
         // Use network-first for HTML navigation requests
         runtimeCaching: [
-          {
-            // HTML pages - serve cache instantly, update in background
-            urlPattern: ({ request }) => request.mode === 'navigate',
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'pages-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 // 1 day max cache
-              }
-            }
-          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',

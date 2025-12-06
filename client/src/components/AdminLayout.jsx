@@ -76,7 +76,13 @@ const AdminLayout = () => {
     }
   };
 
-  if (authLoading || isAllowedIP === null) {
+  // Show loading while checking auth OR IP access
+  // Also show loading if there's a token in localStorage but user isn't set yet
+  // This prevents the login form from flashing when refreshing while logged in
+  const hasToken = typeof window !== 'undefined' && localStorage.getItem('accessToken');
+  const isStillLoading = authLoading || isAllowedIP === null || (hasToken && !user);
+
+  if (isStillLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>

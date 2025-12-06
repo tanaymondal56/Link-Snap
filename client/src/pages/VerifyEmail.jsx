@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
@@ -9,24 +9,85 @@ const VerifyEmail = () => {
   const navigate = useNavigate();
   const [status, setStatus] = useState('verifying'); // verifying, success, error
   const [message, setMessage] = useState('Verifying your email...');
+  
+  // Track if we've already succeeded to ignore any subsequent error responses
+  const hasSucceeded = useRef(false);
+  // Track if request is in flight to prevent duplicate calls
+  const isVerifying = useRef(false);
 
   useEffect(() => {
+    // If already succeeded or already verifying, don't start another request
+    if (hasSucceeded.current || isVerifying.current) {
+      return;
+    }
+    
+    const abortController = new AbortController();
+    isVerifying.current = true;
+
     const verify = async () => {
       try {
-        await api.get(`/auth/verify-email/${token}`);
-        setStatus('success');
-        setMessage('Email verified successfully! Redirecting to login...');
-        showToast.success('Your email has been verified', 'Verified');
+        const response = await api.get(`/auth/verify-email/${token}`, {
+          signal: abortController.signal
+        });
+        
+        // Request succeeded - mark as success
+        hasSucceeded.current = true;
+        isVerifying.current = false;
+        
+        // Check if already verified (came from our improved server response)
+        if (response.data?.alreadyVerified) {
+          setStatus('success');
+          setMessage('Your email is already verified! Redirecting to login...');
+          showToast.success('Your email is already verified', 'Verified');
+        } else {
+          setStatus('success');
+          setMessage('Email verified successfully! Redirecting to login...');
+          showToast.success('Your email has been verified', 'Verified');
+        }
         setTimeout(() => navigate('/login'), 3000);
+        
       } catch (error) {
+        // Ignore aborted requests (cleanup from Strict Mode)
+        if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED' || abortController.signal.aborted) {
+          return;
+        }
+        
+        // If we've already succeeded, ignore this error
+        // (it's from a duplicate request that failed after success)
+        if (hasSucceeded.current) {
+          return;
+        }
+        
+        isVerifying.current = false;
+        
+        // Check if it's an "already verified" scenario
+        const errorMessage = error.response?.data?.message || '';
+        
+        // If the error indicates the token was already used, treat it as success
+        if (errorMessage.toLowerCase().includes('already verified') || 
+            errorMessage.toLowerCase().includes('already been verified')) {
+          hasSucceeded.current = true;
+          setStatus('success');
+          setMessage('Your email is already verified! Redirecting to login...');
+          showToast.success('Your email is already verified', 'Verified');
+          setTimeout(() => navigate('/login'), 3000);
+          return;
+        }
+        
         setStatus('error');
         setMessage(
-          error.response?.data?.message || 'Verification failed. Token may be invalid or expired.'
+          errorMessage || 'Verification failed. Token may be invalid or expired.'
         );
         showToast.error('Token may be invalid or expired', 'Verification Failed');
       }
     };
+    
     verify();
+
+    // Cleanup: abort request if component unmounts (Strict Mode)
+    return () => {
+      abortController.abort();
+    };
   }, [token, navigate]);
 
   return (
@@ -67,3 +128,5 @@ const VerifyEmail = () => {
 };
 
 export default VerifyEmail;
+
+

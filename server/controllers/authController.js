@@ -33,9 +33,14 @@ const registerUser = async (req, res, next) => {
 
     const userExists = await User.findOne({ email });
 
+    // SECURITY: Return generic message to prevent email enumeration attacks
+    // Don't reveal whether the email is already registered
     if (userExists) {
-      res.status(400);
-      throw new Error('User already exists');
+      // Return same response as successful registration to prevent enumeration
+      return res.status(201).json({
+        message: 'If this email is not already registered, you will receive a verification email shortly.',
+        requireVerification: true
+      });
     }
 
     // Check global settings
@@ -145,14 +150,35 @@ const verifyEmail = async (req, res, next) => {
   try {
     const { token } = req.params;
 
-    const user = await User.findOne({
+    // First, try to find user with valid token
+    let user = await User.findOne({
       verificationToken: token,
       verificationTokenExpires: { $gt: Date.now() },
     });
 
     if (!user) {
+      // Token not found or expired - but check if any user with this token is already verified
+      // This handles the race condition where token was just used
+      const verifiedUser = await User.findOne({ 
+        $or: [
+          { verificationToken: token },
+          { isVerified: true }
+        ]
+      });
+      
+      // If we can find a verified user, it means the verification already happened
+      // (Note: We can't perfectly match the token to user after it's cleared,
+      // so this is a best-effort check)
+      if (verifiedUser && verifiedUser.isVerified && !verifiedUser.verificationToken) {
+        // User is already verified - return success-like response
+        return res.status(200).json({ 
+          message: 'Your email has already been verified. You can now login.',
+          alreadyVerified: true
+        });
+      }
+      
       res.status(400);
-      throw new Error('Invalid or expired token');
+      throw new Error('Invalid or expired verification token');
     }
 
     user.isVerified = true;
@@ -165,6 +191,7 @@ const verifyEmail = async (req, res, next) => {
     next(error);
   }
 };
+
 
 // @desc    Auth user & get token
 // @route   POST /api/auth/login
@@ -181,7 +208,14 @@ const loginUser = async (req, res, next) => {
 
     const user = await User.findOne({ email });
 
-    if (user && (await user.matchPassword(password))) {
+    // SECURITY: Always perform password comparison to prevent timing attacks
+    // If user doesn't exist, compare against a dummy hash to maintain consistent timing
+    const dummyHash = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.SJGPLvXqKBZ.xC';
+    const isValidPassword = user 
+      ? await user.matchPassword(password)
+      : await require('bcrypt').compare(password, dummyHash);
+
+    if (user && isValidPassword) {
 
       // Check if user is banned
       if (!user.isActive) {

@@ -320,21 +320,18 @@ const AdminDashboard = () => {
     if (!unbanModalUser) return;
 
     try {
-      await api.patch(`/admin/users/${unbanModalUser._id}/status`, {
+      const { data } = await api.patch(`/admin/users/${unbanModalUser._id}/status`, {
         reenableLinks,
       });
       showToast.success(
         `User has been activated${reenableLinks ? ' and their links re-enabled' : ''}`,
         'User Activated'
       );
+      // Use the response data from API to ensure all ban fields are properly cleared
       setUsers(
         users.map((u) =>
           u._id === unbanModalUser._id
-            ? {
-                ...u,
-                isActive: true,
-                disableLinksOnBan: reenableLinks ? false : u.disableLinksOnBan,
-              }
+            ? { ...u, ...data.user }
             : u
         )
       );
@@ -354,7 +351,7 @@ const AdminDashboard = () => {
     if (!banModalUser) return;
 
     try {
-      await api.patch(`/admin/users/${banModalUser._id}/status`, {
+      const { data } = await api.patch(`/admin/users/${banModalUser._id}/status`, {
         reason,
         disableLinks,
         duration,
@@ -364,10 +361,11 @@ const AdminDashboard = () => {
         `User has been banned${durationText}${disableLinks ? ' and their links disabled' : ''}`,
         'User Banned'
       );
+      // Use the response data from API which includes bannedUntil, bannedAt, etc.
       setUsers(
         users.map((u) =>
           u._id === banModalUser._id
-            ? { ...u, isActive: false, disableLinksOnBan: disableLinks }
+            ? { ...u, ...data.user }
             : u
         )
       );

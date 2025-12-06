@@ -22,13 +22,20 @@ const DashboardLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Redirect to home if not logged in (don't force auth modal)
+  // Don't redirect if there's a token being validated
   useEffect(() => {
-    if (!loading && !user) {
+    const hasToken = localStorage.getItem('accessToken');
+    if (!loading && !user && !hasToken) {
       navigate('/', { replace: true });
     }
   }, [loading, user, navigate]);
 
-  if (loading)
+  // Check if there's a token but user isn't set yet (still loading)
+  // This prevents redirect to home when refreshing while logged in
+  const hasToken = typeof window !== 'undefined' && localStorage.getItem('accessToken');
+  const isStillLoading = loading || (hasToken && !user);
+
+  if (isStillLoading)
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center text-white">
         <Loader2 className="animate-spin h-10 w-10 text-blue-500" />

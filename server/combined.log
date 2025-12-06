@@ -1641,3 +1641,142 @@
 {"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-04T18:11:04.711Z"}
 {"level":"error","message":"400 - Invalid or expired token - /api/auth/verify-email/4a2caa5ab0a09362af0ae3d5e783b264237b303b - GET - ::1","timestamp":"2025-12-04T18:12:41.919Z"}
 {"level":"error","message":"400 - Invalid or expired token - /api/auth/verify-email/4a2caa5ab0a09362af0ae3d5e783b264237b303b - GET - ::1","timestamp":"2025-12-04T18:12:41.924Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-04T18:24:39.671Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-04T18:24:39.678Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-04T18:24:41.391Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-04T18:24:41.397Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-04T18:28:38.171Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-04T18:28:38.175Z"}
+{"level":"info","message":"Cache invalidated 1 URLs","timestamp":"2025-12-04T18:30:51.108Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-05T07:21:15.352Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/auth/me - GET - ::1","timestamp":"2025-12-05T07:21:15.362Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-05T07:21:15.369Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/auth/me - GET - ::1","timestamp":"2025-12-05T07:21:15.381Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/auth/me - GET - ::1","timestamp":"2025-12-05T12:02:34.102Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/auth/me - GET - ::1","timestamp":"2025-12-05T12:02:34.128Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T12:02:34.212Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T12:02:34.220Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T12:09:15.235Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T12:09:15.244Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T13:11:04.918Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T13:11:04.923Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-05T18:20:44.808Z"}
+{"level":"info","message":"Server running in development mode on port 5000","timestamp":"2025-12-05T18:20:44.818Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-05T18:20:44.819Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-05T18:24:36.068Z"}
+{"level":"info","message":"Server running in production mode on port 5000","timestamp":"2025-12-05T18:24:36.075Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-05T18:24:36.076Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/auth/me - GET - ::1","timestamp":"2025-12-05T18:25:48.895Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:25:49.180Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:28:05.678Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-05T18:33:39.975Z"}
+{"level":"info","message":"Server running in production mode on port 5000","timestamp":"2025-12-05T18:33:39.983Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-05T18:33:39.984Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-05T18:36:50.838Z"}
+{"level":"info","message":"Server running in production mode on port 5000","timestamp":"2025-12-05T18:36:50.847Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-05T18:36:50.848Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:36:57.788Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:36:59.266Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:37:00.411Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:37:01.358Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-05T18:38:14.050Z"}
+{"level":"info","message":"Server running in development mode on port 5000","timestamp":"2025-12-05T18:38:14.057Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-05T18:38:14.058Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/auth/me - GET - ::ffff:100.100.100.169","timestamp":"2025-12-05T18:38:25.242Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-05T18:43:47.795Z"}
+{"level":"info","message":"Server running in production mode on port 5000","timestamp":"2025-12-05T18:43:47.809Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-05T18:43:47.810Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-05T18:48:08.144Z"}
+{"level":"info","message":"Server running in production mode on port 5000","timestamp":"2025-12-05T18:48:08.167Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-05T18:48:08.169Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:48:40.080Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:48:47.542Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:48:56.745Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:48:58.556Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-05T18:50:05.928Z"}
+{"level":"info","message":"Server running in production mode on port 5000","timestamp":"2025-12-05T18:50:05.935Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-05T18:50:05.936Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:50:15.776Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:50:22.132Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:50:29.563Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-05T18:53:57.033Z"}
+{"level":"info","message":"Server running in production mode on port 5000","timestamp":"2025-12-05T18:53:57.045Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-05T18:53:57.046Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:54:04.250Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:54:13.977Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:54:48.061Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:54:53.740Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:54:57.530Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:58:47.392Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:58:48.357Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:58:49.330Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:58:56.468Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-05T18:59:02.495Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T05:51:03.264Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T05:52:58.350Z"}
+{"level":"info","message":"Server running in production mode on port 5000","timestamp":"2025-12-06T05:52:58.359Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T05:52:58.360Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T05:53:08.231Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T05:53:13.767Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T05:53:18.310Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T05:53:28.233Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T05:53:43.406Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T05:53:44.433Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T05:53:45.223Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T05:53:52.843Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T05:53:56.409Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T05:53:58.604Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T05:53:59.749Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T05:54:00.448Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T06:00:18.015Z"}
+{"level":"info","message":"Server running in production mode on port 5000","timestamp":"2025-12-06T06:00:18.033Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T06:00:18.035Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T06:00:43.711Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T06:00:45.271Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T06:00:48.178Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T06:00:49.279Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T06:00:52.591Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T06:00:54.161Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T06:01:02.034Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T10:40:34.906Z"}
+{"level":"info","message":"Server running in production mode on port 5000","timestamp":"2025-12-06T10:40:34.914Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T10:40:34.915Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T10:40:39.397Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T10:40:40.999Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T10:40:47.038Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T10:40:56.212Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T10:41:13.500Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T10:49:08.817Z"}
+{"level":"info","message":"Server running in production mode on port 5000","timestamp":"2025-12-06T10:49:08.825Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T10:49:08.826Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T10:49:12.965Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T10:49:36.412Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T10:49:37.817Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T10:54:14.656Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T10:54:19.371Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T10:54:23.871Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T10:54:28.960Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T10:55:19.340Z"}
+{"level":"info","message":"Server running in production mode on port 5000","timestamp":"2025-12-06T10:55:19.359Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T10:55:19.361Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T10:55:31.262Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T10:55:47.877Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T12:13:19.683Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T12:13:53.419Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T12:14:40.764Z"}
+{"level":"info","message":"Server running in production mode on port 5000","timestamp":"2025-12-06T12:14:40.777Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T12:14:40.778Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T12:15:00.752Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T12:15:15.063Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T12:15:58.565Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T16:09:59.300Z"}
+{"level":"info","message":"Server running in development mode on port 5000","timestamp":"2025-12-06T16:09:59.314Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T16:09:59.315Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-06T16:10:43.157Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/auth/me - GET - ::ffff:127.0.0.1","timestamp":"2025-12-06T16:10:43.171Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-06T16:10:43.185Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/auth/me - GET - ::1","timestamp":"2025-12-06T16:10:43.199Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-06T16:11:11.682Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-06T16:11:11.701Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-06T16:11:19.891Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-06T16:11:19.902Z"}
