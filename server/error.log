@@ -994,3 +994,9 @@
 {"level":"error","message":"401 - Not authorized, token failed - /api/auth/me - GET - ::1","timestamp":"2025-12-07T05:10:29.429Z"}
 {"level":"error","message":"401 - Not authorized, token failed - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-07T05:10:29.440Z"}
 {"level":"error","message":"401 - Not authorized, token failed - /api/auth/me - GET - ::1","timestamp":"2025-12-07T05:10:29.445Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-07T05:39:28.258Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/auth/me - GET - ::1","timestamp":"2025-12-07T05:39:28.267Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-07T05:39:28.283Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/auth/me - GET - ::1","timestamp":"2025-12-07T05:39:28.291Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-07T05:39:31.725Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-07T05:39:31.734Z"}

@@ -74,3 +74,12 @@ export const appealLimiter = rateLimit({
     },
     skip: (req) => isWhitelisted(req.ip),
 });
+
+export const verifyOtpLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // Strict limit: 5 attempts per 15 minutes per IP
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many verification attempts. Please wait 15 minutes.' });
+    },
+    skip: (req) => isWhitelisted(req.ip),
+});

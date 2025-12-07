@@ -8,9 +8,10 @@ import {
   updateProfile,
   changePassword,
   verifyEmail,
+  verifyOTP,
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
-import { authLimiter } from '../middleware/rateLimiter.js';
+import { authLimiter, verifyOtpLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -22,5 +23,6 @@ router.get('/me', protect, getMe);
 router.put('/me', protect, updateProfile);
 router.put('/change-password', protect, changePassword);
 router.get('/verify-email/:token', verifyEmail);
+router.post('/verify-otp', verifyOtpLimiter, verifyOTP);
 
 export default router;

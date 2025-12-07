@@ -114,6 +114,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
       if (result.requireVerification) {
         // Close modal, user needs to verify email
         onClose();
+        navigate('/verify-otp', { state: { email: result.email } });
       } else {
         onSuccess?.();
         onClose();

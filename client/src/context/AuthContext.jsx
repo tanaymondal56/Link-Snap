@@ -132,8 +132,8 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (data.requireVerification) {
-        showToast.info('Please check your email to verify your account', 'Verification Required');
-        return { success: true, requireVerification: true };
+        showToast.success('Please verify your email to continue', 'Account Created');
+        return { success: true, requireVerification: true, email: data.email };
       }
 
       // Update memory token

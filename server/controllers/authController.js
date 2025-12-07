@@ -2,7 +2,7 @@ import User from '../models/User.js';
 import Settings from '../models/Settings.js';
 import LoginHistory from '../models/LoginHistory.js';
 import { generateAccessToken, generateRefreshToken } from '../utils/generateToken.js';
-import { registerSchema, loginSchema, updateProfileSchema } from '../validators/authValidator.js';
+import { registerSchema, loginSchema, updateProfileSchema, verifyOtpSchema } from '../validators/authValidator.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import sendEmail from '../utils/sendEmail.js';
@@ -62,17 +62,23 @@ const registerUser = async (req, res, next) => {
     };
 
     let user;
+    let user;
     if (requireVerification) {
       const verificationToken = crypto.randomBytes(20).toString('hex');
+      // Generate 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      
       user = await User.create({
         ...userData,
         isVerified: false,
         verificationToken,
         verificationTokenExpires: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+        otp,
+        otpExpires: Date.now() + 10 * 60 * 1000, // 10 minutes
       });
 
       // Generate beautiful verification email
-      const emailContent = verificationEmail(user, verificationToken);
+      const emailContent = verificationEmail(user, verificationToken, otp);
 
       try {
         await sendEmail({
@@ -83,7 +89,8 @@ const registerUser = async (req, res, next) => {
 
         res.status(201).json({
           message: 'Registration successful! Please check your email to verify your account.',
-          requireVerification: true
+          requireVerification: true,
+          email: user.email // Return email for the OTP page
         });
       } catch (error) {
         await user.deleteOne();
@@ -92,7 +99,7 @@ const registerUser = async (req, res, next) => {
       }
 
     } else {
-      // No verification needed
+      // ... existing no-verification logic ...
       user = await User.create({
         ...userData,
         isVerified: true,
@@ -117,7 +124,6 @@ const registerUser = async (req, res, next) => {
         }
       } catch (emailError) {
         console.error('Failed to send welcome email:', emailError.message);
-        // Don't fail registration if welcome email fails
       }
 
       res.cookie('jwt', refreshToken, {
@@ -137,6 +143,77 @@ const registerUser = async (req, res, next) => {
         requireVerification: false
       });
     }
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify Email via OTP
+// @route   POST /api/auth/verify-otp
+// @access  Public
+const verifyOTP = async (req, res, next) => {
+  try {
+    const result = verifyOtpSchema.safeParse(req.body);
+    if (!result.success) {
+      res.status(400);
+      throw new Error(result.error.errors[0].message);
+    }
+
+    const { email, otp } = result.data;
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found');
+    }
+
+    if (user.isVerified) {
+      return res.status(200).json({ message: 'Email already verified' });
+    }
+
+    // Check if user is banned
+    if (!user.isActive) {
+      res.status(403);
+      throw new Error('Your account has been suspended. Please contact support.');
+    }
+
+    // Check OTP
+    if (user.otp !== otp || user.otpExpires < Date.now()) {
+      res.status(400);
+      throw new Error('Invalid or expired OTP');
+    }
+
+    // Verify User
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    user.verificationTokenExpires = undefined;
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    
+    // Generate Tokens (Login immediately)
+    const accessToken = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
+    
+    user.refreshTokens.push(refreshToken);
+    await user.save();
+
+    res.cookie('jwt', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: getCookieSameSite(),
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
+    res.status(200).json({
+      _id: user._id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      accessToken,
+    });
 
   } catch (error) {
     next(error);
@@ -523,4 +600,4 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken, getMe, updateProfile, changePassword, verifyEmail };
+export { registerUser, loginUser, logoutUser, refreshAccessToken, getMe, updateProfile, changePassword, verifyEmail, verifyOTP };

@@ -23,3 +23,8 @@ export const updateProfileSchema = z.object({
   website: z.string().max(200).optional(),
   bio: z.string().max(500).optional(),
 });
+
+export const verifyOtpSchema = z.object({
+  email: z.string().email({ message: "Invalid email address" }),
+  otp: z.string().length(6, { message: "OTP must be exactly 6 digits" }).regex(/^\d+$/, { message: "OTP must contain only numbers" }),
+});

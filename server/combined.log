@@ -1822,3 +1822,9 @@
 {"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-07T05:23:49.476Z"}
 {"level":"info","message":"Server running in development mode on port 5000","timestamp":"2025-12-07T05:23:49.487Z"}
 {"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-07T05:23:49.488Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-07T05:39:28.258Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/auth/me - GET - ::1","timestamp":"2025-12-07T05:39:28.267Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-07T05:39:28.283Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/auth/me - GET - ::1","timestamp":"2025-12-07T05:39:28.291Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-07T05:39:31.725Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-07T05:39:31.734Z"}

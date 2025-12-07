@@ -18,6 +18,16 @@ const brandColors = {
     grayLight: '#9ca3af',
 };
 
+// Simple HTML escaper
+const escapeHtml = (unsafe) => {
+    return (unsafe || '')
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
+};
+
 // Get app URL - uses CLIENT_URL env var (required in production)
 // In development, falls back to localhost:3000 (Vite proxy) or localhost:5000 (direct API)
 const getAppUrl = () => {
@@ -241,7 +251,7 @@ const divider = () => `
  * Welcome Email - Sent after successful registration (no verification required)
  */
 export const welcomeEmail = (user) => {
-    const firstName = user.firstName || 'there';
+    const firstName = escapeHtml(user.firstName) || 'there';
     const content = `
     <!-- Icon -->
     <table border="0" cellpadding="0" cellspacing="0" width="100%">
@@ -336,8 +346,8 @@ export const welcomeEmail = (user) => {
 /**
  * Email Verification - Sent when verification is required
  */
-export const verificationEmail = (user, verificationToken) => {
-    const firstName = user.firstName || 'there';
+export const verificationEmail = (user, verificationToken, otp) => {
+    const firstName = escapeHtml(user.firstName) || 'there';
     const verifyUrl = `${getAppUrl()}/verify-email/${verificationToken}`;
 
     const content = `
@@ -393,7 +403,7 @@ export const verificationEmail = (user, verificationToken) => {
  * Account Suspension Email
  */
 export const suspensionEmail = (user, reason, bannedUntil) => {
-    const firstName = user.firstName || 'there';
+    const firstName = escapeHtml(user.firstName) || 'there';
     const untilText = bannedUntil
         ? `until <strong>${new Date(bannedUntil).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</strong>`
         : '<strong>indefinitely</strong>';
@@ -420,7 +430,7 @@ export const suspensionEmail = (user, reason, bannedUntil) => {
       Hi ${firstName}, your Link Snap account has been suspended ${untilText}.
     </p>
     
-    ${reason ? statusBox('danger', '📋', 'Reason for suspension', reason) : ''}
+    ${reason ? statusBox('danger', '📋', 'Reason for suspension', escapeHtml(reason)) : ''}
     
     ${divider()}
     
@@ -475,7 +485,7 @@ export const suspensionEmail = (user, reason, bannedUntil) => {
  * Account Reactivation Email
  */
 export const reactivationEmail = (user) => {
-    const firstName = user.firstName || 'there';
+    const firstName = escapeHtml(user.firstName) || 'there';
 
     const content = `
     <!-- Icon -->
@@ -521,7 +531,7 @@ export const reactivationEmail = (user) => {
  * Appeal Decision Email
  */
 export const appealDecisionEmail = (user, status, adminResponse, unbanned) => {
-    const firstName = user.firstName || 'there';
+    const firstName = escapeHtml(user.firstName) || 'there';
     const isApproved = status === 'approved';
 
     const content = `
