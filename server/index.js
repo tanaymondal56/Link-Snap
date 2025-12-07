@@ -109,6 +109,34 @@ app.use(mongoSanitize);
 app.use('/api', apiLimiter);
 app.use('/api/auth', authLimiter);
 
+// Health Check Endpoints
+import { isConnected } from './config/db.js';
+
+// Basic health check - just confirms server is running
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
+});
+
+// Deep health check - verifies database connectivity
+app.get('/api/health/deep', async (req, res) => {
+  const dbConnected = isConnected();
+  const status = dbConnected ? 'ok' : 'degraded';
+  const statusCode = dbConnected ? 200 : 503;
+
+  res.status(statusCode).json({
+    status,
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    services: {
+      database: dbConnected ? 'connected' : 'disconnected',
+    },
+  });
+});
+
 // Routes (API routes first)
 app.use('/api/auth', authRoutes);
 app.use('/api/url', urlRoutes);
@@ -125,7 +153,8 @@ if (process.env.NODE_ENV === 'production') {
     lastModified: true,
     setHeaders: (res, filePath) => {
       // For HTML files, don't cache to ensure fresh content
-      if (filePath.endsWith('.html')) {
+      // For HTML files and Service Worker, don't cache to ensure fresh content
+      if (filePath.endsWith('.html') || filePath.includes('sw.js') || filePath.includes('workbox-')) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');

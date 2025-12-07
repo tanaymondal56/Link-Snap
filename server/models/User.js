@@ -109,9 +109,16 @@ userSchema.pre('save', async function () {
   if (!this.isModified('password')) {
     return;
   }
-  // Use 12 salt rounds (OWASP minimum recommendation for security)
-  const salt = await bcrypt.genSalt(12);
-  this.password = await bcrypt.hash(this.password, salt);
+  
+  try {
+    // Use 12 salt rounds (OWASP minimum recommendation for security)
+    const salt = await bcrypt.genSalt(12);
+    this.password = await bcrypt.hash(this.password, salt);
+  } catch (error) {
+    // Critical: If encryption fails, DO NOT save the user.
+    // Propagate error to abort the save operation.
+    throw new Error('Password encryption failed: ' + error.message);
+  }
 });
 
 // Match user entered password to hashed password in database

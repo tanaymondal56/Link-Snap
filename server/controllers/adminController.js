@@ -56,7 +56,7 @@ const sendBanNotificationEmail = async (user, isBanned, reason, bannedUntil) => 
 // @desc    Get system stats
 // @route   GET /api/admin/stats
 // @access  Admin
-export const getSystemStats = async (req, res) => {
+export const getSystemStats = async (req, res, next) => {
     try {
         const totalUsers = await User.countDocuments();
         const totalUrls = await Url.countDocuments();
@@ -79,28 +79,28 @@ export const getSystemStats = async (req, res) => {
             cacheStats
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 // @desc    Get all users
 // @route   GET /api/admin/users
 // @access  Admin
-export const getAllUsers = async (req, res) => {
+export const getAllUsers = async (req, res, next) => {
     try {
         const users = await User.find()
             .select('-password -refreshTokens')
             .sort({ createdAt: -1 });
         res.json(users);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 // @desc    Update user status (Ban/Unban)
 // @route   PATCH /api/admin/users/:id/status
 // @access  Admin
-export const updateUserStatus = async (req, res) => {
+export const updateUserStatus = async (req, res, next) => {
     try {
         const { reason, disableLinks, reenableLinks, duration } = req.body || {};
         const user = await User.findById(req.params.id);
@@ -216,15 +216,14 @@ export const updateUserStatus = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('updateUserStatus error:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 // @desc    Update user role (Promote/Demote)
 // @route   PATCH /api/admin/users/:id/role
 // @access  Admin
-export const updateUserRole = async (req, res) => {
+export const updateUserRole = async (req, res, next) => {
     try {
         const user = await User.findById(req.params.id);
 
@@ -252,14 +251,14 @@ export const updateUserRole = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 // @desc    Delete user
 // @route   DELETE /api/admin/users/:id
 // @access  Admin
-export const deleteUser = async (req, res) => {
+export const deleteUser = async (req, res, next) => {
     try {
         const user = await User.findById(req.params.id);
 
@@ -287,14 +286,14 @@ export const deleteUser = async (req, res) => {
 
         res.json({ message: 'User and associated data removed' });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 // @desc    Get system settings
 // @route   GET /api/admin/settings
 // @access  Admin
-export const getSettings = async (req, res) => {
+export const getSettings = async (req, res, next) => {
     try {
         let settings = await Settings.findOne();
         if (!settings) {
@@ -307,14 +306,14 @@ export const getSettings = async (req, res) => {
 
         res.json(settingsObj);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 // @desc    Update system settings
 // @route   PATCH /api/admin/settings
 // @access  Admin
-export const updateSettings = async (req, res) => {
+export const updateSettings = async (req, res, next) => {
     try {
         console.log('[updateSettings] Request received:', JSON.stringify(req.body, null, 2));
 
@@ -373,15 +372,14 @@ export const updateSettings = async (req, res) => {
 
         res.json(settingsObj);
     } catch (error) {
-        console.error('[updateSettings] ERROR:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 // @desc    Test email configuration
 // @route   POST /api/admin/settings/test-email
 // @access  Admin
-export const testEmailConfiguration = async (req, res) => {
+export const testEmailConfiguration = async (req, res, next) => {
     try {
         const { email } = req.body;
 
@@ -406,26 +404,26 @@ export const testEmailConfiguration = async (req, res) => {
 
         res.json({ message: 'Test email sent successfully!' });
     } catch (error) {
-        res.status(500).json({ message: `Failed to send test email: ${error.message}` });
+        next(error);
     }
 };
 
 // @desc    Clear URL cache
 // @route   POST /api/admin/cache/clear
 // @access  Admin
-export const clearUrlCache = async (req, res) => {
+export const clearUrlCache = async (req, res, next) => {
     try {
         clearCache();
         res.json({ message: 'Cache cleared successfully', stats: getCacheStats() });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 // @desc    Create a new user (admin created)
 // @route   POST /api/admin/users
 // @access  Admin
-export const createUser = async (req, res) => {
+export const createUser = async (req, res, next) => {
     try {
         const { email, password, role, firstName, lastName, phone, company, website } = req.body;
 
@@ -477,14 +475,14 @@ export const createUser = async (req, res) => {
             createdAt: user.createdAt
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 // @desc    Get ban history for a user
 // @route   GET /api/admin/users/:id/ban-history
 // @access  Admin
-export const getUserBanHistory = async (req, res) => {
+export const getUserBanHistory = async (req, res, next) => {
     try {
         const userId = req.params.id;
 
@@ -495,14 +493,14 @@ export const getUserBanHistory = async (req, res) => {
 
         res.json(history);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 // @desc    Get appeals for a user
 // @route   GET /api/admin/users/:id/appeals
 // @access  Admin
-export const getUserAppeals = async (req, res) => {
+export const getUserAppeals = async (req, res, next) => {
     try {
         const userId = req.params.id;
 
@@ -512,14 +510,14 @@ export const getUserAppeals = async (req, res) => {
 
         res.json(appeals);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 // @desc    Get all pending appeals
 // @route   GET /api/admin/appeals
 // @access  Admin
-export const getAllAppeals = async (req, res) => {
+export const getAllAppeals = async (req, res, next) => {
     try {
         const { status } = req.query;
         const filter = status ? { status } : {};
@@ -531,14 +529,14 @@ export const getAllAppeals = async (req, res) => {
 
         res.json(appeals);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 // @desc    Respond to an appeal
 // @route   PATCH /api/admin/appeals/:id
 // @access  Admin
-export const respondToAppeal = async (req, res) => {
+export const respondToAppeal = async (req, res, next) => {
     try {
         const { status, adminResponse, unbanUser } = req.body;
 
@@ -646,6 +644,6 @@ export const respondToAppeal = async (req, res) => {
             appeal: populatedAppeal
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };

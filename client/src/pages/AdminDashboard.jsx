@@ -5,6 +5,7 @@ import { useConfirm } from '../context/ConfirmContext';
 import { useDialog } from '../components/ui/DialogProvider';
 import BanUserModal from '../components/BanUserModal';
 import UnbanUserModal from '../components/UnbanUserModal';
+import SystemHealthCard from '../components/admin/SystemHealthCard';
 import {
   Trash2,
   Users,
@@ -49,7 +50,9 @@ import {
 const AdminDashboard = () => {
   const confirm = useConfirm();
   const { prompt } = useDialog();
+  const [mainSection, setMainSection] = useState('admin'); // 'admin' | 'monitoring'
   const [activeTab, setActiveTab] = useState('users'); // 'users', 'links', 'settings'
+  const [monitoringTab, setMonitoringTab] = useState('health');
   const [stats, setStats] = useState({ totalUsers: 0, totalUrls: 0, totalClicks: 0 });
   const [users, setUsers] = useState([]);
   const [links, setLinks] = useState([]);
@@ -637,7 +640,36 @@ const AdminDashboard = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 lg:space-y-8">
+      {/* Main Section Toggle */}
+      <div className="flex justify-center pb-2">
+        <div className="p-1 rounded-xl inline-flex bg-gray-900/40 backdrop-blur-md border border-gray-700/50">
+          <button
+            onClick={() => setMainSection('admin')}
+            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${
+              mainSection === 'admin'
+                ? 'bg-purple-500/20 text-purple-400 shadow-sm shadow-purple-900/20 border border-purple-500/20'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+            }`}
+          >
+            <Shield className="w-4 h-4" />
+            <span>Admin Panel</span>
+          </button>
+          <button
+            onClick={() => setMainSection('monitoring')}
+            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${
+              mainSection === 'monitoring'
+                ? 'bg-cyan-500/20 text-cyan-400 shadow-sm shadow-cyan-900/20 border border-cyan-500/20'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+            }`}
+          >
+            <BarChart2 className="w-4 h-4" />
+            <span>Monitoring</span>
+          </button>
+        </div>
+      </div>
+
       {/* Stats Cards */}
+      {mainSection === 'admin' && (
       <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6">
         <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 p-3 sm:p-4 lg:p-6 rounded-xl sm:rounded-2xl">
           <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-2">
@@ -681,41 +713,79 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-700 pb-3 sm:pb-0">
         <div className="flex overflow-x-auto scrollbar-hide -mx-1 px-1 sm:mx-0 sm:px-0">
-          <button
-            className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
-              activeTab === 'users'
-                ? 'text-purple-400 border-b-2 border-purple-400'
-                : 'text-gray-400 hover:text-white'
-            }`}
-            onClick={() => setActiveTab('users')}
-          >
-            Users
-          </button>
-          <button
-            className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
-              activeTab === 'links'
-                ? 'text-purple-400 border-b-2 border-purple-400'
-                : 'text-gray-400 hover:text-white'
-            }`}
-            onClick={() => setActiveTab('links')}
-          >
-            <span className="hidden sm:inline">Links & Moderation</span>
-            <span className="sm:hidden">Links</span>
-          </button>
-          <button
-            className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
-              activeTab === 'settings'
-                ? 'text-purple-400 border-b-2 border-purple-400'
-                : 'text-gray-400 hover:text-white'
-            }`}
-            onClick={() => setActiveTab('settings')}
-          >
-            Settings
-          </button>
+          {mainSection === 'admin' ? (
+            <>
+              <button
+                className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
+                  activeTab === 'users'
+                    ? 'text-purple-400 border-b-2 border-purple-400'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                onClick={() => setActiveTab('users')}
+              >
+                Users
+              </button>
+              <button
+                className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
+                  activeTab === 'links'
+                    ? 'text-purple-400 border-b-2 border-purple-400'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                onClick={() => setActiveTab('links')}
+              >
+                <span className="hidden sm:inline">Links & Moderation</span>
+                <span className="sm:hidden">Links</span>
+              </button>
+              <button
+                className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
+                  activeTab === 'settings'
+                    ? 'text-purple-400 border-b-2 border-purple-400'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                onClick={() => setActiveTab('settings')}
+              >
+                Settings
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
+                  monitoringTab === 'health'
+                    ? 'text-cyan-400 border-b-2 border-cyan-400'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                onClick={() => setMonitoringTab('health')}
+              >
+                System Health
+              </button>
+              <button
+                className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
+                  monitoringTab === 'logs'
+                    ? 'text-cyan-400 border-b-2 border-cyan-400'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                onClick={() => setMonitoringTab('logs')}
+              >
+                System Logs
+              </button>
+              <button
+                className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
+                  monitoringTab === 'performance'
+                    ? 'text-cyan-400 border-b-2 border-cyan-400'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                onClick={() => setMonitoringTab('performance')}
+              >
+                Performance
+              </button>
+            </>
+          )}
         </div>
 
         {/* Refresh Button */}
@@ -731,8 +801,32 @@ const AdminDashboard = () => {
 
       {/* Content Area */}
       <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 rounded-xl sm:rounded-2xl overflow-hidden min-h-[300px] sm:min-h-[400px]">
+        {/* MONITORING TAB CONTENT */}
+        {mainSection === 'monitoring' && (
+          <div className="p-6">
+            {monitoringTab === 'health' && (
+              <div className="space-y-6">
+                <SystemHealthCard />
+              </div>
+            )}
+            {monitoringTab === 'logs' && (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                <FileText className="w-12 h-12 mb-4 opacity-50" />
+                <p>System Logs module coming soon...</p>
+              </div>
+            )}
+            {monitoringTab === 'performance' && (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                <BarChart2 className="w-12 h-12 mb-4 opacity-50" />
+                <p>Performance Monitoring module coming soon...</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ADMIN TAB CONTENT */}
         {/* USERS TAB */}
-        {activeTab === 'users' && (
+        {mainSection === 'admin' && activeTab === 'users' && (
           <>
             <div className="p-4 sm:p-6 border-b border-gray-700/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <h2 className="text-lg sm:text-xl font-bold text-white">User Management</h2>
@@ -1541,7 +1635,7 @@ const AdminDashboard = () => {
         )}
 
         {/* LINKS TAB */}
-        {activeTab === 'links' && (
+        {mainSection === 'admin' && activeTab === 'links' && (
           <>
             <div className="p-4 sm:p-6 border-b border-gray-700/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
               <h2 className="text-lg sm:text-xl font-bold text-white">Link Management</h2>
@@ -1840,7 +1934,7 @@ const AdminDashboard = () => {
         )}
 
         {/* SETTINGS TAB */}
-        {activeTab === 'settings' && (
+        {mainSection === 'admin' && activeTab === 'settings' && (
           <>
             <div className="p-4 sm:p-6 border-b border-gray-700/50">
               <h2 className="text-lg sm:text-xl font-bold text-white">System Settings</h2>

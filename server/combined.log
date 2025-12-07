@@ -1780,3 +1780,45 @@
 {"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-06T16:11:11.701Z"}
 {"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-06T16:11:19.891Z"}
 {"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-06T16:11:19.902Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T16:15:54.468Z"}
+{"level":"info","message":"Server running in development mode on port 5000","timestamp":"2025-12-06T16:15:54.495Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T16:15:54.497Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T16:19:13.005Z"}
+{"level":"info","message":"Server running in development mode on port 5000","timestamp":"2025-12-06T16:19:13.020Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T16:19:13.021Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T16:19:41.933Z"}
+{"level":"info","message":"Server running in development mode on port 5000","timestamp":"2025-12-06T16:19:41.944Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T16:19:41.945Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-06T16:33:46.295Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-06T16:33:46.299Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T16:36:08.471Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T16:36:08.488Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - GET - ::1","timestamp":"2025-12-06T16:37:20.094Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T16:37:31.602Z"}
+{"level":"info","message":"Server running in development mode on port 5000","timestamp":"2025-12-06T16:37:31.616Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T16:37:31.617Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-06T16:40:03.869Z"}
+{"level":"error","message":"401 - Not authorized, no token - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-06T16:40:03.893Z"}
+{"level":"error","message":"401 - Invalid email or password - /api/auth/login - POST - ::1","timestamp":"2025-12-06T16:40:14.525Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T16:44:43.329Z"}
+{"level":"info","message":"Server running in development mode on port 5000","timestamp":"2025-12-06T16:44:43.353Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T16:44:43.355Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T16:54:00.870Z"}
+{"level":"info","message":"Server running in development mode on port 5000","timestamp":"2025-12-06T16:54:00.896Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T16:54:00.897Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T17:25:52.937Z"}
+{"level":"info","message":"Server running in development mode on port 5000","timestamp":"2025-12-06T17:25:52.945Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T17:25:52.946Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-06T17:27:12.611Z"}
+{"level":"info","message":"Server running in development mode on port 5000","timestamp":"2025-12-06T17:27:12.622Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-06T17:27:12.622Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-07T05:10:29.421Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/auth/me - GET - ::1","timestamp":"2025-12-07T05:10:29.429Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/admin/stats - HEAD - ::1","timestamp":"2025-12-07T05:10:29.440Z"}
+{"level":"error","message":"401 - Not authorized, token failed - /api/auth/me - GET - ::1","timestamp":"2025-12-07T05:10:29.445Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-07T05:18:43.248Z"}
+{"level":"info","message":"Server running in development mode on port 5000","timestamp":"2025-12-07T05:18:43.259Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-07T05:18:43.259Z"}
+{"level":"info","message":"MongoDB Connected: 127.0.0.1 (Local)","timestamp":"2025-12-07T05:23:49.476Z"}
+{"level":"info","message":"Server running in development mode on port 5000","timestamp":"2025-12-07T05:23:49.487Z"}
+{"level":"info","message":"Starting temporary ban scheduler","timestamp":"2025-12-07T05:23:49.488Z"}
