@@ -31,6 +31,17 @@ const api = axios.create({
   timeout: 10000, // 10 seconds timeout
 });
 
+// In-memory access token storage
+let accessToken = null;
+
+export const setAccessToken = (token) => {
+  accessToken = token;
+};
+
+export const getAccessToken = () => {
+  return accessToken;
+};
+
 // Flag to prevent multiple refresh attempts
 let isRefreshing = false;
 let failedQueue = [];
@@ -49,9 +60,8 @@ const processQueue = (error, token = null) => {
 // Request interceptor to attach access token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
     }
     return config;
   },
@@ -67,8 +77,8 @@ api.interceptors.response.use(
     // Handle 403 Banned User - Immediate logout and redirect
     if (error.response?.status === 403 && error.response?.data?.banned) {
       // Clear all auth data immediately
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('user');
+      accessToken = null;
+      localStorage.removeItem('user'); // Keep user object cleanup if used elsewhere
 
       // Store the ban message and details for the suspended page
       const banData = error.response.data;
@@ -116,7 +126,7 @@ api.interceptors.response.use(
 
         // Check if banned response from refresh endpoint
         if (data.banned) {
-          localStorage.removeItem('accessToken');
+          accessToken = null;
           localStorage.removeItem('user');
           sessionStorage.setItem('banMessage', data.message || 'Your account has been suspended.');
           if (data.bannedReason) sessionStorage.setItem('banReason', data.bannedReason);
@@ -127,8 +137,8 @@ api.interceptors.response.use(
           return Promise.reject(new Error('Account suspended'));
         }
 
-        // Save new access token
-        localStorage.setItem('accessToken', data.accessToken);
+        // Save new access token to memory
+        accessToken = data.accessToken;
 
         // Process queued requests
         processQueue(null, data.accessToken);
@@ -139,7 +149,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         // Check if refresh failed due to ban
         if (refreshError.response?.status === 403 && refreshError.response?.data?.banned) {
-          localStorage.removeItem('accessToken');
+          accessToken = null;
           localStorage.removeItem('user');
           const banData = refreshError.response.data;
           sessionStorage.setItem('banMessage', banData.message || 'Your account has been suspended.');
@@ -154,7 +164,7 @@ api.interceptors.response.use(
         // This prevents logout when server is temporarily unavailable
         if (refreshError.response?.status === 401 || refreshError.response?.status === 403) {
           processQueue(refreshError, null);
-          localStorage.removeItem('accessToken');
+          accessToken = null;
         } else {
           // Network error or server unavailable - keep token and let user retry
           processQueue(refreshError, null);

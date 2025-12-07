@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import api from '../api/axios';
+import api, { setAccessToken } from '../api/axios';
 import showToast from '../components/ui/Toast';
 
 const AuthContext = createContext();
@@ -15,46 +15,44 @@ export const AuthProvider = ({ children }) => {
   // Check if user is logged in on mount
   useEffect(() => {
     const checkAuth = async (retryCount = 0) => {
-      // If no token exists, skip the API call entirely
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
+      // Secure Auth Load: Try to silent refresh immediately
+      // This relies on the httpOnly cookie being present
       try {
-        const { data } = await api.get('/auth/me');
-        setUser(data);
+        // Attempt to get a new access token using the refresh token cookie
+        const { data: refreshData } = await api.get('/auth/refresh');
+        
+        // If successful, set the token in memory
+        setAccessToken(refreshData.accessToken);
+
+        // Then fetch user profile
+        const { data: userData } = await api.get('/auth/me');
+        setUser(userData);
         setLoading(false);
       } catch (error) {
         // Only treat 401/403 as definitive "not logged in"
         if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-          console.log('Not authenticated');
+          console.log('Not authenticated (No valid session)');
           setUser(null);
-          localStorage.removeItem('accessToken');
+          setAccessToken(null);
           setLoading(false);
         } else {
-          // For network errors (server restarting), retry up to 5 times with longer delays
+          // For network errors (server restarting), retry up to 5 times
           if (retryCount < 5) {
-            const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); // Exponential backoff, max 10s
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); 
             console.log(
               `Server unreachable, retrying in ${delay / 1000}s... (${retryCount + 1}/5)`
             );
             setTimeout(() => checkAuth(retryCount + 1), delay);
           } else {
-            // After all retries, keep the token but set user to null
-            // User can still interact with app and token refresh will handle re-auth
-            console.error('Auth check failed after retries - keeping token for later retry');
+            console.error('Auth check failed after retries');
             setUser(null);
             setLoading(false);
-            // Don't remove token - let the user retry when server is back
           }
         }
       }
     };
 
-    // Set a timeout to prevent infinite loading on mobile
+    // Set a timeout to prevent infinite loading
     const timeoutId = setTimeout(() => {
       setLoading((current) => {
         if (current) {
@@ -63,7 +61,7 @@ export const AuthProvider = ({ children }) => {
         }
         return current;
       });
-    }, 15000); // 15 second timeout (increased from 8s)
+    }, 15000);
 
     checkAuth();
 
@@ -81,7 +79,10 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const { data } = await api.post('/auth/login', { email, password });
-      localStorage.setItem('accessToken', data.accessToken);
+      
+      // Update memory token
+      setAccessToken(data.accessToken);
+      
       const userData = {
         _id: data._id,
         email: data.email,
@@ -107,16 +108,12 @@ export const AuthProvider = ({ children }) => {
         );
         sessionStorage.setItem('banReason', errorData.bannedReason || '');
         sessionStorage.setItem('banSupport', JSON.stringify(errorData.support || {}));
-
-        // Store email - prefer from response, fallback to input email
         sessionStorage.setItem('banUserEmail', errorData.userEmail || email);
 
-        // Store appeal token
         if (errorData.appealToken) {
           sessionStorage.setItem('banAppealToken', errorData.appealToken);
         }
 
-        // Redirect to account suspended page
         window.location.href = '/account-suspended';
         return { success: false, banned: true };
       }
@@ -134,13 +131,14 @@ export const AuthProvider = ({ children }) => {
         ...additionalData,
       });
 
-      // Check if verification is required
       if (data.requireVerification) {
         showToast.info('Please check your email to verify your account', 'Verification Required');
         return { success: true, requireVerification: true };
       }
 
-      localStorage.setItem('accessToken', data.accessToken);
+      // Update memory token
+      setAccessToken(data.accessToken);
+      
       const userData = {
         _id: data._id,
         email: data.email,
@@ -160,7 +158,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await api.post('/auth/logout');
-      localStorage.removeItem('accessToken');
+      setAccessToken(null);
       setUser(null);
       showToast.info('See you next time!', 'Logged Out');
     } catch (error) {
