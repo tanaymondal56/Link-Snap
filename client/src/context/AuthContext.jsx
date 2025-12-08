@@ -118,6 +118,12 @@ export const AuthProvider = ({ children }) => {
         return { success: false, banned: true };
       }
 
+      // Handle unverified user - redirect to OTP page
+      if (errorData?.unverified) {
+        showToast.warning('Please verify your account to continue.', 'Verification Required');
+        return { success: false, unverified: true, email: errorData.email };
+      }
+
       showToast.error(errorData?.message || 'Login failed');
       return { success: false, error: errorData?.message };
     }
@@ -131,6 +137,13 @@ export const AuthProvider = ({ children }) => {
         ...additionalData,
       });
 
+      // Account already exists and is verified - redirect to login
+      if (data.accountExists) {
+        showToast.info('Check your email for further instructions', 'Email Sent');
+        return { success: true, accountExists: true };
+      }
+
+      // Unverified account - redirect to OTP page
       if (data.requireVerification) {
         showToast.success('Please verify your email to continue', 'Account Created');
         return { success: true, requireVerification: true, email: data.email };
@@ -170,6 +183,7 @@ export const AuthProvider = ({ children }) => {
     <AuthContext.Provider
       value={{
         user,
+        setUser,
         loading,
         login,
         register,

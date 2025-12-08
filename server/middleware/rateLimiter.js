@@ -79,7 +79,25 @@ export const verifyOtpLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5, // Strict limit: 5 attempts per 15 minutes per IP
     handler: (req, res) => {
-        res.status(429).json({ message: 'Too many verification attempts. Please wait 15 minutes.' });
+        res.status(429).json({ message: 'Whoa there! Too many attempts. Please take a short break and try again in about 15 minutes. ☕' });
+    },
+    skip: (req) => isWhitelisted(req.ip),
+});
+
+export const forgotPasswordLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 3, // 3 requests per 15 minutes per IP
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many password reset requests. Please try again in 15 minutes.' });
+    },
+    skip: (req) => isWhitelisted(req.ip),
+});
+
+export const resetPasswordLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // 5 attempts per 15 minutes per IP
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many reset attempts. Please try again in 15 minutes.' });
     },
     skip: (req) => isWhitelisted(req.ip),
 });

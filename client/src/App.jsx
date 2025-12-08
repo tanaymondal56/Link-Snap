@@ -11,10 +11,15 @@ import ConfirmDialogProvider from './components/ui/ConfirmDialog';
 import DialogProvider from './components/ui/DialogProvider';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
 import PostUpdateChoiceModal from './components/PostUpdateChoiceModal';
+import OfflineIndicator from './components/OfflineIndicator';
+import InstallPrompt from './components/InstallPrompt';
 
 // Lazy Loaded Pages
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
+const VerifyOTP = lazy(() => import('./pages/VerifyOTP'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const AccountSuspended = lazy(() => import('./pages/AccountSuspended'));
 const Changelog = lazy(() => import('./pages/Changelog'));
 const OverviewPage = lazy(() => import('./pages/OverviewPage'));
@@ -87,6 +92,10 @@ function AppContent() {
           <Route element={<PublicLayout />}>
             <Route path="/" element={<LandingPage />} />
             <Route path="/verify-email/:token" element={<VerifyEmail />} />
+            <Route path="/verify-otp" element={<VerifyOTP />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
           </Route>
 
           {/* Changelog Route - Standalone page */}
@@ -138,9 +147,13 @@ function App() {
     <AuthProvider>
       <ConfirmDialogProvider>
         <DialogProvider>
-          <AppContent />
+          <OfflineIndicator>
+            <AppContent />
+          </OfflineIndicator>
           {/* PWA Update Prompt - shows when new version is available */}
           <PWAUpdatePrompt />
+          {/* Add to Home Screen Prompt - shows for mobile users */}
+          <InstallPrompt />
         </DialogProvider>
       </ConfirmDialogProvider>
     </AuthProvider>

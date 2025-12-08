@@ -9,16 +9,19 @@ node_modules/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
 
 # Build outputs
 # Note: client/dist is built during deployment, don't commit it
 client/dist/
+server/dist/
 build/
 .next/
 out/
 
 # Testing
 coverage/
+*.lcov
 
 # Logs
 logs/
@@ -27,10 +30,15 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
 # OS files
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
+ehthumbs.db
+Desktop.ini
 
 # Editor/IDE
 .vscode/
@@ -38,10 +46,16 @@ Thumbs.db
 *.swp
 *.swo
 *~
+*.sublime-workspace
+*.sublime-project
 
 # Debug
 .npm
 .eslintcache
+.stylelintcache
+
+# TypeScript
+*.tsbuildinfo
 
 # PWA generated files (if generated at build time)
 # Keep in repo if needed for production
@@ -51,5 +65,18 @@ Thumbs.db
 # Misc
 *.local
 .cache/
-docs/
-feature-list/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Package locks (using npm - ignore others)
+yarn.lock
+pnpm-lock.yaml
+
+# Optional: Documentation and feature tracking
+# Uncomment if you want to track these in git
+ docs/
+ feature-list/

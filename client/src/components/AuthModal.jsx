@@ -66,6 +66,20 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      showToast.warning('Please enter a valid email address', 'Invalid Email');
+      return;
+    }
+    
+    // Password required
+    if (!password) {
+      showToast.warning('Please enter your password', 'Missing Password');
+      return;
+    }
+    
     setIsLoading(true);
     const result = await login(email, password);
     setIsLoading(false);
@@ -88,22 +102,75 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
       } else {
         navigate('/dashboard');
       }
+    } else if (result.unverified) {
+      // User needs to verify their email - redirect to OTP page
+      onClose();
+      navigate('/verify-otp', { state: { email: result.email } });
     }
   };
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      showToast.warning('Please enter a valid email address', 'Invalid Email');
+      return;
+    }
+    
+    // First name is required
+    if (!firstName.trim()) {
+      showToast.warning('First name is required', 'Missing Field');
+      return;
+    }
+    
+    // First name format
+    const nameRegex = /^[a-zA-Z\s'-]+$/;
+    if (!nameRegex.test(firstName.trim())) {
+      showToast.warning('First name can only contain letters, spaces, hyphens, and apostrophes', 'Invalid Name');
+      return;
+    }
+    
+    // Last name format (if provided)
+    if (lastName.trim() && !nameRegex.test(lastName.trim())) {
+      showToast.warning('Last name can only contain letters, spaces, hyphens, and apostrophes', 'Invalid Name');
+      return;
+    }
+    
+    // Password validation
+    if (password.length < 8) {
+      showToast.warning('Password must be at least 8 characters', 'Too Short');
+      return;
+    }
+    if (!/[a-z]/.test(password)) {
+      showToast.warning('Password must contain at least one lowercase letter', 'Weak Password');
+      return;
+    }
+    if (!/[A-Z]/.test(password)) {
+      showToast.warning('Password must contain at least one uppercase letter', 'Weak Password');
+      return;
+    }
+    if (!/[0-9]/.test(password)) {
+      showToast.warning('Password must contain at least one number', 'Weak Password');
+      return;
+    }
+    
+    // Confirm password
     if (password !== confirmPassword) {
       showToast.warning("Passwords don't match", 'Check Again');
       return;
     }
-    if (password.length < 6) {
-      showToast.warning('Password must be at least 6 characters', 'Too Short');
+    
+    // Phone validation (if provided)
+    if (phone.trim() && !/^[\d\s\-+()]+$/.test(phone.trim())) {
+      showToast.warning('Please enter a valid phone number', 'Invalid Phone');
       return;
     }
+    
     setIsLoading(true);
     const result = await register(email, password, {
-      firstName: firstName.trim() || undefined,
+      firstName: firstName.trim(),
       lastName: lastName.trim() || undefined,
       phone: phone.trim() || undefined,
       company: company.trim() || undefined,
@@ -111,7 +178,11 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
     setIsLoading(false);
 
     if (result.success) {
-      if (result.requireVerification) {
+      if (result.accountExists) {
+        // Account already exists - switch to login tab, don't redirect to OTP
+        setActiveTab('login');
+        // Keep modal open so user can log in
+      } else if (result.requireVerification) {
         // Close modal, user needs to verify email
         onClose();
         navigate('/verify-otp', { state: { email: result.email } });
@@ -218,6 +289,22 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
               </button>
             </div>
 
+            {/* Forgot Password Link (Login only) */}
+            {activeTab === 'login' && (
+              <div className="text-right -mt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    navigate('/forgot-password');
+                  }}
+                  className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
+                >
+                  Forgot Password?
+                </button>
+              </div>
+            )}
+
             {/* Confirm Password (Register only) */}
             {activeTab === 'register' && (
               <div className="relative group">
@@ -230,6 +317,23 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                   placeholder="Confirm password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                />
+              </div>
+            )}
+
+            {/* First Name - Required (Register only) */}
+            {activeTab === 'register' && (
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <User className="h-5 w-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
+                </div>
+                <input
+                  type="text"
+                  required
+                  placeholder="First name *"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
                   className="w-full pl-12 pr-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
                 />
               </div>
@@ -248,29 +352,18 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                   </div>
                 </div>
 
-                {/* Name Fields Row */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <User className="h-5 w-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="First name"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full pl-12 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-sm"
-                    />
+                {/* Last Name Field */}
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
                   </div>
-                  <div className="relative group">
-                    <input
-                      type="text"
-                      placeholder="Last name"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-sm"
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    placeholder="Last name"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-sm"
+                  />
                 </div>
 
                 {/* Phone Field */}

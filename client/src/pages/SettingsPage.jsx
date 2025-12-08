@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
+import { handleApiError } from '../utils/errorHandler';
 
 const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -65,7 +66,7 @@ const SettingsPage = () => {
       });
     } catch (error) {
       console.error('Failed to fetch profile:', error);
-      showToast.error('Failed to load profile');
+      handleApiError(error, 'Failed to load profile');
     } finally {
       setIsLoading(false);
     }
@@ -79,7 +80,7 @@ const SettingsPage = () => {
       showToast.success('Your profile has been updated!', 'Profile Saved');
     } catch (error) {
       console.error('Failed to save profile:', error);
-      showToast.error(error.response?.data?.message || 'Failed to save profile');
+      handleApiError(error, 'Failed to save profile');
     } finally {
       setIsSaving(false);
     }
@@ -112,7 +113,7 @@ const SettingsPage = () => {
       });
     } catch (error) {
       console.error('Failed to change password:', error);
-      showToast.error(error.response?.data?.message || 'Failed to change password');
+      handleApiError(error, 'Failed to change password');
     } finally {
       setChangingPassword(false);
     }

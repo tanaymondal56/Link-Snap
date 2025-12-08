@@ -2,11 +2,11 @@ import User from '../models/User.js';
 import Settings from '../models/Settings.js';
 import LoginHistory from '../models/LoginHistory.js';
 import { generateAccessToken, generateRefreshToken } from '../utils/generateToken.js';
-import { registerSchema, loginSchema, updateProfileSchema, verifyOtpSchema } from '../validators/authValidator.js';
+import { registerSchema, loginSchema, updateProfileSchema, verifyOtpSchema, forgotPasswordSchema, resetPasswordSchema } from '../validators/authValidator.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import sendEmail from '../utils/sendEmail.js';
-import { welcomeEmail, verificationEmail } from '../utils/emailTemplates.js';
+import { welcomeEmail, verificationEmail, accountExistsEmail, passwordResetEmail } from '../utils/emailTemplates.js';
 
 // Cookie settings - use 'strict' for permanent domains, 'lax' for tunnels/dev
 // Set COOKIE_SAMESITE=lax in .env if using temporary tunnels
@@ -36,11 +36,85 @@ const registerUser = async (req, res, next) => {
     // SECURITY: Return generic message to prevent email enumeration attacks
     // Don't reveal whether the email is already registered
     if (userExists) {
-      // Return same response as successful registration to prevent enumeration
-      return res.status(201).json({
-        message: 'If this email is not already registered, you will receive a verification email shortly.',
-        requireVerification: true
-      });
+      if (userExists.isVerified) {
+        // Option 1: User is already verified - Send "Account Exists" email
+        console.log(`Registration attempt for existing verified user: ${email}`);
+        
+        try {
+          const emailContent = accountExistsEmail(userExists);
+          await sendEmail({
+            email: userExists.email,
+            subject: emailContent.subject,
+            message: emailContent.html,
+          });
+        } catch (error) {
+          console.error('Failed to send account exists email:', error);
+          // Don't error out, just continue to return the generic message
+        }
+      } else {
+        // Option 2: User exists but is unverified - Update their info and Resend Verification Email
+        console.log(`Registration attempt for existing unverified user: ${email}`);
+        
+        // Update user profile with new form data (in case they changed password/name)
+        userExists.password = password; // Will be hashed by pre-save hook
+        if (firstName) userExists.firstName = firstName;
+        if (lastName) userExists.lastName = lastName;
+        if (phone) userExists.phone = phone;
+        if (company) userExists.company = company;
+        if (website) userExists.website = website;
+        
+        // Generate new tokens
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const verificationToken = crypto.randomBytes(20).toString('hex');
+        const otpExpiresTime = Date.now() + 10 * 60 * 1000; // 10 minutes
+        
+        userExists.otp = otp;
+        userExists.otpExpires = otpExpiresTime;
+        userExists.verificationToken = verificationToken;
+        userExists.verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
+        
+        // Debug: Log before save
+        console.log('[DEBUG] Before save - OTP:', otp, 'Expires:', new Date(otpExpiresTime).toISOString());
+        
+        await userExists.save();
+        
+        // Debug: Verify saved data by re-fetching
+        const savedUser = await User.findOne({ email });
+        console.log('[DEBUG] After save - OTP:', savedUser.otp, 'Expires:', savedUser.otpExpires, 'Now:', Date.now());
+        console.log('[DEBUG] OTP Match:', savedUser.otp === otp, 'Expires Valid:', savedUser.otpExpires > Date.now());
+
+        try {
+          const emailContent = verificationEmail(userExists, verificationToken, otp);
+          await sendEmail({
+            email: userExists.email,
+            subject: emailContent.subject,
+            message: emailContent.html,
+          });
+          console.log('[DEBUG] Email sent successfully with OTP:', otp);
+        } catch (error) {
+          console.error('Failed to resend verification email:', error);
+        }
+      }
+
+      // Return appropriate response based on verification status
+      // For verified users: redirect to login (no verification needed)
+      // For unverified users: redirect to OTP page
+      if (userExists.isVerified) {
+        // Verified user - tell frontend to go to login, not OTP
+        // Use a flag that indicates account handling was done
+        return res.status(201).json({
+          message: 'If this email is already registered, you will receive an email with further instructions.',
+          accountExists: true, // Frontend should redirect to login
+          requireVerification: false
+        });
+      } else {
+        // Unverified user - redirect to OTP page
+        return res.status(201).json({
+          message: 'If this email is not already registered, you will receive a verification email shortly.',
+          requireVerification: true,
+          email: email
+        });
+      }
     }
 
     // Check global settings
@@ -61,7 +135,6 @@ const registerUser = async (req, res, next) => {
       website,
     };
 
-    let user;
     let user;
     if (requireVerification) {
       const verificationToken = crypto.randomBytes(20).toString('hex');
@@ -179,10 +252,29 @@ const verifyOTP = async (req, res, next) => {
       throw new Error('Your account has been suspended. Please contact support.');
     }
 
-    // Check OTP
-    if (user.otp !== otp || user.otpExpires < Date.now()) {
+    // Debug: Log OTP verification attempt
+    console.log('[DEBUG verifyOTP] Email:', email);
+    console.log('[DEBUG verifyOTP] Stored OTP:', user.otp);
+    console.log('[DEBUG verifyOTP] OTP Expires:', user.otpExpires);
+    console.log('[DEBUG verifyOTP] Current Time:', Date.now());
+    console.log('[DEBUG verifyOTP] Is Expired:', !user.otp || user.otpExpires < Date.now());
+    console.log('[DEBUG verifyOTP] Time Diff (ms):', user.otpExpires ? user.otpExpires - Date.now() : 'N/A');
+
+    // Check OTP expiry first
+    if (!user.otp || user.otpExpires < Date.now()) {
+      console.log('[DEBUG verifyOTP] FAILED - OTP expired or missing');
+      return res.status(400).json({
+        message: 'Your verification code has expired. Please request a new one.',
+        expired: true
+      });
+    }
+
+    // Check OTP value using timing-safe comparison to prevent timing attacks
+    const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
+    const storedOtpBuffer = Buffer.from((user.otp || '').padEnd(6, '0'));
+    if (!crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
       res.status(400);
-      throw new Error('Invalid or expired OTP');
+      throw new Error('Invalid verification code. Please check and try again.');
     }
 
     // Verify User
@@ -258,12 +350,42 @@ const verifyEmail = async (req, res, next) => {
       throw new Error('Invalid or expired verification token');
     }
 
+    // Check if user is banned before allowing verification
+    if (!user.isActive) {
+      res.status(403);
+      throw new Error('Your account has been suspended. Please contact support.');
+    }
+
     user.isVerified = true;
     user.verificationToken = undefined;
     user.verificationTokenExpires = undefined;
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    
+    // Generate tokens for auto-login
+    const accessToken = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
+    
+    user.refreshTokens.push(refreshToken);
     await user.save();
 
-    res.status(200).json({ message: 'Email verified successfully! You can now login.' });
+    // Set refresh token cookie
+    res.cookie('jwt', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: getCookieSameSite(),
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
+    res.status(200).json({ 
+      message: 'Email verified successfully!',
+      _id: user._id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      accessToken,
+    });
   } catch (error) {
     next(error);
   }
@@ -343,8 +465,11 @@ const loginUser = async (req, res, next) => {
           failureReason: 'Email not verified'
         });
 
-        res.status(401);
-        throw new Error('Please verify your email address before logging in.');
+        return res.status(403).json({
+          message: 'Please verify your email address before logging in.',
+          unverified: true,
+          email: user.email
+        });
       }
 
       const accessToken = generateAccessToken(user._id);
@@ -600,4 +725,213 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken, getMe, updateProfile, changePassword, verifyEmail, verifyOTP };
+// @desc    Resend OTP for email verification
+// @route   POST /api/auth/resend-otp
+// @access  Public
+const resendOTP = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    // Validate email format
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      res.status(400);
+      throw new Error('Please provide a valid email address');
+    }
+
+    const user = await User.findOne({ email });
+
+    // Security: Don't reveal if user exists, is verified, or is banned
+    if (!user || user.isVerified || !user.isActive) {
+      return res.status(200).json({ 
+        message: 'If an unverified account exists with this email, a new code has been sent.' 
+      });
+    }
+
+    // Generate new OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationToken = crypto.randomBytes(20).toString('hex');
+    
+    user.otp = otp;
+    user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    user.verificationToken = verificationToken;
+    user.verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
+    await user.save();
+
+    // Send email
+    const emailContent = verificationEmail(user, verificationToken, otp);
+    await sendEmail({
+      email: user.email,
+      subject: emailContent.subject,
+      message: emailContent.html,
+    });
+
+    res.status(200).json({ 
+      message: 'A new verification code has been sent to your email.' 
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Forgot Password - Send reset email
+// @route   POST /api/auth/forgot-password
+// @access  Public
+const forgotPassword = async (req, res, next) => {
+  try {
+    // 1. Zod validation FIRST (no DB query yet)
+    const result = forgotPasswordSchema.safeParse(req.body);
+    if (!result.success) {
+      res.status(400);
+      throw new Error(result.error.errors[0].message);
+    }
+
+    const { email } = result.data;
+
+    // 2. Now query DB
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    // 3. Handle different user states
+    if (!user) {
+      // Generic response - don't reveal email doesn't exist
+      return res.status(200).json({ 
+        message: 'If this email exists, you will receive reset instructions shortly.' 
+      });
+    }
+
+    // Banned user - return generic message
+    if (!user.isActive) {
+      return res.status(200).json({ 
+        message: 'If this email exists, you will receive reset instructions shortly.' 
+      });
+    }
+
+    // Unverified user - redirect to verification first
+    if (!user.isVerified) {
+      // Generate new verification OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const verificationToken = crypto.randomBytes(20).toString('hex');
+      
+      user.otp = otp;
+      user.otpExpires = Date.now() + 10 * 60 * 1000;
+      user.verificationToken = verificationToken;
+      user.verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
+      await user.save();
+
+      // Send verification email instead
+      const emailContent = verificationEmail(user, verificationToken, otp);
+      await sendEmail({
+        email: user.email,
+        subject: emailContent.subject,
+        message: emailContent.html,
+      });
+
+      return res.status(200).json({ 
+        message: 'Please verify your email first.',
+        unverified: true,
+        email: user.email
+      });
+    }
+
+    // 4. Generate reset tokens
+    const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    
+    user.resetPasswordOtp = resetOtp;
+    user.resetPasswordOtpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 hour
+    await user.save();
+
+    // 5. Send reset email
+    const emailContent = passwordResetEmail(user, resetToken, resetOtp);
+    await sendEmail({
+      email: user.email,
+      subject: emailContent.subject,
+      message: emailContent.html,
+    });
+
+    res.status(200).json({ 
+      message: 'If this email exists, you will receive reset instructions shortly.',
+      success: true // Frontend uses this + the email from the input field
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Reset Password
+// @route   POST /api/auth/reset-password
+// @access  Public
+const resetPassword = async (req, res, next) => {
+  try {
+    // 1. Zod validation FIRST (no DB query)
+    const result = resetPasswordSchema.safeParse(req.body);
+    if (!result.success) {
+      res.status(400);
+      throw new Error(result.error.errors[0].message);
+    }
+
+    const { email, token, otp, newPassword } = result.data;
+    let user;
+
+    // 2. Find user by token OR by email+OTP
+    if (token) {
+      user = await User.findOne({
+        resetPasswordToken: token,
+        resetPasswordExpires: { $gt: Date.now() }
+      });
+
+      if (!user) {
+        res.status(400);
+        throw new Error('Invalid or expired reset link. Please request a new one.');
+      }
+    } else if (email && otp) {
+      user = await User.findOne({ email: email.toLowerCase() });
+
+      if (!user) {
+        res.status(400);
+        throw new Error('Invalid email or OTP.');
+      }
+
+      // Check OTP expiry
+      if (!user.resetPasswordOtp || user.resetPasswordOtpExpires < Date.now()) {
+        res.status(400);
+        throw new Error('Your reset code has expired. Please request a new one.');
+      }
+
+      // Timing-safe comparison for OTP
+      const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
+      const storedOtpBuffer = Buffer.from((user.resetPasswordOtp || '').padEnd(6, '0'));
+      if (!crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
+        res.status(400);
+        throw new Error('Invalid reset code. Please check and try again.');
+      }
+    } else {
+      res.status(400);
+      throw new Error('Provide either reset token or email + OTP.');
+    }
+
+    // 3. Update password
+    user.password = newPassword; // Will be hashed by pre-save hook
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    user.resetPasswordOtp = undefined;
+    user.resetPasswordOtpExpires = undefined;
+    
+    // Optionally clear all refresh tokens to force re-login everywhere
+    // user.refreshTokens = [];
+    
+    await user.save();
+
+    res.status(200).json({ 
+      message: 'Password reset successful. You can now log in with your new password.' 
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+export { registerUser, loginUser, logoutUser, refreshAccessToken, getMe, updateProfile, changePassword, verifyEmail, verifyOTP, resendOTP, forgotPassword, resetPassword };

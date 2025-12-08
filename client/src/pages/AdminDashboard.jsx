@@ -878,13 +878,17 @@ const AdminDashboard = () => {
                           >
                             {user.role}
                           </span>
-                          {user.isActive !== false ? (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-500/20 text-green-300">
-                              Active
-                            </span>
-                          ) : (
+                          {user.isActive === false ? (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-500/20 text-red-300">
                               Banned
+                            </span>
+                          ) : user.isVerified === false ? (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-500/20 text-yellow-300">
+                              Unverified
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-500/20 text-green-300">
+                              Active
                             </span>
                           )}
                         </div>
@@ -1223,11 +1227,8 @@ const AdminDashboard = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          {user.isActive !== false ? (
-                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-300 border border-green-500/30">
-                              Active
-                            </span>
-                          ) : user.bannedReason && user.bannedReason.includes('Unban Pending') ? (
+                          {user.isActive === false ? (
+                            user.bannedReason && user.bannedReason.includes('Unban Pending') ? (
                             <span
                               className="px-2 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30 cursor-help"
                               title={user.bannedReason}
@@ -1251,6 +1252,14 @@ const AdminDashboard = () => {
                                 <span className="text-[10px] text-red-400">Permanent</span>
                               )}
                             </div>
+                          )) : user.isVerified === false ? (
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                              Unverified
+                            </span>
+                          ) : (
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-300 border border-green-500/30">
+                              Active
+                            </span>
                           )}
                         </td>
                         <td className="px-6 py-4 text-gray-400 text-sm">

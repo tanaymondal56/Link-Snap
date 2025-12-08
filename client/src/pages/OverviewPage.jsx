@@ -14,7 +14,7 @@ import {
   Activity,
 } from 'lucide-react';
 import api from '../api/axios';
-import showToast from '../components/ui/Toast';
+import { handleApiError } from '../utils/errorHandler';
 import { getShortUrl } from '../utils/urlHelper';
 import CreateLinkModal from '../components/CreateLinkModal';
 import LinkSuccessModal from '../components/LinkSuccessModal';
@@ -71,7 +71,7 @@ const OverviewPage = () => {
       setTopLinks(topByClicks.slice(0, 5));
     } catch (error) {
       console.error(error);
-      showToast.error('Failed to load overview data');
+      handleApiError(error, 'Failed to load overview data');
     } finally {
       setIsLoading(false);
     }

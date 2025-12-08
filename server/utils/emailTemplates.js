@@ -374,6 +374,25 @@ export const verificationEmail = (user, verificationToken, otp) => {
     <p style="margin: 0 0 32px 0; font-family: Arial, sans-serif; font-size: 16px; color: ${brandColors.gray}; text-align: center; line-height: 1.6;">
       Thanks for signing up! Please verify your email address to get started.
     </p>
+
+    <!-- OTP Display -->
+    <p style="margin: 0 0 16px 0; font-family: Arial, sans-serif; font-size: 16px; color: ${brandColors.gray}; text-align: center; line-height: 1.6;">
+      Use the code below to complete your registration:
+    </p>
+    
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 24px;">
+      <tr>
+        <td align="center">
+          <div style="font-family: monospace; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: ${brandColors.dark}; background-color: #f3f4f6; padding: 16px 32px; border-radius: 12px; display: inline-block; border: 2px dashed ${brandColors.grayLight};">
+            ${otp}
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin: 0 0 8px 0; font-family: Arial, sans-serif; font-size: 14px; color: ${brandColors.gray}; text-align: center;">
+      Or verify directly by clicking the button below:
+    </p>
     
     ${primaryButton('Verify Email Address', verifyUrl)}
     
@@ -622,6 +641,112 @@ export const testEmail = () => {
     };
 };
 
+// Account exists email - sent when verified user tries to re-register
+export const accountExistsEmail = (user) => {
+    const loginUrl = `${getAppUrl()}/login`;
+    const forgotPasswordUrl = `${getAppUrl()}/forgot-password`;
+    const firstName = escapeHtml(user.firstName) || 'there';
+
+    const content = `
+    <!-- Icon -->
+    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+      <tr>
+        <td align="center" style="padding-bottom: 24px;">
+          <div style="background: linear-gradient(135deg, ${brandColors.gray} 0%, ${brandColors.grayLight} 100%); width: 72px; height: 72px; border-radius: 50%; display: inline-block; text-align: center; line-height: 72px;">
+            <span style="font-size: 36px;">🔒</span>
+          </div>
+        </td>
+      </tr>
+    </table>
+    
+    <!-- Heading -->
+    <h1 style="margin: 0 0 16px 0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 28px; font-weight: 700; color: ${brandColors.dark}; text-align: center;">
+      Account Already Exists
+    </h1>
+    
+    <!-- Message -->
+    <p style="margin: 0 0 8px 0; font-family: Arial, sans-serif; font-size: 16px; color: ${brandColors.gray}; text-align: center; line-height: 1.6;">
+      Hi ${firstName},
+    </p>
+    <p style="margin: 0 0 24px 0; font-family: Arial, sans-serif; font-size: 16px; color: ${brandColors.gray}; text-align: center; line-height: 1.6;">
+      We received a signup request for this email, but you already have an account.
+    </p>
+
+    <p style="margin: 0 0 32px 0; font-family: Arial, sans-serif; font-size: 16px; color: ${brandColors.gray}; text-align: center; line-height: 1.6;">
+      If this was you, simply log in. If you forgot your password, you can reset it.
+    </p>
+    
+    ${primaryButton('Log In', loginUrl)}
+    
+    <p style="text-align: center; margin-top: 24px;">
+      <a href="${forgotPasswordUrl}" style="color: ${brandColors.primary}; text-decoration: none; font-family: Arial, sans-serif; font-size: 14px;">Forgot your password?</a>
+    </p>
+    
+    ${divider()}
+    
+    <p style="margin: 24px 0 0 0; font-family: Arial, sans-serif; font-size: 13px; color: ${brandColors.grayLight}; text-align: center;">
+      If you didn't request this, you can safely ignore this email.
+    </p>
+  `;
+
+    return {
+        subject: 'You already have a Link Snap account',
+        html: baseTemplate(content, `Hi ${firstName}, someone tried to sign up with your email, but you already have an account.`)
+    };
+};
+
+/**
+ * Password Reset Email
+ * Sent when user requests to reset their password
+ */
+export const passwordResetEmail = (user, resetToken, otp) => {
+    const firstName = escapeHtml(user.firstName) || 'there';
+    const resetUrl = `${getAppUrl()}/reset-password/${resetToken}`;
+    
+    const content = `
+    ${emailHeader('Reset Your Password')}
+    
+    <p style="margin: 0 0 16px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: ${brandColors.dark};">
+      Hi ${firstName},
+    </p>
+    
+    <p style="margin: 0 0 24px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: ${brandColors.dark};">
+      We received a request to reset your password. Use the button below or enter the OTP code to set a new password.
+    </p>
+    
+    <!-- OTP Box -->
+    <div style="background: linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary}); border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+      <p style="margin: 0 0 8px 0; font-family: Arial, sans-serif; font-size: 14px; color: rgba(255,255,255,0.9);">Your Reset Code</p>
+      <p style="margin: 0; font-family: 'Courier New', monospace; font-size: 36px; font-weight: bold; letter-spacing: 8px; color: ${brandColors.white};">${otp}</p>
+      <p style="margin: 8px 0 0 0; font-family: Arial, sans-serif; font-size: 12px; color: rgba(255,255,255,0.7);">Expires in 10 minutes</p>
+    </div>
+    
+    <p style="margin: 0 0 24px 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: ${brandColors.gray}; text-align: center;">
+      Or click the button below to reset via link (valid for 1 hour):
+    </p>
+    
+    ${button('Reset Password', resetUrl)}
+    
+    <p style="margin: 24px 0 0 0; font-family: Arial, sans-serif; font-size: 13px; color: ${brandColors.grayLight}; text-align: center;">
+      Can't click the button? Copy this link:<br/>
+      <a href="${resetUrl}" style="color: ${brandColors.primary}; word-break: break-all;">${resetUrl}</a>
+    </p>
+    
+    ${divider()}
+    
+    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 24px 0;">
+      <p style="margin: 0; font-family: Arial, sans-serif; font-size: 14px; color: #dc2626;">
+        <strong>⚠️ Security Notice:</strong> If you didn't request a password reset, please ignore this email. Your password will remain unchanged.
+      </p>
+    </div>
+  `;
+
+    return {
+        subject: 'Reset Your Password - Link Snap',
+        html: baseTemplate(content, `Hi ${firstName}, here's your password reset code: ${otp}`)
+    };
+};
+
 export default {
     welcomeEmail,
     verificationEmail,
@@ -629,4 +754,6 @@ export default {
     reactivationEmail,
     appealDecisionEmail,
     testEmail,
+    accountExistsEmail,
+    passwordResetEmail,
 };

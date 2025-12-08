@@ -173,7 +173,14 @@ const LandingPage = () => {
 
       showToast.success('Your short link is ready!', 'Link Created');
     } catch (error) {
-      showToast.error(error.response?.data?.message || 'Failed to shorten link');
+      // Check if it's a network/offline error
+      if (!navigator.onLine) {
+        showToast.error("You're offline. Please check your internet connection and try again.", 'No Connection');
+      } else if (error.code === 'ERR_NETWORK' || !error.response) {
+        showToast.error("Couldn't reach the server. Please try again in a moment.", 'Server Unavailable');
+      } else {
+        showToast.error(error.response?.data?.message || 'Failed to shorten link');
+      }
     } finally {
       setIsLoading(false);
     }

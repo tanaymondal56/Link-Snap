@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api, { setAccessToken } from '../api/axios';
 import showToast from '../components/ui/Toast';
+import { handleApiError } from '../utils/errorHandler';
 import { Loader, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -15,24 +16,31 @@ const VerifyOTP = () => {
   const [email, setEmail] = useState('');
   
   useEffect(() => {
+    // Priority: 1. Router state, 2. URL param, 3. Session storage
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlEmail = urlParams.get('email');
+    
     if (location.state?.email) {
       setEmail(location.state.email);
       sessionStorage.setItem('verifyEmail', location.state.email);
+    } else if (urlEmail) {
+      setEmail(urlEmail);
+      sessionStorage.setItem('verifyEmail', urlEmail);
     } else {
       const stored = sessionStorage.getItem('verifyEmail');
-      if (stored) setEmail(stored);
-      else {
-        // If no email found, redirect to login
-        showToast.error('Session expired, please login again');
-        navigate('/login');
+      if (stored) {
+        setEmail(stored);
       }
+      // Don't redirect immediately - email might be set on next render
+      // Only show error after a small delay to prevent false negatives
     }
-  }, [location, navigate]);
+  }, [location]);
 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [activeResend, setActiveResend] = useState(false);
   const [timer, setTimer] = useState(60);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const inputRefs = useRef([]);
 
   // Timer logic
@@ -71,7 +79,9 @@ const VerifyOTP = () => {
 
   const handlePaste = (e) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').slice(0, 6).split('');
+    // Clean pasted data: remove spaces, dashes, and non-digits
+    const cleanedData = e.clipboardData.getData('text').replace(/[\s-]/g, '');
+    const pastedData = cleanedData.slice(0, 6).split('');
     if (pastedData.length > 0) {
       const newOtp = [...otp];
       pastedData.forEach((val, i) => {
@@ -91,7 +101,17 @@ const VerifyOTP = () => {
     try {
       const { data } = await api.post('/auth/verify-otp', { email, otp: otpCode });
       
-      // Success! Log them in
+      // Success!
+      
+      // Check if user was already verified (and thus no tokens returned)
+      if (data.message === 'Email already verified' || !data.accessToken) {
+        showToast.info('Email already verified. Please login.', 'Account Verified');
+        sessionStorage.removeItem('verifyEmail');
+        navigate('/login');
+        return;
+      }
+
+      // Log them in
       setAccessToken(data.accessToken);
       
       // Update AuthContext user
@@ -112,17 +132,24 @@ const VerifyOTP = () => {
       navigate('/dashboard');
 
     } catch (error) {
-      const msg = error.response?.data?.message || 'Verification failed';
-      showToast.error(msg);
-      // Clear OTP on error?
-      // setOtp(['', '', '', '', '', '']);
+      const errorData = error.response?.data;
+      if (errorData?.expired) {
+        // OTP expired - show clear message and enable resend
+        showToast.warning('Your code has expired. Click "Resend Code" to get a new one.', 'Code Expired');
+        setActiveResend(true);
+        setTimer(0);
+      } else if (!navigator.onLine) {
+        showToast.error("You're offline. Please check your connection.", 'No Connection');
+      } else if (!error.response) {
+        showToast.error("Couldn't reach the server. Please try again.", 'Server Unavailable');
+      } else {
+        showToast.error(errorData?.message || 'Verification failed');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
   
-  // Handlers for "Resend Code" could go here if implemented in backend 
-  // (We haven't implemented resend endpoint yet, so we'll just show the countdown and a "check spam" msg)
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a0f1d] p-4 text-white relative overflow-hidden">
@@ -132,6 +159,24 @@ const VerifyOTP = () => {
         <div className="absolute top-[40%] -left-[10%] w-[50vw] h-[50vw] bg-blue-500/10 rounded-full blur-[100px]" />
       </div>
 
+      {/* Error state when email is missing */}
+      {!email ? (
+        <div className="relative w-full max-w-md bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-2xl text-center">
+          <div className="w-16 h-16 bg-gradient-to-tr from-orange-500 to-red-500 rounded-2xl mx-auto flex items-center justify-center mb-6 shadow-lg shadow-orange-500/20">
+            <Mail className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-3">Email Not Found</h2>
+          <p className="text-gray-400 text-sm mb-6">
+            We couldn't find your email for verification. Please try signing up or logging in again.
+          </p>
+          <button
+            onClick={() => navigate('/')}
+            className="w-full py-3 rounded-xl font-semibold bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 transition-all"
+          >
+            Go to Home
+          </button>
+        </div>
+      ) : (
       <div className="relative w-full max-w-md bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-2xl">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-gradient-to-tr from-purple-500 to-blue-500 rounded-2xl mx-auto flex items-center justify-center mb-6 shadow-lg shadow-purple-500/20">
@@ -187,21 +232,43 @@ const VerifyOTP = () => {
             Didn't receive the code?{' '}
             {activeResend ? (
               <button 
-                className="text-purple-400 hover:text-purple-300 font-medium transition-colors cursor-pointer"
-                onClick={() => {
-                   setTimer(60); 
-                   setActiveResend(false);
-                   showToast.success('Check your spam folder! Resend not implemented yet.');
+                className="text-purple-400 hover:text-purple-300 font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isResending}
+                onClick={async () => {
+                  try {
+                    setIsResending(true);
+                    setTimer(60); 
+                    setActiveResend(false);
+                    await api.post('/auth/resend-otp', { email });
+                    showToast.success('A new code has been sent to your email!');
+                  } catch (error) {
+                    handleApiError(error, 'Failed to resend code');
+                    setActiveResend(true); // Re-enable on error
+                  } finally {
+                    setIsResending(false);
+                  }
                 }}
               >
-                Resend Code
+                {isResending ? 'Sending...' : 'Resend Code'}
               </button>
             ) : (
               <span className="text-gray-600">Resend in {timer}s</span>
             )}
           </p>
+          <p className="text-sm text-gray-500 mt-4">
+            <button 
+              onClick={() => {
+                sessionStorage.removeItem('verifyEmail');
+                navigate('/');
+              }}
+              className="text-gray-400 hover:text-white transition-colors underline"
+            >
+              Use a different email
+            </button>
+          </p>
         </div>
       </div>
+      )}
     </div>
   );
 };

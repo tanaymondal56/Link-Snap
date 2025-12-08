@@ -21,11 +21,15 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
+import { handleApiError } from '../utils/errorHandler';
 import { QRCodeSVG } from 'qrcode.react';
 import { getShortUrl } from '../utils/urlHelper';
 import CreateLinkModal from '../components/CreateLinkModal';
 import EditLinkModal from '../components/EditLinkModal';
 import LinkSuccessModal from '../components/LinkSuccessModal';
+import SwipeableCard from '../components/SwipeableCard';
+import PullToRefresh from '../components/PullToRefresh';
+import { cacheLinks, getCachedLinks, getCacheAge } from '../utils/offlineCache';
 
 const UserDashboard = () => {
   const confirm = useConfirm();
@@ -51,10 +55,24 @@ const UserDashboard = () => {
       const { data } = await api.get('/url/my-links');
       setLinks(data.urls);
       setOwnerBanned(data.ownerBanned || false);
+      // Cache the links for offline use
+      cacheLinks(data.urls);
     } catch (error) {
       console.error(error);
-      setError('Failed to load your links. Please check your connection.');
-      showToast.error('Please check your connection', 'Failed to Load');
+      
+      // If offline, try to load from cache
+      if (!navigator.onLine) {
+        const cached = getCachedLinks();
+        if (cached && cached.links.length > 0) {
+          setLinks(cached.links);
+          showToast.info('Showing cached data (last updated ' + getCacheAge() + ')', 'Offline Mode');
+        } else {
+          setError('You\'re offline and no cached data is available.');
+        }
+      } else {
+        setError('Failed to load your links. Please check your connection.');
+        handleApiError(error, 'Failed to load links');
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -96,7 +114,7 @@ const UserDashboard = () => {
       showToast.success('Link has been removed', 'Deleted');
     } catch (error) {
       console.error(error);
-      showToast.error('Failed to delete link');
+      handleApiError(error, 'Failed to delete link');
     }
   };
 
@@ -214,6 +232,7 @@ const UserDashboard = () => {
       </div>
 
       {/* Links Card View */}
+      <PullToRefresh onRefresh={fetchLinks}>
       <div className="space-y-4">
         {filteredLinks.length === 0 ? (
           <div className="glass-dark rounded-xl border border-gray-800 p-12 text-center">
@@ -229,8 +248,14 @@ const UserDashboard = () => {
             const isLinkDisabled = link.ownerBanned || !link.isActive;
 
             return (
-              <div
+              <SwipeableCard
                 key={link._id}
+                onEdit={() => setEditingLink(link)}
+                onCopy={() => copyToClipboard(link.customAlias || link.shortId)}
+                onDelete={() => handleDelete(link._id)}
+                disabled={isLinkDisabled}
+              >
+              <div
                 className={`glass-dark rounded-xl border overflow-hidden transition-colors ${
                   isLinkDisabled
                     ? 'border-orange-500/30 bg-orange-500/5'
@@ -482,10 +507,12 @@ const UserDashboard = () => {
                   </div>
                 </div>
               </div>
+              </SwipeableCard>
             );
           })
         )}
       </div>
+      </PullToRefresh>
 
       {/* QR Code Modal - Enhanced for both links */}
       {qrModalLink && (
