@@ -203,11 +203,11 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md animate-modal-in">
+      <div className="relative w-[95%] max-w-md animate-modal-in flex flex-col max-h-[95vh] overscroll-contain">
         {/* Gradient border effect */}
         <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-2xl opacity-75 blur-sm" />
 
-        <div className="relative bg-gray-900 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden">
+        <div className="relative bg-gray-900 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden flex flex-col max-h-full">
           {/* Close button */}
           <button
             onClick={onClose}
@@ -217,7 +217,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
           </button>
 
           {/* Header with tabs */}
-          <div className="pt-8 px-8">
+          <div className="pt-8 px-8 shrink-0">
             <h2 className="text-2xl font-bold text-white text-center mb-6">
               {activeTab === 'login' ? 'Welcome Back' : 'Create Account'}
             </h2>
@@ -250,7 +250,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
           {/* Form */}
           <form
             onSubmit={activeTab === 'login' ? handleLogin : handleRegister}
-            className="px-8 pb-8 space-y-4"
+            className="px-8 pb-8 space-y-4 overflow-y-auto custom-scrollbar"
           >
             {/* Email */}
             <div className="relative group">

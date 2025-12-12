@@ -52,6 +52,8 @@ export const setInCache = (shortId, urlData) => {
         isActive: urlData.isActive,
         _id: urlData._id,
         ownerId: urlData.ownerId || urlData.createdBy || null,
+        ownerBanned: urlData.ownerBanned,
+        disableLinksOnBan: urlData.disableLinksOnBan,
     });
 };
 

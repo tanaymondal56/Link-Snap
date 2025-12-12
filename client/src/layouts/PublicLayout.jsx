@@ -2,8 +2,8 @@ import { Link, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { User, Shield, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import api from '../api/axios';
 import { APP_VERSION, hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
+import PullToRefresh from '../components/PullToRefresh';
 
 const PublicLayout = () => {
   const { user, logout, openAuthModal, isAdmin } = useAuth();
@@ -17,29 +17,34 @@ const PublicLayout = () => {
 
     let isMounted = true;
 
-    const checkAdminAccess = async () => {
+    // Check the HTTP status for whitelisted but not authenticated
+    const checkWithStatus = async () => {
       try {
-        // Use GET instead of HEAD for more reliable error responses
-        await api.get('/admin/stats');
-        // If we get here (200), user is authenticated AND whitelisted
-        if (isMounted) setIsWhitelistedIP(true);
-      } catch (error) {
+        // Use native fetch to avoid axios interceptor interference
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const response = await fetch(`${baseUrl}/admin/stats`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        
         if (!isMounted) return;
-
-        const status = error.response?.status;
-        // 401 = IP allowed but not authenticated (this is what we want for localhost)
+        
+        // 200 = authenticated + whitelisted
+        // 401 = IP allowed but not authenticated
         // 403 = IP allowed but not admin role
         // 404 = IP blocked (route hidden)
-        // No response = backend unreachable
-        if (status === 401 || status === 403) {
+        if (response.ok || response.status === 401 || response.status === 403) {
           setIsWhitelistedIP(true);
         } else {
           setIsWhitelistedIP(false);
         }
+      } catch {
+        // Network error
+        if (isMounted) setIsWhitelistedIP(false);
       }
     };
 
-    checkAdminAccess();
+    checkWithStatus();
 
     return () => {
       isMounted = false;
@@ -148,7 +153,9 @@ const PublicLayout = () => {
       </nav>
 
       <main className="flex-grow relative">
-        <Outlet />
+        <PullToRefresh onRefresh={() => window.location.reload()}>
+          <Outlet />
+        </PullToRefresh>
       </main>
 
       <footer className="bg-gray-950 border-t border-white/5 py-8">

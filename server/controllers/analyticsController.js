@@ -17,13 +17,17 @@ export const getUrlAnalytics = async (req, res) => {
         }
 
         // 2. Aggregate Data
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        // For the main chart, we show last 30 days (changed from 7 to match standard analytics)
+        // For other stats, we ALSO limit to last 30 days to avoid scanning millions of historical records
+        // This is crucial for performance on high-traffic links.
 
         const [clicksByDate, clicksByDevice, clicksByLocation, clicksByBrowser] = await Promise.all([
-            // Clicks by Date (Last 7 Days)
+            // Clicks by Date (Last 30 Days)
             Analytics.aggregate([
-                { $match: { urlId: url._id, timestamp: { $gte: sevenDaysAgo } } },
+                { $match: { urlId: url._id, timestamp: { $gte: thirtyDaysAgo } } },
                 {
                     $group: {
                         _id: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
@@ -33,25 +37,25 @@ export const getUrlAnalytics = async (req, res) => {
                 { $sort: { _id: 1 } }
             ]),
 
-            // Clicks by Device
+            // Clicks by Device (Last 30 Days)
             Analytics.aggregate([
-                { $match: { urlId: url._id } },
+                { $match: { urlId: url._id, timestamp: { $gte: thirtyDaysAgo } } },
                 { $group: { _id: "$device", count: { $sum: 1 } } },
                 { $sort: { count: -1 } },
                 { $limit: 5 }
             ]),
 
-            // Clicks by Location (Country)
+            // Clicks by Location (Country) (Last 30 Days)
             Analytics.aggregate([
-                { $match: { urlId: url._id } },
+                { $match: { urlId: url._id, timestamp: { $gte: thirtyDaysAgo } } },
                 { $group: { _id: "$country", count: { $sum: 1 } } },
                 { $sort: { count: -1 } },
                 { $limit: 10 }
             ]),
 
-            // Clicks by Browser
+            // Clicks by Browser (Last 30 Days)
             Analytics.aggregate([
-                { $match: { urlId: url._id } },
+                { $match: { urlId: url._id, timestamp: { $gte: thirtyDaysAgo } } },
                 { $group: { _id: "$browser", count: { $sum: 1 } } },
                 { $sort: { count: -1 } },
                 { $limit: 5 }

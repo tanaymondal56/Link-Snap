@@ -14,6 +14,7 @@ import {
 import { cn } from '../utils/cn';
 
 import { Loader2 } from 'lucide-react';
+import PullToRefresh from '../components/PullToRefresh';
 
 const DashboardLayout = () => {
   const { user, logout, loading, isAdmin } = useAuth();
@@ -191,9 +192,11 @@ const DashboardLayout = () => {
 
         {/* Scrollable Content Area */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-8">
-          <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
-            <Outlet />
-          </div>
+          <PullToRefresh onRefresh={() => window.location.reload()}>
+            <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
+              <Outlet />
+            </div>
+          </PullToRefresh>
         </main>
       </div>
     </div>

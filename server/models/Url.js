@@ -40,8 +40,9 @@ const urlSchema = new mongoose.Schema({
     timestamps: true,
 });
 
-// Index for fast lookups
-urlSchema.index({ createdBy: 1 });
+// Index for fast lookups and dashboard sorting
+// Compound index avoids in-memory sort for "My Links" page
+urlSchema.index({ createdBy: 1, createdAt: -1 });
 
 const Url = mongoose.model('Url', urlSchema);
 

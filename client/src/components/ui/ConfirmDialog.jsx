@@ -65,7 +65,7 @@ const ConfirmDialogComponent = ({ isOpen, onClose, onConfirm, config }) => {
 
       {/* Dialog */}
       <div
-        className={`relative w-full max-w-md bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl ${variant.borderGlow} animate-modal-in overflow-hidden`}
+        className={`relative w-[95%] max-w-md bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl ${variant.borderGlow} animate-modal-in overflow-hidden flex flex-col max-h-[95vh] overscroll-contain`}
       >
         {/* Gradient top border */}
         <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${variant.buttonBg}`} />
@@ -79,7 +79,7 @@ const ConfirmDialogComponent = ({ isOpen, onClose, onConfirm, config }) => {
         </button>
 
         {/* Content */}
-        <div className="p-6 pt-8">
+        <div className="p-6 pt-8 overflow-y-auto custom-scrollbar">
           {/* Icon */}
           <div className="flex justify-center mb-5">
             <div className={`p-4 ${variant.iconBg} rounded-2xl ring-4 ring-gray-800`}>

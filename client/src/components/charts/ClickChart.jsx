@@ -7,6 +7,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { formatDate } from '../utils/dateUtils';
 
 const ClickChart = ({ data }) => {
   if (!data || data.length === 0) {
@@ -42,6 +43,7 @@ const ClickChart = ({ data }) => {
             tick={{ fill: '#9ca3af', fontSize: 12 }}
             tickLine={false}
             axisLine={false}
+            tickFormatter={(date) => formatDate(date)}
           />
           <YAxis
             stroke="#9ca3af"

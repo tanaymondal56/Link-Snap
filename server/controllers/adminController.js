@@ -1,12 +1,15 @@
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Url from '../models/Url.js';
 import Analytics from '../models/Analytics.js';
 import Settings from '../models/Settings.js';
 import BanHistory from '../models/BanHistory.js';
 import Appeal from '../models/Appeal.js';
+import Feedback from '../models/Feedback.js';
 import { getCacheStats, clearCache, invalidateMultiple } from '../services/cacheService.js';
 import sendEmail from '../utils/sendEmail.js';
 import { suspensionEmail, reactivationEmail, appealDecisionEmail, testEmail } from '../utils/emailTemplates.js';
+import { escapeRegex } from '../utils/regexUtils.js';
 
 // Helper function to calculate ban expiry date
 const calculateBanExpiry = (duration) => {
@@ -58,9 +61,9 @@ const sendBanNotificationEmail = async (user, isBanned, reason, bannedUntil) => 
 // @access  Admin
 export const getSystemStats = async (req, res, next) => {
     try {
-        const totalUsers = await User.countDocuments();
-        const totalUrls = await Url.countDocuments();
-        const totalClicks = await Analytics.countDocuments();
+        const totalUsers = await User.countDocuments(); // Accurate count for users (usually smaller collection)
+        const totalUrls = await Url.estimatedDocumentCount(); // Fast estimate for large collection
+        const totalClicks = await Analytics.estimatedDocumentCount(); // Fast estimate for very large collection
 
         // Get recent users (last 5)
         const recentUsers = await User.find()
@@ -83,15 +86,49 @@ export const getSystemStats = async (req, res, next) => {
     }
 };
 
-// @desc    Get all users
+// @desc    Get all users (paginated, searchable)
 // @route   GET /api/admin/users
 // @access  Admin
 export const getAllUsers = async (req, res, next) => {
     try {
-        const users = await User.find()
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const search = req.query.search || '';
+        const role = req.query.role || '';
+        const skip = (page - 1) * limit;
+
+        const query = {};
+
+        // Search logic
+        if (search) {
+            const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            query.$or = [
+                { email: { $regex: escapedSearch, $options: 'i' } },
+                { firstName: { $regex: escapedSearch, $options: 'i' } },
+                { lastName: { $regex: escapedSearch, $options: 'i' } }
+            ];
+        }
+
+        // Role filtering
+        if (role && role !== 'all') {
+            query.role = role;
+        }
+
+        // Execute query with skip/limit
+        const users = await User.find(query)
             .select('-password -refreshTokens')
-            .sort({ createdAt: -1 });
-        res.json(users);
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        const total = await User.countDocuments(query);
+
+        res.json({
+            users,
+            total,
+            page,
+            pages: Math.ceil(total / limit)
+        });
     } catch (error) {
         next(error);
     }
@@ -121,32 +158,35 @@ export const updateUserStatus = async (req, res, next) => {
         }
 
         const wasBanned = !user.isActive;
-        user.isActive = !user.isActive;
+        const newIsActive = !user.isActive;
 
         let bannedUntil = null;
 
-        if (!user.isActive) {
-            // Banning user
-            user.bannedAt = new Date();
-            user.bannedReason = reason || 'Account suspended by administrator';
-            user.bannedBy = req.user.id;
-
-            // Handle temporary ban duration
+        if (!newIsActive) {
+            // Banning user - use atomic operation
             bannedUntil = calculateBanExpiry(duration);
-            user.bannedUntil = bannedUntil;
-
-            // Configure whether links should be disabled
-            if (typeof disableLinks === 'boolean') {
-                user.disableLinksOnBan = disableLinks;
-            }
-            // Immediately invalidate all refresh tokens
-            user.refreshTokens = [];
+            const banReason = reason || 'Account suspended by administrator';
+            
+            await User.findByIdAndUpdate(
+                user._id,
+                {
+                    $set: {
+                        isActive: false,
+                        bannedAt: new Date(),
+                        bannedReason: banReason,
+                        bannedBy: req.user.id,
+                        bannedUntil: bannedUntil,
+                        ...(typeof disableLinks === 'boolean' && { disableLinksOnBan: disableLinks }),
+                        refreshTokens: [] // Invalidate all tokens
+                    }
+                }
+            );
 
             // Log ban history
             await BanHistory.create({
                 userId: user._id,
                 action: duration && duration !== 'permanent' ? 'ban' : 'ban',
-                reason: user.bannedReason,
+                reason: banReason,
                 duration: duration || 'permanent',
                 bannedUntil,
                 linksAffected: disableLinks || false,
@@ -154,19 +194,20 @@ export const updateUserStatus = async (req, res, next) => {
                 ipAddress: req.ip || req.connection?.remoteAddress
             });
 
-            // Send ban notification email
+            // Send ban notification email (pass user object for email data)
             sendBanNotificationEmail(user, true, reason, bannedUntil);
         } else {
-            // Unbanning user - use undefined instead of null to unset the fields
-            user.bannedAt = undefined;
-            user.bannedReason = undefined;
-            user.bannedUntil = undefined;
-            user.bannedBy = undefined;
-
-            // If admin chose to re-enable links, reset the disableLinksOnBan flag
+            // Unbanning user - use atomic operation
+            const updateOps = {
+                $set: { isActive: true },
+                $unset: { bannedAt: 1, bannedReason: 1, bannedUntil: 1, bannedBy: 1 }
+            };
+            
             if (reenableLinks === true) {
-                user.disableLinksOnBan = false;
+                updateOps.$set.disableLinksOnBan = false;
             }
+            
+            await User.findByIdAndUpdate(user._id, updateOps);
 
             // Log unban history
             await BanHistory.create({
@@ -182,7 +223,8 @@ export const updateUserStatus = async (req, res, next) => {
             sendBanNotificationEmail(user, false);
         }
 
-        await user.save();
+        // Update local user object for response (refetch to get latest state)
+        const updatedUser = await User.findById(user._id);
 
         // Invalidate cache for all user's links when ban status changes
         // This ensures redirects reflect the new ban status immediately
@@ -200,19 +242,19 @@ export const updateUserStatus = async (req, res, next) => {
         }
 
         res.json({
-            message: `User ${user.isActive ? 'activated' : 'banned'}${bannedUntil ? ` until ${bannedUntil.toLocaleString()}` : ''}`,
+            message: `User ${updatedUser.isActive ? 'activated' : 'banned'}${bannedUntil ? ` until ${bannedUntil.toLocaleString()}` : ''}`,
             user: {
-                _id: user._id,
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                role: user.role,
-                isActive: user.isActive,
-                bannedAt: user.bannedAt,
-                bannedReason: user.bannedReason,
-                bannedUntil: user.bannedUntil,
-                disableLinksOnBan: user.disableLinksOnBan,
-                createdAt: user.createdAt
+                _id: updatedUser._id,
+                email: updatedUser.email,
+                firstName: updatedUser.firstName,
+                lastName: updatedUser.lastName,
+                role: updatedUser.role,
+                isActive: updatedUser.isActive,
+                bannedAt: updatedUser.bannedAt,
+                bannedReason: updatedUser.bannedReason,
+                bannedUntil: updatedUser.bannedUntil,
+                disableLinksOnBan: updatedUser.disableLinksOnBan,
+                createdAt: updatedUser.createdAt
             }
         });
     } catch (error) {
@@ -236,18 +278,22 @@ export const updateUserRole = async (req, res, next) => {
             return res.status(400).json({ message: 'Cannot change your own role' });
         }
 
-        // Toggle role between 'user' and 'admin'
-        user.role = user.role === 'admin' ? 'user' : 'admin';
-        await user.save();
+        // Toggle role between 'user' and 'admin' using atomic operation
+        const newRole = user.role === 'admin' ? 'user' : 'admin';
+        const updatedUser = await User.findByIdAndUpdate(
+            user._id,
+            { $set: { role: newRole } },
+            { new: true }
+        );
 
         res.json({
-            message: `User ${user.role === 'admin' ? 'promoted to admin' : 'demoted to user'}`,
+            message: `User ${newRole === 'admin' ? 'promoted to admin' : 'demoted to user'}`,
             user: {
-                _id: user._id,
-                email: user.email,
-                role: user.role,
-                isActive: user.isActive,
-                createdAt: user.createdAt
+                _id: updatedUser._id,
+                email: updatedUser.email,
+                role: updatedUser.role,
+                isActive: updatedUser.isActive,
+                createdAt: updatedUser.createdAt
             }
         });
     } catch (error) {
@@ -559,20 +605,26 @@ export const respondToAppeal = async (req, res, next) => {
         appeal.reviewedBy = req.user.id;
         appeal.reviewedAt = new Date();
 
-        await appeal.save();
+        // Atomic update for appeal
+        await Appeal.findByIdAndUpdate(appeal._id, {
+            $set: {
+                status: status,
+                adminResponse: adminResponse || null,
+                reviewedBy: req.user.id,
+                reviewedAt: new Date()
+            }
+        });
 
         // If approved and unbanUser is true, unban the user
         if (status === 'approved') {
             const user = await User.findById(appeal.userId);
             if (user && !user.isActive) {
                 if (unbanUser) {
-                    user.isActive = true;
-                    user.bannedAt = undefined;
-                    user.bannedReason = undefined;
-                    user.bannedUntil = undefined;
-                    user.bannedBy = undefined;
-                    user.disableLinksOnBan = false;
-                    await user.save();
+                    // Atomic unban operation
+                    await User.findByIdAndUpdate(user._id, {
+                        $set: { isActive: true, disableLinksOnBan: false },
+                        $unset: { bannedAt: 1, bannedReason: 1, bannedUntil: 1, bannedBy: 1 }
+                    });
 
                     // Log in ban history
                     await BanHistory.create({
@@ -599,9 +651,10 @@ export const respondToAppeal = async (req, res, next) => {
                     sendBanNotificationEmail(user, false);
                 } else {
                     // Appeal approved but NOT unbanned immediately
-                    // Mark user as "Unban Pending"
-                    user.bannedReason = `Appeal Approved - Unban Pending. ${adminResponse || ''}`;
-                    await user.save();
+                    // Mark user as "Unban Pending" using atomic update
+                    await User.findByIdAndUpdate(user._id, {
+                        $set: { bannedReason: `Appeal Approved - Unban Pending. ${adminResponse || ''}` }
+                    });
 
                     // Log in ban history
                     await BanHistory.create({
@@ -643,6 +696,256 @@ export const respondToAppeal = async (req, res, next) => {
             message: `Appeal ${status}`,
             appeal: populatedAppeal
         });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ============================================
+// FEEDBACK MANAGEMENT
+// ============================================
+
+// Helper to escape regex special characters (prevents ReDoS attacks)
+// Moved to utils/regexUtils.js
+
+// @desc    Export feedback to CSV
+// @route   GET /api/admin/feedback/export
+// @access  Admin
+export const exportFeedbackCSV = async (req, res, next) => {
+    try {
+        const feedback = await Feedback.find({ isDeleted: false })
+            .populate('user', 'email firstName lastName')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        // CSV Header
+        const headers = ['ID', 'Type', 'Status', 'Priority', 'Title', 'Message', 'Votes', 'User Email', 'Category', 'Created At'];
+        
+        // Transform data to CSV rows
+        const rows = feedback.map(item => {
+            const userEmail = item.email || item.user?.email || 'Anonymous';
+            // Escape quotes in text fields to prevent CSV breakage
+            const safeTitle = `"${(item.title || '').replace(/"/g, '""')}"`;
+            const safeMessage = `"${(item.message || '').replace(/"/g, '""')}"`;
+            
+            return [
+                item._id,
+                item.type,
+                item.status,
+                item.priority,
+                safeTitle,
+                safeMessage,
+                item.voteCount,
+                userEmail,
+                item.category,
+                new Date(item.createdAt).toISOString()
+            ].join(',');
+        });
+
+        // Combine header and rows
+        const csvString = [headers.join(','), ...rows].join('\n');
+
+        // Set headers for download
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=feedback_export_${new Date().toISOString().split('T')[0]}.csv`);
+        
+        res.status(200).send(csvString);
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get all feedback (paginated, filterable)
+// @route   GET /api/admin/feedback
+// @access  Admin
+export const getAllFeedback = async (req, res, next) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+        const skip = (page - 1) * limit;
+        
+        // Build filter
+        const filter = { isDeleted: false };
+        
+        if (req.query.type && req.query.type !== 'all') {
+            filter.type = req.query.type;
+        }
+        if (req.query.status && req.query.status !== 'all') {
+            if (req.query.status === 'active') {
+                filter.status = { $nin: ['completed', 'declined'] };
+            } else if (req.query.status === 'resolved') {
+                filter.status = { $in: ['completed', 'declined'] };
+            } else {
+                filter.status = req.query.status;
+            }
+        }
+        if (req.query.priority && req.query.priority !== 'all') {
+            filter.priority = req.query.priority;
+        }
+        if (req.query.search) {
+            // Escape special regex characters to prevent ReDoS
+            const searchRegex = new RegExp(escapeRegex(req.query.search), 'i');
+            filter.$or = [
+                { title: searchRegex },
+                { message: searchRegex },
+                { email: searchRegex }
+            ];
+        }
+        
+        // Sort options
+        let sortOption = {};
+        if (req.query.sort === 'votes') {
+            sortOption = { voteCount: -1, createdAt: -1 };
+        } else if (req.query.sort === 'oldest') {
+            sortOption = { createdAt: 1 };
+        } else {
+            sortOption = { createdAt: -1 };
+        }
+        
+        const [feedback, total] = await Promise.all([
+            Feedback.find(filter)
+                .populate('user', 'email firstName lastName')
+                .sort(sortOption)
+                .skip(skip)
+                .limit(limit)
+                .lean(), // Optimization: Return plain JS objects
+            Feedback.countDocuments(filter)
+        ]);
+        
+        res.json({
+            feedback,
+            total,
+            page,
+            pages: Math.ceil(total / limit)
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get feedback statistics
+// @route   GET /api/admin/feedback/stats
+// @access  Admin
+export const getFeedbackStats = async (req, res, next) => {
+    try {
+        const [
+            total,
+            newCount,
+            byType,
+            byStatus,
+            topVoted
+        ] = await Promise.all([
+            Feedback.countDocuments({ isDeleted: false }),
+            Feedback.countDocuments({ isDeleted: false, status: 'new' }),
+            Feedback.aggregate([
+                { $match: { isDeleted: false } },
+                { $group: { _id: '$type', count: { $sum: 1 } } }
+            ]),
+            Feedback.aggregate([
+                { $match: { isDeleted: false } },
+                { $group: { _id: '$status', count: { $sum: 1 } } }
+            ]),
+            Feedback.find({ isDeleted: false })
+                .sort({ voteCount: -1 })
+                .limit(5)
+                .select('title type voteCount status')
+        ]);
+        
+        // Convert aggregation results to objects
+        const typeStats = {};
+        byType.forEach(t => { typeStats[t._id] = t.count; });
+        
+        const statusStats = {};
+        byStatus.forEach(s => { statusStats[s._id] = s.count; });
+        
+        res.json({
+            total,
+            new: newCount,
+            byType: typeStats,
+            byStatus: statusStats,
+            topVoted
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Update feedback (status, priority, notes)
+// @route   PATCH /api/admin/feedback/:id
+// @access  Admin
+export const updateFeedback = async (req, res, next) => {
+    try {
+        // Validate ObjectId format
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ message: 'Invalid feedback ID' });
+        }
+        
+        const { status, priority, adminNotes, category } = req.body;
+        
+        // Validate adminNotes length
+        if (adminNotes && adminNotes.length > 5000) {
+            return res.status(400).json({ message: 'Admin notes cannot exceed 5000 characters' });
+        }
+        
+        const feedback = await Feedback.findById(req.params.id);
+        
+        if (!feedback || feedback.isDeleted) {
+            return res.status(404).json({ message: 'Feedback not found' });
+        }
+        
+        // Validate status if provided
+        const validStatuses = ['new', 'under_review', 'planned', 'in_progress', 'completed', 'declined'];
+        if (status && !validStatuses.includes(status)) {
+            return res.status(400).json({ message: 'Invalid status' });
+        }
+        
+        // Validate priority if provided
+        const validPriorities = ['low', 'medium', 'high', 'critical'];
+        if (priority && !validPriorities.includes(priority)) {
+            return res.status(400).json({ message: 'Invalid priority' });
+        }
+        
+        // Update fields if provided
+        if (status) feedback.status = status;
+        if (priority) feedback.priority = priority;
+        if (adminNotes !== undefined) feedback.adminNotes = adminNotes;
+        if (category) feedback.category = category;
+        
+        await feedback.save();
+        
+        // Populate user for response
+        await feedback.populate('user', 'email firstName lastName');
+        
+        res.json({
+            message: 'Feedback updated',
+            feedback
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Delete feedback (soft delete)
+// @route   DELETE /api/admin/feedback/:id
+// @access  Admin
+export const deleteFeedback = async (req, res, next) => {
+    try {
+        // Validate ObjectId format
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ message: 'Invalid feedback ID' });
+        }
+        
+        const feedback = await Feedback.findById(req.params.id);
+        
+        if (!feedback) {
+            return res.status(404).json({ message: 'Feedback not found' });
+        }
+        
+        // Soft delete
+        feedback.isDeleted = true;
+        await feedback.save();
+        
+        res.json({ message: 'Feedback deleted' });
     } catch (error) {
         next(error);
     }

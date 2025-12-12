@@ -1,10 +1,11 @@
-import { Outlet, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useEffect, useState } from 'react';
 import api from '../api/axios';
 import { Loader2, Mail, Lock, ArrowRight, ShieldX } from 'lucide-react';
+import PullToRefresh from './PullToRefresh';
 
-const AdminLayout = () => {
+const AdminLayout = ({ children }) => {
   const { user, login, loading: authLoading, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [isAllowedIP, setIsAllowedIP] = useState(null);
@@ -227,7 +228,9 @@ const AdminLayout = () => {
         </div>
       </nav>
       <main className="container mx-auto p-6">
-        <Outlet />
+        <PullToRefresh onRefresh={() => window.location.reload()}>
+          {children}
+        </PullToRefresh>
       </main>
     </div>
   );

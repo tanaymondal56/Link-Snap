@@ -76,15 +76,9 @@ const validateEnvVars = () => {
   // Handle missing critical variables
   if (missing.length > 0) {
     console.error(`❌ [ENV ERROR] Missing critical environment variables: ${missing.join(', ')}`);
-    console.error('   Please ensure your .env file is in the server/ directory and contains all required variables.');
-    console.error('   Required: MONGO_URI, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET');
     
-    // In production, exit immediately. In development, continue with warnings.
     if (process.env.NODE_ENV === 'production') {
-      console.error('   Exiting due to missing critical configuration in production mode.');
       process.exit(1);
-    } else {
-      console.warn('   ⚠️  Continuing in development mode with missing variables (THIS WILL CAUSE ERRORS)');
     }
   } else {
     console.log('✅ [ENV] All critical environment variables loaded successfully');

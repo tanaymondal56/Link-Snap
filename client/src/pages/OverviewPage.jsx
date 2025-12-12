@@ -13,6 +13,7 @@ import {
   Calendar,
   Activity,
 } from 'lucide-react';
+import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
 import { handleApiError } from '../utils/errorHandler';
 import { getShortUrl } from '../utils/urlHelper';
@@ -221,7 +222,7 @@ const OverviewPage = () => {
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span className="text-xs text-gray-500">
-                        {new Date(link.createdAt).toLocaleDateString()}
+                        {formatDate(link.createdAt)}
                       </span>
                       <a
                         href={getShortUrl(link.customAlias || link.shortId)}

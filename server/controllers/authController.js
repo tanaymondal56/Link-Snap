@@ -5,6 +5,7 @@ import { generateAccessToken, generateRefreshToken } from '../utils/generateToke
 import { registerSchema, loginSchema, updateProfileSchema, verifyOtpSchema, forgotPasswordSchema, resetPasswordSchema } from '../validators/authValidator.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import sendEmail from '../utils/sendEmail.js';
 import { welcomeEmail, verificationEmail, accountExistsEmail, passwordResetEmail } from '../utils/emailTemplates.js';
 
@@ -412,7 +413,7 @@ const loginUser = async (req, res, next) => {
     const dummyHash = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.SJGPLvXqKBZ.xC';
     const isValidPassword = user 
       ? await user.matchPassword(password)
-      : await require('bcrypt').compare(password, dummyHash);
+      : await bcrypt.compare(password, dummyHash);
 
     if (user && isValidPassword) {
 
@@ -475,12 +476,21 @@ const loginUser = async (req, res, next) => {
       const accessToken = generateAccessToken(user._id);
       const refreshToken = generateRefreshToken(user._id);
 
-      if (user.refreshTokens.length >= 5) {
-        user.refreshTokens = user.refreshTokens.slice(-4);
-      }
-      user.refreshTokens.push(refreshToken);
-      user.lastLoginAt = new Date();
-      await user.save();
+      // Use atomic operation to add refresh token and update lastLoginAt
+      // This prevents version conflicts from concurrent logins
+      // Also limits tokens to last 5 to prevent unbounded growth
+      await User.findByIdAndUpdate(
+        user._id,
+        {
+          $push: { 
+            refreshTokens: { 
+              $each: [refreshToken], 
+              $slice: -5  // Keep only last 5 tokens
+            } 
+          },
+          $set: { lastLoginAt: new Date() }
+        }
+      );
 
       // Log successful login
       await LoginHistory.create({
@@ -544,9 +554,12 @@ const logoutUser = async (req, res, next) => {
       return res.sendStatus(204);
     }
 
-    // Delete refreshToken in db
-    user.refreshTokens = user.refreshTokens.filter(rt => rt !== refreshToken);
-    await user.save();
+    // Delete refreshToken in db using atomic operation
+    // This prevents version conflicts from concurrent logout requests
+    await User.findByIdAndUpdate(
+      user._id,
+      { $pull: { refreshTokens: refreshToken } }
+    );
 
     res.clearCookie('jwt', {
       httpOnly: true,
@@ -568,8 +581,18 @@ const refreshAccessToken = async (req, res, next) => {
     if (!cookies?.jwt) return res.sendStatus(401);
     const refreshToken = cookies.jwt;
 
+    // Find user with this refresh token
     const user = await User.findOne({ refreshTokens: refreshToken });
-    if (!user) return res.sendStatus(403); // Forbidden
+    if (!user) {
+      // Token not found in any user's tokens - could be reused/stolen
+      // Clear the cookie to stop retry loops
+      res.clearCookie('jwt', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: getCookieSameSite(),
+      });
+      return res.sendStatus(403);
+    }
 
     // Check if user is banned - immediately reject token refresh
     if (!user.isActive) {
@@ -586,31 +609,113 @@ const refreshAccessToken = async (req, res, next) => {
       });
     }
 
+    // Verify the JWT
     jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, async (err, decoded) => {
       if (err || user._id.toString() !== decoded.id) {
-        // If token is invalid but was found in DB, it might be a reuse attempt or expiry
-        // For high security, invalidate all tokens to prevent account takeover
-        user.refreshTokens = [];
-        await user.save();
+        // Token is invalid/expired - remove ONLY this token (not all tokens)
+        // This prevents logging out other sessions/tabs
+        try {
+          await User.findByIdAndUpdate(
+            user._id,
+            { $pull: { refreshTokens: refreshToken } },
+            { new: true }
+          );
+        } catch (updateErr) {
+          console.error('Failed to remove invalid token:', updateErr);
+        }
+        
+        // Clear the cookie
+        res.clearCookie('jwt', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: getCookieSameSite(),
+        });
         return res.sendStatus(403);
       }
 
-      // Token Rotation: Delete the used refresh token and issue a new one
+      // Token Rotation: Remove old token and add new one
+      // MongoDB doesn't allow $pull and $push on same field in single operation
       const newRefreshToken = generateRefreshToken(user._id);
-      user.refreshTokens = user.refreshTokens.filter(rt => rt !== refreshToken);
-      user.refreshTokens.push(newRefreshToken);
-      await user.save();
+      
+      try {
+        // Step 1: Remove the old token
+        const pullResult = await User.findOneAndUpdate(
+          { _id: user._id, refreshTokens: refreshToken },
+          { $pull: { refreshTokens: refreshToken } },
+          { new: true }
+        );
 
-      // Send new refresh token as cookie
-      res.cookie('jwt', newRefreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: getCookieSameSite(),
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      });
+        // If token was found and removed, add the new one
+        if (pullResult) {
+          // Step 2: Add the new token (with limit to prevent unbounded growth)
+          await User.findByIdAndUpdate(
+            user._id,
+            { 
+              $push: { 
+                refreshTokens: { 
+                  $each: [newRefreshToken], 
+                  $slice: -5 // Keep only last 5 tokens
+                } 
+              } 
+            }
+          );
+        } else {
+          // Token was already used/rotated - this is likely a duplicate request
+          // Still return success with a new token to prevent logout
+          console.log('[Token Refresh] Token already rotated, issuing new token');
+          
+          // Try to add a new token without removing (concurrent request scenario)
+          await User.findByIdAndUpdate(
+            user._id,
+            { 
+              $push: { 
+                refreshTokens: { 
+                  $each: [newRefreshToken], 
+                  $slice: -5 
+                } 
+              } 
+            }
+          );
+        }
 
-      const accessToken = generateAccessToken(user._id);
-      res.json({ accessToken });
+        // Send new refresh token as cookie
+        res.cookie('jwt', newRefreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: getCookieSameSite(),
+          maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        });
+
+        const accessToken = generateAccessToken(user._id);
+        res.json({ accessToken });
+        
+      } catch (updateError) {
+        console.error('[Token Refresh] Update error:', updateError);
+        // On update error, still try to return a valid response
+        // to prevent unnecessary logouts
+        if (updateError.name === 'VersionError') {
+          // Version conflict - another request already updated
+          // Issue new token anyway to prevent logout
+          const fallbackToken = generateRefreshToken(user._id);
+          await User.findByIdAndUpdate(
+            user._id,
+            { $push: { refreshTokens: fallbackToken } }
+          );
+          
+          res.cookie('jwt', fallbackToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: getCookieSameSite(),
+            maxAge: 30 * 24 * 60 * 60 * 1000,
+          });
+          
+          const accessToken = generateAccessToken(user._id);
+          return res.json({ accessToken });
+        }
+        
+        // For other errors, return 500 but don't clear tokens
+        return res.status(500).json({ message: 'Token refresh failed, please try again' });
+      }
     });
   } catch (error) {
     next(error);
@@ -697,9 +802,9 @@ const changePassword = async (req, res, next) => {
       throw new Error('Current password and new password are required');
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       res.status(400);
-      throw new Error('New password must be at least 6 characters');
+      throw new Error('New password must be at least 8 characters');
     }
 
     const user = await User.findById(req.user._id);

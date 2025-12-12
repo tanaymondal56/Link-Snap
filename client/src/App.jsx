@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import PublicLayout from './layouts/PublicLayout';
 import DashboardLayout from './layouts/DashboardLayout';
@@ -13,6 +13,11 @@ import PWAUpdatePrompt from './components/PWAUpdatePrompt';
 import PostUpdateChoiceModal from './components/PostUpdateChoiceModal';
 import OfflineIndicator from './components/OfflineIndicator';
 import InstallPrompt from './components/InstallPrompt';
+import MobileBackButton from './components/MobileBackButton';
+import { initializeVersion } from './config/version';
+
+// Initialize version cache on app load (non-blocking)
+initializeVersion();
 
 // Lazy Loaded Pages
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -22,11 +27,22 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const AccountSuspended = lazy(() => import('./pages/AccountSuspended'));
 const Changelog = lazy(() => import('./pages/Changelog'));
+const Roadmap = lazy(() => import('./pages/Roadmap'));
 const OverviewPage = lazy(() => import('./pages/OverviewPage'));
 const UserDashboard = lazy(() => import('./pages/UserDashboard'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+
+// New Admin Console Pages
+const AdminConsoleLayout = lazy(() => import('./layouts/AdminConsoleLayout'));
+const AdminOverview = lazy(() => import('./pages/admin-console/AdminOverview'));
+const AdminUsers = lazy(() => import('./pages/admin-console/AdminUsers'));
+const AdminLinks = lazy(() => import('./pages/admin-console/AdminLinks'));
+const AdminFeedback = lazy(() => import('./pages/admin-console/AdminFeedback'));
+const AdminSettings = lazy(() => import('./pages/admin-console/AdminSettings'));
+const AdminMonitoring = lazy(() => import('./pages/admin-console/AdminMonitoring'));
+const ChangelogManager = lazy(() => import('./components/admin/ChangelogManager')); // Reusing existing
 
 const LoadingFallback = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-900">
@@ -99,28 +115,40 @@ function AppContent() {
           </Route>
 
           {/* Changelog Route - Standalone page */}
+          {/* Changelog Route - Standalone page */}
           <Route path="/changelog" element={<Changelog />} />
+          <Route path="/roadmap" element={<Roadmap />} />
 
-          {/* Account Suspended Route - No layout needed */}
-          <Route path="/account-suspended" element={<AccountSuspended />} />
-
-          {/* Protected Dashboard Routes */}
-          <Route path="/dashboard" element={<DashboardLayout />}>
-            <Route index element={<OverviewPage />} />
-            <Route path="links" element={<UserDashboard />} />
-            <Route
-              path="analytics"
-              element={
-                <div className="p-8 text-2xl text-white">Analytics Overview (Coming Soon)</div>
-              }
-            />
-            <Route path="analytics/:id" element={<AnalyticsPage />} />
-            <Route path="settings" element={<SettingsPage />} />
+          {/* Dashboard Routes (Protected) */}
+          <Route element={<DashboardLayout />}>
+            <Route path="/dashboard" element={<Navigate to="/dashboard/overview" replace />} />
+            <Route path="/dashboard/overview" element={<OverviewPage />} />
+            <Route path="/dashboard/links" element={<UserDashboard />} />
+            <Route path="/dashboard/analytics" element={<AnalyticsPage />} />
+            <Route path="/dashboard/analytics/:shortId" element={<AnalyticsPage />} />
+            <Route path="/dashboard/settings" element={<SettingsPage />} />
           </Route>
 
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<AdminDashboard />} />
+          {/* Legacy Admin Route (Protected inside component) */}
+          <Route
+            path="/admin/*"
+            element={
+              <AdminLayout>
+                <AdminDashboard />
+              </AdminLayout>
+            }
+          />
+
+          {/* New Admin Console Routes (Protected by Layout) */}
+          <Route path="/admin-console" element={<AdminConsoleLayout />}>
+            <Route index element={<Navigate to="/admin-console/overview" replace />} />
+            <Route path="overview" element={<AdminOverview />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="links" element={<AdminLinks />} />
+            <Route path="feedback" element={<AdminFeedback />} />
+            <Route path="monitoring" element={<AdminMonitoring />} />
+            <Route path="settings" element={<AdminSettings />} />
+            <Route path="changelog" element={<ChangelogManager />} />
           </Route>
 
           {/* Redirect old login/register routes to home with modal */}
@@ -154,6 +182,8 @@ function App() {
           <PWAUpdatePrompt />
           {/* Add to Home Screen Prompt - shows for mobile users */}
           <InstallPrompt />
+          {/* Mobile Back Button - shows in PWA mode for navigation */}
+          <MobileBackButton />
         </DialogProvider>
       </ConfirmDialogProvider>
     </AuthProvider>

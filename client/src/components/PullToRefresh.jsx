@@ -1,116 +1,171 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 
 /**
- * PullToRefresh Component
- * Adds pull-to-refresh gesture to its children
+ * PullToRefresh Component - PWA Native-like
+ * Works in PWA standalone mode where browser native pull-to-refresh is disabled
  * 
- * Props:
- * - children: ReactNode - Content to wrap
- * - onRefresh: async function - Called when pull-to-refresh is triggered
- * - disabled: boolean - Disable the gesture
+ * Features:
+ * - Only activates in PWA standalone mode
+ * - Works with nested scrollable containers
+ * - Native-like feel with smooth animations
+ * - Haptic feedback on trigger
  */
 const PullToRefresh = ({ children, onRefresh, disabled = false }) => {
   const containerRef = useRef(null);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [startY, setStartY] = useState(0);
-  const [isPulling, setIsPulling] = useState(false);
+  const startYRef = useRef(0);
+  const isPullingRef = useRef(false);
+  const [isPWA, setIsPWA] = useState(false);
 
-  const THRESHOLD = 80; // Distance needed to trigger refresh
-  const MAX_PULL = 120; // Maximum pull distance
+  const THRESHOLD = 70;
+  const MAX_PULL = 100;
+  const RESISTANCE = 0.4;
 
-  const handleTouchStart = useCallback((e) => {
-    if (disabled || isRefreshing) return;
-    
-    // Only enable if at top of scroll
-    if (containerRef.current?.scrollTop > 0) return;
-    
-    setStartY(e.touches[0].clientY);
-    setIsPulling(true);
-  }, [disabled, isRefreshing]);
+  // Detect if running as PWA standalone
+  useEffect(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                         window.navigator.standalone === true ||
+                         document.referrer.includes('android-app://');
+    setIsPWA(isStandalone);
+  }, []);
 
-  const handleTouchMove = useCallback((e) => {
-    if (!isPulling || disabled || isRefreshing) return;
+  // Find the scrollable parent container
+  const getScrollableParent = useCallback((element) => {
+    let current = element;
+    while (current && current !== document.body) {
+      const style = window.getComputedStyle(current);
+      const overflow = style.overflow + style.overflowY;
+      if (overflow.includes('scroll') || overflow.includes('auto')) {
+        if (current.scrollHeight > current.clientHeight) {
+          return current;
+        }
+      }
+      current = current.parentElement;
+    }
+    return null;
+  }, []);
+
+  // Check if at top of scroll (window or any scrollable parent)
+  const isAtTop = useCallback(() => {
+    // Check window scroll first
+    if (window.scrollY > 0) return false;
     
-    const deltaY = e.touches[0].clientY - startY;
-    
-    // Only pull down
-    if (deltaY > 0) {
-      // Apply resistance
-      const pull = Math.min(MAX_PULL, deltaY * 0.5);
-      setPullDistance(pull);
-      
-      // Prevent default scroll
-      if (pull > 10) {
-        e.preventDefault();
+    // Check if there's a scrollable parent from the container
+    if (containerRef.current) {
+      const scrollableParent = getScrollableParent(containerRef.current);
+      if (scrollableParent && scrollableParent.scrollTop > 0) {
+        return false;
       }
     }
-  }, [isPulling, startY, disabled, isRefreshing]);
+    
+    return true;
+  }, [getScrollableParent]);
+
+  const handleTouchStart = useCallback((e) => {
+    if (disabled || isRefreshing || !isPWA) return;
+    if (!isAtTop()) return;
+    
+    startYRef.current = e.touches[0].clientY;
+    isPullingRef.current = true;
+  }, [disabled, isRefreshing, isPWA, isAtTop]);
+
+  const handleTouchMove = useCallback((e) => {
+    if (!isPullingRef.current || disabled || isRefreshing || !isPWA) return;
+    if (!isAtTop()) {
+      isPullingRef.current = false;
+      setPullDistance(0);
+      return;
+    }
+    
+    const currentY = e.touches[0].clientY;
+    const deltaY = currentY - startYRef.current;
+    
+    if (deltaY > 0) {
+      const pull = Math.min(MAX_PULL, deltaY * RESISTANCE);
+      setPullDistance(pull);
+      
+      if (pull > 5) {
+        e.preventDefault();
+      }
+    } else {
+      setPullDistance(0);
+    }
+  }, [disabled, isRefreshing, isPWA, isAtTop]);
 
   const handleTouchEnd = useCallback(async () => {
-    if (!isPulling || disabled) return;
+    if (!isPullingRef.current || disabled || !isPWA) return;
     
-    setIsPulling(false);
+    isPullingRef.current = false;
 
     if (pullDistance >= THRESHOLD && onRefresh) {
-      // Trigger refresh
       setIsRefreshing(true);
       
-      // Haptic feedback
       if ('vibrate' in navigator) {
-        navigator.vibrate(10);
+        navigator.vibrate(15);
       }
       
       try {
         await onRefresh();
       } finally {
-        setIsRefreshing(false);
-        setPullDistance(0);
+        setTimeout(() => {
+          setIsRefreshing(false);
+          setPullDistance(0);
+        }, 200);
       }
     } else {
-      // Reset
       setPullDistance(0);
     }
-  }, [isPulling, pullDistance, onRefresh, disabled]);
+  }, [pullDistance, onRefresh, disabled, isPWA]);
+
+  // Don't render pull UI if not in PWA mode
+  if (!isPWA) {
+    return <>{children}</>;
+  }
 
   const progress = Math.min(1, pullDistance / THRESHOLD);
-  const rotation = progress * 180;
 
   return (
     <div 
       ref={containerRef}
-      className="relative"
+      className="relative touch-pan-x"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      style={{ touchAction: pullDistance > 0 ? 'none' : 'pan-y' }}
     >
       {/* Pull indicator */}
       <div 
-        className={`absolute left-1/2 -translate-x-1/2 flex items-center justify-center transition-all duration-200 z-10 ${
-          pullDistance > 0 || isRefreshing ? 'opacity-100' : 'opacity-0'
-        }`}
+        className="fixed left-1/2 z-[9999] pointer-events-none transition-opacity duration-150"
         style={{ 
-          top: Math.max(0, pullDistance - 40),
-          transform: `translateX(-50%) rotate(${isRefreshing ? 360 : rotation}deg)`,
+          top: 16,
+          transform: 'translateX(-50%)',
+          opacity: pullDistance > 5 || isRefreshing ? 1 : 0
         }}
       >
-        <div className={`p-2.5 bg-gray-800 rounded-full shadow-lg border border-gray-700 ${
-          isRefreshing ? 'animate-spin' : ''
-        }`}>
+        <div 
+          className={`flex items-center justify-center w-10 h-10 bg-gray-900/95 backdrop-blur-sm rounded-full shadow-lg border border-gray-700/50 ${
+            isRefreshing ? 'animate-spin' : ''
+          }`}
+          style={{
+            transform: isRefreshing ? 'none' : `rotate(${progress * 180}deg) scale(${0.8 + progress * 0.2})`,
+            transition: isPullingRef.current ? 'none' : 'transform 0.2s ease-out'
+          }}
+        >
           <RefreshCw 
-            className={`w-5 h-5 transition-colors ${
+            className={`w-5 h-5 transition-colors duration-150 ${
               progress >= 1 || isRefreshing ? 'text-blue-400' : 'text-gray-400'
             }`} 
           />
         </div>
       </div>
 
-      {/* Content with pull transform */}
+      {/* Content */}
       <div 
-        className={`transition-transform ${isPulling ? '' : 'duration-200'}`}
         style={{ 
-          transform: `translateY(${isRefreshing ? 50 : pullDistance}px)` 
+          transform: `translateY(${isRefreshing ? 48 : pullDistance * 0.5}px)`,
+          transition: isPullingRef.current ? 'none' : 'transform 0.2s ease-out'
         }}
       >
         {children}

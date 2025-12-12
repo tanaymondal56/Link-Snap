@@ -63,8 +63,13 @@ export const updateLinkStatus = async (req, res) => {
             return res.status(404).json({ message: 'URL not found' });
         }
 
-        url.isActive = !url.isActive;
-        await url.save();
+        // Atomic toggle of isActive status
+        const newStatus = !url.isActive;
+        const updatedUrl = await Url.findByIdAndUpdate(
+            req.params.id,
+            { $set: { isActive: newStatus } },
+            { new: true }
+        );
 
         // Invalidate cache so the new status takes effect immediately
         invalidateCache(url.shortId);
@@ -72,7 +77,7 @@ export const updateLinkStatus = async (req, res) => {
             invalidateCache(url.customAlias);
         }
 
-        res.json({ message: `Link ${url.isActive ? 'activated' : 'disabled'}`, url });
+        res.json({ message: `Link ${newStatus ? 'activated' : 'disabled'}`, url: updatedUrl });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

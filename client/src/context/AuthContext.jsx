@@ -38,10 +38,11 @@ export const AuthProvider = ({ children }) => {
         } else {
           // For network errors (server restarting), retry up to 5 times
           if (retryCount < 5) {
-            const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); 
-            console.log(
-              `Server unreachable, retrying in ${delay / 1000}s... (${retryCount + 1}/5)`
-            );
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
+            // Only log on first retry to reduce console noise
+            if (retryCount === 0) {
+              console.log('Server starting, waiting...');
+            }
             setTimeout(() => checkAuth(retryCount + 1), delay);
           } else {
             console.error('Auth check failed after retries');
@@ -63,9 +64,13 @@ export const AuthProvider = ({ children }) => {
       });
     }, 15000);
 
-    checkAuth();
+    // Small delay before first auth check to give server time to start
+    const startupDelay = setTimeout(() => checkAuth(), 500);
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+      clearTimeout(startupDelay);
+    };
   }, []);
 
   const openAuthModal = (tab = 'login') => {

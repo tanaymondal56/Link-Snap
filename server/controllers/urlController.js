@@ -253,7 +253,10 @@ const updateUrl = async (req, res, next) => {
 
         const { originalUrl, customAlias, title } = result.data;
 
-        // If customAlias is being set/changed
+        // Build update object for atomic operation
+        const updateFields = {};
+        
+        // Handle custom alias changes
         if (customAlias !== undefined && customAlias !== null && customAlias !== '') {
             // Reserved words check
             if (isReservedWord(customAlias)) {
@@ -271,10 +274,10 @@ const updateUrl = async (req, res, next) => {
                 throw new Error('Alias already taken');
             }
 
-            url.customAlias = customAlias;
+            updateFields.customAlias = customAlias;
         } else if (customAlias === '' || customAlias === null) {
-            // Remove custom alias if empty string or null is passed
-            url.customAlias = undefined;
+            // Remove custom alias - use $unset in the update
+            updateFields.customAlias = null;
         }
 
         // Update other fields if provided
@@ -284,16 +287,23 @@ const updateUrl = async (req, res, next) => {
             if (url.customAlias) {
                 invalidateCache(url.customAlias);
             }
-            url.originalUrl = originalUrl;
+            updateFields.originalUrl = originalUrl;
         }
 
         if (title !== undefined) {
-            url.title = title || extractDomain(url.originalUrl) || 'Untitled Link';
+            updateFields.title = title || extractDomain(url.originalUrl) || 'Untitled Link';
         }
 
-        await url.save();
+        // Atomic update to prevent race conditions
+        const updatedUrl = await Url.findByIdAndUpdate(
+            url._id,
+            updateFields.customAlias === null 
+                ? { $set: { ...updateFields, customAlias: undefined }, $unset: { customAlias: 1 } }
+                : { $set: updateFields },
+            { new: true }
+        );
 
-        res.json(url);
+        res.json(updatedUrl);
     } catch (error) {
         next(error);
     }

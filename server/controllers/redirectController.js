@@ -923,8 +923,6 @@ const getInactiveLinkPage = (shortId) => `
 export const redirectUrl = async (req, res, next) => {
     const { shortId } = req.params;
 
-    console.log(`[Redirect] Processing shortId: ${shortId}`);
-
     try {
         // 1. Check cache first (fast path)
         const cached = getFromCache(shortId);
@@ -933,12 +931,30 @@ export const redirectUrl = async (req, res, next) => {
                 return res.status(410).send(getInactiveLinkPage(shortId));
             }
 
-            // Check if owner is banned and has links disabled
-            if (cached.ownerId) {
-                const owner = await User.findById(cached.ownerId).select('isActive disableLinksOnBan');
-                if (owner && !owner.isActive && owner.disableLinksOnBan) {
-                    return res.status(410).send(getInactiveLinkPage(shortId));
-                }
+            // check cached ban status FIRST to avoid DB hit
+            if (cached.ownerBanned && cached.disableLinksOnBan) {
+                return res.status(410).send(getInactiveLinkPage(shortId));
+            }
+
+            // If we have ownerId but no ban status in cache, we might need to check (once) 
+            // and then update cache. But ideally, we should have stored it.
+            // For safety during migration, if 'ownerBanned' is undefined, we could check DB
+            // OR strictly trust the cache if we ensure cache invalidation on ban works.
+            // Given the 'invalidateMultiple' called in AdminController, cache should be fresh.
+            // However, to be robust:
+            if (cached.ownerId && cached.ownerBanned === undefined) {
+                 const owner = await User.findById(cached.ownerId).select('isActive disableLinksOnBan');
+                 if (owner) {
+                     // Update cache with this info to prevent future lookups
+                     const isBanned = !owner.isActive;
+                     cached.ownerBanned = isBanned;
+                     cached.disableLinksOnBan = owner.disableLinksOnBan;
+                     setInCache(shortId, cached);
+
+                     if (isBanned && owner.disableLinksOnBan) {
+                         return res.status(410).send(getInactiveLinkPage(shortId));
+                     }
+                 }
             }
 
             // Async: Update clicks in DB (fire and forget)
@@ -956,33 +972,42 @@ export const redirectUrl = async (req, res, next) => {
         });
 
         if (!url) {
-            // If not found, pass to next middleware (which might be frontend routing)
-            console.log(`[Redirect] URL not found for shortId: ${shortId}, passing to next middleware`);
+            // Next middleware (frontend)
             return next();
         }
 
-        console.log(`[Redirect] Found URL: ${url.originalUrl} for shortId: ${shortId}`);
+        // 3. Fetch owner status alongside URL
+        let ownerBanned = false;
+        let disableLinksOnBan = false;
 
-        // 3. Store in cache for next time (include createdBy for ban check)
-        setInCache(shortId, { ...url.toObject(), ownerId: url.createdBy });
+        if (url.createdBy) {
+            const owner = await User.findById(url.createdBy).select('isActive disableLinksOnBan');
+            if (owner) {
+                ownerBanned = !owner.isActive;
+                disableLinksOnBan = owner.disableLinksOnBan;
+            }
+        }
 
         if (!url.isActive) {
             return res.status(410).send(getInactiveLinkPage(shortId));
         }
 
-        // 4. Check if owner is banned and has links disabled
-        if (url.createdBy) {
-            const owner = await User.findById(url.createdBy).select('isActive disableLinksOnBan');
-            if (owner && !owner.isActive && owner.disableLinksOnBan) {
-                return res.status(410).send(getInactiveLinkPage(shortId));
-            }
+        if (ownerBanned && disableLinksOnBan) {
+            return res.status(410).send(getInactiveLinkPage(shortId));
         }
 
-        // Increment clicks (fire and forget to not block redirect)
-        url.clicks += 1;
-        await url.save();
+        // 4. Store in cache with ban status
+        setInCache(shortId, { 
+            ...url.toObject(), 
+            ownerId: url.createdBy,
+            ownerBanned,
+            disableLinksOnBan
+        });
 
-        // Async Analytics Tracking (Phase 4)
+        // Increment clicks
+        Url.findByIdAndUpdate(url._id, { $inc: { clicks: 1 } }).exec();
+
+        // Async Analytics Tracking
         trackVisit(url._id, req);
 
         return res.redirect(url.originalUrl);

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
+import PullToRefresh from '../components/PullToRefresh';
 
 // Read ban info from session storage (called once during module init)
 const getBanInfo = () => {
@@ -212,6 +213,7 @@ const AccountSuspended = () => {
   const bannedUntilFormatted = formatDate(banInfo.bannedUntil);
 
   return (
+    <PullToRefresh onRefresh={() => window.location.reload()}>
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
       {/* Background decoration */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -587,6 +589,7 @@ const AccountSuspended = () => {
         </p>
       </div>
     </div>
+    </PullToRefresh>
   );
 };
 

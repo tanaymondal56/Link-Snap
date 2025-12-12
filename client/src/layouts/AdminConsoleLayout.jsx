@@ -1,0 +1,79 @@
+import { Outlet, Navigate } from 'react-router-dom';
+import AdminSidebar from '../components/admin-console/AdminSidebar';
+import { useAuth } from '../context/AuthContext';
+import { Menu, Bell, User } from 'lucide-react';
+import { useState } from 'react';
+
+const AdminConsoleLayout = () => {
+  const { user, loading } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  // Admin Protection
+  if (!user || user.role !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return (
+    <div className="min-h-screen relative font-sans text-gray-100 overflow-x-hidden">
+      {/* Mesh Gradient Background Layer */}
+      <div className="mesh-gradient-bg">
+        <div className="mesh-orb orb-1"></div>
+        <div className="mesh-orb orb-2"></div>
+        <div className="mesh-orb orb-3"></div>
+      </div>
+
+      {/* Floating Sidebar (Desktop & Mobile Drawer) */}
+      <AdminSidebar isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
+
+      {/* Mobile Header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-gray-950/90 backdrop-blur-xl border-b border-white/5 z-40 px-4 flex items-center justify-between">
+        <span className="font-bold text-lg">LinkSnap Admin</span>
+        <button 
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="p-2 rounded-lg bg-white/10"
+        >
+          <Menu size={20} />
+        </button>
+      </div>
+
+      {/* Main Content Area */}
+      <main className="lg:pl-[300px] min-h-screen pt-28 px-4 pb-20 lg:p-6 lg:pt-8 transition-all duration-300">
+        
+        {/* Top Bar */}
+        <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Page Title Area (left empty for page-specific content) */}
+          <div className="flex-1" />
+
+          {/* Actions */}
+          <div className="flex items-center gap-3 self-end md:self-auto">
+            <button className="p-2.5 rounded-xl bg-gray-900/40 border border-white/5 hover:bg-white/5 text-gray-400 hover:text-white transition-all">
+              <Bell size={18} />
+            </button>
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 p-[1px]">
+              <div className="h-full w-full rounded-[11px] bg-gray-900 flex items-center justify-center overflow-hidden">
+                 {/* Fallback avatar */}
+                <User size={20} className="text-gray-400" />
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Page Content */}
+        <div className="animate-fade-in">
+          <Outlet />
+        </div>
+
+      </main>
+    </div>
+  );
+};
+
+export default AdminConsoleLayout;

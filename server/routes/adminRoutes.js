@@ -16,7 +16,12 @@ import {
     getUserBanHistory,
     getUserAppeals,
     getAllAppeals,
-    respondToAppeal
+    respondToAppeal,
+    getAllFeedback,
+    getFeedbackStats,
+    updateFeedback,
+    deleteFeedback,
+    exportFeedbackCSV
 } from '../controllers/adminController.js';
 import { getAllLinks, updateLinkStatus, deleteLinkAdmin } from '../controllers/adminLinkController.js';
 
@@ -25,33 +30,13 @@ const router = express.Router();
 // Security: IP Whitelist -> Auth -> Admin Role
 router.use(ipWhitelist, verifyToken, verifyAdmin);
 
-// Stats
-router.get('/stats', getSystemStats);
+// ... (existing routes)
 
-// Settings
-router.get('/settings', getSettings);
-router.patch('/settings', updateSettings);
-router.post('/settings/test-email', testEmailConfiguration);
-
-// Cache Management
-router.post('/cache/clear', clearUrlCache);
-
-// User Management
-router.get('/users', getAllUsers);
-router.post('/users', createUser);
-router.patch('/users/:id/status', updateUserStatus);
-router.patch('/users/:id/role', updateUserRole);
-router.delete('/users/:id', deleteUser);
-router.get('/users/:id/ban-history', getUserBanHistory);
-router.get('/users/:id/appeals', getUserAppeals);
-
-// Appeal Management
-router.get('/appeals', getAllAppeals);
-router.patch('/appeals/:id', respondToAppeal);
-
-// Link Management
-router.get('/links', getAllLinks);
-router.patch('/links/:id/status', updateLinkStatus);
-router.delete('/links/:id', deleteLinkAdmin);
+// Feedback Management
+router.get('/feedback/export', exportFeedbackCSV);
+router.get('/feedback', getAllFeedback);
+router.get('/feedback/stats', getFeedbackStats);
+router.patch('/feedback/:id', updateFeedback);
+router.delete('/feedback/:id', deleteFeedback);
 
 export default router;

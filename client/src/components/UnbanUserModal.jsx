@@ -52,7 +52,7 @@ const UnbanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl shadow-green-500/10 animate-modal-in overflow-hidden">
+      <div className="relative w-[95%] max-w-md bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl shadow-green-500/10 animate-modal-in overflow-hidden flex flex-col max-h-[95vh] overscroll-contain">
         {/* Gradient top border */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-green-500 to-emerald-500" />
 
@@ -65,7 +65,7 @@ const UnbanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
         </button>
 
         {/* Content */}
-        <div className="p-6 pt-8">
+        <div className="p-6 pt-8 overflow-y-auto custom-scrollbar">
           {/* Icon */}
           <div className="flex justify-center mb-5">
             <div className="p-4 bg-green-500/20 rounded-2xl ring-4 ring-gray-800">

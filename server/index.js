@@ -17,8 +17,15 @@ import { apiLimiter, authLimiter } from './middleware/rateLimiter.js';
 import authRoutes from './routes/authRoutes.js';
 import urlRoutes from './routes/urlRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
-import adminRoutes from './routes/adminRoutes.js';
+// Conditional Admin Import
+// Ghost Mode: Admin routes are ONLY loaded if explicitly enabled
+let adminRoutes = null;
+if (process.env.ADMIN_ENABLED === 'true') {
+   adminRoutes = (await import('./routes/adminRoutes.js')).default;
+}
 import appealRoutes from './routes/appealRoutes.js';
+import changelogRoutes from './routes/changelogRoutes.js';
+import feedbackRoutes from './routes/feedbackRoutes.js';
 import redirectRoutes from './routes/redirectRoutes.js';
 import { startBanScheduler } from './services/banScheduler.js';
 
@@ -37,7 +44,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"], // Required for React in dev
+      scriptSrc: ["'self'", ...(process.env.NODE_ENV === 'development' ? ["'unsafe-inline'"] : [])], // 'unsafe-inline' only in dev
       styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", process.env.CLIENT_URL || "http://localhost:3000"],
@@ -107,7 +114,7 @@ app.use(mongoSanitize);
 
 // Rate Limiting
 app.use('/api', apiLimiter);
-app.use('/api/auth', authLimiter);
+// app.use('/api/auth', authLimiter); // Moved to specific routes in authRoutes.js
 
 // Health Check Endpoints
 import { isConnected } from './config/db.js';
@@ -141,8 +148,13 @@ app.get('/api/health/deep', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/url', urlRoutes);
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/admin', adminRoutes);
+
+if (adminRoutes) {
+  app.use('/api/admin', adminRoutes);
+}
 app.use('/api/appeals', appealRoutes);
+app.use('/api/changelog', changelogRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Serve static assets in production (BEFORE redirect routes)
 if (process.env.NODE_ENV === 'production') {

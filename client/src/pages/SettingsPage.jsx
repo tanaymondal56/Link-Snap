@@ -15,6 +15,7 @@ import {
   CheckCircle,
   AlertCircle,
 } from 'lucide-react';
+import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
 import { handleApiError } from '../utils/errorHandler';
@@ -191,7 +192,7 @@ const SettingsPage = () => {
                     <span className="text-gray-500 text-xs flex items-center gap-1">
                       <Calendar size={12} />
                       Joined{' '}
-                      {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : '—'}
+                      {profile?.createdAt ? formatDate(profile.createdAt) : '—'}
                     </span>
                   </div>
                 </div>

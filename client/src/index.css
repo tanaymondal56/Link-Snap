@@ -24,6 +24,81 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* Cosmic Glass Utilities */
+  .cosmic-glass {
+    @apply bg-gray-900/40 backdrop-blur-2xl border border-white/5 shadow-xl;
+  }
+  
+  .glass-dock {
+    @apply bg-gray-950/60 backdrop-blur-xl border-r border-white/5;
+  }
+
+  .glass-card {
+    @apply bg-gray-900/40 backdrop-blur-xl border border-white/5 rounded-2xl transition-all duration-300;
+  }
+  
+  .glass-card:hover {
+    @apply bg-gray-800/50 border-white/10 shadow-lg shadow-purple-500/5 -translate-y-1;
+  }
+}
+
+/* Mesh Gradient Animation */
+.mesh-gradient-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  background-color: #030712;
+  background-image: 
+    radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+    radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+    radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+  overflow: hidden;
+}
+
+.mesh-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.4;
+  animation: float 20s infinite ease-in-out;
+}
+
+.orb-1 {
+  top: -10%;
+  left: -10%;
+  width: 50vw;
+  height: 50vw;
+  background: #4f46e5;
+  animation-delay: 0s;
+}
+
+.orb-2 {
+  bottom: -10%;
+  right: -10%;
+  width: 50vw;
+  height: 50vw;
+  background: #7c3aed;
+  animation-delay: -5s;
+}
+
+.orb-3 {
+  top: 40%;
+  left: 40%;
+  width: 30vw;
+  height: 30vw;
+  background: #db2777;
+  animation-delay: -10s;
+}
+
+@keyframes float {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(30px, -50px) rotate(10deg); }
+  66% { transform: translate(-20px, 20px) rotate(-5deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
 }
 
 @keyframes gradient {

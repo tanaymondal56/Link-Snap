@@ -19,6 +19,7 @@ import {
   Ban,
   RefreshCw,
 } from 'lucide-react';
+import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
 import { handleApiError } from '../utils/errorHandler';
@@ -27,8 +28,6 @@ import { getShortUrl } from '../utils/urlHelper';
 import CreateLinkModal from '../components/CreateLinkModal';
 import EditLinkModal from '../components/EditLinkModal';
 import LinkSuccessModal from '../components/LinkSuccessModal';
-import SwipeableCard from '../components/SwipeableCard';
-import PullToRefresh from '../components/PullToRefresh';
 import { cacheLinks, getCachedLinks, getCacheAge } from '../utils/offlineCache';
 
 const UserDashboard = () => {
@@ -44,19 +43,22 @@ const UserDashboard = () => {
   const [createdLink, setCreatedLink] = useState(null);
   const [ownerBanned, setOwnerBanned] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    fetchLinks();
-  }, []);
+    fetchLinks(page);
+  }, [page]);
 
-  const fetchLinks = async () => {
+  const fetchLinks = async (pageNum = 1) => {
     try {
       setError(null);
-      const { data } = await api.get('/url/my-links');
+      const { data } = await api.get(`/url/my-links?page=${pageNum}&limit=10`);
       setLinks(data.urls);
+      setTotalPages(data.pages);
       setOwnerBanned(data.ownerBanned || false);
-      // Cache the links for offline use
-      cacheLinks(data.urls);
+      // Cache the links for offline use (only cache first page for now or strategy needs update)
+      if (pageNum === 1) cacheLinks(data.urls);
     } catch (error) {
       console.error(error);
       
@@ -81,7 +83,7 @@ const UserDashboard = () => {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await fetchLinks();
+    await fetchLinks(page);
     showToast.success('Links refreshed', 'Updated');
   };
 
@@ -232,7 +234,6 @@ const UserDashboard = () => {
       </div>
 
       {/* Links Card View */}
-      <PullToRefresh onRefresh={fetchLinks}>
       <div className="space-y-4">
         {filteredLinks.length === 0 ? (
           <div className="glass-dark rounded-xl border border-gray-800 p-12 text-center">
@@ -248,13 +249,7 @@ const UserDashboard = () => {
             const isLinkDisabled = link.ownerBanned || !link.isActive;
 
             return (
-              <SwipeableCard
-                key={link._id}
-                onEdit={() => setEditingLink(link)}
-                onCopy={() => copyToClipboard(link.customAlias || link.shortId)}
-                onDelete={() => handleDelete(link._id)}
-                disabled={isLinkDisabled}
-              >
+              <div key={link._id}>
               <div
                 className={`glass-dark rounded-xl border overflow-hidden transition-colors ${
                   isLinkDisabled
@@ -463,7 +458,7 @@ const UserDashboard = () => {
 
                       {/* Date */}
                       <span className="text-gray-500 text-[10px] sm:text-xs">
-                        {new Date(link.createdAt).toLocaleDateString()}
+                        {formatDate(link.createdAt)}
                       </span>
                     </div>
                   </div>
@@ -507,12 +502,34 @@ const UserDashboard = () => {
                   </div>
                 </div>
               </div>
-              </SwipeableCard>
+              </div>
             );
           })
         )}
       </div>
-      </PullToRefresh>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 mt-6">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1 || isLoading}
+            className="px-4 py-2 rounded-lg bg-gray-800 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 transition"
+          >
+            Previous
+          </button>
+          <span className="text-gray-400">
+            Page {page} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages || isLoading}
+            className="px-4 py-2 rounded-lg bg-gray-800 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 transition"
+          >
+            Next
+          </button>
+        </div>
+      )}
 
       {/* QR Code Modal - Enhanced for both links */}
       {qrModalLink && (

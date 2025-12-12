@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Activity, Database, CheckCircle, XCircle, AlertTriangle, RefreshCw, Clock, Server } from 'lucide-react';
 import api from '../../api/axios';
+import { formatDateTime } from '../../utils/dateUtils';
 
 const SystemHealthCard = () => {
   const [health, setHealth] = useState(null);
@@ -164,11 +165,14 @@ const SystemHealthCard = () => {
         </div>
       </div>
 
+
+
+// ... (inside component)
       {/* Last checked time */}
       {lastChecked && (
         <div className="mt-3 pt-3 border-t border-gray-700/50">
           <p className="text-xs text-gray-500 text-center">
-            Last checked: {lastChecked.toLocaleTimeString()}
+            Last checked: {formatDateTime(lastChecked)}
           </p>
         </div>
       )}

@@ -1,12 +1,13 @@
 // IP Whitelist Middleware for Admin Panel Protection
-// Only localhost is allowed by default. Add trusted IPs below if needed.
+// Only localhost is allowed by default. Add trusted IPs to .env
+const envAllowedIPs = process.env.ADMIN_WHITELIST_IPS ? process.env.ADMIN_WHITELIST_IPS.split(',').map(ip => ip.trim()) : [];
 
 const allowedIPs = [
-  // Add your public IPs below (uncomment and replace):
-  // '203.0.113.50',       // Example: Your home public IP
-  // '198.51.100.25',      // Example: Office IP
-  // '10.0.0.50',          // Example: VPN IP
+  ...envAllowedIPs
 ];
+
+// Debug: Print allowed IPs on startup (only once)
+console.log('🛡️ [Security Config] Admin Whitelist:', allowedIPs);
 
 // Localhost IP patterns (these are always allowed)
 const localhostPatterns = [
@@ -66,7 +67,7 @@ export const ipWhitelist = (req, res, next) => {
   }
 
   // Return 404 to hide the existence of admin routes
-  console.warn(`[IP Whitelist] 🚫 BLOCKED admin access from: ${clientIP} (socket: ${socketIP}, normalized: ${normalizedIP})`);
+  console.warn(`[IP Whitelist] 🚫 BLOCKED admin access from: ${clientIP} (socket: ${socketIP}, normalized: ${normalizedIP}). Whitelist: ${JSON.stringify(allowedIPs)}`);
   return res.status(404).json({ message: 'Not Found' });
 };
 

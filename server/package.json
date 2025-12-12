@@ -34,6 +34,7 @@
     "nanoid": "^5.1.6",
     "nodemailer": "^7.0.11",
     "useragent": "^2.3.0",
+    "validator": "^13.15.23",
     "winston": "^3.18.3",
     "zod": "^4.1.13"
   },

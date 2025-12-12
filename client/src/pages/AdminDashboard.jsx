@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
 import { useConfirm } from '../context/ConfirmContext';
@@ -6,6 +7,7 @@ import { useDialog } from '../components/ui/DialogProvider';
 import BanUserModal from '../components/BanUserModal';
 import UnbanUserModal from '../components/UnbanUserModal';
 import SystemHealthCard from '../components/admin/SystemHealthCard';
+import ChangelogManager from '../components/admin/ChangelogManager';
 import {
   Trash2,
   Users,
@@ -45,7 +47,9 @@ import {
   Loader2,
   RefreshCw,
   Timer,
+  ArrowRight,
 } from 'lucide-react';
+import { formatDate, formatDateTime } from '../utils/dateUtils';
 
 const AdminDashboard = () => {
   const confirm = useConfirm();
@@ -121,7 +125,8 @@ const AdminDashboard = () => {
   const fetchUsers = async () => {
     try {
       const { data } = await api.get('/admin/users');
-      setUsers(data);
+      // Handle both paginated { users: [...] } and legacy array response
+      setUsers(data.users || data);
       setLoading(false);
     } catch (error) {
       console.error(error);
@@ -640,6 +645,26 @@ const AdminDashboard = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 lg:space-y-8">
+      {/* Switch to New Admin Console Banner */}
+      <Link 
+        to="/admin-console"
+        className="group flex items-center justify-between p-4 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-xl hover:border-purple-500/40 transition-all"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-purple-500/20 rounded-lg">
+            <Sparkles className="w-5 h-5 text-purple-400" />
+          </div>
+          <div>
+            <p className="text-white font-medium">New Admin Console Available</p>
+            <p className="text-gray-400 text-sm">Try the redesigned admin experience with modern UI</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-purple-400 group-hover:text-purple-300 transition-colors">
+          <span className="hidden sm:inline text-sm font-medium">Switch Now</span>
+          <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+        </div>
+      </Link>
+
       {/* Main Section Toggle */}
       <div className="flex justify-center pb-2">
         <div className="p-1 rounded-xl inline-flex bg-gray-900/40 backdrop-blur-md border border-gray-700/50">
@@ -750,6 +775,16 @@ const AdminDashboard = () => {
                 onClick={() => setActiveTab('settings')}
               >
                 Settings
+              </button>
+              <button
+                className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
+                  activeTab === 'changelog'
+                    ? 'text-purple-400 border-b-2 border-purple-400'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                onClick={() => setActiveTab('changelog')}
+              >
+                Changelog
               </button>
             </>
           ) : (
@@ -1056,7 +1091,7 @@ const AdminDashboard = () => {
                                         {entry.action === 'ban' ? 'Banned' : 'Unbanned'}
                                       </span>
                                       <span className="text-gray-500 text-[10px]">
-                                        {new Date(entry.createdAt).toLocaleDateString()}
+                                        {formatDate(entry.createdAt)}
                                       </span>
                                     </div>
                                     {entry.reason && (
@@ -1110,7 +1145,7 @@ const AdminDashboard = () => {
                                         {appeal.status}
                                       </span>
                                       <span className="text-gray-500 text-[10px]">
-                                        {new Date(appeal.createdAt).toLocaleDateString()}
+                                        {formatDate(appeal.createdAt)}
                                       </span>
                                     </div>
                                     <p className="text-gray-300 line-clamp-2">{appeal.reason}</p>
@@ -1243,10 +1278,10 @@ const AdminDashboard = () => {
                               {user.bannedUntil ? (
                                 <div
                                   className="flex items-center gap-1 text-[10px] text-orange-400"
-                                  title={`Unbans: ${new Date(user.bannedUntil).toLocaleString()}`}
+                                  title={`Unbans: ${formatDateTime(user.bannedUntil)}`}
                                 >
                                   <Timer size={10} />
-                                  <span>{new Date(user.bannedUntil).toLocaleDateString()}</span>
+                                  <span>{formatDate(user.bannedUntil)}</span>
                                 </div>
                               ) : (
                                 <span className="text-[10px] text-red-400">Permanent</span>
@@ -1263,7 +1298,7 @@ const AdminDashboard = () => {
                           )}
                         </td>
                         <td className="px-6 py-4 text-gray-400 text-sm">
-                          {new Date(user.createdAt).toLocaleDateString()}
+                          {formatDate(user.createdAt)}
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div
@@ -1385,7 +1420,7 @@ const AdminDashboard = () => {
                                   <p className="text-xs text-gray-500">Last Login</p>
                                   <p className="text-sm text-white">
                                     {user.lastLoginAt ? (
-                                      new Date(user.lastLoginAt).toLocaleString()
+                                      formatDateTime(user.lastLoginAt)
                                     ) : (
                                       <span className="text-gray-600">Never</span>
                                     )}
@@ -2227,6 +2262,13 @@ const AdminDashboard = () => {
               </div>
             </div>
           </>
+        )}
+
+        {/* CHANGELOG TAB */}
+        {mainSection === 'admin' && activeTab === 'changelog' && (
+          <div className="p-4 sm:p-6">
+            <ChangelogManager />
+          </div>
         )}
       </div>
 
