@@ -3,11 +3,11 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 import { RefreshCw, Download, Sparkles, AlertCircle, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
-  APP_VERSION,
   getStoredVersion,
   setStoredVersion,
   setShowChangelogAfterUpdate,
 } from '../config/version';
+import { useAppVersion } from '../hooks/useAppVersion';
 
 // Unique ID for the update overlay to track DOM manipulation
 const UPDATE_OVERLAY_ID = '__pwa_update_overlay__';
@@ -40,7 +40,8 @@ const PWAUpdatePrompt = () => {
     return sessionStorage.getItem('pwa_update_available') === 'true';
   });
   const currentVersion = getStoredVersion();
-  const newVersion = APP_VERSION;
+  const appVersion = useAppVersion();
+  const newVersion = appVersion;
   const overlayRef = useRef(null);
   const blockerRef = useRef(null);
   const observerRef = useRef(null);
@@ -207,7 +208,7 @@ const PWAUpdatePrompt = () => {
       // Set flag to show changelog after page reloads
       setShowChangelogAfterUpdate(true);
       // Update stored version to the new version
-      setStoredVersion(APP_VERSION);
+      setStoredVersion(appVersion);
       
       // Try to update the service worker first
       try {

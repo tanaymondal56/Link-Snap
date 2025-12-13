@@ -310,6 +310,9 @@ const Changelog = () => {
                         <span className="text-gray-500 text-sm">{formatDate(release.date)}</span>
                       </div>
                       <h2 className="text-xl font-semibold text-white mt-1">{release.title}</h2>
+                      {release.description && (
+                         <p className="text-gray-400 mt-2 text-sm leading-relaxed">{release.description}</p>
+                      )}
                     </div>
                   </div>
 

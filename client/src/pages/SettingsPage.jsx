@@ -14,6 +14,14 @@ import {
   EyeOff,
   CheckCircle,
   AlertCircle,
+  Monitor,
+  Smartphone,
+  Tablet,
+  MapPin,
+  Clock,
+  LogOut,
+  Trash2,
+  RefreshCw,
 } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
@@ -25,6 +33,12 @@ const SettingsPage = () => {
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Session state
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [terminatingSession, setTerminatingSession] = useState(null);
+  const [terminatingAll, setTerminatingAll] = useState(false);
 
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -52,6 +66,12 @@ const SettingsPage = () => {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'sessions') {
+      fetchSessions();
+    }
+  }, [activeTab]);
 
   const fetchProfile = async () => {
     try {
@@ -120,6 +140,73 @@ const SettingsPage = () => {
     }
   };
 
+  // Session management functions
+  const fetchSessions = async () => {
+    setSessionsLoading(true);
+    try {
+      const { data } = await api.get('/sessions');
+      setSessions(data.sessions || []);
+    } catch (error) {
+      console.error('Failed to fetch sessions:', error);
+      handleApiError(error, 'Failed to load sessions');
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  const terminateSession = async (sessionId) => {
+    setTerminatingSession(sessionId);
+    try {
+      await api.delete(`/sessions/${sessionId}`);
+      setSessions(sessions.filter(s => s.id !== sessionId));
+      showToast.success('Session terminated successfully');
+    } catch (error) {
+      handleApiError(error, 'Failed to terminate session');
+    } finally {
+      setTerminatingSession(null);
+    }
+  };
+
+  const terminateAllOtherSessions = async () => {
+    setTerminatingAll(true);
+    try {
+      const { data } = await api.delete('/sessions/others');
+      await fetchSessions();
+      showToast.success(`${data.terminatedCount} session(s) terminated`);
+    } catch (error) {
+      handleApiError(error, 'Failed to terminate sessions');
+    } finally {
+      setTerminatingAll(false);
+    }
+  };
+
+  const getDeviceIcon = (device) => {
+    switch (device) {
+      case 'Mobile':
+        return <Smartphone size={20} className="text-blue-400" />;
+      case 'Tablet':
+        return <Tablet size={20} className="text-purple-400" />;
+      default:
+        return <Monitor size={20} className="text-green-400" />;
+    }
+  };
+
+  const formatRelativeTime = (date) => {
+    if (!date) return 'Unknown';
+    const now = new Date();
+    const then = new Date(date);
+    const diffMs = now - then;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return formatDate(date);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -162,6 +249,19 @@ const SettingsPage = () => {
           <span className="flex items-center gap-2">
             <Shield size={16} />
             Security
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab('sessions')}
+          className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === 'sessions'
+              ? 'text-white border-blue-500'
+              : 'text-gray-400 border-transparent hover:text-white'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <Monitor size={16} />
+            Sessions
           </span>
         </button>
       </div>
@@ -484,6 +584,124 @@ const SettingsPage = () => {
             >
               Delete Account
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Sessions Tab */}
+      {activeTab === 'sessions' && (
+        <div className="space-y-6">
+          {/* Active Sessions */}
+          <div className="glass-dark rounded-2xl border border-gray-700/50 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Monitor size={20} className="text-green-400" />
+                  Active Sessions
+                </h3>
+                <p className="text-gray-400 text-sm mt-1">
+                  Manage your active login sessions across devices
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={fetchSessions}
+                  disabled={sessionsLoading}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+                  title="Refresh sessions"
+                >
+                  <RefreshCw size={16} className={`text-gray-400 ${sessionsLoading ? 'animate-spin' : ''}`} />
+                </button>
+                {sessions.length > 1 && (
+                  <button
+                    onClick={terminateAllOtherSessions}
+                    disabled={terminatingAll}
+                    className="flex items-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-sm rounded-lg transition-colors"
+                  >
+                    {terminatingAll ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <LogOut size={14} />
+                    )}
+                    Logout Others
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {sessionsLoading && sessions.length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 size={24} className="animate-spin text-gray-400" />
+              </div>
+            ) : sessions.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">No active sessions found</p>
+            ) : (
+              <div className="space-y-3">
+                {sessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className={`p-4 rounded-xl border transition-all ${
+                      session.isCurrent
+                        ? 'bg-green-500/10 border-green-500/30'
+                        : 'bg-gray-800/50 border-gray-700/50 hover:border-gray-600'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-gray-700/50 rounded-lg">
+                          {getDeviceIcon(session.deviceInfo?.device)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-white">
+                              {session.deviceInfo?.browser || 'Unknown'}{' '}
+                              {session.deviceInfo?.browserVersion ? `${session.deviceInfo.browserVersion}` : ''}
+                            </span>
+                            <span className="text-gray-500">on</span>
+                            <span className="text-gray-300">
+                              {session.deviceInfo?.os || 'Unknown'}
+                              {session.deviceInfo?.osVersion ? ` ${session.deviceInfo.osVersion}` : ''}
+                            </span>
+                            {session.isCurrent && (
+                              <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full border border-green-500/30">
+                                This Device
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4 mt-1 text-sm text-gray-500 flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <MapPin size={12} />
+                              {session.ipAddress || 'Unknown IP'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock size={12} />
+                              Active {formatRelativeTime(session.lastActiveAt)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">
+                            Logged in {formatRelativeTime(session.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                      {!session.isCurrent && (
+                        <button
+                          onClick={() => terminateSession(session.id)}
+                          disabled={terminatingSession === session.id}
+                          className="p-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 rounded-lg transition-colors flex-shrink-0"
+                          title="Terminate session"
+                        >
+                          {terminatingSession === session.id ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={16} />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

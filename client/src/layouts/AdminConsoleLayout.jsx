@@ -1,11 +1,11 @@
 import { Outlet, Navigate } from 'react-router-dom';
 import AdminSidebar from '../components/admin-console/AdminSidebar';
 import { useAuth } from '../context/AuthContext';
-import { Menu, Bell, User } from 'lucide-react';
+import { Menu, Bell, User, LogOut } from 'lucide-react';
 import { useState } from 'react';
 
 const AdminConsoleLayout = () => {
-  const { user, loading } = useAuth();
+  const { user, logout, loading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   if (loading) {
@@ -56,6 +56,13 @@ const AdminConsoleLayout = () => {
           <div className="flex items-center gap-3 self-end md:self-auto">
             <button className="p-2.5 rounded-xl bg-gray-900/40 border border-white/5 hover:bg-white/5 text-gray-400 hover:text-white transition-all">
               <Bell size={18} />
+            </button>
+            <button
+              onClick={logout}
+              className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all"
+              title="Logout"
+            >
+              <LogOut size={18} />
             </button>
             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 p-[1px]">
               <div className="h-full w-full rounded-[11px] bg-gray-900 flex items-center justify-center overflow-hidden">

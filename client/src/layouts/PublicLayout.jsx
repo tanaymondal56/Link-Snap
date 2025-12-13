@@ -2,11 +2,13 @@ import { Link, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { User, Shield, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { APP_VERSION, hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
+import { hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
+import { useAppVersion } from '../hooks/useAppVersion';
 import PullToRefresh from '../components/PullToRefresh';
 
 const PublicLayout = () => {
   const { user, logout, openAuthModal, isAdmin } = useAuth();
+  const appVersion = useAppVersion();
   const [isWhitelistedIP, setIsWhitelistedIP] = useState(false);
   const [showNewBadge, setShowNewBadge] = useState(hasUnseenChangelog());
 
@@ -82,7 +84,7 @@ const PublicLayout = () => {
                   </span>
                 )}
                 <Sparkles className="w-3 h-3" />
-                <span>v{APP_VERSION}</span>
+                <span>v{appVersion}</span>
                 {showNewBadge ? (
                   <span className="text-emerald-400 text-[10px] font-semibold">
                     What&apos;s New
@@ -177,7 +179,7 @@ const PublicLayout = () => {
               to="/changelog"
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300 transition-all"
             >
-              <Sparkles size={12} />v{APP_VERSION}
+              <Sparkles size={12} />v{appVersion}
             </Link>{' '}
             •{' '}
             <span className="inline-block relative whitespace-nowrap">

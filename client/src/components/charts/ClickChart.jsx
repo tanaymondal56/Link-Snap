@@ -7,7 +7,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { formatDate } from '../utils/dateUtils';
+import { formatDate } from '../../utils/dateUtils';
 
 const ClickChart = ({ data }) => {
   if (!data || data.length === 0) {

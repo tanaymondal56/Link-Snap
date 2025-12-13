@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, Home, FileText, PartyPopper } from 'lucide-react';
 import {
-  APP_VERSION,
   shouldShowChangelog,
   setShowChangelogAfterUpdate,
   markChangelogAsSeen,
 } from '../config/version';
+import { useAppVersion } from '../hooks/useAppVersion';
 
 // Check once on module load to avoid effect-based setState
 const shouldShowOnLoad = shouldShowChangelog();
@@ -17,6 +17,7 @@ if (shouldShowOnLoad) {
 
 const PostUpdateChoiceModal = () => {
   const [show, setShow] = useState(shouldShowOnLoad);
+  const appVersion = useAppVersion();
   const navigate = useNavigate();
 
   const handleOpenApp = () => {
@@ -68,7 +69,7 @@ const PostUpdateChoiceModal = () => {
             </div>
             <div>
               <h2 className="text-white font-bold text-lg">Update Complete!</h2>
-              <p className="text-white/60 text-xs">You&apos;re now on v{APP_VERSION}</p>
+              <p className="text-white/60 text-xs">You&apos;re now on v{appVersion}</p>
             </div>
           </div>
 

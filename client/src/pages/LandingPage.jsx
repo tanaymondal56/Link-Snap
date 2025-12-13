@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
-import { APP_VERSION, hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
+import { hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
+import { useAppVersion } from '../hooks/useAppVersion';
 import showToast from '../components/ui/Toast';
 import { getShortUrl } from '../utils/urlHelper';
 import LinkSuccessModal from '../components/LinkSuccessModal';
@@ -77,6 +78,7 @@ const getDisplayDomain = (fullDomain) => {
 
 const LandingPage = () => {
   const { user } = useAuth();
+  const appVersion = useAppVersion();
   const [url, setUrl] = useState('');
   const [customAlias, setCustomAlias] = useState('');
   const [shortUrl, setShortUrl] = useState(null);
@@ -249,7 +251,7 @@ const LandingPage = () => {
                   </span>
                 )}
                 <Sparkles className="w-3 h-3" />
-                <span>v{APP_VERSION}</span>
+                <span>v{appVersion}</span>
               </Link>
             </div>
 

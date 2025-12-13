@@ -2,10 +2,10 @@
 // This module provides dynamic version fetching from the API with robust fallback handling
 
 // Fallback version used when API is unavailable or on first load
-export const FALLBACK_VERSION = '0.5.1-beta';
+export const FALLBACK_VERSION = '0.5.5';
 
 // Cache configuration
-const CACHE_KEY = 'app_version_cache';
+const CACHE_KEY = 'app_version_cache_v2';
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour cache TTL
 const FETCH_TIMEOUT_MS = 5000; // 5 second timeout for API calls
 

@@ -26,6 +26,7 @@ if (process.env.ADMIN_ENABLED === 'true') {
 import appealRoutes from './routes/appealRoutes.js';
 import changelogRoutes from './routes/changelogRoutes.js';
 import feedbackRoutes from './routes/feedbackRoutes.js';
+import sessionRoutes from './routes/sessionRoutes.js';
 import redirectRoutes from './routes/redirectRoutes.js';
 import { startBanScheduler } from './services/banScheduler.js';
 
@@ -155,6 +156,7 @@ if (adminRoutes) {
 app.use('/api/appeals', appealRoutes);
 app.use('/api/changelog', changelogRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/sessions', sessionRoutes);
 
 // Serve static assets in production (BEFORE redirect routes)
 if (process.env.NODE_ENV === 'production') {

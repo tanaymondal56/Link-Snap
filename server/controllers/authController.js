@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Settings from '../models/Settings.js';
 import LoginHistory from '../models/LoginHistory.js';
 import { generateAccessToken, generateRefreshToken } from '../utils/generateToken.js';
+import { createSession, validateSession, refreshSessionActivity, terminateSession, hashToken, terminateAllUserSessions } from '../utils/sessionHelper.js';
 import { registerSchema, loginSchema, updateProfileSchema, verifyOtpSchema, forgotPasswordSchema, resetPasswordSchema } from '../validators/authValidator.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
@@ -180,10 +181,7 @@ const registerUser = async (req, res, next) => {
       });
 
       const accessToken = generateAccessToken(user._id);
-      const refreshToken = generateRefreshToken(user._id);
-
-      user.refreshTokens.push(refreshToken);
-      await user.save();
+      const { refreshToken } = await createSession(user._id, req);
 
       // Send welcome email (non-blocking)
       try {
@@ -284,13 +282,11 @@ const verifyOTP = async (req, res, next) => {
     user.verificationTokenExpires = undefined;
     user.otp = undefined;
     user.otpExpires = undefined;
-    
-    // Generate Tokens (Login immediately)
-    const accessToken = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
-    
-    user.refreshTokens.push(refreshToken);
     await user.save();
+    
+    // Generate access token and create session
+    const accessToken = generateAccessToken(user._id);
+    const { refreshToken } = await createSession(user._id, req);
 
     res.cookie('jwt', refreshToken, {
       httpOnly: true,
@@ -362,13 +358,11 @@ const verifyEmail = async (req, res, next) => {
     user.verificationTokenExpires = undefined;
     user.otp = undefined;
     user.otpExpires = undefined;
-    
-    // Generate tokens for auto-login
-    const accessToken = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
-    
-    user.refreshTokens.push(refreshToken);
     await user.save();
+    
+    // Generate access token and create session
+    const accessToken = generateAccessToken(user._id);
+    const { refreshToken } = await createSession(user._id, req);
 
     // Set refresh token cookie
     res.cookie('jwt', refreshToken, {
@@ -474,23 +468,12 @@ const loginUser = async (req, res, next) => {
       }
 
       const accessToken = generateAccessToken(user._id);
-      const refreshToken = generateRefreshToken(user._id);
+      
+      // Create session with device info (replaces legacy refreshTokens array)
+      const { refreshToken } = await createSession(user._id, req);
 
-      // Use atomic operation to add refresh token and update lastLoginAt
-      // This prevents version conflicts from concurrent logins
-      // Also limits tokens to last 5 to prevent unbounded growth
-      await User.findByIdAndUpdate(
-        user._id,
-        {
-          $push: { 
-            refreshTokens: { 
-              $each: [refreshToken], 
-              $slice: -5  // Keep only last 5 tokens
-            } 
-          },
-          $set: { lastLoginAt: new Date() }
-        }
-      );
+      // Update lastLoginAt
+      await User.findByIdAndUpdate(user._id, { $set: { lastLoginAt: new Date() } });
 
       // Log successful login
       await LoginHistory.create({
@@ -543,23 +526,12 @@ const logoutUser = async (req, res, next) => {
     const refreshToken = req.cookies.jwt;
     if (!refreshToken) return res.sendStatus(204); // No content
 
-    // Is refreshToken in db?
-    const user = await User.findOne({ refreshTokens: refreshToken });
-    if (!user) {
-      res.clearCookie('jwt', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: getCookieSameSite(),
-      });
-      return res.sendStatus(204);
+    // Terminate the session in database
+    const terminated = await terminateSession(refreshToken);
+    
+    if (!terminated) {
+      console.log('[Logout] Session not found, clearing cookie anyway');
     }
-
-    // Delete refreshToken in db using atomic operation
-    // This prevents version conflicts from concurrent logout requests
-    await User.findByIdAndUpdate(
-      user._id,
-      { $pull: { refreshTokens: refreshToken } }
-    );
 
     res.clearCookie('jwt', {
       httpOnly: true,
@@ -581,11 +553,24 @@ const refreshAccessToken = async (req, res, next) => {
     if (!cookies?.jwt) return res.sendStatus(401);
     const refreshToken = cookies.jwt;
 
-    // Find user with this refresh token
-    const user = await User.findOne({ refreshTokens: refreshToken });
+    // Validate session using Session model
+    const session = await validateSession(refreshToken);
+    
+    if (!session) {
+      // Session not found or expired
+      res.clearCookie('jwt', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: getCookieSameSite(),
+      });
+      return res.sendStatus(403);
+    }
+
+    // Get the user
+    const user = await User.findById(session.userId);
     if (!user) {
-      // Token not found in any user's tokens - could be reused/stolen
-      // Clear the cookie to stop retry loops
+      // User was deleted
+      await terminateSession(refreshToken);
       res.clearCookie('jwt', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -596,7 +581,9 @@ const refreshAccessToken = async (req, res, next) => {
 
     // Check if user is banned - immediately reject token refresh
     if (!user.isActive) {
-      // Clear the invalid refresh token cookie
+      // Terminate all sessions for banned user
+      await terminateAllUserSessions(user._id);
+      
       res.clearCookie('jwt', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -609,22 +596,12 @@ const refreshAccessToken = async (req, res, next) => {
       });
     }
 
-    // Verify the JWT
-    jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, async (err, decoded) => {
-      if (err || user._id.toString() !== decoded.id) {
-        // Token is invalid/expired - remove ONLY this token (not all tokens)
-        // This prevents logging out other sessions/tabs
-        try {
-          await User.findByIdAndUpdate(
-            user._id,
-            { $pull: { refreshTokens: refreshToken } },
-            { new: true }
-          );
-        } catch (updateErr) {
-          console.error('Failed to remove invalid token:', updateErr);
-        }
-        
-        // Clear the cookie
+    // Verify the JWT (for additional security)
+    try {
+      const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+      if (user._id.toString() !== decoded.id) {
+        // Token user ID mismatch
+        await terminateSession(refreshToken);
         res.clearCookie('jwt', {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
@@ -632,91 +609,24 @@ const refreshAccessToken = async (req, res, next) => {
         });
         return res.sendStatus(403);
       }
+    } catch (jwtError) {
+      // JWT verification failed (expired or invalid)
+      await terminateSession(refreshToken);
+      res.clearCookie('jwt', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: getCookieSameSite(),
+      });
+      return res.sendStatus(403);
+    }
 
-      // Token Rotation: Remove old token and add new one
-      // MongoDB doesn't allow $pull and $push on same field in single operation
-      const newRefreshToken = generateRefreshToken(user._id);
-      
-      try {
-        // Step 1: Remove the old token
-        const pullResult = await User.findOneAndUpdate(
-          { _id: user._id, refreshTokens: refreshToken },
-          { $pull: { refreshTokens: refreshToken } },
-          { new: true }
-        );
+    // Update session activity (last active time, IP if changed)
+    await refreshSessionActivity(session, req);
 
-        // If token was found and removed, add the new one
-        if (pullResult) {
-          // Step 2: Add the new token (with limit to prevent unbounded growth)
-          await User.findByIdAndUpdate(
-            user._id,
-            { 
-              $push: { 
-                refreshTokens: { 
-                  $each: [newRefreshToken], 
-                  $slice: -5 // Keep only last 5 tokens
-                } 
-              } 
-            }
-          );
-        } else {
-          // Token was already used/rotated - this is likely a duplicate request
-          // Still return success with a new token to prevent logout
-          console.log('[Token Refresh] Token already rotated, issuing new token');
-          
-          // Try to add a new token without removing (concurrent request scenario)
-          await User.findByIdAndUpdate(
-            user._id,
-            { 
-              $push: { 
-                refreshTokens: { 
-                  $each: [newRefreshToken], 
-                  $slice: -5 
-                } 
-              } 
-            }
-          );
-        }
-
-        // Send new refresh token as cookie
-        res.cookie('jwt', newRefreshToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: getCookieSameSite(),
-          maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-        });
-
-        const accessToken = generateAccessToken(user._id);
-        res.json({ accessToken });
-        
-      } catch (updateError) {
-        console.error('[Token Refresh] Update error:', updateError);
-        // On update error, still try to return a valid response
-        // to prevent unnecessary logouts
-        if (updateError.name === 'VersionError') {
-          // Version conflict - another request already updated
-          // Issue new token anyway to prevent logout
-          const fallbackToken = generateRefreshToken(user._id);
-          await User.findByIdAndUpdate(
-            user._id,
-            { $push: { refreshTokens: fallbackToken } }
-          );
-          
-          res.cookie('jwt', fallbackToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: getCookieSameSite(),
-            maxAge: 30 * 24 * 60 * 60 * 1000,
-          });
-          
-          const accessToken = generateAccessToken(user._id);
-          return res.json({ accessToken });
-        }
-        
-        // For other errors, return 500 but don't clear tokens
-        return res.status(500).json({ message: 'Token refresh failed, please try again' });
-      }
-    });
+    // Generate new access token (NOT a new refresh token - prevents race conditions)
+    const accessToken = generateAccessToken(user._id);
+    res.json({ accessToken });
+    
   } catch (error) {
     next(error);
   }

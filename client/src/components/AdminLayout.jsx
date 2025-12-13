@@ -2,11 +2,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useEffect, useState } from 'react';
 import api from '../api/axios';
-import { Loader2, Mail, Lock, ArrowRight, ShieldX } from 'lucide-react';
+import { Loader2, Mail, Lock, ArrowRight, ShieldX, LogOut } from 'lucide-react';
 import PullToRefresh from './PullToRefresh';
 
 const AdminLayout = ({ children }) => {
-  const { user, login, loading: authLoading, isAdmin } = useAuth();
+  const { user, login, logout, loading: authLoading, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [isAllowedIP, setIsAllowedIP] = useState(null);
 
@@ -220,10 +220,17 @@ const AdminLayout = ({ children }) => {
           <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent">
             Admin Panel
           </h1>
-          <div className="flex gap-4">
+          <div className="flex gap-4 items-center">
             <a href="/dashboard" className="text-gray-300 hover:text-white transition-colors">
               Back to App
             </a>
+            <button
+              onClick={logout}
+              className="flex items-center gap-2 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all text-sm"
+            >
+              <LogOut size={16} />
+              Logout
+            </button>
           </div>
         </div>
       </nav>

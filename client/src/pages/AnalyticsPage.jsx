@@ -15,7 +15,7 @@ import DeviceChart from '../components/charts/DeviceChart';
 import LocationChart from '../components/charts/LocationChart';
 
 const AnalyticsPage = () => {
-  const { id } = useParams();
+  const { shortId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -24,7 +24,7 @@ const AnalyticsPage = () => {
     const fetchAnalytics = async () => {
       try {
         setLoading(true);
-        const response = await api.get(`/analytics/${id}`);
+        const response = await api.get(`/analytics/${shortId}`);
         setData(response.data);
       } catch (err) {
         console.error(err);
@@ -34,10 +34,36 @@ const AnalyticsPage = () => {
       }
     };
 
-    if (id) {
+    if (shortId) {
       fetchAnalytics();
+    } else {
+      // No shortId provided - show empty state instead of loading
+      setLoading(false);
     }
-  }, [id]);
+  }, [shortId]);
+
+  // No link selected - show prompt to select a link
+  if (!shortId && !loading) {
+    return (
+      <div className="max-w-4xl mx-auto mt-10 px-4">
+        <div className="glass-dark p-8 rounded-2xl border border-white/10 text-center">
+          <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-400">
+            <LinkIcon size={32} />
+          </div>
+          <h3 className="text-xl font-bold text-white mb-2">Select a Link</h3>
+          <p className="text-gray-400 mb-6">
+            Choose a link from your dashboard to view its analytics
+          </p>
+          <Link
+            to="/dashboard/links"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-white transition-colors"
+          >
+            Go to Links
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
