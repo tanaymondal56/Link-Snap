@@ -22,6 +22,12 @@ import {
   LogOut,
   Trash2,
   RefreshCw,
+  X,
+  AlertTriangle,
+  Timer,
+  Edit2,
+  ShieldCheck,
+  Check,
 } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
@@ -39,6 +45,11 @@ const SettingsPage = () => {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [terminatingSession, setTerminatingSession] = useState(null);
   const [terminatingAll, setTerminatingAll] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, sessionId: null, sessionName: '', action: null });
+  const [editingSession, setEditingSession] = useState(null);
+  const [editingName, setEditingName] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const [togglingTrust, setTogglingTrust] = useState(null);
 
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -72,6 +83,17 @@ const SettingsPage = () => {
       fetchSessions();
     }
   }, [activeTab]);
+
+  // Close confirmation modal on Escape key
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && confirmModal.isOpen) {
+        setConfirmModal({ isOpen: false, sessionId: null, sessionName: '', action: null });
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [confirmModal.isOpen]);
 
   const fetchProfile = async () => {
     try {
@@ -154,30 +176,109 @@ const SettingsPage = () => {
     }
   };
 
-  const terminateSession = async (sessionId) => {
-    setTerminatingSession(sessionId);
-    try {
-      await api.delete(`/sessions/${sessionId}`);
-      setSessions(sessions.filter(s => s.id !== sessionId));
-      showToast.success('Session terminated successfully');
-    } catch (error) {
-      handleApiError(error, 'Failed to terminate session');
-    } finally {
-      setTerminatingSession(null);
+  // Helper to get session display name
+  const getSessionDisplayName = (session) => {
+    const browser = session.deviceInfo?.browser || 'Unknown';
+    const os = session.deviceInfo?.os || 'Unknown';
+    return `${browser} on ${os}`;
+  };
+
+  // Show confirmation before terminating a session
+  const confirmTerminateSession = (session) => {
+    setConfirmModal({
+      isOpen: true,
+      sessionId: session.id,
+      sessionName: getSessionDisplayName(session),
+      action: 'single'
+    });
+  };
+
+  // Show confirmation before terminating all other sessions
+  const confirmTerminateAll = () => {
+    const otherCount = sessions.filter(s => !s.isCurrent).length;
+    setConfirmModal({
+      isOpen: true,
+      sessionId: null,
+      sessionName: `${otherCount} other session${otherCount !== 1 ? 's' : ''}`,
+      action: 'all'
+    });
+  };
+
+  // Execute termination after confirmation
+  const executeTerminate = async () => {
+    const { sessionId, action } = confirmModal;
+    setConfirmModal({ isOpen: false, sessionId: null, sessionName: '', action: null });
+
+    if (action === 'single' && sessionId) {
+      setTerminatingSession(sessionId);
+      try {
+        await api.delete(`/sessions/${sessionId}`);
+        setSessions(sessions.filter(s => s.id !== sessionId));
+        showToast.success('Session terminated successfully');
+      } catch (error) {
+        handleApiError(error, 'Failed to terminate session');
+      } finally {
+        setTerminatingSession(null);
+      }
+    } else if (action === 'all') {
+      setTerminatingAll(true);
+      try {
+        const { data } = await api.delete('/sessions/others');
+        await fetchSessions();
+        showToast.success(`${data.terminatedCount} session(s) terminated`);
+      } catch (error) {
+        handleApiError(error, 'Failed to terminate sessions');
+      } finally {
+        setTerminatingAll(false);
+      }
     }
   };
 
-  const terminateAllOtherSessions = async () => {
-    setTerminatingAll(true);
+  // Update session custom name
+  const updateSessionName = async (sessionId) => {
+    setSavingName(true);
     try {
-      const { data } = await api.delete('/sessions/others');
-      await fetchSessions();
-      showToast.success(`${data.terminatedCount} session(s) terminated`);
+      const { data } = await api.patch(`/sessions/${sessionId}/name`, { name: editingName });
+      setSessions(sessions.map(s => 
+        s.id === sessionId ? { ...s, customName: data.customName } : s
+      ));
+      setEditingSession(null);
+      setEditingName('');
+      showToast.success('Session name updated');
     } catch (error) {
-      handleApiError(error, 'Failed to terminate sessions');
+      handleApiError(error, 'Failed to update session name');
     } finally {
-      setTerminatingAll(false);
+      setSavingName(false);
     }
+  };
+
+  // Toggle session trust status
+  const toggleTrustSession = async (session) => {
+    setTogglingTrust(session.id);
+    try {
+      const newTrusted = !session.isTrusted;
+      const { data } = await api.patch(`/sessions/${session.id}/trust`, { trusted: newTrusted });
+      setSessions(sessions.map(s => 
+        s.id === session.id ? { ...s, isTrusted: data.isTrusted } : s
+      ));
+      showToast.success(data.isTrusted ? 'Device marked as trusted' : 'Device trust removed');
+    } catch (error) {
+      handleApiError(error, 'Failed to update device trust');
+    } finally {
+      setTogglingTrust(null);
+    }
+  };
+
+  // Start editing a session name
+  const startEditingSession = (session) => {
+    setEditingSession(session.id);
+    setEditingName(session.customName || '');
+  };
+
+  // Cancel editing session name
+  const cancelEditingSession = () => {
+    setEditingSession(null);
+    setEditingName('');
   };
 
   const getDeviceIcon = (device) => {
@@ -205,6 +306,24 @@ const SettingsPage = () => {
     if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
     if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
     return formatDate(date);
+  };
+
+  const formatExpiryTime = (expiresAt) => {
+    if (!expiresAt) return null;
+    const now = new Date();
+    const expiry = new Date(expiresAt);
+    const diffMs = expiry - now;
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMs <= 0) return { text: 'Expired', urgent: true };
+    if (diffDays === 0) {
+      const diffHours = Math.floor(diffMs / 3600000);
+      return { text: diffHours <= 1 ? 'Expires soon' : `Expires in ${diffHours}h`, urgent: true };
+    }
+    if (diffDays === 1) return { text: 'Expires tomorrow', urgent: true };
+    if (diffDays < 3) return { text: `Expires in ${diffDays} days`, urgent: true };
+    if (diffDays < 7) return { text: `Expires in ${diffDays} days`, warning: true };
+    return { text: `Expires in ${diffDays} days`, normal: true };
   };
 
   if (isLoading) {
@@ -614,7 +733,7 @@ const SettingsPage = () => {
                 </button>
                 {sessions.length > 1 && (
                   <button
-                    onClick={terminateAllOtherSessions}
+                    onClick={confirmTerminateAll}
                     disabled={terminatingAll}
                     className="flex items-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-sm rounded-lg transition-colors"
                   >
@@ -643,7 +762,9 @@ const SettingsPage = () => {
                     className={`p-4 rounded-xl border transition-all ${
                       session.isCurrent
                         ? 'bg-green-500/10 border-green-500/30'
-                        : 'bg-gray-800/50 border-gray-700/50 hover:border-gray-600'
+                        : session.isTrusted
+                          ? 'bg-blue-500/5 border-blue-500/30'
+                          : 'bg-gray-800/50 border-gray-700/50 hover:border-gray-600'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -652,6 +773,52 @@ const SettingsPage = () => {
                           {getDeviceIcon(session.deviceInfo?.device)}
                         </div>
                         <div className="flex-1 min-w-0">
+                          {/* Custom name or default name with editing support */}
+                          {editingSession === session.id ? (
+                            <div className="flex items-center gap-2 mb-1">
+                              <input
+                                type="text"
+                                value={editingName}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') updateSessionName(session.id);
+                                  if (e.key === 'Escape') cancelEditingSession();
+                                }}
+                                placeholder="Enter device name..."
+                                className="px-2 py-1 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500 w-40"
+                                maxLength={50}
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => updateSessionName(session.id)}
+                                disabled={savingName}
+                                className="p-1 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded transition-colors disabled:opacity-50"
+                              >
+                                {savingName ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                              </button>
+                              <button
+                                onClick={cancelEditingSession}
+                                className="p-1 bg-gray-600/50 hover:bg-gray-600 text-gray-400 rounded transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 mb-1">
+                              {session.customName && (
+                                <span className="font-semibold text-white truncate max-w-[180px]" title={session.customName}>
+                                  {session.customName}
+                                </span>
+                              )}
+                              <button
+                                onClick={() => startEditingSession(session)}
+                                className="p-1 hover:bg-gray-700 rounded transition-colors"
+                                title="Rename device"
+                              >
+                                <Edit2 size={12} className="text-gray-500 hover:text-gray-300" />
+                              </button>
+                            </div>
+                          )}
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium text-white">
                               {session.deviceInfo?.browser || 'Unknown'}{' '}
@@ -667,7 +834,20 @@ const SettingsPage = () => {
                                 This Device
                               </span>
                             )}
+                            {session.isTrusted && (
+                              <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full border border-blue-500/30 flex items-center gap-1">
+                                <ShieldCheck size={10} />
+                                Trusted
+                              </span>
+                            )}
                           </div>
+                          {/* Device model for mobile devices */}
+                          {session.deviceInfo?.deviceModel && (
+                            <p className="text-sm text-gray-400 mt-0.5">
+                              {session.deviceInfo.deviceVendor ? `${session.deviceInfo.deviceVendor} ` : ''}
+                              {session.deviceInfo.deviceModel}
+                            </p>
+                          )}
                           <div className="flex items-center gap-4 mt-1 text-sm text-gray-500 flex-wrap">
                             <span className="flex items-center gap-1">
                               <MapPin size={12} />
@@ -677,31 +857,116 @@ const SettingsPage = () => {
                               <Clock size={12} />
                               Active {formatRelativeTime(session.lastActiveAt)}
                             </span>
+                            {session.deviceInfo?.cpuArch && (
+                              <span className="text-gray-600">
+                                {session.deviceInfo.cpuArch}
+                              </span>
+                            )}
                           </div>
-                          <p className="text-xs text-gray-600 mt-1">
-                            Logged in {formatRelativeTime(session.createdAt)}
-                          </p>
+                          <div className="flex items-center gap-4 mt-1 text-xs text-gray-600 flex-wrap">
+                            <span>Logged in {formatRelativeTime(session.createdAt)}</span>
+                            {session.expiresAt && (() => {
+                              const expiry = formatExpiryTime(session.expiresAt);
+                              if (!expiry) return null;
+                              return (
+                                <span className={`flex items-center gap-1 ${
+                                  expiry.urgent ? 'text-red-400' : 
+                                  expiry.warning ? 'text-yellow-400' : 
+                                  'text-gray-500'
+                                }`}>
+                                  <Timer size={12} />
+                                  {expiry.text}
+                                </span>
+                              );
+                            })()}
+                          </div>
                         </div>
                       </div>
-                      {!session.isCurrent && (
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Trust toggle button */}
                         <button
-                          onClick={() => terminateSession(session.id)}
-                          disabled={terminatingSession === session.id}
-                          className="p-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 rounded-lg transition-colors flex-shrink-0"
-                          title="Terminate session"
+                          onClick={() => toggleTrustSession(session)}
+                          disabled={togglingTrust === session.id}
+                          className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
+                            session.isTrusted
+                              ? 'bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400'
+                              : 'bg-gray-700/50 hover:bg-gray-700 text-gray-400'
+                          }`}
+                          title={session.isTrusted ? 'Remove trust' : 'Mark as trusted'}
                         >
-                          {terminatingSession === session.id ? (
+                          {togglingTrust === session.id ? (
                             <Loader2 size={16} className="animate-spin" />
                           ) : (
-                            <Trash2 size={16} />
+                            <ShieldCheck size={16} />
                           )}
                         </button>
-                      )}
+                        {/* Terminate button (not for current session) */}
+                        {!session.isCurrent && (
+                          <button
+                            onClick={() => confirmTerminateSession(session)}
+                            disabled={terminatingSession === session.id}
+                            className="p-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 rounded-lg transition-colors"
+                            title="Terminate session"
+                          >
+                            {terminatingSession === session.id ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={16} />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-dark rounded-2xl border border-gray-700/50 p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-500/20 rounded-lg">
+                  <AlertTriangle size={24} className="text-red-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-white">
+                  {confirmModal.action === 'all' ? 'Logout Other Devices?' : 'End Session?'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setConfirmModal({ isOpen: false, sessionId: null, sessionName: '', action: null })}
+                className="p-1 hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-400" />
+              </button>
+            </div>
+            <p className="text-gray-400 mb-6">
+              {confirmModal.action === 'all'
+                ? `This will terminate ${confirmModal.sessionName} and log them out immediately.`
+                : `This will end the session on ${confirmModal.sessionName} and log it out immediately.`
+              }
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmModal({ isOpen: false, sessionId: null, sessionName: '', action: null })}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeTerminate}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center gap-2"
+              >
+                <LogOut size={16} />
+                {confirmModal.action === 'all' ? 'Logout All' : 'End Session'}
+              </button>
+            </div>
           </div>
         </div>
       )}

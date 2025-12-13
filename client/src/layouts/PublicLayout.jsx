@@ -64,6 +64,12 @@ const PublicLayout = () => {
             <div className="flex items-center gap-3">
               <Link
                 to="/"
+                onClick={() => {
+                  // Easter egg: 10 clicks to show credits
+                  if (window.handleLogoClick) {
+                    window.handleLogoClick();
+                  }
+                }}
                 className="text-2xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent hover:opacity-80 transition-opacity"
               >
                 Link Snap

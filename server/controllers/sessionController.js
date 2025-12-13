@@ -28,7 +28,7 @@ export const getMySessions = async (req, res) => {
       total: formattedSessions.length
     });
   } catch (error) {
-    console.error('Error getting sessions:', error);
+    logger.error('Error getting sessions:', error);
     res.status(500).json({ message: 'Failed to get sessions' });
   }
 };
@@ -52,7 +52,7 @@ export const getCurrentSession = async (req, res) => {
     
     res.json(formatSessionForResponse(session, tokenHash));
   } catch (error) {
-    console.error('Error getting current session:', error);
+    logger.error('Error getting current session:', error);
     res.status(500).json({ message: 'Failed to get current session' });
   }
 };
@@ -96,7 +96,7 @@ export const terminateSessionById = async (req, res) => {
       sessionId 
     });
   } catch (error) {
-    console.error('Error terminating session:', error);
+    logger.error('Error terminating session:', error);
     res.status(500).json({ message: 'Failed to terminate session' });
   }
 };
@@ -124,7 +124,7 @@ export const terminateOtherSessions = async (req, res) => {
       terminatedCount: result.deletedCount 
     });
   } catch (error) {
-    console.error('Error terminating other sessions:', error);
+    logger.error('Error terminating other sessions:', error);
     res.status(500).json({ message: 'Failed to terminate sessions' });
   }
 };
@@ -152,7 +152,7 @@ export const terminateAllSessions = async (req, res) => {
       terminatedCount 
     });
   } catch (error) {
-    console.error('Error terminating all sessions:', error);
+    logger.error('Error terminating all sessions:', error);
     res.status(500).json({ message: 'Failed to logout everywhere' });
   }
 };
@@ -167,7 +167,97 @@ export const getSessionCount = async (req, res) => {
     
     res.json({ count });
   } catch (error) {
-    console.error('Error getting session count:', error);
+    logger.error('Error getting session count:', error);
     res.status(500).json({ message: 'Failed to get session count' });
+  }
+};
+
+// @desc    Update session custom name
+// @route   PATCH /api/sessions/:id/name
+// @access  Private
+export const updateSessionName = async (req, res) => {
+  try {
+    const { id: sessionId } = req.params;
+    const { name } = req.body;
+    const userId = req.user._id;
+    
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      return res.status(400).json({ message: 'Invalid session ID format' });
+    }
+    
+    // Validate name
+    if (typeof name !== 'string' || name.length > 50) {
+      return res.status(400).json({ message: 'Name must be a string with max 50 characters' });
+    }
+    
+    // Sanitize name - remove HTML tags and trim
+    const sanitizedName = name
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/[<>]/g, '')    // Remove any remaining angle brackets
+      .trim();
+    
+    // Find and update the session
+    const session = await Session.findOneAndUpdate(
+      { _id: sessionId, userId },
+      { customName: sanitizedName },
+      { new: true }
+    );
+    
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+    
+    logger.info(`[Session] User ${userId} renamed session ${sessionId} to "${name}"`);
+    
+    res.json({ 
+      message: 'Session name updated',
+      customName: session.customName 
+    });
+  } catch (error) {
+    logger.error('Error updating session name:', error);
+    res.status(500).json({ message: 'Failed to update session name' });
+  }
+};
+
+// @desc    Toggle session trusted status
+// @route   PATCH /api/sessions/:id/trust
+// @access  Private
+export const toggleTrustSession = async (req, res) => {
+  try {
+    const { id: sessionId } = req.params;
+    const { trusted } = req.body;
+    const userId = req.user._id;
+    
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      return res.status(400).json({ message: 'Invalid session ID format' });
+    }
+    
+    // Validate trusted value
+    if (typeof trusted !== 'boolean') {
+      return res.status(400).json({ message: 'Trusted must be a boolean' });
+    }
+    
+    // Find and update the session
+    const session = await Session.findOneAndUpdate(
+      { _id: sessionId, userId },
+      { isTrusted: trusted },
+      { new: true }
+    );
+    
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+    
+    logger.info(`[Session] User ${userId} ${trusted ? 'trusted' : 'untrusted'} session ${sessionId}`);
+    
+    res.json({ 
+      message: trusted ? 'Device marked as trusted' : 'Device trust removed',
+      isTrusted: session.isTrusted 
+    });
+  } catch (error) {
+    logger.error('Error toggling session trust:', error);
+    res.status(500).json({ message: 'Failed to update session trust' });
   }
 };

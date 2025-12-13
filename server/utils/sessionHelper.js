@@ -188,12 +188,18 @@ export const formatSessionForResponse = (session, currentTokenHash = null) => {
       os: session.deviceInfo.os,
       osVersion: session.deviceInfo.osVersion,
       device: session.deviceInfo.device,
+      deviceModel: session.deviceInfo.deviceModel || '',
+      deviceVendor: session.deviceInfo.deviceVendor || '',
+      cpuArch: session.deviceInfo.cpuArch || '',
       isMobile: session.deviceInfo.isMobile
     },
     ipAddress: maskIP(session.ipAddress),
     location: session.location,
+    customName: session.customName || '',
+    isTrusted: session.isTrusted || false,
     lastActiveAt: session.lastActiveAt,
     createdAt: session.createdAt,
+    expiresAt: session.expiresAt,
     isCurrent: currentTokenHash ? session.tokenHash === currentTokenHash : false
   };
 };

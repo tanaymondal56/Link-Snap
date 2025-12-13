@@ -22,6 +22,9 @@ const sessionSchema = new mongoose.Schema({
       enum: ['Desktop', 'Mobile', 'Tablet', 'Unknown'], 
       default: 'Unknown' 
     },
+    deviceModel: { type: String, default: '' },
+    deviceVendor: { type: String, default: '' },
+    cpuArch: { type: String, default: '' },
     isMobile: { type: Boolean, default: false }
   },
   ipAddress: {
@@ -39,6 +42,15 @@ const sessionSchema = new mongoose.Schema({
     type: String,
     maxlength: 500,
     default: ''
+  },
+  customName: {
+    type: String,
+    maxlength: 50,
+    default: ''
+  },
+  isTrusted: {
+    type: Boolean,
+    default: false
   },
   lastActiveAt: {
     type: Date,

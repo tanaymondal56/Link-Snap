@@ -6,7 +6,9 @@ import {
   terminateSessionById,
   terminateOtherSessions,
   terminateAllSessions,
-  getSessionCount
+  getSessionCount,
+  updateSessionName,
+  toggleTrustSession
 } from '../controllers/sessionController.js';
 
 const router = express.Router();
@@ -28,6 +30,12 @@ router.delete('/others', terminateOtherSessions);
 
 // Terminate all sessions (logout everywhere)
 router.delete('/all', terminateAllSessions);
+
+// Update session name (must come before generic :id route)
+router.patch('/:id/name', updateSessionName);
+
+// Toggle session trust (must come before generic :id route)
+router.patch('/:id/trust', toggleTrustSession);
 
 // Terminate a specific session by ID
 router.delete('/:id', terminateSessionById);

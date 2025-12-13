@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import Settings from '../models/Settings.js';
+import Session from '../models/Session.js';
 import LoginHistory from '../models/LoginHistory.js';
 import { generateAccessToken, generateRefreshToken } from '../utils/generateToken.js';
 import { createSession, validateSession, refreshSessionActivity, terminateSession, hashToken, terminateAllUserSessions } from '../utils/sessionHelper.js';
@@ -734,7 +735,22 @@ const changePassword = async (req, res, next) => {
     user.password = newPassword;
     await user.save();
 
-    res.json({ message: 'Password changed successfully' });
+    // Security: Terminate all other sessions after password change
+    // Keep the current session active
+    const currentToken = req.cookies.jwt;
+    if (currentToken) {
+      const currentTokenHash = hashToken(currentToken);
+      const result = await Session.deleteMany({ 
+        userId: req.user._id, 
+        tokenHash: { $ne: currentTokenHash } 
+      });
+      logger.info(`[Security] Password changed for user ${req.user._id}, terminated ${result.deletedCount} other sessions`);
+    }
+
+    res.json({ 
+      message: 'Password changed successfully',
+      sessionsTerminated: true 
+    });
   } catch (error) {
     next(error);
   }

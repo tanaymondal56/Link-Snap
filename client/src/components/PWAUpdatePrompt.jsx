@@ -80,16 +80,6 @@ const PWAUpdatePrompt = () => {
 
   // Check for version mismatch (most reliable method)
   const hasVersionMismatch = currentVersion !== newVersion;
-  
-  // Debug logging
-  useEffect(() => {
-    console.log('[PWA Debug] isPWA:', isPWA);
-    console.log('[PWA Debug] needRefresh:', needRefresh);
-    console.log('[PWA Debug] hasUpdate (persisted):', hasUpdate);
-    console.log('[PWA Debug] currentVersion (localStorage):', currentVersion);
-    console.log('[PWA Debug] newVersion (code):', newVersion);
-    console.log('[PWA Debug] hasVersionMismatch:', hasVersionMismatch);
-  }, [isPWA, needRefresh, hasUpdate, currentVersion, newVersion, hasVersionMismatch]);
 
   // If version mismatch detected in PWA mode, show update prompt
   const shouldBlock = isPWA && (hasVersionMismatch || needRefresh || hasUpdate);

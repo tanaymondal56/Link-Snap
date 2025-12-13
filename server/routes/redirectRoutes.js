@@ -1,6 +1,7 @@
 import express from 'express';
 import { redirectUrl, previewUrl } from '../controllers/redirectController.js';
 import { redirectLimiter } from '../middleware/rateLimiter.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 
@@ -59,6 +60,45 @@ const skipFrontendRoutes = (req, res, next) => {
 // Preview page routes (when user adds + at the end)
 // Using regex pattern to match shortId followed by +
 router.get(/^\/([a-zA-Z0-9_-]+)\+$/, skipFrontendRoutes, redirectLimiter, previewUrl);
+
+// Development-only shortcut codes (only in development mode)
+if (process.env.NODE_ENV !== 'production') {
+    const DEV_SHORTCUTS = {
+        '-admin': '/admin-console',      // Admin console
+        '-console': '/admin-console',    // Admin console (alias)
+        '-legacy': '/admin',             // Legacy admin panel
+        '-dev': '/dashboard',            // Dashboard
+        '-settings': '/dashboard/settings', // Settings page
+        // Easter egg shortcuts
+        '-credits': '/easter/credits',    // Credits page
+        '-timeline': '/easter/timeline',  // Timeline page
+        '-thanks': '/easter/thanks',      // Thank you page
+        '-coffee': 'https://buymeacoffee.com', // Buy me coffee
+        '-jobs': '/dev/null',             // Funny job application
+        '-devnull': '/dev/null',          // Same as above
+        '-apply': '/dev/null',            // Same as above
+    };
+    
+    // Easter egg: Rickroll
+    const RICKROLL_URLS = ['-rickroll', '-rick', '-never', '-gonna'];
+
+    router.get('/:shortId', (req, res, next) => {
+        const shortId = req.params.shortId?.toLowerCase();
+        
+        // Rickroll Easter egg
+        if (RICKROLL_URLS.includes(shortId)) {
+            logger.debug(`[Easter Egg] Rickrolled! ${shortId}`);
+            return res.redirect('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+        }
+        
+        // Dev shortcuts
+        if (shortId && DEV_SHORTCUTS[shortId]) {
+            logger.debug(`[Dev Shortcut] ${shortId} -> ${DEV_SHORTCUTS[shortId]}`);
+            return res.redirect(DEV_SHORTCUTS[shortId]);
+        }
+        next();
+    });
+}
 
 // Regular redirect route (also handles trailing slash via Express normalization)
 router.get('/:shortId', skipFrontendRoutes, redirectLimiter, redirectUrl);
