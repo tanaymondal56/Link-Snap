@@ -52,6 +52,7 @@ const TimelinePage = lazy(() => import('./pages/EasterEggPages').then(m => ({ de
 const ThanksPage = lazy(() => import('./pages/EasterEggPages').then(m => ({ default: m.ThanksPage })));
 const DevNullPage = lazy(() => import('./pages/EasterEggPages').then(m => ({ default: m.DevNullPage })));
 const Funny404Page = lazy(() => import('./pages/EasterEggPages').then(m => ({ default: m.Funny404Page })));
+const TeapotPage = lazy(() => import('./pages/EasterEggPages').then(m => ({ default: m.TeapotPage })));
 
 const LoadingFallback = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-900">
@@ -125,6 +126,7 @@ function AppContent() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
+            <Route path="/account-suspended" element={<AccountSuspended />} />
           </Route>
 
           {/* Changelog Route - Standalone page */}
@@ -138,6 +140,7 @@ function AppContent() {
           <Route path="/easter/thanks" element={<ThanksPage />} />
           <Route path="/dev/null" element={<DevNullPage />} />
           <Route path="/404" element={<Funny404Page />} />
+          <Route path="/teapot" element={<TeapotPage />} />
 
           {/* Dashboard Routes (Protected) */}
           <Route element={<DashboardLayout />}>

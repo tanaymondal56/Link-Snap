@@ -7,10 +7,24 @@ import {
   AlertCircle,
   Loader2,
   ExternalLink,
+  Clock,
+  Lock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
 import { getShortUrl } from '../utils/urlHelper';
+
+// Expiration presets
+const EXPIRATION_OPTIONS = [
+  { value: 'never', label: 'Never expires' },
+  { value: '1h', label: '1 hour' },
+  { value: '24h', label: '24 hours' },
+  { value: '7d', label: '7 days' },
+  { value: '30d', label: '30 days' },
+  { value: 'custom', label: 'Custom date & time...' },
+];
 
 // Helper to normalize URL (add https:// if missing)
 const normalizeUrl = (input) => {
@@ -55,6 +69,15 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
   const [url, setUrl] = useState('');
   const [customAlias, setCustomAlias] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+
+  // Expiration state
+  const [expiresIn, setExpiresIn] = useState('never');
+  const [customExpiresAt, setCustomExpiresAt] = useState('');
+  
+  // Password state
+  const [enablePassword, setEnablePassword] = useState(false);
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Alias availability state
   const [aliasStatus, setAliasStatus] = useState({
@@ -105,6 +128,11 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
     if (!isOpen) {
       setUrl('');
       setCustomAlias('');
+      setExpiresIn('never');
+      setCustomExpiresAt('');
+      setEnablePassword(false);
+      setPassword('');
+      setShowPassword(false);
       setAliasStatus({ checking: false, available: null, reason: null });
     }
   }, [isOpen]);
@@ -123,6 +151,12 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       return;
     }
 
+    // Validate password if enabled
+    if (enablePassword && password.length < 4) {
+      showToast.error('Password must be at least 4 characters');
+      return;
+    }
+
     setIsCreating(true);
 
     try {
@@ -132,6 +166,18 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
 
       if (customAlias && customAlias.length >= 3) {
         payload.customAlias = customAlias;
+      }
+
+      // Add expiration
+      if (expiresIn === 'custom' && customExpiresAt) {
+        payload.expiresAt = new Date(customExpiresAt).toISOString();
+      } else if (expiresIn && expiresIn !== 'never' && expiresIn !== 'custom') {
+        payload.expiresIn = expiresIn;
+      }
+
+      // Add password
+      if (enablePassword && password.length >= 4) {
+        payload.password = password;
       }
 
       const { data } = await api.post('/url/shorten', payload);
@@ -282,6 +328,83 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
             </div>
           </div>
 
+          {/* Expiration Dropdown */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              <span className="flex items-center gap-2">
+                <Clock size={14} className="text-amber-400" />
+                Link Expiration
+              </span>
+            </label>
+            <select
+              value={expiresIn}
+              onChange={(e) => setExpiresIn(e.target.value)}
+              className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-amber-500 focus:outline-none transition-colors appearance-none cursor-pointer"
+              style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.75rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
+            >
+              {EXPIRATION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {expiresIn === 'custom' && (
+              <input
+                type="datetime-local"
+                value={customExpiresAt}
+                onChange={(e) => setCustomExpiresAt(e.target.value)}
+                min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
+                className="w-full mt-2 bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-amber-500 focus:outline-none transition-colors"
+              />
+            )}
+          </div>
+
+          {/* Password Protection Toggle */}
+          <div>
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={enablePassword}
+                  onChange={(e) => setEnablePassword(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-700 rounded-full peer peer-focus:ring-2 peer-focus:ring-purple-500/50 peer-checked:bg-purple-600 transition-colors"></div>
+                <div className="absolute left-[2px] top-[2px] bg-white w-5 h-5 rounded-full transition-transform peer-checked:translate-x-5"></div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Lock size={14} className="text-purple-400" />
+                <span className="text-sm font-medium text-gray-300">Password Protect</span>
+              </div>
+            </label>
+            
+            {enablePassword && (
+              <div className="mt-3 relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password (min. 4 characters)"
+                  className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
+                  maxLength={100}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+                {password.length > 0 && password.length < 4 && (
+                  <p className="text-xs text-red-400 mt-1.5">Password must be at least 4 characters</p>
+                )}
+                {password.length >= 4 && (
+                  <p className="text-xs text-green-400 mt-1.5">✓ Password set</p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Preview */}
           {(customAlias.length >= 3 || url) && (
             <div className="bg-gray-800/30 rounded-xl p-4 border border-gray-700/50">
@@ -291,6 +414,14 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
                 <span className="text-green-400 font-mono text-sm">
                   {baseDomain}/{customAlias.length >= 3 ? customAlias : 'xxxxxxxx'}
                 </span>
+                {expiresIn !== 'never' && (
+                  <span className="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded">
+                    Expires: {EXPIRATION_OPTIONS.find(o => o.value === expiresIn)?.label}
+                  </span>
+                )}
+                {enablePassword && password.length >= 4 && (
+                  <Lock size={12} className="text-purple-400" />
+                )}
               </div>
               {url && isValidUrl(url) && (
                 <p className="text-xs text-gray-500 mt-2 truncate">→ {normalizeUrl(url)}</p>
@@ -314,7 +445,9 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
                 !url ||
                 !isValidUrl(url) ||
                 (customAlias.length > 0 && customAlias.length < 3) ||
-                (customAlias && aliasStatus.available === false)
+                (customAlias && aliasStatus.available === false) ||
+                (expiresIn === 'custom' && !customExpiresAt) ||
+                (enablePassword && password.length > 0 && password.length < 4)
               }
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 disabled:from-gray-600 disabled:to-gray-600 disabled:cursor-not-allowed text-white rounded-xl transition-all font-medium"
             >

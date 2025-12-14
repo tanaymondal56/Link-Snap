@@ -920,6 +920,246 @@ const getInactiveLinkPage = (shortId) => `
 </html>
 `;
 
+// HTML page for expired links
+const getExpiredLinkPage = (shortId, expiresAt) => {
+    const expiredDate = expiresAt ? new Date(expiresAt).toLocaleString() : '';
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link Expired - Link Snap</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #fff;
+            padding: 20px;
+        }
+        .orb { position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.5; animation: float 8s ease-in-out infinite; }
+        .orb-1 { width: 400px; height: 400px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); top: -100px; left: -100px; }
+        .orb-2 { width: 300px; height: 300px; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); bottom: -50px; right: -50px; animation-delay: -4s; }
+        @keyframes float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-30px) scale(1.05); } }
+        .container { position: relative; z-index: 10; max-width: 500px; width: 100%; text-align: center; }
+        .card { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px; padding: 48px 32px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .icon-container { width: 80px; height: 80px; margin: 0 auto 24px; background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(217, 119, 6, 0.2) 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid rgba(245, 158, 11, 0.3); }
+        .icon { width: 40px; height: 40px; stroke: #f59e0b; stroke-width: 2; fill: none; }
+        h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 12px; background: linear-gradient(135deg, #fff 0%, #fcd34d 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .subtitle { color: #94a3b8; font-size: 1rem; line-height: 1.6; margin-bottom: 32px; }
+        .info-box { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 12px; padding: 16px; margin-bottom: 24px; }
+        .info-box p { color: #fcd34d; font-size: 0.875rem; }
+        .link-id { display: inline-block; background: rgba(255, 255, 255, 0.1); padding: 4px 12px; border-radius: 6px; font-family: monospace; color: #f59e0b; margin: 8px 0; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 16px 28px; border-radius: 14px; font-size: 1rem; font-weight: 600; text-decoration: none; transition: all 0.3s ease; cursor: pointer; border: none; width: 100%; margin-bottom: 12px; }
+        .btn-primary { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #fff; box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4); }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(245, 158, 11, 0.5); }
+        .btn-secondary { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #e2e8f0; }
+        .footer-text { color: #475569; font-size: 0.8rem; margin-top: 32px; }
+        .footer-text a { color: #818cf8; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="container">
+        <div class="card">
+            <div class="icon-container">
+                <svg class="icon" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+            </div>
+            <h1>Link Expired</h1>
+            <p class="subtitle">This shortened link is no longer available because it has passed its expiration date.</p>
+            <div class="info-box">
+                <p>🔗 <code class="link-id">${escapeHtml(shortId)}</code></p>
+                ${expiredDate ? `<p style="font-size: 0.75rem; margin-top: 8px; color: #94a3b8;">Expired on: ${expiredDate}</p>` : ''}
+            </div>
+            <div class="cta-section">
+                <a href="/" class="btn btn-primary">Go to Homepage</a>
+                <a href="/dashboard" class="btn btn-secondary">Create Your Own Links</a>
+            </div>
+            <p class="footer-text">Powered by <a href="/">Link Snap</a> — Fast, secure URL shortening</p>
+        </div>
+    </div>
+</body>
+</html>
+`;
+};
+
+// HTML page for password-protected links
+const getPasswordEntryPage = (shortId, title) => {
+    const safeTitle = escapeHtml(title || shortId);
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Protected Link - Link Snap</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #fff;
+            padding: 20px;
+        }
+        .orb { position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.5; animation: float 8s ease-in-out infinite; }
+        .orb-1 { width: 400px; height: 400px; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); top: -100px; left: -100px; }
+        .orb-2 { width: 300px; height: 300px; background: linear-gradient(135deg, #ec4899 0%, #be185d 100%); bottom: -50px; right: -50px; animation-delay: -4s; }
+        @keyframes float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-30px) scale(1.05); } }
+        .container { position: relative; z-index: 10; max-width: 450px; width: 100%; text-align: center; }
+        .card { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px; padding: 48px 32px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .icon-container { width: 80px; height: 80px; margin: 0 auto 24px; background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid rgba(139, 92, 246, 0.3); }
+        .icon { width: 40px; height: 40px; stroke: #a78bfa; stroke-width: 2; fill: none; }
+        h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; background: linear-gradient(135deg, #fff 0%, #c4b5fd 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .link-title { color: #818cf8; font-size: 0.9rem; margin-bottom: 8px; font-weight: 500; }
+        .subtitle { color: #94a3b8; font-size: 0.9rem; line-height: 1.5; margin-bottom: 24px; }
+        .form-group { margin-bottom: 20px; text-align: left; }
+        .form-group label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 8px; }
+        .password-wrapper { position: relative; }
+        .password-input { width: 100%; padding: 14px 48px 14px 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.2); color: #fff; font-size: 1rem; outline: none; transition: border-color 0.2s; }
+        .password-input:focus { border-color: #8b5cf6; }
+        .toggle-password { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; }
+        .toggle-password svg { width: 20px; height: 20px; stroke: #64748b; }
+        .toggle-password:hover svg { stroke: #94a3b8; }
+        .error-msg { color: #f87171; font-size: 0.8rem; margin-top: 8px; display: none; }
+        .error-msg.show { display: block; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 24px; border-radius: 12px; font-size: 1rem; font-weight: 600; text-decoration: none; transition: all 0.3s ease; cursor: pointer; border: none; width: 100%; }
+        .btn-primary { background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: #fff; box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4); }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(139, 92, 246, 0.5); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn svg { width: 18px; height: 18px; }
+        .loading { display: none; }
+        .loading.show { display: flex; }
+        .btn-text.hide { display: none; }
+        .footer-text { color: #475569; font-size: 0.75rem; margin-top: 24px; }
+        .footer-text a { color: #818cf8; text-decoration: none; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+        .shake { animation: shake 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="container">
+        <div class="card" id="card">
+            <div class="icon-container">
+                <svg class="icon" viewBox="0 0 24 24">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+            </div>
+            <h1>Password Protected</h1>
+            <p class="link-title">${safeTitle}</p>
+            <p class="subtitle">This link is protected. Enter the password to continue.</p>
+            <form id="passwordForm">
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="password" class="password-input" placeholder="Enter password" autocomplete="off" required />
+                        <button type="button" class="toggle-password" onclick="togglePassword()">
+                            <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <p class="error-msg" id="errorMsg"></p>
+                </div>
+                <button type="submit" class="btn btn-primary" id="submitBtn">
+                    <span class="btn-text" id="btnText">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                            <polyline points="10 17 15 12 10 7"/>
+                            <line x1="15" y1="12" x2="3" y2="12"/>
+                        </svg>
+                        Access Link
+                    </span>
+                    <span class="loading" id="loading">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                        </svg>
+                        Verifying...
+                    </span>
+                </button>
+            </form>
+            <p class="footer-text">Powered by <a href="/">Link Snap</a></p>
+        </div>
+    </div>
+    <style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
+    <script>
+        const form = document.getElementById('passwordForm');
+        const passwordInput = document.getElementById('password');
+        const errorMsg = document.getElementById('errorMsg');
+        const submitBtn = document.getElementById('submitBtn');
+        const btnText = document.getElementById('btnText');
+        const loading = document.getElementById('loading');
+        const card = document.getElementById('card');
+        
+        function togglePassword() {
+            const type = passwordInput.type === 'password' ? 'text' : 'password';
+            passwordInput.type = type;
+            const eyeIcon = document.getElementById('eyeIcon');
+            eyeIcon.innerHTML = type === 'password' 
+                ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+                : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+        }
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = passwordInput.value;
+            if (!password) return;
+            
+            submitBtn.disabled = true;
+            btnText.classList.add('hide');
+            loading.classList.add('show');
+            errorMsg.classList.remove('show');
+            
+            try {
+                const res = await fetch('/api/url/${shortId}/verify-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                const data = await res.json();
+                
+                if (res.ok && data.success) {
+                    window.location.href = data.originalUrl;
+                } else {
+                    throw new Error(data.message || 'Incorrect password');
+                }
+            } catch (err) {
+                errorMsg.textContent = err.message;
+                errorMsg.classList.add('show');
+                card.classList.add('shake');
+                setTimeout(() => card.classList.remove('shake'), 300);
+                passwordInput.value = '';
+                passwordInput.focus();
+            } finally {
+                submitBtn.disabled = false;
+                btnText.classList.remove('hide');
+                loading.classList.remove('show');
+            }
+        });
+        
+        passwordInput.focus();
+    </script>
+</body>
+</html>
+`;
+};
+
 export const redirectUrl = async (req, res, next) => {
     const { shortId } = req.params;
 
@@ -955,6 +1195,16 @@ export const redirectUrl = async (req, res, next) => {
                          return res.status(410).send(getInactiveLinkPage(shortId));
                      }
                  }
+            }
+
+            // Check if link has expired
+            if (cached.expiresAt && new Date() > new Date(cached.expiresAt)) {
+                return res.status(410).send(getExpiredLinkPage(shortId, cached.expiresAt));
+            }
+
+            // Check if link is password protected
+            if (cached.isPasswordProtected) {
+                return res.send(getPasswordEntryPage(shortId, cached.title));
             }
 
             // Async: Update clicks in DB (fire and forget)
@@ -994,6 +1244,16 @@ export const redirectUrl = async (req, res, next) => {
 
         if (ownerBanned && disableLinksOnBan) {
             return res.status(410).send(getInactiveLinkPage(shortId));
+        }
+
+        // Check if link has expired
+        if (url.expiresAt && new Date() > new Date(url.expiresAt)) {
+            return res.status(410).send(getExpiredLinkPage(shortId, url.expiresAt));
+        }
+
+        // Check if link is password protected
+        if (url.isPasswordProtected) {
+            return res.send(getPasswordEntryPage(shortId, url.title));
         }
 
         // 4. Store in cache with ban status
@@ -1046,6 +1306,16 @@ export const previewUrl = async (req, res, next) => {
             if (owner && !owner.isActive && owner.disableLinksOnBan) {
                 return res.status(410).send(getInactiveLinkPage(shortId));
             }
+        }
+
+        // Check if link has expired
+        if (url.expiresAt && new Date() > new Date(url.expiresAt)) {
+            return res.status(410).send(getExpiredLinkPage(shortId, url.expiresAt));
+        }
+
+        // Check if link is password protected - redirect to password page instead of preview
+        if (url.isPasswordProtected) {
+            return res.send(getPasswordEntryPage(shortId, url.title));
         }
 
         // Generate the short URL (use what was accessed)

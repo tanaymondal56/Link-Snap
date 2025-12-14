@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { usePersistentTab } from '../../hooks/usePersistentTab';
 import { 
   Activity, 
   Server, 
@@ -17,7 +18,7 @@ import BentoCard from '../../components/admin-console/ui/BentoCard';
 import showToast from '../../components/ui/Toast';
 
 const AdminMonitoring = () => {
-  const [activeTab, setActiveTab] = useState('health'); // 'health' | 'logs' | 'performance'
+  const [activeTab, setActiveTab] = usePersistentTab('admin_monitoring', 'health', ['health', 'logs', 'performance']);
   const [health, setHealth] = useState(null);
   const [deepHealth, setDeepHealth] = useState(null);
   const [loading, setLoading] = useState(true);

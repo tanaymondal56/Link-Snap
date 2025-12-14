@@ -18,6 +18,8 @@ import {
   QrCode,
   Ban,
   RefreshCw,
+  Clock,
+  Lock,
 } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
@@ -247,6 +249,23 @@ const UserDashboard = () => {
           filteredLinks.map((link) => {
             // Check if this link is effectively disabled (owner banned or link disabled)
             const isLinkDisabled = link.ownerBanned || !link.isActive;
+            
+            // Check expiration status
+            const isExpired = link.expiresAt && new Date(link.expiresAt) < new Date();
+            const isExpiringSoon = link.expiresAt && !isExpired && 
+              (new Date(link.expiresAt) - new Date()) < 24 * 60 * 60 * 1000; // Less than 24h
+            
+            // Calculate time remaining for display
+            const getExpirationText = () => {
+              if (!link.expiresAt) return null;
+              if (isExpired) return 'Expired';
+              const diff = new Date(link.expiresAt) - new Date();
+              const hours = Math.floor(diff / (1000 * 60 * 60));
+              const days = Math.floor(hours / 24);
+              if (days > 0) return `${days}d left`;
+              if (hours > 0) return `${hours}h left`;
+              return 'Less than 1h';
+            };
 
             return (
               <div key={link._id}>
@@ -455,6 +474,50 @@ const UserDashboard = () => {
                         </span>
                         <span className="text-gray-500 text-[10px] sm:text-xs">clicks</span>
                       </div>
+
+                      {/* Expiration Badge */}
+                      {link.expiresAt && (
+                        <div
+                          className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1 sm:py-1.5 ${
+                            isExpired
+                              ? 'bg-red-500/10 border border-red-500/20'
+                              : isExpiringSoon
+                                ? 'bg-amber-500/10 border border-amber-500/20'
+                                : 'bg-gray-800/30 border border-gray-700/30'
+                          }`}
+                          title={`Expires: ${new Date(link.expiresAt).toLocaleString()}`}
+                        >
+                          <Clock
+                            size={12}
+                            className={`sm:w-[14px] sm:h-[14px] ${
+                              isExpired ? 'text-red-400' : isExpiringSoon ? 'text-amber-400' : 'text-gray-400'
+                            }`}
+                          />
+                          <span
+                            className={`font-medium text-[10px] sm:text-xs ${
+                              isExpired ? 'text-red-400' : isExpiringSoon ? 'text-amber-400' : 'text-gray-400'
+                            }`}
+                          >
+                            {getExpirationText()}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Password Protection Badge */}
+                      {link.isPasswordProtected && (
+                        <div
+                          className="flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1 sm:py-1.5 bg-purple-500/10 border border-purple-500/20"
+                          title="Password protected"
+                        >
+                          <Lock
+                            size={12}
+                            className="sm:w-[14px] sm:h-[14px] text-purple-400"
+                          />
+                          <span className="font-medium text-[10px] sm:text-xs text-purple-400">
+                            Protected
+                          </span>
+                        </div>
+                      )}
 
                       {/* Date */}
                       <span className="text-gray-500 text-[10px] sm:text-xs">

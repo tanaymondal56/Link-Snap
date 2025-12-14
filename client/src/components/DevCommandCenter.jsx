@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import {
   Terminal,
@@ -48,11 +49,19 @@ const DevCommandCenter = () => {
       return [];
     }
   });
+  const [logResult, setLogResult] = useState(null); // { title, content }
   const navigate = useNavigate();
   const inputRef = useRef(null);
   const listRef = useRef(null);
 
-  // Execute command and track in recent - defined first so it can be used in handleModalKeyDown
+  // Helper to show logs on mobile and desktop
+  const showLog = (title, data) => {
+    const content = typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
+    console.log(`[${title}]`, data);
+    setLogResult({ title, content });
+  };
+
+  // Execute command and track in recent
   const executeCommand = useCallback((cmd) => {
     // Track in recent commands
     if (!cmd.id.startsWith('console') && !cmd.id.startsWith('log')) {
@@ -65,8 +74,8 @@ const DevCommandCenter = () => {
     
     cmd.action();
     
-    // Keep open for console/log commands
-    const keepOpen = ['console', 'log', 'copy', 'viewport', 'help'].some(k => cmd.id.startsWith(k));
+    // Keep open for specific commands or if a log was triggered
+    const keepOpen = ['console', 'log', 'copy', 'viewport', 'help', 'network'].some(k => cmd.id.startsWith(k));
     if (!keepOpen) {
       setIsOpen(false);
     }
@@ -75,7 +84,7 @@ const DevCommandCenter = () => {
   // Commands - simplified and working
   const commands = useMemo(() => [
     // Quick Actions
-    { id: 'share-url', label: 'Copy Page URL', icon: Share2, action: () => { navigator.clipboard.writeText(window.location.href); alert('URL copied!'); }, category: 'Quick', keywords: 'copy link share' },
+    { id: 'share-url', label: 'Copy Page URL', icon: Share2, action: () => { navigator.clipboard.writeText(window.location.href); toast.success('URL copied!'); }, category: 'Quick', keywords: 'copy link share' },
     { id: 'create-link', label: 'Create New Link', icon: Link2, action: () => navigate('/dashboard'), category: 'Quick', keywords: 'shorten url' },
     { id: 'qr-code', label: 'QR Code for Page', icon: Share2, action: () => { window.open(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(window.location.href)}`, '_blank'); }, category: 'Quick', keywords: 'qrcode scan' },
     
@@ -93,19 +102,56 @@ const DevCommandCenter = () => {
     
     // Dev Actions
     { id: 'reload', label: 'Hard Reload', icon: RefreshCw, action: () => window.location.reload(), category: 'Dev', keywords: 'refresh' },
-    { id: 'clear-local', label: 'Clear Local Storage', icon: Trash2, action: () => { localStorage.clear(); alert('Cleared! Reloading...'); window.location.reload(); }, category: 'Dev', danger: true, keywords: 'reset' },
-    { id: 'clear-session', label: 'Clear Session Storage', icon: Database, action: () => { sessionStorage.clear(); alert('Cleared! Reloading...'); window.location.reload(); }, category: 'Dev', danger: true, keywords: 'reset' },
+    { id: 'clear-local', label: 'Clear Local Storage', icon: Trash2, action: () => { localStorage.clear(); toast.loading('Cleared! Reloading...'); setTimeout(() => window.location.reload(), 1000); }, category: 'Dev', danger: true, keywords: 'reset' },
+    { id: 'clear-session', label: 'Clear Session Storage', icon: Database, action: () => { sessionStorage.clear(); toast.loading('Cleared! Reloading...'); setTimeout(() => window.location.reload(), 1000); }, category: 'Dev', danger: true, keywords: 'reset' },
     { id: 'force-logout', label: 'Force Logout', icon: LogOut, action: () => { localStorage.clear(); document.cookie.split(";").forEach(c => document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")); window.location.href = '/login'; }, category: 'Dev', danger: true, keywords: 'signout' },
-    { id: 'clear-recent', label: 'Clear Recent', icon: XCircle, action: () => { localStorage.removeItem('dev_recent_commands'); setRecentCommands([]); alert('Recent commands cleared'); }, category: 'Dev', keywords: 'history' },
-    { id: 'fullscreen', label: 'Toggle Fullscreen', icon: MonitorSmartphone, action: () => { try { if (document.fullscreenElement) { document.exitFullscreen(); } else { document.documentElement.requestFullscreen().catch(() => alert('Fullscreen not supported')); } } catch { alert('Fullscreen not supported'); } }, category: 'Dev', keywords: 'full screen maximize' },
+    { id: 'clear-recent', label: 'Clear Recent', icon: XCircle, action: () => { localStorage.removeItem('dev_recent_commands'); setRecentCommands([]); toast.success('Recent commands cleared'); }, category: 'Dev', keywords: 'history' },
+    { id: 'fullscreen', label: 'Toggle Fullscreen', icon: MonitorSmartphone, action: () => { try { if (document.fullscreenElement) { document.exitFullscreen(); } else { document.documentElement.requestFullscreen().catch(() => toast.error('Fullscreen not supported')); } } catch { toast.error('Fullscreen not supported'); } }, category: 'Dev', keywords: 'full screen maximize' },
     
     // Debug
-    { id: 'console-state', label: 'Log App State', icon: Bug, action: () => { console.log('%c=== DEV DEBUG ===', 'color: purple; font-weight: bold'); console.log('LocalStorage:', {...localStorage}); console.log('SessionStorage:', {...sessionStorage}); console.log('Cookies:', document.cookie); console.log('URL:', window.location.href); alert('Check browser console (F12)'); }, category: 'Debug', keywords: 'debug' },
-    { id: 'log-time', label: 'Log Timestamp', icon: Clock, action: () => { const t = new Date().toISOString(); console.log(`[${t}] Dev Command`); alert(`Logged: ${t}`); }, category: 'Debug', keywords: 'time' },
-    { id: 'copy-token', label: 'Copy Auth Token', icon: Copy, action: () => { const token = document.cookie.match(/jwt=([^;]+)/)?.[1] || localStorage.getItem('token') || 'No token'; navigator.clipboard.writeText(token); alert(token !== 'No token' ? 'Token copied!' : 'No token found'); }, category: 'Debug', keywords: 'jwt auth' },
-    { id: 'viewport-info', label: 'Show Viewport Info', icon: MonitorSmartphone, action: () => { const info = `Viewport: ${window.innerWidth}x${window.innerHeight}\nScreen: ${screen.width}x${screen.height}\nPixel Ratio: ${window.devicePixelRatio}`; console.log(info); alert(info); }, category: 'Debug', keywords: 'size screen' },
-    { id: 'network-info', label: 'Network Info', icon: Server, action: () => { const conn = navigator.connection || {}; const info = `Online: ${navigator.onLine}\nType: ${conn.effectiveType || 'unknown'}\nDownlink: ${conn.downlink || 'unknown'} Mbps`; console.log(info); alert(info); }, category: 'Debug', keywords: 'connection speed' },
-    { id: 'perf-timing', label: 'Page Load Time', icon: Clock, action: () => { const perf = performance.getEntriesByType('navigation')[0]; const loadTime = perf ? Math.round(perf.loadEventEnd - perf.startTime) : 'N/A'; alert(`Page load: ${loadTime}ms`); }, category: 'Debug', keywords: 'performance speed' },
+    { 
+      id: 'console-state', 
+      label: 'Log App State', 
+      icon: Bug, 
+      action: () => showLog('App State', {
+        LocalStorage: {...localStorage},
+        SessionStorage: {...sessionStorage},
+        Cookies: document.cookie,
+        URL: window.location.href,
+        UserAgent: navigator.userAgent
+      }), 
+      category: 'Debug', 
+      keywords: 'debug' 
+    },
+    { 
+      id: 'log-time', 
+      label: 'Log Timestamp', 
+      icon: Clock, 
+      action: () => showLog('Timestamp', new Date().toISOString()), 
+      category: 'Debug', 
+      keywords: 'time' 
+    },
+    { id: 'copy-token', label: 'Copy Auth Token', icon: Copy, action: () => { const token = document.cookie.match(/jwt=([^;]+)/)?.[1] || localStorage.getItem('token') || 'No token'; navigator.clipboard.writeText(token); toast(token !== 'No token' ? 'Token copied!' : 'No token found', { icon: token !== 'No token' ? '🔑' : '❌' }); }, category: 'Debug', keywords: 'jwt auth' },
+    { 
+      id: 'viewport-info', 
+      label: 'Show Viewport Info', 
+      icon: MonitorSmartphone, 
+      action: () => showLog('Viewport Info', `Viewport: ${window.innerWidth}x${window.innerHeight}\nScreen: ${screen.width}x${screen.height}\nPixel Ratio: ${window.devicePixelRatio}\nMobile: ${isMobile}`), 
+      category: 'Debug', 
+      keywords: 'size screen' 
+    },
+    { 
+      id: 'network-info', 
+      label: 'Network Info', 
+      icon: Server, 
+      action: () => { 
+        const conn = navigator.connection || {}; 
+        showLog('Network Info', `Online: ${navigator.onLine}\nType: ${conn.effectiveType || 'unknown'}\nDownlink: ${conn.downlink || 'unknown'} Mbps\nRTT: ${conn.rtt}ms`);
+      }, 
+      category: 'Debug', 
+      keywords: 'connection speed' 
+    },
+    { id: 'perf-timing', label: 'Page Load Time', icon: Clock, action: () => { const perf = performance.getEntriesByType('navigation')[0]; const loadTime = perf ? Math.round(perf.loadEventEnd - perf.startTime) : 'N/A'; toast.success(`Page load: ${loadTime}ms`, { icon: '⚡' }); }, category: 'Debug', keywords: 'performance speed' },
     { id: 'scroll-top', label: 'Scroll to Top', icon: CornerDownLeft, action: () => window.scrollTo({ top: 0, behavior: 'smooth' }), category: 'Debug', keywords: 'up' },
     { id: 'scroll-bottom', label: 'Scroll to Bottom', icon: CornerDownLeft, action: () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), category: 'Debug', keywords: 'down' },
     
@@ -116,8 +162,15 @@ const DevCommandCenter = () => {
     { id: 'github', label: 'GitHub', icon: ExternalLink, action: () => window.open('https://github.com', '_blank'), category: 'External', keywords: 'repo code' },
     
     // Help
-    { id: 'help-shortcuts', label: 'Keyboard Help', icon: HelpCircle, action: () => { alert('Ctrl+Shift+D - Open\n↑/↓ - Navigate\nEnter - Execute\nEscape - Close\nType to search'); }, category: 'Help', keywords: 'keys' },
-    { id: 'help-about', label: 'About', icon: Info, action: () => { alert('Dev Command Center v2.1\n\nDevelopment-only tool.\nCompletely disabled in production.\n\n35+ commands available!'); }, category: 'Help', keywords: 'info' },
+    { 
+      id: 'help-shortcuts', 
+      label: 'Keyboard Help', 
+      icon: HelpCircle, 
+      action: () => showLog('Shortcuts', 'Ctrl+Shift+D - Open\n↑/↓ - Navigate\nEnter - Execute\nEscape - Close\nType to search'), 
+      category: 'Help', 
+      keywords: 'keys' 
+    },
+    { id: 'help-about', label: 'About', icon: Info, action: () => { toast('Dev Command Center v2.1', { icon: '🛠️' }); }, category: 'Help', keywords: 'info' },
   ], [navigate]);
 
   // Add recent commands to top
@@ -319,6 +372,43 @@ const DevCommandCenter = () => {
             <div className="px-4 py-2 border-t border-gray-800 bg-gray-900/50 flex justify-between text-xs text-gray-600">
               <span>🛠️ Dev Only</span>
               <span>{filteredCommands.length} commands</span>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Log Modal */}
+      {logResult && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setLogResult(null)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-gray-800/50">
+              <div className="flex items-center gap-2">
+                <Terminal size={18} className="text-blue-400" />
+                <h3 className="font-mono text-sm font-bold text-white uppercase">{logResult.title}</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => { navigator.clipboard.writeText(logResult.content); toast.success('Copied!'); }}
+                  className="p-1.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white transition-colors"
+                  title="Copy to clipboard"
+                >
+                  <Copy size={16} />
+                </button>
+                <button 
+                  onClick={() => setLogResult(null)}
+                  className="p-1.5 hover:bg-red-900/50 rounded text-gray-400 hover:text-red-400 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-4 bg-[#0d1117]">
+              <pre className="font-mono text-xs md:text-sm text-green-400 whitespace-pre-wrap break-all">
+                {logResult.content}
+              </pre>
+            </div>
+            <div className="px-4 py-2 border-t border-gray-800 bg-gray-800/50 text-xs text-gray-500 flex justify-between">
+              <span>{logResult.content.length} chars</span>
+              <span>JSON / Text</span>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
+import Clippy from './EasterEggs/Clippy';
 
 // Konami Code sequence (defined outside component to avoid dependency issues)
 const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'KeyB', 'KeyA'];
@@ -14,6 +15,8 @@ const EasterEggs = () => {
   const konamiIndex = useRef(0);
   const tildeCount = useRef(0);
   const logoClickCount = useRef(0);
+  const [overlay, setOverlay] = useState(null);
+  const [showClippy, setShowClippy] = useState(false);
 
   // ========================================
   // EFFECTS
@@ -109,12 +112,6 @@ const EasterEggs = () => {
     }
   }, []);
 
-  // Spooky mode (disabled - uncomment if needed)
-  // const triggerSpooky = useCallback(() => {
-  //   document.body.classList.add('spooky-mode');
-  //   console.log('%c👻 Welcome to the midnight zone...', 'color: purple; font-size: 20px;');
-  // }, []);
-
   // Play beep sound
   const playBeep = useCallback(() => {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -149,6 +146,12 @@ const EasterEggs = () => {
   // ========================================
 
   const handleKeyDown = useCallback((e) => {
+    // Escape key closes overlay
+    if (e.key === 'Escape' && overlay) {
+      setOverlay(null);
+      return;
+    }
+
     // Track typed characters
     typedKeys.current += e.key.toLowerCase();
     if (typedKeys.current.length > 20) {
@@ -184,6 +187,9 @@ const EasterEggs = () => {
     if (typed.endsWith('matrix')) {
       triggerMatrix();
       typedKeys.current = '';
+    } else if (typed.endsWith('clippy') || typed.endsWith('help')) {
+      setShowClippy(prev => !prev);
+      typedKeys.current = '';
     } else if (typed.endsWith('disco')) {
       triggerDisco();
       typedKeys.current = '';
@@ -194,14 +200,26 @@ const EasterEggs = () => {
       playBeep();
       typedKeys.current = '';
     } else if (typed.endsWith('42')) {
-      alert('🌌 The Answer to the Ultimate Question of Life, the Universe, and Everything!');
+      setOverlay({
+        title: '🌌 The Answer',
+        message: 'The Answer to the Ultimate Question of Life, the Universe, and Everything is... 42.',
+        type: 'mystical'
+      });
       typedKeys.current = '';
     } else if (typed.endsWith('404')) {
-      alert('🔍 Error 404: Easter egg not fo— wait, you found it!');
+      setOverlay({
+        title: '🔍 Error 404',
+        message: 'Easter egg not fo— wait, you found it! Nice detective work.',
+        type: 'info'
+      });
       typedKeys.current = '';
     } else if (typed.endsWith('500')) {
       document.body.style.transform = 'rotate(2deg)';
-      alert('💥 OH NO! Server crashed! Just kidding 😄');
+      setOverlay({
+        title: '💥 KERNEL PANIC',
+        message: 'CRITICAL SYSTEM FAILURE... Just kidding! 😄',
+        type: 'danger'
+      });
       setTimeout(() => document.body.style.transform = '', 2000);
       typedKeys.current = '';
     } else if (typed.endsWith('snow')) {
@@ -212,7 +230,7 @@ const EasterEggs = () => {
       setTimeout(() => setShowCredits(false), 5000);
       typedKeys.current = '';
     }
-  }, [triggerConfetti, triggerMatrix, triggerDisco, triggerParty, playBeep, playStartupSound, triggerSnow]);
+  }, [triggerConfetti, triggerMatrix, triggerDisco, triggerParty, playBeep, playStartupSound, triggerSnow, overlay]);
 
   // ========================================
   // CONSOLE EASTER EGGS
@@ -239,7 +257,7 @@ const EasterEggs = () => {
     console.log('%c   🧪 Solve P=NP and attach proof', 'color: #6b7280; font-size: 10px;');
     console.log('%c   🎯 Recite π to 1000 digits in the interview', 'color: #6b7280; font-size: 10px;');
     console.log('%c   💰 Salary: Exposure and high-fives', 'color: #6b7280; font-size: 10px;');
-    console.log('%c🎮 Try typing: matrix, disco, party, beep, 42, 404, 500', 'color: #ec4899; font-size: 11px;');
+    console.log('%c🎮 Try typing: matrix, disco, party, beep, 42, 404, 500, clippy', 'color: #ec4899; font-size: 11px;');
     console.log('%c🎯 Or try the Konami Code: ↑↑↓↓←→←→BA', 'color: #8b5cf6; font-size: 11px;');
 
     // Hidden window functions
@@ -260,24 +278,6 @@ const EasterEggs = () => {
       triggerParty();
       return '🎉 Party mode activated!';
     };
-
-    // Seasonal effects are DISABLED by default
-    // Uncomment below to enable automatic seasonal effects:
-    
-    // const now = new Date();
-    // const hour = now.getHours();
-    // const month = now.getMonth();
-    // const day = now.getDate();
-
-    // Midnight spooky mode (11 PM - 1 AM)
-    // if (hour >= 23 || hour <= 1) {
-    //   triggerSpooky();
-    // }
-
-    // Christmas snow (December 20-31)
-    // if (month === 11 && day >= 20) {
-    //   setTimeout(() => triggerSnow(), 2000);
-    // }
   }, [triggerConfetti, triggerParty]);
 
   // ========================================
@@ -318,73 +318,66 @@ const EasterEggs = () => {
     };
   }, []);
 
-  // ========================================
-  // STYLES
-  // ========================================
-
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.id = 'easter-egg-styles';
-    style.textContent = `
-      @keyframes confetti-fall {
-        0% { transform: translateY(0) rotate(0deg); opacity: 1; }
-        100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
-      }
-      
-      @keyframes snow-fall {
-        0% { transform: translateY(0) translateX(0); }
-        100% { transform: translateY(100vh) translateX(${Math.random() * 100 - 50}px); }
-      }
-      
-      .disco-mode {
-        animation: disco-colors 0.5s infinite;
-      }
-      
-      @keyframes disco-colors {
-        0% { filter: hue-rotate(0deg); }
-        100% { filter: hue-rotate(360deg); }
-      }
-      
-      .party-mode {
-        animation: party-shake 0.1s infinite;
-      }
-      
-      @keyframes party-shake {
-        0%, 100% { transform: translateX(0); }
-        25% { transform: translateX(-2px); }
-        75% { transform: translateX(2px); }
-      }
-      
-      .spooky-mode {
-        filter: sepia(20%) saturate(80%);
-      }
-      
-      .credits-modal {
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.9);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 99999;
-        animation: fade-in 0.3s ease;
-      }
-      
-      @keyframes fade-in {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
-    `;
-    document.head.appendChild(style);
-    return () => style.remove();
-  }, []);
-
-  // ========================================
-  // RENDER
-  // ========================================
-
   return (
     <>
+      {/* Styles for Overlay */}
+      <style>{`
+        .easter-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.85);
+          backdrop-filter: blur(5px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 100000;
+          animation: overlay-fade 0.3s ease;
+          font-family: 'Courier New', monospace;
+        }
+
+        .easter-card {
+          background: #000;
+          border: 2px solid #333;
+          padding: 2rem;
+          max-width: 500px;
+          width: 90%;
+          border-radius: 8px;
+          box-shadow: 0 0 20px rgba(0,0,0,0.5);
+          position: relative;
+          overflow: hidden;
+        }
+
+        .easter-card::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0; height: 100%;
+          background: repeating-linear-gradient(
+            0deg,
+            rgba(0, 0, 0, 0.15),
+            rgba(0, 0, 0, 0.15) 1px,
+            transparent 1px,
+            transparent 2px
+          );
+          pointer-events: none;
+        }
+
+        .type-mystical { border-color: #8b5cf6; box-shadow: 0 0 30px rgba(139, 92, 246, 0.3); }
+        .type-mystical h2 { color: #c4b5fd; text-shadow: 0 0 10px #8b5cf6; }
+
+        .type-info { border-color: #3b82f6; box-shadow: 0 0 30px rgba(59, 130, 246, 0.3); }
+        .type-info h2 { color: #93c5fd; text-shadow: 0 0 10px #3b82f6; }
+
+        .type-danger { border-color: #ef4444; box-shadow: 0 0 30px rgba(239, 68, 68, 0.3); animation: shake 0.5s; }
+        .type-danger h2 { color: #fca5a5; text-shadow: 0 0 10px #ef4444; }
+
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-5px); }
+          75% { transform: translateX(5px); }
+        }
+      `}</style>
+
+      {/* Credits Modal */}
       {showCredits && (
         <div className="credits-modal">
           <div className="text-center text-white">
@@ -395,6 +388,29 @@ const EasterEggs = () => {
             <p className="text-gray-400 mb-4">You found the secret!</p>
             <div className="text-6xl font-bold text-purple-400 mb-2">{countdown}</div>
             <p className="text-sm text-gray-500">Closing in {countdown}s...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Clippy */}
+      {showClippy && <Clippy onClose={() => setShowClippy(false)} />}
+
+      {/* New Custom Overlay */}
+      {overlay && (
+        <div className="easter-overlay" onClick={() => setOverlay(null)}>
+          <div className={`easter-card type-${overlay.type}`} onClick={e => e.stopPropagation()}>
+            <h2 className="text-2xl font-bold mb-4 uppercase tracking-wider">{overlay.title}</h2>
+            <div className="text-gray-300 mb-6 text-lg leading-relaxed">
+              {overlay.message}
+            </div>
+            <div className="text-center">
+              <button 
+                className="px-6 py-2 bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 rounded transition-colors font-mono text-sm uppercase"
+                onClick={() => setOverlay(null)}
+              >
+                [ Close ]
+              </button>
+            </div>
           </div>
         </div>
       )}

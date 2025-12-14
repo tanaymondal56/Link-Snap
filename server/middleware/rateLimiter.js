@@ -109,3 +109,13 @@ export const resetPasswordLimiter = rateLimit({
     },
     skip: (req) => isWhitelisted(req.ip),
 });
+
+// Password verification limiter for protected links - strict to prevent brute force
+export const passwordVerifyLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // 10 attempts per 15 minutes per IP (allows for typos but prevents brute force)
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many password attempts. Please try again in 15 minutes.' });
+    },
+    skip: (req) => isWhitelisted(req.ip),
+});

@@ -578,15 +578,6 @@ const AccountSuspended = () => {
             Back to Home
           </Link>
         </div>
-
-        {/* Footer */}
-        <p className="text-center text-gray-500 text-xs mt-6">
-          © {new Date().getFullYear()}{' '}
-          <span className="font-bold bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-            Link Snap
-          </span>
-          . All rights reserved.
-        </p>
       </div>
     </div>
     </PullToRefresh>

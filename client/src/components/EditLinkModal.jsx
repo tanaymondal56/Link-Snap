@@ -8,10 +8,25 @@ import {
   Loader2,
   ExternalLink,
   Edit3,
+  Clock,
+  Lock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
 import { getShortUrl } from '../utils/urlHelper';
+
+// Expiration presets
+const EXPIRATION_OPTIONS = [
+  { value: 'keep', label: 'Keep current' },
+  { value: 'never', label: 'Never expires' },
+  { value: '1h', label: '1 hour' },
+  { value: '24h', label: '24 hours' },
+  { value: '7d', label: '7 days' },
+  { value: '30d', label: '30 days' },
+  { value: 'custom', label: 'Custom date & time...' },
+];
 
 // Helper to normalize URL (add https:// if missing)
 const normalizeUrl = (input) => {
@@ -57,6 +72,15 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
   const [customAlias, setCustomAlias] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Expiration state
+  const [expiresAction, setExpiresAction] = useState('keep');
+  const [customExpiresAt, setCustomExpiresAt] = useState('');
+  
+  // Password state
+  const [passwordAction, setPasswordAction] = useState('keep'); // 'keep', 'set', 'remove'
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
   // Alias availability state
   const [aliasStatus, setAliasStatus] = useState({
     checking: false,
@@ -73,6 +97,11 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
       setUrl(link.originalUrl || '');
       setTitle(link.title || '');
       setCustomAlias(link.customAlias || '');
+      setExpiresAction('keep');
+      setCustomExpiresAt('');
+      setPasswordAction('keep');
+      setPassword('');
+      setShowPassword(false);
       setAliasStatus({ checking: false, available: null, reason: null });
     }
   }, [link, isOpen]);
@@ -136,6 +165,12 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
       return;
     }
 
+    // Validate password if setting new
+    if (passwordAction === 'set' && password.length < 4) {
+      showToast.error('Password must be at least 4 characters');
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -150,6 +185,22 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
       } else if (link?.customAlias && !customAlias) {
         // User cleared the alias - send null to remove it
         payload.customAlias = null;
+      }
+
+      // Handle expiration changes
+      if (expiresAction === 'never') {
+        payload.removeExpiration = true;
+      } else if (expiresAction === 'custom' && customExpiresAt) {
+        payload.expiresAt = new Date(customExpiresAt).toISOString();
+      } else if (expiresAction !== 'keep' && expiresAction !== 'custom') {
+        payload.expiresIn = expiresAction;
+      }
+
+      // Handle password changes
+      if (passwordAction === 'remove') {
+        payload.removePassword = true;
+      } else if (passwordAction === 'set' && password.length >= 4) {
+        payload.password = password;
       }
 
       const { data } = await api.put(`/url/${link._id}`, payload);
@@ -198,7 +249,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative w-full max-w-lg bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl animate-modal-in">
+      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl animate-modal-in">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-700/50">
           <div className="flex items-center gap-3">
@@ -319,6 +370,126 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
             </div>
           </div>
 
+          {/* Expiration Section */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              <span className="flex items-center gap-2">
+                <Clock size={14} className="text-amber-400" />
+                Link Expiration
+              </span>
+            </label>
+            {/* Current status */}
+            {link.expiresAt && (
+              <p className="text-xs text-gray-500 mb-2">
+                Current: {new Date() > new Date(link.expiresAt) 
+                  ? <span className="text-red-400">Expired</span> 
+                  : <span className="text-amber-400">Expires {new Date(link.expiresAt).toLocaleString()}</span>}
+              </p>
+            )}
+            {!link.expiresAt && (
+              <p className="text-xs text-gray-500 mb-2">Current: Never expires</p>
+            )}
+            <select
+              value={expiresAction}
+              onChange={(e) => setExpiresAction(e.target.value)}
+              className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-amber-500 focus:outline-none transition-colors appearance-none cursor-pointer"
+              style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.75rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
+            >
+              {EXPIRATION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {expiresAction === 'custom' && (
+              <input
+                type="datetime-local"
+                value={customExpiresAt}
+                onChange={(e) => setCustomExpiresAt(e.target.value)}
+                min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
+                className="w-full mt-2 bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-amber-500 focus:outline-none transition-colors"
+              />
+            )}
+          </div>
+
+          {/* Password Section */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              <span className="flex items-center gap-2">
+                <Lock size={14} className="text-purple-400" />
+                Password Protection
+              </span>
+            </label>
+            {/* Current status */}
+            <p className="text-xs text-gray-500 mb-2">
+              Current: {link.isPasswordProtected 
+                ? <span className="text-purple-400">Password protected 🔒</span> 
+                : <span>Not protected</span>}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => { setPasswordAction('keep'); setPassword(''); }}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  passwordAction === 'keep'
+                    ? 'bg-gray-700 text-white'
+                    : 'bg-gray-800/50 text-gray-400 hover:text-white'
+                }`}
+              >
+                Keep current
+              </button>
+              <button
+                type="button"
+                onClick={() => setPasswordAction('set')}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  passwordAction === 'set'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-800/50 text-gray-400 hover:text-white'
+                }`}
+              >
+                {link.isPasswordProtected ? 'Change password' : 'Add password'}
+              </button>
+              {link.isPasswordProtected && (
+                <button
+                  type="button"
+                  onClick={() => { setPasswordAction('remove'); setPassword(''); }}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    passwordAction === 'remove'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-gray-800/50 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Remove password
+                </button>
+              )}
+            </div>
+            {passwordAction === 'set' && (
+              <div className="mt-3 relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter new password (min. 4 characters)"
+                  className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
+                  maxLength={100}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+                {password.length > 0 && password.length < 4 && (
+                  <p className="text-xs text-red-400 mt-1.5">Password must be at least 4 characters</p>
+                )}
+                {password.length >= 4 && (
+                  <p className="text-xs text-green-400 mt-1.5">✓ Password ready</p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Info Box - Random ID preserved */}
           <div className="bg-blue-500/10 rounded-xl p-4 border border-blue-500/20">
             <div className="flex items-start gap-3">
@@ -379,7 +550,9 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
                 !url ||
                 !isValidUrl(url) ||
                 (customAlias.length > 0 && customAlias.length < 3) ||
-                (customAlias && customAlias !== link.customAlias && aliasStatus.available === false)
+                (customAlias && customAlias !== link.customAlias && aliasStatus.available === false) ||
+                (expiresAction === 'custom' && !customExpiresAt) ||
+                (passwordAction === 'set' && password.length > 0 && password.length < 4)
               }
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:from-gray-600 disabled:to-gray-600 disabled:cursor-not-allowed text-white rounded-xl transition-all font-medium"
             >

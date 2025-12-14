@@ -1,7 +1,7 @@
 import express from 'express';
-import { createShortUrl, getMyLinks, deleteUrl, checkAliasAvailability, updateUrl } from '../controllers/urlController.js';
+import { createShortUrl, getMyLinks, deleteUrl, checkAliasAvailability, updateUrl, verifyLinkPassword } from '../controllers/urlController.js';
 import { protect } from '../middleware/authMiddleware.js';
-import { createLinkLimiter } from '../middleware/rateLimiter.js';
+import { createLinkLimiter, passwordVerifyLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -31,5 +31,8 @@ router.get('/my-links', protect, getMyLinks);
 router.get('/check-alias/:alias', protect, checkAliasAvailability);
 router.put('/:id', protect, updateUrl);
 router.delete('/:id', protect, deleteUrl);
+
+// Password verification for protected links (public, rate limited)
+router.post('/:shortId/verify-password', passwordVerifyLimiter, verifyLinkPassword);
 
 export default router;

@@ -530,7 +530,7 @@ export const createUser = async (req, res, next) => {
 // @access  Admin
 export const getUserBanHistory = async (req, res, next) => {
     try {
-        const userId = req.params.id;
+        const userId = req.params.userId;
 
         const history = await BanHistory.find({ userId })
             .populate('performedBy', 'email firstName lastName')
@@ -548,7 +548,7 @@ export const getUserBanHistory = async (req, res, next) => {
 // @access  Admin
 export const getUserAppeals = async (req, res, next) => {
     try {
-        const userId = req.params.id;
+        const userId = req.params.userId;
 
         const appeals = await Appeal.find({ userId })
             .populate('reviewedBy', 'email firstName lastName')
@@ -590,7 +590,7 @@ export const respondToAppeal = async (req, res, next) => {
             return res.status(400).json({ message: 'Valid status (approved/rejected) is required' });
         }
 
-        const appeal = await Appeal.findById(req.params.id);
+        const appeal = await Appeal.findById(req.params.appealId);
 
         if (!appeal) {
             return res.status(404).json({ message: 'Appeal not found' });

@@ -411,5 +411,68 @@ export const Funny404Page = () => {
   );
 };
 
-export default { CreditsPage, TimelinePage, ThanksPage, DevNullPage, Funny404Page };
+export const TeapotPage = () => {
+  const navigate = useNavigate();
+
+  return (
+    <div className="min-h-screen bg-[#F0E6D2] text-[#4A3B2A] flex flex-col items-center justify-center p-4 font-mono">
+      <div className="max-w-md w-full text-center">
+        <h1 className="text-6xl font-bold mb-4">418</h1>
+        <h2 className="text-2xl font-bold mb-8 uppercase tracking-widest">I'm a teapot</h2>
+        
+        {/* Teapot Animation */}
+        <div className="relative w-48 h-48 mx-auto mb-12 group cursor-pointer">
+          <div className="text-9xl transform origin-bottom-right transition-transform duration-700 hover:rotate-[-45deg] relative z-10">
+            🫖
+          </div>
+          {/* Steam */}
+          <div className="absolute top-0 right-0 -mt-8 mr-4 opacity-0 group-hover:opacity-60 transition-opacity duration-1000 delay-300">
+             <div className="w-4 h-12 bg-gray-400/30 rounded-full blur-md animate-steam-rise"></div>
+          </div>
+          <div className="absolute top-0 right-4 -mt-12 mr-4 opacity-0 group-hover:opacity-60 transition-opacity duration-1000 delay-500">
+             <div className="w-4 h-12 bg-gray-400/30 rounded-full blur-md animate-steam-rise" style={{ animationDelay: '0.5s' }}></div>
+          </div>
+          
+          {/* Coffee/Tea Drop */}
+          <div className="absolute bottom-4 -left-8 text-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-700 animate-drop">
+            💧
+          </div>
+        </div>
+
+        <p className="text-lg mb-8 font-serif italic">
+          "The requested entity body is short and stout. Tip me over and pour me out."
+        </p>
+
+        <div className="space-y-4">
+          <p className="text-sm border-t border-[#4A3B2A]/20 pt-4">
+            <span className="font-bold">Error:</span> Cannot brew coffee because I am a teapot.
+          </p>
+          <p className="text-xs opacity-75">Ref: HTCPCP/1.0 (RFC 2324)</p>
+        </div>
+
+        <button
+          onClick={() => navigate('/')}
+          className="mt-12 px-6 py-2 border-2 border-[#4A3B2A] rounded-full hover:bg-[#4A3B2A] hover:text-[#F0E6D2] transition-colors"
+        >
+          Return to Brewing
+        </button>
+      </div>
+
+      <style>{`
+        @keyframes steam-rise {
+          0% { transform: translateY(0) scaleX(1); opacity: 0; }
+          50% { opacity: 1; }
+          100% { transform: translateY(-20px) scaleX(2); opacity: 0; }
+        }
+        @keyframes drop {
+          0% { transform: translateY(0); opacity: 0; }
+          50% { opacity: 1; }
+          100% { transform: translateY(20px); opacity: 0; }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default { CreditsPage, TimelinePage, ThanksPage, DevNullPage, Funny404Page, TeapotPage };
 

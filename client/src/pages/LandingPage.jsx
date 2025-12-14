@@ -13,6 +13,10 @@ import {
   Sparkles,
   Loader2,
   AlertCircle,
+  Clock,
+  Lock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
@@ -21,6 +25,16 @@ import { useAppVersion } from '../hooks/useAppVersion';
 import showToast from '../components/ui/Toast';
 import { getShortUrl } from '../utils/urlHelper';
 import LinkSuccessModal from '../components/LinkSuccessModal';
+
+// Expiration presets for landing page
+const EXPIRATION_OPTIONS = [
+  { value: 'never', label: 'Never expires' },
+  { value: '1h', label: '1 hour' },
+  { value: '24h', label: '24 hours' },
+  { value: '7d', label: '7 days' },
+  { value: '30d', label: '30 days' },
+  { value: 'custom', label: 'Custom date & time...' },
+];
 
 // Helper to normalize URL (add https:// if missing)
 const normalizeUrl = (input) => {
@@ -87,6 +101,15 @@ const LandingPage = () => {
   const [copied, setCopied] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showNewBadge, setShowNewBadge] = useState(hasUnseenChangelog());
+
+  // Expiration state (for logged-in users)
+  const [expiresIn, setExpiresIn] = useState('never');
+  const [customExpiresAt, setCustomExpiresAt] = useState('');
+  
+  // Password state (for logged-in users)
+  const [enablePassword, setEnablePassword] = useState(false);
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Alias availability state
   const [aliasStatus, setAliasStatus] = useState({
@@ -155,6 +178,12 @@ const LandingPage = () => {
       return;
     }
 
+    // Validate password if enabled
+    if (user && enablePassword && password.length < 4) {
+      showToast.error('Password must be at least 4 characters');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const payload = { originalUrl: normalizeUrl(url) };
@@ -162,6 +191,18 @@ const LandingPage = () => {
       // Add custom alias for logged-in users
       if (user && customAlias && customAlias.length >= 3) {
         payload.customAlias = customAlias;
+      }
+
+      // Add expiration for logged-in users
+      if (user && expiresIn === 'custom' && customExpiresAt) {
+        payload.expiresAt = new Date(customExpiresAt).toISOString();
+      } else if (user && expiresIn && expiresIn !== 'never' && expiresIn !== 'custom') {
+        payload.expiresIn = expiresIn;
+      }
+
+      // Add password for logged-in users
+      if (user && enablePassword && password.length >= 4) {
+        payload.password = password;
       }
 
       const { data } = await api.post('/url/shorten', payload);
@@ -192,6 +233,11 @@ const LandingPage = () => {
     setShowSuccessModal(false);
     setUrl('');
     setCustomAlias('');
+    setExpiresIn('never');
+    setCustomExpiresAt('');
+    setEnablePassword(false);
+    setPassword('');
+    setShowPassword(false);
     setShortUrl(null);
     setCreatedLink(null);
   };
@@ -364,12 +410,92 @@ const LandingPage = () => {
                   </div>
                 )}
 
+                {/* Expiration Dropdown - Only for logged in users */}
+                {user && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
+                      <Clock size={14} className="text-amber-400" />
+                      Link Expiration
+                      <span className="text-xs text-gray-500 font-normal">(optional)</span>
+                    </label>
+                    <select
+                      value={expiresIn}
+                      onChange={(e) => setExpiresIn(e.target.value)}
+                      className="block w-full py-4 px-4 bg-gray-900/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all appearance-none cursor-pointer"
+                      style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 1rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}
+                    >
+                      {EXPIRATION_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    {expiresIn === 'custom' && (
+                      <input
+                        type="datetime-local"
+                        value={customExpiresAt}
+                        onChange={(e) => setCustomExpiresAt(e.target.value)}
+                        min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
+                        className="block w-full py-3 px-4 mt-2 bg-gray-900/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Password Protection - Only for logged in users */}
+                {user && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
+                      <Lock size={14} className="text-purple-400" />
+                      Password Protection
+                      <span className="text-xs text-gray-500 font-normal">(optional)</span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => { setEnablePassword(!enablePassword); if (enablePassword) setPassword(''); }}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${enablePassword ? 'bg-purple-600' : 'bg-gray-700'}`}
+                      >
+                        <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${enablePassword ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </button>
+                      <span className="text-sm text-gray-400">{enablePassword ? 'Enabled' : 'Disabled'}</span>
+                    </div>
+                    {enablePassword && (
+                      <div className="relative mt-2 group">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Enter password (min. 4 characters)"
+                          className="block w-full py-4 pl-4 pr-12 bg-gray-900/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+                          maxLength={100}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                        >
+                          {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                        </button>
+                        {password.length > 0 && password.length < 4 && (
+                          <p className="text-xs text-red-400 ml-1 mt-1">Password must be at least 4 characters</p>
+                        )}
+                        {password.length >= 4 && (
+                          <p className="text-xs text-green-400 ml-1 mt-1">✓ Password ready</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={
                     isLoading ||
                     (user && customAlias.length > 0 && customAlias.length < 3) ||
-                    (user && customAlias && aliasStatus.available === false)
+                    (user && customAlias && aliasStatus.available === false) ||
+                    (user && enablePassword && password.length > 0 && password.length < 4) ||
+                    (user && expiresIn === 'custom' && !customExpiresAt)
                   }
                   className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
                 >

@@ -57,7 +57,7 @@ router.post('/cache/clear', clearUrlCache);
 
 // Appeals
 router.get('/appeals', getAllAppeals);
-router.post('/appeals/:appealId/respond', respondToAppeal);
+router.patch('/appeals/:appealId', respondToAppeal);
 
 // Feedback Management
 router.get('/feedback/export', exportFeedbackCSV);

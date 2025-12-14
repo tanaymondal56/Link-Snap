@@ -1,6 +1,7 @@
 import Url from '../models/Url.js';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { invalidateCache } from '../services/cacheService.js';
 import { isReservedWord } from '../config/reservedWords.js';
 
@@ -15,6 +16,20 @@ const extractDomain = (url) => {
     }
 };
 
+// Helper to calculate expiration date from preset
+const calculateExpiresAt = (expiresIn) => {
+    if (!expiresIn || expiresIn === 'never') return null;
+    
+    const now = new Date();
+    switch (expiresIn) {
+        case '1h': return new Date(now.getTime() + 60 * 60 * 1000);
+        case '24h': return new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        case '7d': return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        case '30d': return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        default: return null;
+    }
+};
+
 // Validation Schema
 const createUrlSchema = z.object({
     // Security: Enforce HTTP/HTTPS to prevent javascript: XSS attacks
@@ -23,6 +38,11 @@ const createUrlSchema = z.object({
     }),
     customAlias: z.string().min(3).max(20).regex(/^[a-zA-Z0-9-_]+$/, "Alias must be alphanumeric").optional().or(z.literal('')),
     title: z.string().optional(),
+    // Link Expiration
+    expiresIn: z.enum(['never', '1h', '24h', '7d', '30d']).optional(),
+    expiresAt: z.string().datetime().optional().or(z.null()),  // ISO date string for custom
+    // Password Protection
+    password: z.string().min(4, "Password must be at least 4 characters").max(100).optional().or(z.literal('')),
 });
 
 // @desc    Create Short URL
@@ -42,7 +62,7 @@ const createShortUrl = async (req, res, next) => {
             throw new Error(result.error.errors[0].message);
         }
 
-        const { originalUrl, customAlias, title } = result.data;
+        const { originalUrl, customAlias, title, expiresIn, expiresAt, password } = result.data;
         const userId = req.user ? req.user._id : null;
 
         // Reserved words check using centralized config
@@ -68,14 +88,41 @@ const createShortUrl = async (req, res, next) => {
         // Auto-generate title from domain if not provided
         const autoTitle = title || extractDomain(originalUrl) || 'Untitled Link';
 
+        // Calculate expiration date
+        let finalExpiresAt = null;
+        if (expiresAt) {
+            // Custom date provided
+            finalExpiresAt = new Date(expiresAt);
+            if (finalExpiresAt <= new Date()) {
+                res.status(400);
+                throw new Error('Expiration date must be in the future');
+            }
+        } else if (expiresIn) {
+            // Preset duration
+            finalExpiresAt = calculateExpiresAt(expiresIn);
+        }
+
+        // Handle password
+        let passwordHash = null;
+        let isPasswordProtected = false;
+        if (password && password.length >= 4) {
+            const salt = await bcrypt.genSalt(10);
+            passwordHash = await bcrypt.hash(password, salt);
+            isPasswordProtected = true;
+        }
+
         const newUrl = await Url.create({
             originalUrl,
             shortId: shortId,
             customAlias: customAlias || undefined,
             title: autoTitle,
             createdBy: userId,
+            expiresAt: finalExpiresAt,
+            isPasswordProtected,
+            passwordHash,
         });
 
+        // Return without passwordHash (already excluded by select: false)
         res.status(201).json(newUrl);
     } catch (error) {
         next(error);
@@ -221,6 +268,13 @@ const updateUrlSchema = z.object({
     }).optional(),
     customAlias: z.string().min(3).max(20).regex(/^[a-zA-Z0-9-_]+$/, "Alias must be alphanumeric").optional().or(z.literal('')).or(z.null()),
     title: z.string().optional(),
+    // Link Expiration
+    expiresIn: z.enum(['never', '1h', '24h', '7d', '30d']).optional(),
+    expiresAt: z.string().datetime().optional().or(z.null()),
+    removeExpiration: z.boolean().optional(),
+    // Password Protection
+    password: z.string().min(4, "Password must be at least 4 characters").max(100).optional().or(z.literal('')),
+    removePassword: z.boolean().optional(),
 });
 
 // @desc    Update Link
@@ -251,10 +305,11 @@ const updateUrl = async (req, res, next) => {
             throw new Error(result.error.errors[0].message);
         }
 
-        const { originalUrl, customAlias, title } = result.data;
+        const { originalUrl, customAlias, title, expiresIn, expiresAt, removeExpiration, password, removePassword } = result.data;
 
         // Build update object for atomic operation
         const updateFields = {};
+        const unsetFields = {};
         
         // Handle custom alias changes
         if (customAlias !== undefined && customAlias !== null && customAlias !== '') {
@@ -277,7 +332,7 @@ const updateUrl = async (req, res, next) => {
             updateFields.customAlias = customAlias;
         } else if (customAlias === '' || customAlias === null) {
             // Remove custom alias - use $unset in the update
-            updateFields.customAlias = null;
+            unsetFields.customAlias = 1;
         }
 
         // Update other fields if provided
@@ -294,12 +349,54 @@ const updateUrl = async (req, res, next) => {
             updateFields.title = title || extractDomain(url.originalUrl) || 'Untitled Link';
         }
 
+        // Handle expiration changes
+        if (removeExpiration) {
+            unsetFields.expiresAt = 1;
+            // Invalidate cache since expiration changed
+            invalidateCache(url.shortId);
+            if (url.customAlias) invalidateCache(url.customAlias);
+        } else if (expiresAt) {
+            const newExpiresAt = new Date(expiresAt);
+            if (newExpiresAt <= new Date()) {
+                res.status(400);
+                throw new Error('Expiration date must be in the future');
+            }
+            updateFields.expiresAt = newExpiresAt;
+            invalidateCache(url.shortId);
+            if (url.customAlias) invalidateCache(url.customAlias);
+        } else if (expiresIn) {
+            updateFields.expiresAt = calculateExpiresAt(expiresIn);
+            invalidateCache(url.shortId);
+            if (url.customAlias) invalidateCache(url.customAlias);
+        }
+
+        // Handle password changes
+        if (removePassword) {
+            updateFields.isPasswordProtected = false;
+            unsetFields.passwordHash = 1;
+            invalidateCache(url.shortId);
+            if (url.customAlias) invalidateCache(url.customAlias);
+        } else if (password && password.length >= 4) {
+            const salt = await bcrypt.genSalt(10);
+            updateFields.passwordHash = await bcrypt.hash(password, salt);
+            updateFields.isPasswordProtected = true;
+            invalidateCache(url.shortId);
+            if (url.customAlias) invalidateCache(url.customAlias);
+        }
+
+        // Build update operation
+        const updateOperation = {};
+        if (Object.keys(updateFields).length > 0) {
+            updateOperation.$set = updateFields;
+        }
+        if (Object.keys(unsetFields).length > 0) {
+            updateOperation.$unset = unsetFields;
+        }
+
         // Atomic update to prevent race conditions
         const updatedUrl = await Url.findByIdAndUpdate(
             url._id,
-            updateFields.customAlias === null 
-                ? { $set: { ...updateFields, customAlias: undefined }, $unset: { customAlias: 1 } }
-                : { $set: updateFields },
+            updateOperation,
             { new: true }
         );
 
@@ -309,4 +406,60 @@ const updateUrl = async (req, res, next) => {
     }
 };
 
-export { createShortUrl, getMyLinks, deleteUrl, checkAliasAvailability, updateUrl };
+// @desc    Verify Password for Protected Link
+// @route   POST /api/url/:shortId/verify-password
+// @access  Public
+const verifyLinkPassword = async (req, res, next) => {
+    try {
+        const { shortId } = req.params;
+        const { password } = req.body;
+
+        if (!password) {
+            res.status(400);
+            throw new Error('Password is required');
+        }
+
+        // Find the link by shortId or customAlias, including passwordHash
+        const url = await Url.findOne({
+            $or: [{ shortId }, { customAlias: shortId }]
+        }).select('+passwordHash');
+
+        if (!url) {
+            res.status(404);
+            throw new Error('Link not found');
+        }
+
+        if (!url.isPasswordProtected || !url.passwordHash) {
+            res.status(400);
+            throw new Error('This link is not password protected');
+        }
+
+        // Check if link has expired
+        if (url.expiresAt && new Date() > new Date(url.expiresAt)) {
+            res.status(410);
+            throw new Error('This link has expired');
+        }
+
+        // Verify password
+        const isMatch = await bcrypt.compare(password, url.passwordHash);
+
+        if (!isMatch) {
+            res.status(401);
+            throw new Error('Incorrect password');
+        }
+
+        // Password correct - increment clicks and track visit
+        Url.findByIdAndUpdate(url._id, { $inc: { clicks: 1 } }).exec();
+
+        // Password correct - return the original URL
+        res.json({
+            success: true,
+            originalUrl: url.originalUrl,
+            shortId: url.shortId
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export { createShortUrl, getMyLinks, deleteUrl, checkAliasAvailability, updateUrl, verifyLinkPassword };

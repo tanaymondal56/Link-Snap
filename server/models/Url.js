@@ -36,6 +36,20 @@ const urlSchema = new mongoose.Schema({
     qrCode: {
         type: String, // Base64 string or URL
     },
+    // Link Expiration
+    expiresAt: {
+        type: Date,
+        default: null,  // null = never expires
+    },
+    // Password Protection
+    isPasswordProtected: {
+        type: Boolean,
+        default: false,
+    },
+    passwordHash: {
+        type: String,
+        select: false,  // Never return password hash by default
+    },
 }, {
     timestamps: true,
 });
@@ -43,6 +57,8 @@ const urlSchema = new mongoose.Schema({
 // Index for fast lookups and dashboard sorting
 // Compound index avoids in-memory sort for "My Links" page
 urlSchema.index({ createdBy: 1, createdAt: -1 });
+// Index for expiration cleanup queries
+urlSchema.index({ expiresAt: 1 }, { sparse: true });
 
 const Url = mongoose.model('Url', urlSchema);
 
