@@ -275,20 +275,26 @@ export const redeemCode = async (req, res) => {
  */
 export const getRedeemCodeStats = async (req, res) => {
   try {
-    const [totalCodes, activeCodes, usedCodes, tierBreakdown] = await Promise.all([
-      RedeemCode.countDocuments(),
-      RedeemCode.countDocuments({ isActive: true, $expr: { $lt: ['$usedCount', '$maxUses'] } }),
-      RedeemCode.aggregate([{ $group: { _id: null, total: { $sum: '$usedCount' } } }]),
-      RedeemCode.aggregate([
-        { $group: { _id: '$tier', count: { $sum: 1 }, used: { $sum: '$usedCount' } } }
-      ])
-    ]);
+    // Get all codes and calculate stats in JS (Cosmos DB has limited $expr support)
+    const allCodes = await RedeemCode.find().select('isActive usedCount maxUses tier');
+    
+    const totalCodes = allCodes.length;
+    const activeCodes = allCodes.filter(c => c.isActive && c.usedCount < c.maxUses).length;
+    const totalRedemptions = allCodes.reduce((sum, c) => sum + (c.usedCount || 0), 0);
+    
+    // Calculate tier breakdown
+    const tierMap = {};
+    allCodes.forEach(c => {
+      if (!tierMap[c.tier]) tierMap[c.tier] = { _id: c.tier, count: 0, used: 0 };
+      tierMap[c.tier].count++;
+      tierMap[c.tier].used += c.usedCount || 0;
+    });
     
     res.json({
       totalCodes,
       activeCodes,
-      totalRedemptions: usedCodes[0]?.total || 0,
-      byTier: tierBreakdown
+      totalRedemptions,
+      byTier: Object.values(tierMap)
     });
     
   } catch (error) {
