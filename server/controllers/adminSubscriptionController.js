@@ -9,49 +9,44 @@ import mongoose from 'mongoose';
  */
 export const getSubscriptionStats = async (req, res) => {
   try {
-    // Use $facet for optimized single-query aggregation
-    const [aggregateResult] = await User.aggregate([
-      {
-        $facet: {
-          byTier: [
-            { $group: { _id: '$subscription.tier', count: { $sum: 1 } } }
-          ],
-          byStatus: [
-            { $match: { 'subscription.status': { $exists: true } } },
-            { $group: { _id: '$subscription.status', count: { $sum: 1 } } }
-          ],
-          recentUpgrades: [
-            { 
-              $match: { 
-                'subscription.tier': { $in: ['pro', 'business'] },
-                'subscription.currentPeriodStart': { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
-              }
-            },
-            { $sort: { 'subscription.currentPeriodStart': -1 } },
-            { $limit: 10 },
-            { $project: { email: 1, snapId: 1, 'subscription.tier': 1, 'subscription.currentPeriodStart': 1 } }
-          ],
-          totalCount: [
-            { $count: 'total' }
-          ]
-        }
-      }
+    // Cosmos DB doesn't fully support $facet, so use separate queries
+    
+    // Get tier counts
+    const tierCounts = await User.aggregate([
+      { $group: { _id: '$subscription.tier', count: { $sum: 1 } } }
     ]);
+    
+    // Get status counts
+    const statusCounts = await User.aggregate([
+      { $match: { 'subscription.status': { $exists: true } } },
+      { $group: { _id: '$subscription.status', count: { $sum: 1 } } }
+    ]);
+    
+    // Get recent upgrades (use find instead of aggregate to avoid nested field sort issues)
+    const recentUpgrades = await User.find({
+      'subscription.tier': { $in: ['pro', 'business'] },
+      'subscription.currentPeriodStart': { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+    })
+      .sort({ createdAt: -1 }) // Sort by createdAt instead of nested field
+      .limit(10)
+      .select('email snapId subscription.tier subscription.currentPeriodStart');
+    
+    // Get total count
+    const totalUsers = await User.countDocuments();
     
     // Format tier counts
     const byTier = { free: 0, pro: 0, business: 0 };
-    (aggregateResult.byTier || []).forEach(t => {
+    tierCounts.forEach(t => {
       if (t._id) byTier[t._id] = t.count;
     });
     
     // Count users without explicit tier as free
-    const totalUsers = aggregateResult.totalCount[0]?.total || 0;
-    const usersWithTier = (aggregateResult.byTier || []).filter(t => t._id).reduce((sum, t) => sum + t.count, 0);
+    const usersWithTier = tierCounts.filter(t => t._id).reduce((sum, t) => sum + t.count, 0);
     byTier.free = totalUsers - usersWithTier + (byTier.free || 0);
     
     // Format status counts
     const byStatus = {};
-    (aggregateResult.byStatus || []).forEach(s => {
+    statusCounts.forEach(s => {
       if (s._id) byStatus[s._id] = s.count;
     });
     
@@ -59,7 +54,7 @@ export const getSubscriptionStats = async (req, res) => {
       byTier,
       byStatus,
       totalSubscribers: byTier.pro + byTier.business,
-      recentUpgrades: aggregateResult.recentUpgrades || []
+      recentUpgrades
     });
     
   } catch (error) {
