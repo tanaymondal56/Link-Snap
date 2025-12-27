@@ -12,13 +12,17 @@ import {
   User,
   Building2,
   Phone,
+  Check,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import showToast from './ui/Toast';
+import api from '../api/axios';
 
 const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
   const [activeTab, setActiveTab] = useState(defaultTab);
+  const [identifier, setIdentifier] = useState('');
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -28,24 +32,56 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [prevOpen, setPrevOpen] = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState('idle'); // idle | checking | available | taken | invalid | reserved
   const { login, register } = useAuth();
   const navigate = useNavigate();
 
-  // Reset form when modal opens (using derived state pattern)
-  if (isOpen && !prevOpen) {
-    setPrevOpen(true);
-    setActiveTab(defaultTab);
-    setEmail('');
-    setPassword('');
-    setConfirmPassword('');
-    setFirstName('');
-    setLastName('');
-    setPhone('');
-    setCompany('');
-    setShowPassword(false);
-  } else if (!isOpen && prevOpen) {
-    setPrevOpen(false);
-  }
+  // Reset form when modal opens
+  useEffect(() => {
+    if (isOpen && !prevOpen) {
+      setPrevOpen(true);
+      setActiveTab(defaultTab);
+      setIdentifier('');
+      setEmail('');
+      setUsername('');
+      setPassword('');
+      setConfirmPassword('');
+      setFirstName('');
+      setLastName('');
+      setPhone('');
+      setCompany('');
+      setShowPassword(false);
+      setUsernameStatus('idle');
+    } else if (!isOpen && prevOpen) {
+      setPrevOpen(false);
+    }
+  }, [isOpen, prevOpen, defaultTab]);
+
+  // Debounced username availability check
+  useEffect(() => {
+    if (activeTab !== 'register' || !username || username.length < 3) {
+      setUsernameStatus('idle');
+      return;
+    }
+    if (!/^[a-z0-9_-]+$/.test(username)) {
+      setUsernameStatus('invalid');
+      return;
+    }
+    if (username.length > 30) {
+      setUsernameStatus('invalid');
+      return;
+    }
+    setUsernameStatus('checking');
+    const timeoutId = setTimeout(async () => {
+      try {
+        const { data } = await api.get(`/auth/check-username/${username}`);
+        setUsernameStatus(data.available ? 'available' : (data.reason === 'reserved' ? 'reserved' : 'taken'));
+      } catch {
+        setUsernameStatus('idle');
+      }
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [username, activeTab]);
 
   // Close on escape key
   useEffect(() => {
@@ -67,10 +103,9 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
   const handleLogin = async (e) => {
     e.preventDefault();
     
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      showToast.warning('Please enter a valid email address', 'Invalid Email');
+    // Identifier validation (email or username required)
+    if (!identifier.trim()) {
+      showToast.warning('Please enter your email or username', 'Missing Field');
       return;
     }
     
@@ -81,7 +116,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
     }
     
     setIsLoading(true);
-    const result = await login(email, password);
+    const result = await login(identifier, password);
     setIsLoading(false);
 
     if (result.success) {
@@ -116,6 +151,24 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       showToast.warning('Please enter a valid email address', 'Invalid Email');
+      return;
+    }
+    
+    // Username validation
+    if (!username.trim()) {
+      showToast.warning('Username is required', 'Missing Field');
+      return;
+    }
+    if (!/^[a-z0-9_-]+$/.test(username)) {
+      showToast.warning('Username can only contain lowercase letters, numbers, underscores, and dashes', 'Invalid Username');
+      return;
+    }
+    if (username.length < 3 || username.length > 30) {
+      showToast.warning('Username must be 3-30 characters', 'Invalid Username');
+      return;
+    }
+    if (usernameStatus === 'taken' || usernameStatus === 'reserved') {
+      showToast.warning('This username is not available', 'Username Taken');
       return;
     }
     
@@ -169,7 +222,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
     }
     
     setIsLoading(true);
-    const result = await register(email, password, {
+    const result = await register(username, email, password, {
       firstName: firstName.trim(),
       lastName: lastName.trim() || undefined,
       phone: phone.trim() || undefined,
@@ -252,20 +305,62 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
             onSubmit={activeTab === 'login' ? handleLogin : handleRegister}
             className="px-8 pb-8 space-y-4 overflow-y-auto custom-scrollbar"
           >
-            {/* Email */}
+            {/* Email / Username for Login, Email for Register */}
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <Mail className="h-5 w-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
               </div>
-              <input
-                type="email"
-                required
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-12 pr-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
-              />
+              {activeTab === 'login' ? (
+                <>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Email or username"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                  />
+                </>
+              ) : (
+                <input
+                  type="email"
+                  required
+                  placeholder="Email address *"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                />
+              )}
             </div>
+
+            {/* Username - Required (Register only) */}
+            {activeTab === 'register' && (
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <User className="h-5 w-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
+                </div>
+                <input
+                  type="text"
+                  required
+                  placeholder="Username * (e.g., john_doe)"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                  className={`w-full pl-12 pr-12 py-3.5 bg-gray-800/50 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all ${
+                    usernameStatus === 'available' ? 'border-green-500/50' :
+                    usernameStatus === 'taken' || usernameStatus === 'reserved' || usernameStatus === 'invalid' ? 'border-red-500/50' :
+                    'border-gray-700'
+                  }`}
+                />
+                <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
+                  {usernameStatus === 'checking' && <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />}
+                  {usernameStatus === 'available' && <Check className="h-5 w-5 text-green-500" />}
+                  {(usernameStatus === 'taken' || usernameStatus === 'reserved' || usernameStatus === 'invalid') && <X className="h-5 w-5 text-red-500" />}
+                </div>
+                <p className={`mt-1 text-xs ${usernameStatus === 'available' ? 'text-green-500' : usernameStatus === 'taken' || usernameStatus === 'reserved' ? 'text-red-500' : 'text-gray-500'}`}>
+                  {usernameStatus === 'available' ? 'Available!' : usernameStatus === 'taken' ? 'Already taken' : usernameStatus === 'reserved' ? 'Not available' : usernameStatus === 'invalid' ? 'Invalid format' : 'Lowercase letters, numbers, underscores, dashes only'}
+                </p>
+              </div>
+            )}
 
             {/* Password */}
             <div className="relative group">

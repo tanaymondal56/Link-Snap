@@ -12,10 +12,14 @@ import {
   Lock,
   Eye,
   EyeOff,
+  Crown,
 } from 'lucide-react';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
 import { getShortUrl } from '../utils/urlHelper';
+import { Link } from 'react-router-dom';
+import { ProBadge } from './subscription/PremiumField';
+import { usePremiumField } from '../hooks/usePremiumField';
 
 // Expiration presets
 const EXPIRATION_OPTIONS = [
@@ -87,6 +91,16 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
     available: null,
     reason: null,
   });
+
+  // Premium field access states
+  const aliasField = usePremiumField('custom_alias');
+  const expirationField = usePremiumField('link_expiration');
+  const passwordField = usePremiumField('password_protection');
+
+  // Hover states for premium field tooltips
+  const [showAliasUpgrade, setShowAliasUpgrade] = useState(false);
+  const [showExpirationUpgrade, setShowExpirationUpgrade] = useState(false);
+  const [showPasswordUpgrade, setShowPasswordUpgrade] = useState(false);
 
   const debouncedAlias = useDebounce(customAlias, 400);
   const baseDomain = getBaseDomain();
@@ -324,170 +338,264 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
           </div>
 
           {/* Custom Alias Input */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <span className="flex items-center gap-2">
-                Custom Alias
-                <span className="text-xs text-gray-500 font-normal">(optional)</span>
-                <Sparkles size={14} className="text-purple-400" />
-              </span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none">
-                {baseDomain}/
-              </span>
-              <input
-                type="text"
-                placeholder="my-brand"
-                value={customAlias}
-                onChange={handleAliasChange}
-                className={`w-full bg-gray-800/50 border rounded-xl pr-10 py-3 text-white placeholder-gray-500 focus:outline-none transition-colors ${getAliasInputBorderColor()}`}
-                style={{ paddingLeft: `${baseDomain.length * 7.5 + 20}px` }}
-                maxLength={20}
-              />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                {getAliasStatusIcon()}
+          <div 
+            className="relative"
+            onMouseEnter={() => aliasField.isLocked && setShowAliasUpgrade(true)}
+            onMouseLeave={() => setShowAliasUpgrade(false)}
+          >
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                <span className="flex items-center gap-2">
+                  Custom Alias
+                  <span className="text-xs text-gray-500 font-normal">(optional)</span>
+                  {aliasField.isLocked ? <ProBadge /> : <Sparkles size={14} className="text-purple-400" />}
+                </span>
+              </label>
+              <div className="relative">
+                <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none ${aliasField.isLocked ? 'opacity-50' : ''}`}>
+                  {baseDomain}/
+                </span>
+                <input
+                  type="text"
+                  placeholder="my-brand"
+                  value={aliasField.isLocked ? '' : customAlias}
+                  onChange={aliasField.isLocked ? undefined : handleAliasChange}
+                  className={`w-full bg-gray-800/50 border rounded-xl pr-10 py-3 text-white placeholder-gray-500 focus:outline-none transition-colors ${aliasField.isLocked ? 'border-gray-700/50 cursor-not-allowed opacity-50' : getAliasInputBorderColor()}`}
+                  style={{ paddingLeft: `${baseDomain.length * 7.5 + 20}px` }}
+                  maxLength={20}
+                  disabled={aliasField.isLocked}
+                />
+                {!aliasField.isLocked && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {getAliasStatusIcon()}
+                  </div>
+                )}
+                
+                {/* Hover tooltip for locked state */}
+                {showAliasUpgrade && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm rounded-xl z-20">
+                    <Link
+                      to={aliasField.upgradePath}
+                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
+                    >
+                      <Crown size={16} />
+                      {aliasField.upgradeText}
+                    </Link>
+                  </div>
+                )}
               </div>
-            </div>
 
-            {/* Alias Status Message */}
-            <div className="mt-1.5 flex items-center justify-between">
-              <div>
-                {customAlias.length > 0 && customAlias.length < 3 && (
-                  <p className="text-sm text-gray-500">Minimum 3 characters</p>
-                )}
-                {aliasStatus.reason && aliasStatus.available === false && (
-                  <p className="text-sm text-red-400">{aliasStatus.reason}</p>
-                )}
-                {aliasStatus.available === true && customAlias !== link.customAlias && (
-                  <p className="text-sm text-green-400">✓ This alias is available!</p>
-                )}
-                {customAlias === link.customAlias && customAlias && (
-                  <p className="text-sm text-gray-500">Current alias</p>
-                )}
-              </div>
-              <span className="text-xs text-gray-500">{customAlias.length}/20</span>
+              {/* Alias Status Message */}
+              {!aliasField.isLocked && (
+                <div className="mt-1.5 flex items-center justify-between">
+                  <div>
+                    {customAlias.length > 0 && customAlias.length < 3 && (
+                      <p className="text-sm text-gray-500">Minimum 3 characters</p>
+                    )}
+                    {aliasStatus.reason && aliasStatus.available === false && (
+                      <p className="text-sm text-red-400">{aliasStatus.reason}</p>
+                    )}
+                    {aliasStatus.available === true && customAlias !== link.customAlias && (
+                      <p className="text-sm text-green-400">✓ This alias is available!</p>
+                    )}
+                    {customAlias === link.customAlias && customAlias && (
+                      <p className="text-sm text-gray-500">Current alias</p>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-500">{customAlias.length}/20</span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Expiration Section */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <span className="flex items-center gap-2">
-                <Clock size={14} className="text-amber-400" />
-                Link Expiration
-              </span>
-            </label>
-            {/* Current status */}
-            {link.expiresAt && (
-              <p className="text-xs text-gray-500 mb-2">
-                Current: {new Date() > new Date(link.expiresAt) 
-                  ? <span className="text-red-400">Expired</span> 
-                  : <span className="text-amber-400">Expires {new Date(link.expiresAt).toLocaleString()}</span>}
-              </p>
-            )}
-            {!link.expiresAt && (
-              <p className="text-xs text-gray-500 mb-2">Current: Never expires</p>
-            )}
-            <select
-              value={expiresAction}
-              onChange={(e) => setExpiresAction(e.target.value)}
-              className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-amber-500 focus:outline-none transition-colors appearance-none cursor-pointer"
-              style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.75rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
-            >
-              {EXPIRATION_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {expiresAction === 'custom' && (
-              <input
-                type="datetime-local"
-                value={customExpiresAt}
-                onChange={(e) => setCustomExpiresAt(e.target.value)}
-                min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
-                className="w-full mt-2 bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-amber-500 focus:outline-none transition-colors"
-              />
-            )}
+          <div 
+            className="relative"
+            onMouseEnter={() => expirationField.isLocked && setShowExpirationUpgrade(true)}
+            onMouseLeave={() => setShowExpirationUpgrade(false)}
+          >
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                <span className="flex items-center gap-2">
+                  <Clock size={14} className="text-amber-400" />
+                  Link Expiration
+                  {expirationField.isLocked ? <ProBadge /> : <Sparkles size={14} className="text-purple-400" />}
+                </span>
+              </label>
+              {/* Current status */}
+              {link.expiresAt && (
+                <p className="text-xs text-gray-500 mb-2">
+                  Current: {new Date() > new Date(link.expiresAt) 
+                    ? <span className="text-red-400">Expired</span> 
+                    : <span className="text-amber-400">Expires {new Date(link.expiresAt).toLocaleString()}</span>}
+                </p>
+              )}
+              {!link.expiresAt && (
+                <p className="text-xs text-gray-500 mb-2">Current: Never expires</p>
+              )}
+              
+              <div className="relative">
+                <select
+                  value={expiresAction}
+                  onChange={(e) => setExpiresAction(e.target.value)}
+                  disabled={expirationField.isLocked}
+                  className={`w-full bg-gray-800/50 border rounded-xl px-4 py-3 text-white focus:outline-none transition-colors appearance-none ${expirationField.isLocked ? 'border-gray-700/50 opacity-50 cursor-not-allowed' : 'border-gray-700 focus:border-amber-500 cursor-pointer'}`}
+                  style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.75rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
+                >
+                  {EXPIRATION_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Hover tooltip for locked state */}
+                {showExpirationUpgrade && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm rounded-xl z-20">
+                    <Link
+                      to={expirationField.upgradePath}
+                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
+                    >
+                      <Crown size={16} />
+                      {expirationField.upgradeText}
+                    </Link>
+                  </div>
+                )}
+              </div>
+
+              {!expirationField.isLocked && expiresAction === 'custom' && (
+                <input
+                  type="datetime-local"
+                  value={customExpiresAt}
+                  onChange={(e) => setCustomExpiresAt(e.target.value)}
+                  min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
+                  className="w-full mt-2 bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-amber-500 focus:outline-none transition-colors"
+                />
+              )}
+            </div>
           </div>
 
           {/* Password Section */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <span className="flex items-center gap-2">
-                <Lock size={14} className="text-purple-400" />
-                Password Protection
-              </span>
-            </label>
-            {/* Current status */}
-            <p className="text-xs text-gray-500 mb-2">
-              Current: {link.isPasswordProtected 
-                ? <span className="text-purple-400">Password protected 🔒</span> 
-                : <span>Not protected</span>}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => { setPasswordAction('keep'); setPassword(''); }}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  passwordAction === 'keep'
-                    ? 'bg-gray-700 text-white'
-                    : 'bg-gray-800/50 text-gray-400 hover:text-white'
-                }`}
-              >
-                Keep current
-              </button>
-              <button
-                type="button"
-                onClick={() => setPasswordAction('set')}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  passwordAction === 'set'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-800/50 text-gray-400 hover:text-white'
-                }`}
-              >
-                {link.isPasswordProtected ? 'Change password' : 'Add password'}
-              </button>
-              {link.isPasswordProtected && (
+          <div 
+            className="relative"
+            onMouseEnter={() => passwordField.isLocked && setShowPasswordUpgrade(true)}
+            onMouseLeave={() => setShowPasswordUpgrade(false)}
+          >
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                <span className="flex items-center gap-2">
+                  <Lock size={14} className="text-purple-400" />
+                  Password Protection
+                  {passwordField.isLocked ? <ProBadge /> : null}
+                </span>
+              </label>
+              {/* Current status */}
+              <p className="text-xs text-gray-500 mb-2">
+                Current: {link.isPasswordProtected 
+                  ? <span className="text-purple-400">Password protected 🔒</span> 
+                  : <span>Not protected</span>}
+              </p>
+              
+              {/* Hover tooltip for locked state */}
+              {showPasswordUpgrade && (
+                <div className="absolute inset-0 -m-2 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm rounded-xl z-20 pointer-events-none">
+                  <div className="pointer-events-auto">
+                    <Link
+                      to={passwordField.upgradePath}
+                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
+                    >
+                      <Crown size={16} />
+                      {passwordField.upgradeText}
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              <div className={`flex flex-wrap gap-2 ${passwordField.isLocked ? 'opacity-50 pointer-events-none' : ''}`}>
                 <button
                   type="button"
-                  onClick={() => { setPasswordAction('remove'); setPassword(''); }}
+                  onClick={() => { setPasswordAction('keep'); setPassword(''); }}
+                  disabled={passwordField.isLocked}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    passwordAction === 'remove'
-                      ? 'bg-red-600 text-white'
+                    passwordAction === 'keep'
+                      ? 'bg-gray-700 text-white'
                       : 'bg-gray-800/50 text-gray-400 hover:text-white'
                   }`}
                 >
-                  Remove password
+                  Keep current
                 </button>
-              )}
-            </div>
-            {passwordAction === 'set' && (
-              <div className="mt-3 relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter new password (min. 4 characters)"
-                  className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
-                  maxLength={100}
-                />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                  onClick={() => setPasswordAction('set')}
+                  disabled={passwordField.isLocked}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    passwordAction === 'set'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-800/50 text-gray-400 hover:text-white'
+                  }`}
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {link.isPasswordProtected ? 'Change password' : 'Add password'}
                 </button>
-                {password.length > 0 && password.length < 4 && (
-                  <p className="text-xs text-red-400 mt-1.5">Password must be at least 4 characters</p>
-                )}
-                {password.length >= 4 && (
-                  <p className="text-xs text-green-400 mt-1.5">✓ Password ready</p>
+                {link.isPasswordProtected && (
+                  <button
+                    type="button"
+                    onClick={() => { setPasswordAction('remove'); setPassword(''); }}
+                    disabled={passwordField.isLocked}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      passwordAction === 'remove'
+                        ? 'bg-red-600 text-white'
+                        : 'bg-gray-800/50 text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Remove password
+                  </button>
                 )}
               </div>
-            )}
+              {!passwordField.isLocked && passwordAction === 'set' && (
+                <div className="mt-3 relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter new password (min. 4 characters)"
+                    className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
+                    maxLength={100}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                  {password.length > 0 && password.length < 4 && (
+                    <p className="text-xs text-red-400 mt-1.5">Password must be at least 4 characters</p>
+                  )}
+                  {password.length >= 4 && (
+                    <div className="mt-2">
+                      <div className="flex gap-1">
+                        <div className={`h-1 w-6 rounded-full ${password.length >= 4 ? 'bg-red-400' : 'bg-gray-600'}`} />
+                        <div className={`h-1 w-6 rounded-full ${password.length >= 8 ? 'bg-amber-400' : 'bg-gray-600'}`} />
+                        <div className={`h-1 w-6 rounded-full ${password.length >= 12 && /[A-Z]/.test(password) && /[0-9]/.test(password) ? 'bg-green-400' : 'bg-gray-600'}`} />
+                      </div>
+                      <p className={`text-xs mt-1 ${
+                        password.length >= 12 && /[A-Z]/.test(password) && /[0-9]/.test(password) 
+                          ? 'text-green-400'
+                          : password.length >= 8 
+                            ? 'text-amber-400' 
+                            : 'text-red-400'
+                      }`}>
+                        {password.length >= 12 && /[A-Z]/.test(password) && /[0-9]/.test(password) 
+                          ? '✓ Strong password' 
+                          : password.length >= 8 
+                            ? 'Medium strength' 
+                            : 'Weak password'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Info Box - Random ID preserved */}

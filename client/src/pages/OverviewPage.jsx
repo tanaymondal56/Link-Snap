@@ -12,6 +12,8 @@ import {
   MousePointerClick,
   Calendar,
   Activity,
+  Crown,
+  AlertTriangle,
 } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
@@ -19,8 +21,10 @@ import { handleApiError } from '../utils/errorHandler';
 import { getShortUrl } from '../utils/urlHelper';
 import CreateLinkModal from '../components/CreateLinkModal';
 import LinkSuccessModal from '../components/LinkSuccessModal';
+import { useAuth } from '../context/AuthContext';
 
 const OverviewPage = () => {
+  const { user } = useAuth();
   const [stats, setStats] = useState({
     totalLinks: 0,
     totalClicks: 0,
@@ -171,6 +175,92 @@ const OverviewPage = () => {
           <h3 className="text-3xl font-bold text-white">{stats.linksThisMonth}</h3>
           <p className="text-xs text-gray-500 mt-1">links created</p>
         </div>
+      </div>
+
+      {/* Subscription Usage Card */}
+      <div className="glass-dark p-6 rounded-2xl border border-amber-500/20">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-500/20 rounded-lg">
+              <Crown size={18} className="text-amber-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-white capitalize">
+                {user?.subscription?.tier || 'Free'} Plan
+              </h3>
+              <p className="text-gray-400 text-sm">Monthly usage limits</p>
+            </div>
+          </div>
+          {(user?.subscription?.tier === 'free' || !user?.subscription?.tier) && (
+            <Link
+              to="/pricing"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white rounded-xl font-medium text-sm transition-all"
+            >
+              <Sparkles size={14} />
+              Upgrade
+            </Link>
+          )}
+        </div>
+        
+        {/* Usage Bars */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Links Usage */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-gray-400 text-sm flex items-center gap-2">
+                <LinkIcon size={14} />
+                Links Created
+              </span>
+              <span className="text-white text-sm font-medium">
+                {user?.linkUsage?.count || 0} / {user?.subscription?.tier === 'pro' ? 500 : user?.subscription?.tier === 'business' ? '10,000' : 25}
+              </span>
+            </div>
+            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+              <div 
+                className={`h-full rounded-full transition-all ${
+                  (user?.linkUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 500 : 25) >= 0.8 
+                    ? 'bg-gradient-to-r from-orange-500 to-red-500' 
+                    : 'bg-gradient-to-r from-blue-500 to-purple-500'
+                }`}
+                style={{ width: `${Math.min(100, ((user?.linkUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 500 : 25)) * 100)}%` }}
+              />
+            </div>
+          </div>
+          
+          {/* Clicks Usage */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-gray-400 text-sm flex items-center gap-2">
+                <MousePointerClick size={14} />
+                Clicks Tracked
+              </span>
+              <span className="text-white text-sm font-medium">
+                {user?.clickUsage?.count?.toLocaleString() || 0} / {user?.subscription?.tier === 'pro' ? '50,000' : user?.subscription?.tier === 'business' ? '250,000' : '1,000'}
+              </span>
+            </div>
+            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+              <div 
+                className={`h-full rounded-full transition-all ${
+                  (user?.clickUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 50000 : 1000) >= 0.8 
+                    ? 'bg-gradient-to-r from-orange-500 to-red-500' 
+                    : 'bg-gradient-to-r from-purple-500 to-pink-500'
+                }`}
+                style={{ width: `${Math.min(100, ((user?.clickUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 50000 : 1000)) * 100)}%` }}
+              />
+            </div>
+          </div>
+        </div>
+        
+        {/* Warning for high usage */}
+        {((user?.linkUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 500 : 25) >= 0.8 ||
+          (user?.clickUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 50000 : 1000) >= 0.8) && (
+          <div className="mt-4 p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
+            <p className="text-amber-300 text-sm flex items-center gap-2">
+              <AlertTriangle size={14} />
+              You're approaching your usage limits. Consider upgrading for more capacity.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Two Column Layout */}

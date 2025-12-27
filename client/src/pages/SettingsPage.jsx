@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+
 import {
   User,
   Mail,
@@ -13,6 +15,8 @@ import {
   Eye,
   EyeOff,
   CheckCircle,
+  Copy,
+  Check,
   AlertCircle,
   Monitor,
   Smartphone,
@@ -27,18 +31,41 @@ import {
   Timer,
   Edit2,
   ShieldCheck,
-  Check,
+  CreditCard,
+  Zap,
+  BarChart3,
+  Crown,
 } from 'lucide-react';
+
 import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
 import { handleApiError } from '../utils/errorHandler';
+import IdBadge from '../components/ui/IdBadge';
+import SubscriptionCard from '../components/subscription/SubscriptionCard';
+import { getEffectiveTier } from '../utils/subscriptionUtils';
 
 const SettingsPage = () => {
-  const [activeTab, setActiveTab] = useState('profile');
+  const location = useLocation();
+  const getInitialTab = () => {
+    const searchParams = new URLSearchParams(location.search);
+    if (location.state?.activeTab) return location.state.activeTab;
+    if (searchParams.get('upgrade') === 'success') return 'subscription';
+    if (searchParams.get('tab') === 'subscription') return 'subscription';
+    return 'profile';
+  };
+  const [activeTab, setActiveTab] = useState(getInitialTab());
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [copiedSnapId, setCopiedSnapId] = useState(false);
+
+  const handleCopySnapId = (id) => {
+    navigator.clipboard.writeText(id);
+    setCopiedSnapId(true);
+    showToast('Snap ID copied to clipboard', 'success');
+    setTimeout(() => setCopiedSnapId(false), 2000);
+  };
 
   // Session state
   const [sessions, setSessions] = useState([]);
@@ -48,11 +75,14 @@ const SettingsPage = () => {
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, sessionId: null, sessionName: '', action: null });
   const [editingSession, setEditingSession] = useState(null);
   const [editingName, setEditingName] = useState('');
+  const [usernameStatus, setUsernameStatus] = useState('idle'); // idle | checking | available | taken | invalid | reserved
+  const [usernameChangedAt, setUsernameChangedAt] = useState(null);
   const [savingName, setSavingName] = useState(false);
   const [togglingTrust, setTogglingTrust] = useState(null);
 
   // Profile form state
   const [profileForm, setProfileForm] = useState({
+    username: '',
     firstName: '',
     lastName: '',
     phone: '',
@@ -99,7 +129,9 @@ const SettingsPage = () => {
     try {
       const { data } = await api.get('/auth/me');
       setProfile(data);
+      setUsernameChangedAt(data.usernameChangedAt);
       setProfileForm({
+        username: data.username || '',
         firstName: data.firstName || '',
         lastName: data.lastName || '',
         phone: data.phone || '',
@@ -115,9 +147,56 @@ const SettingsPage = () => {
     }
   };
 
+  // Calculate if username change is allowed (30-day cooldown)
+  const canChangeUsername = !usernameChangedAt || (Date.now() - new Date(usernameChangedAt).getTime()) >= 30 * 24 * 60 * 60 * 1000;
+  const nextUsernameChangeDate = usernameChangedAt ? new Date(new Date(usernameChangedAt).getTime() + 30 * 24 * 60 * 60 * 1000) : null;
+
+  // Debounced username availability check
+  useEffect(() => {
+    if (!canChangeUsername || !profileForm.username || profileForm.username === profile?.username) {
+      setUsernameStatus('idle');
+      return;
+    }
+    if (profileForm.username.length < 3 || profileForm.username.length > 30) {
+      setUsernameStatus('invalid');
+      return;
+    }
+    if (!/^[a-z0-9_-]+$/.test(profileForm.username)) {
+      setUsernameStatus('invalid');
+      return;
+    }
+    setUsernameStatus('checking');
+    const timeoutId = setTimeout(async () => {
+      try {
+        const { data } = await api.get(`/auth/check-username/${profileForm.username}`);
+        setUsernameStatus(data.available ? 'available' : (data.reason === 'reserved' ? 'reserved' : 'taken'));
+      } catch {
+        setUsernameStatus('idle');
+      }
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [profileForm.username, profile?.username, canChangeUsername]);
+
   const handleSaveProfile = async () => {
     setIsSaving(true);
     try {
+      if (profileForm.username && profileForm.username !== profile.username) {
+        if (profileForm.username.length < 3 || profileForm.username.length > 30) {
+            showToast.warning("Username must be 3-30 characters long", 'Invalid Username');
+            setIsSaving(false);
+            return;
+        }
+        if (!/^[a-z0-9_-]+$/.test(profileForm.username)) {
+            showToast.warning("Username can only contain lowercase letters, numbers, underscores, and dashes", 'Invalid Username');
+            setIsSaving(false);
+            return;
+        }
+        if (usernameStatus === 'taken' || usernameStatus === 'reserved') {
+            showToast.warning("This username is not available", 'Username Taken');
+            setIsSaving(false);
+            return;
+        }
+      }
       const { data } = await api.put('/auth/me', profileForm);
       setProfile(data);
       showToast.success('Your profile has been updated!', 'Profile Saved');
@@ -137,9 +216,9 @@ const SettingsPage = () => {
       return;
     }
 
-    if (passwordForm.newPassword.length < 6) {
-      showToast.error('Password must be at least 6 characters');
-      return;
+    if (passwordForm.newPassword.length < 8) {
+      showToast.warning('Password must be at least 8 characters long', 'Weak Password');
+      setIsLoading(false);
     }
 
     setChangingPassword(true);
@@ -383,6 +462,19 @@ const SettingsPage = () => {
             Sessions
           </span>
         </button>
+        <button
+          onClick={() => setActiveTab('subscription')}
+          className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === 'subscription'
+              ? 'text-white border-blue-500'
+              : 'text-gray-400 border-transparent hover:text-white'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <CreditCard size={16} />
+            Subscription
+          </span>
+        </button>
       </div>
 
       {/* Profile Tab */}
@@ -398,17 +490,44 @@ const SettingsPage = () => {
                     : profile?.email?.[0].toUpperCase() || 'U'}
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">
+                  <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                     {profileForm.firstName || profileForm.lastName
                       ? `${profileForm.firstName} ${profileForm.lastName}`.trim()
                       : profile?.email}
+                       {/* Crown Badge for Paid Tiers */}
+                       {(getEffectiveTier(profile) === 'pro' || getEffectiveTier(profile) === 'business') && (
+                         <span className="flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-yellow-500 text-xs font-bold rounded-full border border-yellow-500/30">
+                           <Crown size={12} fill="currentColor" />
+                           {getEffectiveTier(profile).toUpperCase()}
+                         </span>
+                       )}
                   </h2>
                   <p className="text-gray-400 text-sm">{profile?.email}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-xs rounded-full border border-purple-500/30">
-                      {profile?.role || 'user'}
-                    </span>
-                    <span className="text-gray-500 text-xs flex items-center gap-1">
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    {(profile?.eliteId) && profile?.idTier && (
+                      <IdBadge 
+                        eliteId={profile.eliteId} 
+                        idTier={profile.idTier} 
+                        size="sm"
+                      />
+                    )}
+
+                    {profile?.snapId && (
+                      <div className="flex items-center pl-0 h-5">
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-900/60 rounded border border-white/10 hover:border-blue-500/30 transition-colors group">
+                          <span className="text-[10px] text-slate-500 font-bold tracking-wider">ID</span>
+                          <code className="text-[11px] text-blue-400 font-mono tracking-wide">{profile.snapId}</code>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleCopySnapId(profile.snapId); }}
+                            className="ml-1 text-slate-600 hover:text-white transition-colors"
+                            title="Copy Snap ID"
+                          >
+                            {copiedSnapId ? <Check size={10} className="text-green-500" /> : <Copy size={10} className="group-hover:text-blue-400" />}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <span className="text-gray-500 text-xs flex items-center gap-1 ml-1">
                       <Calendar size={12} />
                       Joined{' '}
                       {profile?.createdAt ? formatDate(profile.createdAt) : '—'}
@@ -420,6 +539,53 @@ const SettingsPage = () => {
 
             {/* Profile Form */}
             <div className="p-6 space-y-6">
+              {/* Username Field */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Username
+                  {!canChangeUsername && (
+                    <span className="ml-2 text-xs text-amber-500">
+                      (Change available on {nextUsernameChangeDate?.toLocaleDateString()})
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  <input
+                    type="text"
+                    value={profileForm.username}
+                    onChange={(e) =>
+                      setProfileForm({ ...profileForm, username: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })
+                    }
+                    disabled={!canChangeUsername}
+                    className={`w-full pl-11 pr-12 py-3 rounded-xl bg-gray-800/50 border text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 ${
+                      !canChangeUsername ? 'opacity-50 cursor-not-allowed border-gray-700' :
+                      usernameStatus === 'available' ? 'border-green-500/50' :
+                      usernameStatus === 'taken' || usernameStatus === 'reserved' || usernameStatus === 'invalid' ? 'border-red-500/50' :
+                      'border-gray-700'
+                    }`}
+                    placeholder="username"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+                    {!canChangeUsername && <Timer className="w-5 h-5 text-amber-500" />}
+                    {canChangeUsername && usernameStatus === 'checking' && <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />}
+                    {canChangeUsername && usernameStatus === 'available' && <Check className="w-5 h-5 text-green-500" />}
+                    {canChangeUsername && (usernameStatus === 'taken' || usernameStatus === 'reserved' || usernameStatus === 'invalid') && <X className="w-5 h-5 text-red-500" />}
+                  </div>
+                </div>
+                <p className={`text-xs mt-1 ${
+                  usernameStatus === 'available' ? 'text-green-500' :
+                  usernameStatus === 'taken' || usernameStatus === 'reserved' ? 'text-red-500' :
+                  usernameStatus === 'invalid' ? 'text-red-500' : 'text-gray-500'
+                }`}>
+                  {!canChangeUsername ? `You can change your username once every 30 days` :
+                   usernameStatus === 'available' ? 'Available!' :
+                   usernameStatus === 'taken' ? 'Already taken' :
+                   usernameStatus === 'reserved' ? 'Not available' :
+                   usernameStatus === 'invalid' ? 'Invalid format' : 'Unique identifier.'}
+                </p>
+              </div>
+
               {/* Name Fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -545,14 +711,16 @@ const SettingsPage = () => {
         </div>
       )}
 
-      {/* Security Tab */}
-      {activeTab === 'security' && (
+      {/* Subscription Tab */}
+      {activeTab === 'subscription' && (
+        <SubscriptionCard profile={profile} onRefresh={fetchProfile} />
+      )}      {activeTab === 'security' && (
         <div className="space-y-6">
           {/* Account Status */}
           <div className="glass-dark rounded-2xl border border-gray-700/50 p-6">
             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               <Shield size={20} className="text-blue-400" />
-              Account Status
+              Security Status
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex items-center gap-3 p-4 bg-gray-800/50 rounded-xl border border-gray-700/50">
@@ -564,13 +732,17 @@ const SettingsPage = () => {
                   <p className="text-xs text-gray-400">{profile?.email}</p>
                 </div>
               </div>
+              
+              {/* Replaced 'Account Type' with 'Last Login' as requested (using proxy or real data) */}
               <div className="flex items-center gap-3 p-4 bg-gray-800/50 rounded-xl border border-gray-700/50">
-                <div className="p-2 bg-purple-500/20 rounded-lg">
-                  <User size={18} className="text-purple-400" />
+                <div className="p-2 bg-blue-500/20 rounded-lg">
+                  <Clock size={18} className="text-blue-400" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-white">Account Type</p>
-                  <p className="text-xs text-gray-400 capitalize">{profile?.role}</p>
+                  <p className="text-sm font-medium text-white">Last Login</p>
+                  <p className="text-xs text-gray-400">
+                    {profile?.lastLoginAt ? formatDate(profile.lastLoginAt) : 'Just now'}
+                  </p>
                 </div>
               </div>
             </div>

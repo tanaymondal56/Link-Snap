@@ -1,5 +1,6 @@
 import Url from '../models/Url.js';
 import Analytics from '../models/Analytics.js';
+import User from '../models/User.js';
 import { invalidateCache } from '../services/cacheService.js';
 
 // @desc    Get all links (paginated, searchable)
@@ -10,23 +11,49 @@ export const getAllLinks = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const search = req.query.search || '';
+        const status = req.query.status || 'all'; // 'all', 'active', 'disabled', 'expired'
         const skip = (page - 1) * limit;
 
         let query = {};
+        
+        // Search Logic
         if (search) {
-            // Escape special regex characters to prevent ReDoS attacks
             const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            query = {
+            
+            // Find users matching the search term to include in link search (Limit 50 to prevent massive In queries)
+            const matchingUsers = await User.find({
                 $or: [
-                    { originalUrl: { $regex: escapedSearch, $options: 'i' } },
-                    { shortId: { $regex: escapedSearch, $options: 'i' } },
-                    { title: { $regex: escapedSearch, $options: 'i' } }
+                    { email: { $regex: escapedSearch, $options: 'i' } },
+                    { username: { $regex: escapedSearch, $options: 'i' } }
                 ]
-            };
+            }).select('_id').limit(50);
+            const matchingUserIds = matchingUsers.map(user => user._id);
+
+            query.$or = [
+                { originalUrl: { $regex: escapedSearch, $options: 'i' } },
+                { shortId: { $regex: escapedSearch, $options: 'i' } },
+                { customAlias: { $regex: escapedSearch, $options: 'i' } }, // Added customAlias
+                { title: { $regex: escapedSearch, $options: 'i' } },
+                { createdBy: { $in: matchingUserIds } } // Added Owner Search
+            ];
+        }
+
+        // Status Filtering
+        const now = new Date();
+        if (status === 'active') {
+            query.isActive = true;
+            // Active means not expired
+            query.$and = [
+                { $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] }
+            ];
+        } else if (status === 'disabled') {
+            query.isActive = false;
+        } else if (status === 'expired') {
+            query.expiresAt = { $lte: now };
         }
 
         const urls = await Url.find(query)
-            .populate('createdBy', 'email isActive disableLinksOnBan')
+            .populate('createdBy', 'email username isActive disableLinksOnBan')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit);
@@ -34,8 +61,8 @@ export const getAllLinks = async (req, res) => {
         // Compute ownerBanned field for each URL
         const urlsWithBanStatus = urls.map(url => {
             const urlObj = url.toObject();
-            // ownerBanned = owner exists AND is not active AND has disableLinksOnBan true
-            urlObj.ownerBanned = !!(urlObj.createdBy && !urlObj.createdBy.isActive && urlObj.createdBy.disableLinksOnBan);
+            // ownerBanned = owner exists AND is not active (regardless of disableLinksOnBan)
+            urlObj.ownerBanned = !!(urlObj.createdBy && !urlObj.createdBy.isActive);
             return urlObj;
         });
 
@@ -57,7 +84,7 @@ export const getAllLinks = async (req, res) => {
 // @access  Admin
 export const updateLinkStatus = async (req, res) => {
     try {
-        const url = await Url.findById(req.params.id);
+        const url = await Url.findById(req.params.linkId);
 
         if (!url) {
             return res.status(404).json({ message: 'URL not found' });
@@ -66,7 +93,7 @@ export const updateLinkStatus = async (req, res) => {
         // Atomic toggle of isActive status
         const newStatus = !url.isActive;
         const updatedUrl = await Url.findByIdAndUpdate(
-            req.params.id,
+            req.params.linkId,
             { $set: { isActive: newStatus } },
             { new: true }
         );
@@ -88,7 +115,7 @@ export const updateLinkStatus = async (req, res) => {
 // @access  Admin
 export const deleteLinkAdmin = async (req, res) => {
     try {
-        const url = await Url.findById(req.params.id);
+        const url = await Url.findById(req.params.linkId);
 
         if (!url) {
             return res.status(404).json({ message: 'URL not found' });

@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Settings from '../models/Settings.js';
 import Session from '../models/Session.js';
 import LoginHistory from '../models/LoginHistory.js';
+import UsernameHistory from '../models/UsernameHistory.js';
 import { generateAccessToken, generateRefreshToken } from '../utils/generateToken.js';
 import { createSession, validateSession, refreshSessionActivity, terminateSession, hashToken, terminateAllUserSessions } from '../utils/sessionHelper.js';
 import { registerSchema, loginSchema, updateProfileSchema, verifyOtpSchema, forgotPasswordSchema, resetPasswordSchema } from '../validators/authValidator.js';
@@ -10,6 +11,9 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import sendEmail from '../utils/sendEmail.js';
 import { welcomeEmail, verificationEmail, accountExistsEmail, passwordResetEmail } from '../utils/emailTemplates.js';
+import { isReservedWord } from '../config/reservedWords.js';
+import logger from '../utils/logger.js';
+import { generateUserIdentity } from '../services/idService.js';
 
 // Cookie settings - use 'strict' for permanent domains, 'lax' for tunnels/dev
 // Set COOKIE_SAMESITE=lax in .env if using temporary tunnels
@@ -26,15 +30,44 @@ const getCookieSameSite = () => {
 // @access  Public
 const registerUser = async (req, res, next) => {
   try {
+    // Note: Zod schema validation for username should ideally be added to authValidator.js
+    // For now, we manually validate or rely on DB validation, but it's cleaner to add to schema
     const result = registerSchema.safeParse(req.body);
     if (!result.success) {
       res.status(400);
       throw new Error(result.error.errors[0].message);
     }
 
-    const { email, password, firstName, lastName, phone, company, website } = result.data;
+    const { email, password, firstName, lastName, phone, company, website, username } = result.data;
 
+    // Validate username if provided (required by schema update, but handle safely)
+    if (!username) {
+        res.status(400);
+        throw new Error('Username is required');
+    }
+
+    // Check reserved words
+    if (isReservedWord(username)) {
+        res.status(400);
+        throw new Error('This username is not available');
+    }
+
+    // Check format (double check in controller)
+    if (!/^[a-z0-9_-]+$/.test(username)) {
+        res.status(400);
+        throw new Error('Username must be alphanumeric (letters, numbers, _, -)');
+    }
+
+    // Check for existing user by email
     const userExists = await User.findOne({ email });
+
+    // Check for existing user by username
+    const usernameExists = await User.findOne({ username });
+    if (usernameExists) {
+        res.status(400);
+        // Explicitly reveal this error as it's a public conflict check
+        throw new Error('Username is already taken');
+    }
 
     // SECURITY: Return generic message to prevent email enumeration attacks
     // Don't reveal whether the email is already registered
@@ -65,6 +98,10 @@ const registerUser = async (req, res, next) => {
         if (phone) userExists.phone = phone;
         if (company) userExists.company = company;
         if (website) userExists.website = website;
+        // Don't update username for existing user unless they are re-registering unverified? 
+        // Logic: if unverified, they effectively own the account slot, so maybe update it?
+        // Let's allow updating it if they are unverified.
+        if (username) userExists.username = username;
         
         // Generate new tokens
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -127,8 +164,13 @@ const registerUser = async (req, res, next) => {
     }
     const requireVerification = settings.requireEmailVerification;
 
+    // Generate Elite ID for new user (atomic sequence)
+    // generateEliteId is deprecated wrapper, using generateUserIdentity
+    const eliteIdData = await generateUserIdentity(false); // false = not admin
+
     // Common user data
     const userData = {
+      username,
       email,
       password,
       firstName,
@@ -136,6 +178,13 @@ const registerUser = async (req, res, next) => {
       phone,
       company,
       website,
+      // Elite ID system
+      eliteId: eliteIdData.eliteId,
+      snapId: eliteIdData.snapId,
+      idTier: eliteIdData.idTier,
+      idNumber: eliteIdData.idNumber,
+      // Legacy support (optional, can be removed if model allows sparse)
+      // internalId: eliteIdData.eliteId 
     };
 
     let user;
@@ -208,7 +257,9 @@ const registerUser = async (req, res, next) => {
 
       res.status(201).json({
         _id: user._id,
+        internalId: user.internalId,
         email: user.email,
+        username: user.username,
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
@@ -376,7 +427,9 @@ const verifyEmail = async (req, res, next) => {
     res.status(200).json({ 
       message: 'Email verified successfully!',
       _id: user._id,
+      internalId: user.internalId,
       email: user.email,
+      username: user.username,
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
@@ -399,9 +452,16 @@ const loginUser = async (req, res, next) => {
       throw new Error(result.error.errors[0].message);
     }
 
-    const { email, password } = result.data;
+    const { identifier, password } = result.data;
 
-    const user = await User.findOne({ email });
+    // Find user by email OR username (case-insensitive)
+    const identifierLower = identifier.toLowerCase();
+    const user = await User.findOne({
+      $or: [
+        { email: identifierLower },
+        { username: identifierLower }
+      ]
+    });
 
     // SECURITY: Always perform password comparison to prevent timing attacks
     // If user doesn't exist, compare against a dummy hash to maintain consistent timing
@@ -494,7 +554,9 @@ const loginUser = async (req, res, next) => {
 
       res.json({
         _id: user._id,
+        internalId: user.internalId,
         email: user.email,
+        username: user.username,
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
@@ -504,7 +566,7 @@ const loginUser = async (req, res, next) => {
       // Log failed login attempt (invalid credentials)
       await LoginHistory.create({
         userId: user ? user._id : null,
-        email: email,
+        email: user ? user.email : identifier,
         ip: req.ip,
         userAgent: req.headers['user-agent'],
         status: 'failed',
@@ -610,7 +672,7 @@ const refreshAccessToken = async (req, res, next) => {
         });
         return res.sendStatus(403);
       }
-    } catch (jwtError) {
+    } catch (_) {
       // JWT verification failed (expired or invalid)
       await terminateSession(refreshToken);
       res.clearCookie('jwt', {
@@ -636,9 +698,18 @@ const refreshAccessToken = async (req, res, next) => {
 // @desc    Get current user profile
 // @route   GET /api/auth/me
 // @access  Private
+// @desc    Get current user profile
+// @route   GET /api/auth/me
+// @access  Private
 const getMe = async (req, res) => {
   const user = {
     _id: req.user._id,
+    eliteId: req.user.eliteId,
+    snapId: req.user.snapId,
+    idTier: req.user.idTier,
+    idNumber: req.user.idNumber,
+    username: req.user.username,
+    usernameChangedAt: req.user.usernameChangedAt,
     email: req.user.email,
     firstName: req.user.firstName,
     lastName: req.user.lastName,
@@ -650,6 +721,10 @@ const getMe = async (req, res) => {
     role: req.user.role,
     createdAt: req.user.createdAt,
     lastLoginAt: req.user.lastLoginAt,
+    // Subscription & Usage data for frontend
+    subscription: req.user.subscription || { tier: 'free', status: 'active' },
+    linkUsage: req.user.linkUsage || { count: 0, resetAt: new Date() },
+    clickUsage: req.user.clickUsage || { count: 0, resetAt: new Date() },
   };
   res.status(200).json(user);
 };
@@ -665,12 +740,57 @@ const updateProfile = async (req, res, next) => {
       throw new Error(result.error.errors[0].message);
     }
 
-    const { firstName, lastName, phone, company, website, bio } = result.data;
+    const { firstName, lastName, phone, company, website, bio, username } = result.data;
 
     const user = await User.findById(req.user._id);
     if (!user) {
       res.status(404);
       throw new Error('User not found');
+    }
+
+    // Update Username if provided and different
+    if (username && username !== user.username) {
+        // 30-day cooldown check
+        if (user.usernameChangedAt) {
+            const daysSinceChange = (Date.now() - user.usernameChangedAt.getTime()) / (1000 * 60 * 60 * 24);
+            if (daysSinceChange < 30) {
+                const nextChangeDate = new Date(user.usernameChangedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+                res.status(400);
+                throw new Error(`Username change cooldown active. You can change your username again on ${nextChangeDate.toLocaleDateString()}`);
+            }
+        }
+
+        // Check reserved words
+        if (isReservedWord(username)) {
+            res.status(400);
+            throw new Error('This username is not available');
+        }
+
+        // Check format
+        if (!/^[a-z0-9_-]+$/.test(username)) {
+            res.status(400);
+            throw new Error('Username must be alphanumeric');
+        }
+
+        // Check uniqueness
+        const usernameExists = await User.findOne({ username: username.toLowerCase() });
+        if (usernameExists) {
+            res.status(400);
+            throw new Error('Username is already taken');
+        }
+
+        // Log username change to history
+        await UsernameHistory.create({
+            userId: user._id,
+            userInternalId: user.internalId,
+            previousUsername: user.username,
+            newUsername: username.toLowerCase(),
+            changedBy: null  // self-initiated
+        });
+
+        // Update username and cooldown timestamp
+        user.username = username.toLowerCase();
+        user.usernameChangedAt = new Date();
     }
 
     // Update fields
@@ -685,6 +805,7 @@ const updateProfile = async (req, res, next) => {
 
     res.json({
       _id: user._id,
+      username: user.username,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -965,4 +1086,45 @@ const resetPassword = async (req, res, next) => {
   }
 };
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken, getMe, updateProfile, changePassword, verifyEmail, verifyOTP, resendOTP, forgotPassword, resetPassword };
+// @desc    Check username availability
+// @route   GET /api/auth/check-username/:username
+// @access  Public (rate limited)
+const checkUsernameAvailability = async (req, res) => {
+  try {
+    const { username } = req.params;
+    
+    if (!username) {
+      return res.json({ available: false, reason: 'invalid' });
+    }
+
+    const usernameLower = username.toLowerCase().trim();
+    
+    // Validate length
+    if (usernameLower.length < 3 || usernameLower.length > 30) {
+      return res.json({ available: false, reason: 'invalid' });
+    }
+
+    // Validate format
+    if (!/^[a-z0-9_-]+$/.test(usernameLower)) {
+      return res.json({ available: false, reason: 'invalid' });
+    }
+    
+    // Check reserved words
+    if (isReservedWord(usernameLower)) {
+      return res.json({ available: false, reason: 'reserved' });
+    }
+    
+    // Check if exists in database
+    const exists = await User.findOne({ username: usernameLower });
+    
+    res.json({ 
+      available: !exists, 
+      reason: exists ? 'taken' : null 
+    });
+  } catch (error) {
+    console.error('Username check error:', error);
+    res.status(500).json({ available: false, reason: 'error' });
+  }
+};
+
+export { registerUser, loginUser, logoutUser, refreshAccessToken, getMe, updateProfile, changePassword, verifyEmail, verifyOTP, resendOTP, forgotPassword, resetPassword, checkUsernameAvailability };

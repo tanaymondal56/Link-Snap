@@ -156,12 +156,17 @@ const AdminOverview = () => {
                     {user.firstName || user.lastName ? (
                       <>
                         {user.firstName} {user.lastName} 
-                        <span className="text-gray-500 font-normal ml-2 text-xs">{user.email}</span>
+                        {user.username && <span className="text-purple-400 font-normal ml-2 text-xs">@{user.username}</span>}
                       </>
+                    ) : user.username ? (
+                      <span className="text-purple-400">@{user.username}</span>
                     ) : (
                       <span>{user.email}</span>
                     )}
                       </p>
+                      {(user.firstName || user.lastName || user.username) && (
+                        <p className="text-xs text-gray-500">{user.email}</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">

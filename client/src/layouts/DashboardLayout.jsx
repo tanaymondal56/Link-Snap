@@ -10,6 +10,7 @@ import {
   Menu,
   X,
   Shield,
+  Globe,
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 
@@ -49,6 +50,7 @@ const DashboardLayout = () => {
     { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
     { name: 'My Links', href: '/dashboard/links', icon: LinkIcon },
     { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
+    { name: 'Bio Page', href: '/dashboard/bio', icon: Globe },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
   ];
 

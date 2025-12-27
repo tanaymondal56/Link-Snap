@@ -86,7 +86,7 @@ const DevCommandCenter = () => {
     // Quick Actions
     { id: 'share-url', label: 'Copy Page URL', icon: Share2, action: () => { navigator.clipboard.writeText(window.location.href); toast.success('URL copied!'); }, category: 'Quick', keywords: 'copy link share' },
     { id: 'create-link', label: 'Create New Link', icon: Link2, action: () => navigate('/dashboard'), category: 'Quick', keywords: 'shorten url' },
-    { id: 'qr-code', label: 'QR Code for Page', icon: Share2, action: () => { window.open(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(window.location.href)}`, '_blank'); }, category: 'Quick', keywords: 'qrcode scan' },
+    { id: 'qr-code', label: 'Copy Page URL (QR)', icon: Share2, action: () => { navigator.clipboard.writeText(window.location.href); toast.success('URL copied! Use any QR generator.'); }, category: 'Quick', keywords: 'qrcode scan share' },
     
     // Navigation
     { id: 'admin-console', label: 'Admin Console', icon: Shield, action: () => navigate('/admin-console'), category: 'Navigation', keywords: 'admin panel' },

@@ -1,7 +1,8 @@
-import Url from '../models/Url.js';
 import User from '../models/User.js';
+import Url from '../models/Url.js';
 import { trackVisit } from '../services/analyticsService.js';
 import { getFromCache, setInCache } from '../services/cacheService.js';
+import { checkAndIncrementClickUsage } from '../middleware/subscriptionMiddleware.js';
 
 // Helper to escape HTML to prevent XSS
 const escapeHtml = (unsafe) => {
@@ -891,9 +892,8 @@ const getInactiveLinkPage = (shortId) => `
             <div class="info-box">
                 <p>
                     <strong>Why am I seeing this?</strong><br>
-                    The link owner or an administrator has disabled this link. This could be temporary maintenance or a permanent change.
+                    This link has been deactivated by the owner or an administrator. It may be due to a violation of our terms of service or a manual deactivation.
                 </p>
-                <span class="link-id">/${shortId}</span>
             </div>
             
             <div class="divider"></div>
@@ -952,8 +952,9 @@ const getExpiredLinkPage = (shortId, expiresAt) => {
         .icon { width: 40px; height: 40px; stroke: #f59e0b; stroke-width: 2; fill: none; }
         h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 12px; background: linear-gradient(135deg, #fff 0%, #fcd34d 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
         .subtitle { color: #94a3b8; font-size: 1rem; line-height: 1.6; margin-bottom: 32px; }
-        .info-box { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 12px; padding: 16px; margin-bottom: 24px; }
-        .info-box p { color: #fcd34d; font-size: 0.875rem; }
+        .info-box { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 16px; padding: 24px; margin-bottom: 32px; text-align: left; }
+        .info-box p { color: #fbbf24; font-size: 1.1rem; line-height: 1.6; font-weight: 500; }
+        .info-box strong { display: block; margin-bottom: 8px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: #d97706; }
         .link-id { display: inline-block; background: rgba(255, 255, 255, 0.1); padding: 4px 12px; border-radius: 6px; font-family: monospace; color: #f59e0b; margin: 8px 0; }
         .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 16px 28px; border-radius: 14px; font-size: 1rem; font-weight: 600; text-decoration: none; transition: all 0.3s ease; cursor: pointer; border: none; width: 100%; margin-bottom: 12px; }
         .btn-primary { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #fff; box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4); }
@@ -975,10 +976,13 @@ const getExpiredLinkPage = (shortId, expiresAt) => {
                 </svg>
             </div>
             <h1>Link Expired</h1>
-            <p class="subtitle">This shortened link is no longer available because it has passed its expiration date.</p>
+            <p class="subtitle">The secure link you are trying to access is no longer active as its designated validity period has lapsed.</p>
             <div class="info-box">
-                <p>🔗 <code class="link-id">${escapeHtml(shortId)}</code></p>
-                ${expiredDate ? `<p style="font-size: 0.75rem; margin-top: 8px; color: #94a3b8;">Expired on: ${expiredDate}</p>` : ''}
+                <p>
+                    <strong>Reason for Deactivation</strong><br>
+                    This link was configured with an automatic expiration timer which has now reached its conclusion. Access to the destination URL is permanently disabled for this link.
+                </p>
+                ${expiredDate ? `<p style="font-size: 0.75rem; margin-top: 8px; color: #94a3b8;">Expiration Timestamp: ${expiredDate}</p>` : ''}
             </div>
             <div class="cta-section">
                 <a href="/" class="btn btn-primary">Go to Homepage</a>
@@ -1160,6 +1164,56 @@ const getPasswordEntryPage = (shortId, title) => {
 `;
 };
 
+// HTML page for limit exceeded
+const getLimitReachedPage = () => `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link Unavailable - Link Snap</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, system-ui, sans-serif;
+            background: #0f172a;
+            color: #fff;
+        }
+        .card {
+            background: rgba(30, 41, 59, 0.7);
+            padding: 2rem;
+            border-radius: 1rem;
+            text-align: center;
+            max-width: 400px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        h1 { margin-bottom: 1rem; color: #f87171; }
+        p { color: #94a3b8; margin-bottom: 1.5rem; line-height: 1.5; }
+        .btn {
+            display: inline-block;
+            background: #3b82f6;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Link Temporarily Unavailable</h1>
+        <p>This link has reached its monthly traffic limit. Please contact the link owner or try again next month.</p>
+        <a href="/" class="btn">Go to Link Snap</a>
+    </div>
+</body>
+</html>
+`;
+
 export const redirectUrl = async (req, res, next) => {
     const { shortId } = req.params;
 
@@ -1205,6 +1259,14 @@ export const redirectUrl = async (req, res, next) => {
             // Check if link is password protected
             if (cached.isPasswordProtected) {
                 return res.send(getPasswordEntryPage(shortId, cached.title));
+            }
+
+            // CHECK & INCREMENT USER USAGE (Atomic)
+            if (cached.ownerId) {
+                const usageCheck = await checkAndIncrementClickUsage(cached.ownerId);
+                if (!usageCheck.allowed) {
+                     return res.status(403).send(getLimitReachedPage());
+                }
             }
 
             // Async: Update clicks in DB (fire and forget)
@@ -1254,6 +1316,14 @@ export const redirectUrl = async (req, res, next) => {
         // Check if link is password protected
         if (url.isPasswordProtected) {
             return res.send(getPasswordEntryPage(shortId, url.title));
+        }
+
+        // CHECK & INCREMENT USER USAGE (Atomic)
+        if (url.createdBy) {
+            const usageCheck = await checkAndIncrementClickUsage(url.createdBy);
+            if (!usageCheck.allowed) {
+                 return res.status(403).send(getLimitReachedPage());
+            }
         }
 
         // 4. Store in cache with ban status

@@ -67,6 +67,18 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [linkSearch, setLinkSearch] = useState('');
   const [expandedUserId, setExpandedUserId] = useState(null);
+  const [userSearch, setUserSearch] = useState('');
+
+  const filteredUsers = users.filter((user) => {
+    if (!userSearch) return true;
+    const term = userSearch.toLowerCase();
+    return (
+      (user.email?.toLowerCase().includes(term)) ||
+      (user.firstName?.toLowerCase().includes(term)) ||
+      (user.lastName?.toLowerCase().includes(term)) ||
+      (user.username?.toLowerCase().includes(term))
+    );
+  });
 
   // Email configuration state
   const [emailForm, setEmailForm] = useState({
@@ -875,16 +887,28 @@ const AdminDashboard = () => {
               </button>
             </div>
 
+            {/* Search Users */}
+            <div className="px-4 sm:px-6 mb-4 relative">
+              <Search className="absolute left-7 sm:left-9 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+              <input
+                type="text"
+                placeholder="Search users by email, name or username..."
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all"
+              />
+            </div>
+
             {/* Mobile Card View for Users */}
             <div className="md:hidden p-3 space-y-3">
-              {users.length === 0 ? (
+              {filteredUsers.length === 0 ? (
                 <div className="flex flex-col items-center gap-3 py-12">
                   <Users className="w-12 h-12 text-gray-600" />
                   <p className="text-gray-400 font-medium">No users found</p>
-                  <p className="text-gray-500 text-sm">Users will appear here once they register</p>
+                  <p className="text-gray-500 text-sm">Try adjusting your search</p>
                 </div>
               ) : (
-                users.map((user) => (
+                filteredUsers.map((user) => (
                   <div
                     key={user._id}
                     className="bg-gray-800/30 border border-gray-700/50 rounded-xl overflow-hidden"
@@ -1193,6 +1217,7 @@ const AdminDashboard = () => {
                   <tr className="bg-gray-800/80 text-gray-400 text-sm uppercase tracking-wider">
                     <th className="px-6 py-4 font-medium w-10"></th>
                     <th className="px-6 py-4 font-medium">User</th>
+                    <th className="px-6 py-4 font-medium">Username</th>
                     <th className="px-6 py-4 font-medium">Name</th>
                     <th className="px-6 py-4 font-medium">Role</th>
                     <th className="px-6 py-4 font-medium">Status</th>
@@ -1201,20 +1226,20 @@ const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700/50">
-                  {users.length === 0 && (
+                  {filteredUsers.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center">
+                      <td colSpan={8} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Users className="w-12 h-12 text-gray-600" />
                           <p className="text-gray-400 font-medium">No users found</p>
                           <p className="text-gray-500 text-sm">
-                            Users will appear here once they register
+                            Try adjusting your search
                           </p>
                         </div>
                       </td>
                     </tr>
                   )}
-                  {users.map((user) => (
+                  {filteredUsers.map((user) => (
                     <Fragment key={user._id}>
                       <tr
                         className="hover:bg-gray-700/30 transition-colors cursor-pointer"
@@ -1240,6 +1265,9 @@ const AdminDashboard = () => {
                             </div>
                             <span className="text-white font-medium">{user.email}</span>
                           </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-gray-300">{user.username ? `@${user.username}` : '—'}</span>
                         </td>
                         <td className="px-6 py-4">
                           {user.firstName || user.lastName ? (
@@ -1357,7 +1385,7 @@ const AdminDashboard = () => {
                       {/* Expanded User Details */}
                       {expandedUserId === user._id && (
                         <tr className="bg-gray-800/30">
-                          <td colSpan={7} className="px-6 py-4">
+                          <td colSpan={8} className="px-6 py-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                               {/* Phone */}
                               <div className="flex items-center gap-3 bg-gray-800/50 rounded-xl p-3 border border-gray-700/50">

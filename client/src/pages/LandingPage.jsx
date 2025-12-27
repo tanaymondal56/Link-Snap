@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Copy,
@@ -17,6 +18,7 @@ import {
   Lock,
   Eye,
   EyeOff,
+  Crown,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
@@ -25,6 +27,10 @@ import { useAppVersion } from '../hooks/useAppVersion';
 import showToast from '../components/ui/Toast';
 import { getShortUrl } from '../utils/urlHelper';
 import LinkSuccessModal from '../components/LinkSuccessModal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { isFreeTier } from '../utils/subscriptionUtils';
+import { ProBadge } from '../components/subscription/PremiumField';
+import { usePremiumField } from '../hooks/usePremiumField';
 
 // Expiration presets for landing page
 const EXPIRATION_OPTIONS = [
@@ -122,6 +128,19 @@ const LandingPage = () => {
   const baseDomain = getBaseDomain();
   const displayDomain = getDisplayDomain(baseDomain);
 
+  // Premium field access states - called at component level
+  const aliasField = usePremiumField('custom_alias');
+  const expirationField = usePremiumField('link_expiration');
+  const passwordField = usePremiumField('password_protection');
+  
+  // Hover states for premium field tooltips
+  const [showAliasUpgrade, setShowAliasUpgrade] = useState(false);
+  const [showExpirationUpgrade, setShowExpirationUpgrade] = useState(false);
+  const [showPasswordUpgrade, setShowPasswordUpgrade] = useState(false);
+  
+  // Guest warning state
+  const [showGuestWarning, setShowGuestWarning] = useState(false);
+
   // Check alias availability
   const checkAlias = useCallback(async (alias) => {
     if (!alias || alias.length < 3) {
@@ -164,6 +183,10 @@ const LandingPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    handleLinkCreation();
+  };
+
+  const handleLinkCreation = async (isConfirmedGuest = false) => {
     if (!url) return;
 
     // Validate URL format
@@ -182,6 +205,12 @@ const LandingPage = () => {
     if (user && enablePassword && password.length < 4) {
       showToast.error('Password must be at least 4 characters');
       return;
+    }
+
+    // Check for guest user and show warning
+    if (!user && !isConfirmedGuest) {
+        setShowGuestWarning(true);
+        return;
     }
 
     setIsLoading(true);
@@ -209,10 +238,8 @@ const LandingPage = () => {
       setShortUrl(getShortUrl(data.shortId));
       setCreatedLink(data);
 
-      // For logged-in users with any result, show success modal
-      if (user) {
-        setShowSuccessModal(true);
-      }
+      // Show success modal for all users (guests need to see expiry warning)
+      setShowSuccessModal(true);
 
       showToast.success('Your short link is ready!', 'Link Created');
     } catch (error) {
@@ -264,6 +291,18 @@ const LandingPage = () => {
 
   return (
     <div className="flex flex-col relative overflow-hidden bg-gray-950 text-white font-sans selection:bg-purple-500/30 h-full">
+      {/* SEO Meta Tags */}
+      <Helmet>
+        <title>Link Snap | Free URL Shortener with Analytics</title>
+        <meta name="description" content="Create short, memorable links with powerful analytics. Track clicks, locations, and devices. Free forever with optional Pro features." />
+        <meta property="og:title" content="Link Snap | Free URL Shortener" />
+        <meta property="og:description" content="Shorten URLs, track clicks, and share smarter. Free forever." />
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Link Snap | Free URL Shortener" />
+        <meta name="twitter:description" content="Create short links with powerful analytics. Free forever." />
+      </Helmet>
+
       {/* Background Gradients */}
       <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 rounded-full blur-[120px] animate-pulse" />
       <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-600/20 rounded-full blur-[120px] animate-pulse delay-1000" />
@@ -362,66 +401,92 @@ const LandingPage = () => {
                   </div>
                 </div>
 
-                {/* Custom Alias Input - Only for logged in users */}
-                {user && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
-                      Custom Alias
-                      <span className="text-xs text-gray-500 font-normal">(optional)</span>
-                      <Sparkles size={14} className="text-purple-400" />
-                    </label>
-                    <div className="relative group">
-                      <span
-                        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none truncate max-w-[45%]"
-                        title={baseDomain}
-                      >
-                        {displayDomain}/
-                      </span>
-                      <input
-                        type="text"
-                        className={`block w-full pr-10 py-4 bg-gray-900/50 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all ${
-                          customAlias.length === 0
+                {/* Custom Alias Input - Disabled with hover tooltip for non-Pro users */}
+                <div 
+                  className="space-y-2 relative"
+                  onMouseEnter={() => aliasField.isLocked && setShowAliasUpgrade(true)}
+                  onMouseLeave={() => setShowAliasUpgrade(false)}
+                >
+                  <label className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
+                    Custom Alias
+                    <span className="text-xs text-gray-500 font-normal">(optional)</span>
+                    {aliasField.isLocked ? <ProBadge /> : <Sparkles size={14} className="text-purple-400" />}
+                  </label>
+                  <div className="relative">
+                    <span
+                      className={`absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none truncate max-w-[45%] ${aliasField.isLocked ? 'opacity-50' : ''}`}
+                      title={baseDomain}
+                    >
+                      {displayDomain}/
+                    </span>
+                    <input
+                      type="text"
+                      disabled={aliasField.isLocked}
+                      className={`block w-full pr-10 py-4 bg-gray-900/50 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all ${
+                        aliasField.isLocked
+                          ? 'border-gray-700/50 cursor-not-allowed opacity-50'
+                          : customAlias.length === 0
                             ? 'border-gray-700'
                             : aliasStatus.available === true
                               ? 'border-green-500/50'
                               : aliasStatus.available === false
                                 ? 'border-red-500/50'
                                 : 'border-gray-700'
-                        }`}
-                        style={{ paddingLeft: `${displayDomain.length * 7.5 + 28}px` }}
-                        placeholder="my-brand"
-                        value={customAlias}
-                        onChange={handleAliasChange}
-                        maxLength={20}
-                      />
+                      }`}
+                      style={{ paddingLeft: `${displayDomain.length * 7.5 + 28}px` }}
+                      placeholder="my-brand"
+                      value={aliasField.isLocked ? '' : customAlias}
+                      onChange={aliasField.isLocked ? undefined : handleAliasChange}
+                      maxLength={20}
+                    />
+                    {/* Hover tooltip for locked state */}
+                    {showAliasUpgrade && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm rounded-xl z-10">
+                        <Link
+                          to={aliasField.upgradePath}
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
+                        >
+                          <Crown size={16} />
+                          {aliasField.upgradeText}
+                        </Link>
+                      </div>
+                    )}
+                    {/* Alias availability icon - only when not locked */}
+                    {!aliasField.isLocked && (
                       <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
                         {getAliasStatusIcon()}
                       </div>
-                    </div>
-                    {customAlias.length > 0 && customAlias.length < 3 && (
-                      <p className="text-xs text-gray-500 ml-1">Minimum 3 characters</p>
-                    )}
-                    {aliasStatus.reason && aliasStatus.available === false && (
-                      <p className="text-xs text-red-400 ml-1">{aliasStatus.reason}</p>
-                    )}
-                    {aliasStatus.available === true && (
-                      <p className="text-xs text-green-400 ml-1">✓ This alias is available!</p>
                     )}
                   </div>
-                )}
+                  {!aliasField.isLocked && customAlias.length > 0 && customAlias.length < 3 && (
+                    <p className="text-xs text-gray-500 ml-1">Minimum 3 characters</p>
+                  )}
+                  {!aliasField.isLocked && aliasStatus.reason && aliasStatus.available === false && (
+                    <p className="text-xs text-red-400 ml-1">{aliasStatus.reason}</p>
+                  )}
+                  {!aliasField.isLocked && aliasStatus.available === true && (
+                    <p className="text-xs text-green-400 ml-1">✓ This alias is available!</p>
+                  )}
+                </div>
 
-                {/* Expiration Dropdown - Only for logged in users */}
-                {user && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
-                      <Clock size={14} className="text-amber-400" />
-                      Link Expiration
-                      <span className="text-xs text-gray-500 font-normal">(optional)</span>
-                    </label>
+                {/* Expiration Dropdown - Disabled with hover tooltip for non-Pro users */}
+                <div 
+                  className="space-y-2 relative"
+                  onMouseEnter={() => expirationField.isLocked && setShowExpirationUpgrade(true)}
+                  onMouseLeave={() => setShowExpirationUpgrade(false)}
+                >
+                  <label className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
+                    <Clock size={14} className="text-amber-400" />
+                    Link Expiration
+                    <span className="text-xs text-gray-500 font-normal">(optional)</span>
+                    {expirationField.isLocked ? <ProBadge /> : <Sparkles size={14} className="text-amber-400" />}
+                  </label>
+                  <div className="relative">
                     <select
-                      value={expiresIn}
-                      onChange={(e) => setExpiresIn(e.target.value)}
-                      className="block w-full py-4 px-4 bg-gray-900/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all appearance-none cursor-pointer"
+                      value={expirationField.isLocked ? 'never' : expiresIn}
+                      onChange={expirationField.isLocked ? undefined : (e) => setExpiresIn(e.target.value)}
+                      disabled={expirationField.isLocked}
+                      className={`block w-full py-4 px-4 bg-gray-900/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all appearance-none ${expirationField.isLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                       style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 1rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}
                     >
                       {EXPIRATION_OPTIONS.map((option) => (
@@ -430,63 +495,96 @@ const LandingPage = () => {
                         </option>
                       ))}
                     </select>
-                    {expiresIn === 'custom' && (
-                      <input
-                        type="datetime-local"
-                        value={customExpiresAt}
-                        onChange={(e) => setCustomExpiresAt(e.target.value)}
-                        min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
-                        className="block w-full py-3 px-4 mt-2 bg-gray-900/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all"
-                      />
-                    )}
-                  </div>
-                )}
-
-                {/* Password Protection - Only for logged in users */}
-                {user && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
-                      <Lock size={14} className="text-purple-400" />
-                      Password Protection
-                      <span className="text-xs text-gray-500 font-normal">(optional)</span>
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => { setEnablePassword(!enablePassword); if (enablePassword) setPassword(''); }}
-                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${enablePassword ? 'bg-purple-600' : 'bg-gray-700'}`}
-                      >
-                        <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${enablePassword ? 'translate-x-5' : 'translate-x-0'}`} />
-                      </button>
-                      <span className="text-sm text-gray-400">{enablePassword ? 'Enabled' : 'Disabled'}</span>
-                    </div>
-                    {enablePassword && (
-                      <div className="relative mt-2 group">
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Enter password (min. 4 characters)"
-                          className="block w-full py-4 pl-4 pr-12 bg-gray-900/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
-                          maxLength={100}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                    {/* Hover tooltip for locked state */}
+                    {showExpirationUpgrade && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm rounded-xl z-10">
+                        <Link
+                          to={expirationField.upgradePath}
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
                         >
-                          {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                        </button>
-                        {password.length > 0 && password.length < 4 && (
-                          <p className="text-xs text-red-400 ml-1 mt-1">Password must be at least 4 characters</p>
-                        )}
-                        {password.length >= 4 && (
-                          <p className="text-xs text-green-400 ml-1 mt-1">✓ Password ready</p>
-                        )}
+                          <Crown size={16} />
+                          {expirationField.upgradeText}
+                        </Link>
                       </div>
                     )}
                   </div>
-                )}
+                  {!expirationField.isLocked && expiresIn === 'custom' && (
+                    <input
+                      type="datetime-local"
+                      value={customExpiresAt}
+                      onChange={(e) => setCustomExpiresAt(e.target.value)}
+                      min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
+                      className="block w-full py-3 px-4 mt-2 bg-gray-900/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all"
+                    />
+                  )}
+                </div>
+
+                {/* Password Protection - Disabled with hover tooltip for non-Pro users */}
+                <div 
+                  className="space-y-2 relative"
+                  onMouseEnter={() => passwordField.isLocked && setShowPasswordUpgrade(true)}
+                  onMouseLeave={() => setShowPasswordUpgrade(false)}
+                >
+                  <label className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
+                    <Lock size={14} className="text-purple-400" />
+                    Password Protection
+                    <span className="text-xs text-gray-500 font-normal">(optional)</span>
+                    {passwordField.isLocked ? <ProBadge /> : <Sparkles size={14} className="text-purple-400" />}
+                  </label>
+                  <div className="relative">
+                    <div className={`flex items-center gap-3 ${passwordField.isLocked ? 'opacity-50' : ''}`}>
+                      <button
+                        type="button"
+                        disabled={passwordField.isLocked}
+                        onClick={passwordField.isLocked ? undefined : () => { setEnablePassword(!enablePassword); if (enablePassword) setPassword(''); }}
+                        className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          passwordField.isLocked 
+                            ? 'bg-gray-700/50 cursor-not-allowed' 
+                            : enablePassword ? 'bg-purple-600 cursor-pointer' : 'bg-gray-700 cursor-pointer'
+                        }`}
+                      >
+                        <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${enablePassword && !passwordField.isLocked ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </button>
+                      <span className="text-sm text-gray-400">
+                        {passwordField.isLocked ? 'Locked' : enablePassword ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </div>
+                    {/* Hover tooltip for locked state */}
+                    {showPasswordUpgrade && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm rounded-xl z-10">
+                        <Link
+                          to={passwordField.upgradePath}
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
+                        >
+                          <Crown size={16} />
+                          {passwordField.upgradeText}
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                  {!passwordField.isLocked && enablePassword && (
+                    <div className="relative mt-2 group">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter password (min. 4 characters)"
+                        className="block w-full py-4 pl-4 pr-12 bg-gray-900/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+                        maxLength={100}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                      >
+                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                      </button>
+                      {password.length > 0 && password.length < 4 && (
+                        <p className="text-xs text-red-400 ml-1 mt-1">Password must be at least 4 characters</p>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <button
                   type="submit"
@@ -560,6 +658,31 @@ const LandingPage = () => {
         </div>
       </main>
 
+      {/* Guest Warning Modal */}
+      <ConfirmDialog
+        isOpen={showGuestWarning}
+        title="Create Temporary Link?"
+        message={
+            <div className="space-y-3 text-left">
+                <p>You are about to create a link as a guest. <span className="text-amber-400 font-bold">Guest links expire in 7 days and cannot be edited.</span></p>
+                <p className="text-sm text-gray-400">To create permanent links, customize with your brand, and track analytics, please sign in or create an account.</p>
+            </div>
+        }
+        confirmLabel="Continue as Guest"
+        cancelLabel="Sign In / Register"
+        confirmVariant="secondary"
+        onConfirm={() => {
+            setShowGuestWarning(false);
+            handleLinkCreation(true);
+        }}
+        onCancel={() => {
+            setShowGuestWarning(false);
+            window.location.href = '/login'; 
+        }}
+        isWarning={true}
+        showClose={true}
+      />
+
       {/* Success Modal for Logged-in Users */}
       <LinkSuccessModal
         isOpen={showSuccessModal}
@@ -567,9 +690,10 @@ const LandingPage = () => {
         linkData={createdLink}
       />
 
-      {/* Footer / Features Compact */}
-      <div className="border-t border-white/5 bg-black/20 backdrop-blur-sm py-12 mt-auto">
-        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8">
+      {/* Features & Footer Section */}
+      <div className="border-t border-white/5 bg-black/20 backdrop-blur-sm mt-auto">
+        {/* Features Grid */}
+        <div className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="flex gap-4 items-start">
             <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400">
               <Zap size={24} />
@@ -604,6 +728,25 @@ const LandingPage = () => {
             </div>
           </div>
         </div>
+
+        {/* Pricing CTA - Only show for free tier or not logged in */}
+        {(!user || isFreeTier(user)) && (
+          <div className="max-w-7xl mx-auto px-6 pb-12">
+            <div className="bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 rounded-2xl border border-white/10 p-8 text-center">
+              <h3 className="text-2xl font-bold text-white mb-2">Ready to level up?</h3>
+              <p className="text-gray-400 mb-6 max-w-xl mx-auto">
+                Get custom aliases, link expiration, password protection, and more with Pro.
+              </p>
+              <Link
+                to="/pricing"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-purple-500/20 hover:shadow-purple-500/30"
+              >
+                View Pricing
+                <ArrowRight size={18} />
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

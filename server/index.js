@@ -28,6 +28,7 @@ import changelogRoutes from './routes/changelogRoutes.js';
 import feedbackRoutes from './routes/feedbackRoutes.js';
 import sessionRoutes from './routes/sessionRoutes.js';
 import redirectRoutes from './routes/redirectRoutes.js';
+import bioRoutes from './routes/bioRoutes.js';
 import { startBanScheduler } from './services/banScheduler.js';
 
 const app = express();
@@ -80,6 +81,9 @@ if (process.env.NODE_ENV === 'production') {
   allowedOrigins.push(process.env.CLIENT_URL);
 }
 
+import webhookRoutes from './routes/webhookRoutes.js';
+import subscriptionRoutes from './routes/subscriptionRoutes.js';
+
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps, curl, or same-origin in production)
@@ -106,7 +110,16 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
+
+// Use JSON parser with raw body capture for webhooks
+app.use(express.json({
+  verify: (req, res, buf) => {
+    // Store raw body for webhook signature verification
+    if (req.originalUrl.startsWith('/api/webhooks')) {
+      req.rawBody = buf;
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
@@ -157,6 +170,9 @@ app.use('/api/appeals', appealRoutes);
 app.use('/api/changelog', changelogRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/sessions', sessionRoutes);
+app.use('/api/webhooks', webhookRoutes);
+app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/bio', bioRoutes);
 
 // Serve static assets in production (BEFORE redirect routes)
 if (process.env.NODE_ENV === 'production') {

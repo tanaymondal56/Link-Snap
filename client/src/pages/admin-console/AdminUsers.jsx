@@ -17,7 +17,9 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
-  Loader2
+  Loader2,
+  Crown,
+  Zap
 } from 'lucide-react';
 import GlassTable from '../../components/admin-console/ui/GlassTable';
 import api from '../../api/axios';
@@ -28,9 +30,11 @@ import { useConfirm } from '../../context/ConfirmContext';
 import showToast from '../../components/ui/Toast';
 
 import CreateUserModal from '../../components/admin-console/CreateUserModal';
+import ManageSubscriptionModal from '../../components/admin-console/ManageSubscriptionModal';
 import UserDetailsModal from '../../components/admin-console/UserDetailsModal';
 
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
+import IdBadge from '../../components/ui/IdBadge';
 
 const AdminUsers = () => {
   const confirm = useConfirm();
@@ -50,6 +54,7 @@ const AdminUsers = () => {
   const [unbanModalUser, setUnbanModalUser] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [detailsUser, setDetailsUser] = useState(null);
+  const [manageSubUser, setManageSubUser] = useState(null);
   
   // User Dropdown State
   const [openActionId, setOpenActionId] = useState(null);
@@ -210,6 +215,11 @@ const AdminUsers = () => {
     }
   };
 
+  // Callback to update user after subscription change
+  const handleUserUpdate = (updatedUser) => {
+    setUsers(users.map(u => u._id === updatedUser._id ? { ...u, ...updatedUser } : u));
+  };
+
   // Note: Client-side filtering removed - now handled server-side via API params
 
   return (
@@ -324,6 +334,7 @@ const AdminUsers = () => {
                   </div>
                   <div>
                     <div className="font-medium text-white">{user.firstName} {user.lastName}</div>
+                    {user.username && <div className="text-xs text-purple-400">@{user.username}</div>}
                     <div className="text-xs text-gray-400">{user.email}</div>
                   </div>
                 </div>
@@ -367,6 +378,19 @@ const AdminUsers = () => {
                     <Users size={16} /> View Details
                   </button>
                   <button 
+                    onClick={() => {
+                      setManageSubUser(user);
+                      setOpenActionId(null);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-3 hover:bg-white/5 text-blue-400"
+                  >
+                   {user.subscription?.tier === 'pro' || user.subscription?.tier === 'business' ? (
+                       <><Crown size={16} /> Manage Subscription</>
+                   ) : (
+                       <><Crown size={16} /> Gift Premium</>
+                   )}
+                  </button>
+                  <button 
                     onClick={() => handleToggleUserStatus(user)}
                     className={`w-full flex items-center gap-2 px-4 py-3 hover:bg-white/5 ${
                       isUserBanned(user) ? 'text-green-400' : 'text-red-400'
@@ -397,14 +421,14 @@ const AdminUsers = () => {
 
       {/* Desktop Table View */}
       <div className="hidden md:block">
-        <GlassTable headers={['User', 'Name', 'Role', 'Status', 'Joined', 'Actions']}>
+        <GlassTable headers={['User', 'ID', 'Username', 'Name', 'Role', 'Status', 'Joined', 'Actions']}>
         {loading ? (
           <tr>
-            <td colSpan="6" className="p-8 text-center text-gray-500">Loading users...</td>
+            <td colSpan="8" className="p-8 text-center text-gray-500">Loading users...</td>
           </tr>
         ) : users.length === 0 ? (
           <tr>
-            <td colSpan="6" className="p-8 text-center text-gray-500">No users found</td>
+            <td colSpan="8" className="p-8 text-center text-gray-500">No users found</td>
           </tr>
         ) : (
           users.map((user) => (
@@ -414,8 +438,46 @@ const AdminUsers = () => {
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-600 flex items-center justify-center text-sm font-bold text-white shadow-lg">
                     {user.firstName ? user.firstName[0] : user.email[0].toUpperCase()}
                   </div>
-                  <div className="font-medium text-white">{user.email}</div>
+                  <div className="font-medium text-white flex items-center gap-2">
+                    {user.email}
+                    {user.subscription?.tier === 'pro' && (
+                      <span className="p-0.5 rounded bg-purple-500/10 border border-purple-500/20" title="Pro Plan">
+                        <Crown size={12} className="text-purple-400" />
+                      </span>
+                    )}
+                    {user.subscription?.tier === 'business' && (
+                      <span className="p-0.5 rounded bg-amber-500/10 border border-amber-500/20" title="Business Plan">
+                        <Zap size={12} className="text-amber-400" />
+                      </span>
+                    )}
+                  </div>
                 </div>
+              </td>
+                <td className="p-4 whitespace-nowrap">
+                  <div className="flex flex-col gap-1.5 items-start">
+                    {(user.eliteId) && user.idTier ? (
+                      <IdBadge 
+                        eliteId={user.eliteId} 
+                        idTier={user.idTier} 
+                        size="sm" 
+                        showTooltip={false} 
+                      />
+                    ) : (
+                      <span className="text-gray-600 text-xs">—</span>
+                    )}
+                    {user.snapId && (
+                      <code className="text-[10px] text-gray-500 font-mono bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
+                        {user.snapId}
+                      </code>
+                    )}
+                  </div>
+                </td>
+              <td className="p-4 whitespace-nowrap">
+                {user.username ? (
+                  <span className="text-purple-400">@{user.username}</span>
+                ) : (
+                  <span className="text-gray-500">—</span>
+                )}
               </td>
               <td className="p-4 whitespace-nowrap">
                 {user.firstName || user.lastName ? (
@@ -457,6 +519,10 @@ const AdminUsers = () => {
                   <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
                     <AlertCircle size={12} /> Unverified
                   </span>
+                ) : user.subscription?.status === 'paused' ? (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                    <Timer size={12} /> Paused
+                  </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
                     <UserCheck size={12} /> Active
@@ -488,6 +554,19 @@ const AdminUsers = () => {
                           className="w-full text-left px-4 py-3 text-sm hover:bg-white/5 flex items-center gap-2 text-gray-300 hover:text-white"
                         >
                           <MoreVertical size={16} /> View Details
+                        </button>
+                        <button 
+                            onClick={() => {
+                                setManageSubUser(user);
+                                setOpenActionId(null);
+                            }}
+                            className="w-full text-left px-4 py-3 text-sm hover:bg-white/5 flex items-center gap-2 text-blue-400 hover:text-blue-300"
+                        >
+                            {user.subscription?.tier === 'pro' || user.subscription?.tier === 'business' ? (
+                                <><Crown size={16} /> Manage Subscription</>
+                            ) : (
+                                <><Crown size={16} /> Gift Premium</>
+                            )}
                         </button>
                         <button 
                           onClick={() => handleToggleRole(user)}
@@ -594,6 +673,12 @@ const AdminUsers = () => {
         isOpen={!!detailsUser}
         onClose={() => setDetailsUser(null)}
         user={detailsUser}
+      />
+      <ManageSubscriptionModal 
+        isOpen={!!manageSubUser}
+        onClose={() => setManageSubUser(null)}
+        user={manageSubUser}
+        onUpdate={handleUserUpdate}
       />
     </div>
   );

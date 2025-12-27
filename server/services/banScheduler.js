@@ -96,6 +96,7 @@ const processExpiredBans = async () => {
                 // Log in ban history
                 await BanHistory.create({
                     userId: user._id,
+                    userInternalId: user.internalId,
                     action: 'temp_ban_expired',
                     reason: 'Temporary ban period expired - automatically unbanned',
                     linksAffected: true,

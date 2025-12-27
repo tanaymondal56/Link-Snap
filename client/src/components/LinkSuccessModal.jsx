@@ -1,10 +1,14 @@
 import { useState } from 'react';
-import { X, Link as LinkIcon, Sparkles, Check, ExternalLink, Copy, Download } from 'lucide-react';
+import { X, Link as LinkIcon, Sparkles, Check, ExternalLink, Copy, Download, AlertTriangle, Clock } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 import { QRCodeSVG } from 'qrcode.react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import showToast from '../components/ui/Toast';
 import { getShortUrl } from '../utils/urlHelper';
 
 const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
+  const { user } = useAuth();
   const [copiedId, setCopiedId] = useState(null);
 
   if (!isOpen || !linkData) return null;
@@ -74,6 +78,22 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
 
         {/* Content */}
         <div className="p-5 space-y-6">
+          {/* Guest/Expiry Warning */}
+          {linkData.expiresAt && (
+            <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl animate-fade-in">
+                <Clock className="text-amber-400 shrink-0 mt-0.5" size={18} />
+                <div>
+                    <h3 className="text-sm font-semibold text-amber-400">Temporary Link</h3>
+                    <p className="text-xs text-amber-200/70 mt-1">
+                        This link expires in <span className="text-amber-200 font-bold">{formatDistanceToNow(new Date(linkData.expiresAt))}</span>. 
+                        {!user && (
+                            <> <Link to="/register" className="ml-1 underline hover:text-white font-medium">Create free account</Link> to make it permanent.</>
+                        )}
+                    </p>
+                </div>
+            </div>
+          )}
+
           {/* Custom Alias Link (if exists) - Show First */}
           {customUrl && (
             <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-xl p-5 border border-purple-500/20">

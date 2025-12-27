@@ -21,9 +21,21 @@ import {
     getFeedbackStats,
     updateFeedback,
     deleteFeedback,
-    exportFeedbackCSV
+    exportFeedbackCSV,
+    getUsernameHistory
 } from '../controllers/adminController.js';
 import { getAllLinks, updateLinkStatus, deleteLinkAdmin } from '../controllers/adminLinkController.js';
+import { 
+    generateRedeemCode, 
+    listRedeemCodes, 
+    deactivateRedeemCode, 
+    getRedeemCodeStats 
+} from '../controllers/redeemCodeController.js';
+import { 
+    getSubscriptionStats, 
+    overrideUserSubscription,
+    syncUserSubscription
+} from '../controllers/adminSubscriptionController.js';
 
 const router = express.Router();
 
@@ -41,6 +53,7 @@ router.patch('/users/:userId/status', updateUserStatus);
 router.patch('/users/:userId/role', updateUserRole);
 router.get('/users/:userId/ban-history', getUserBanHistory);
 router.get('/users/:userId/appeals', getUserAppeals);
+router.get('/users/:userId/username-history', getUsernameHistory);
 
 // Link Management
 router.get('/links', getAllLinks);
@@ -65,5 +78,16 @@ router.get('/feedback', getAllFeedback);
 router.get('/feedback/stats', getFeedbackStats);
 router.patch('/feedback/:id', updateFeedback);
 router.delete('/feedback/:id', deleteFeedback);
+
+// Redeem Codes Management
+router.get('/redeem-codes/stats', getRedeemCodeStats);
+router.get('/redeem-codes', listRedeemCodes);
+router.post('/redeem-codes', generateRedeemCode);
+router.delete('/redeem-codes/:id', deactivateRedeemCode);
+
+// Subscription Management
+router.get('/subscriptions/stats', getSubscriptionStats);
+router.patch('/users/:userId/subscription', overrideUserSubscription);
+router.post('/users/:userId/subscription/sync', syncUserSubscription);
 
 export default router;

@@ -138,7 +138,7 @@ const AnalyticsPage = () => {
       <div className="glass-dark p-6 rounded-2xl border border-white/5">
         <div className="flex items-center gap-2 mb-6">
           <Calendar className="text-blue-400" size={20} />
-          <h3 className="text-lg font-semibold text-white">Clicks Over Time (Last 7 Days)</h3>
+          <h3 className="text-lg font-semibold text-white">Clicks Over Time</h3>
         </div>
         <ClickChart data={analytics.clicksByDate} />
       </div>

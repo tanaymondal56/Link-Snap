@@ -1,6 +1,6 @@
 import { Link, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { User, Shield, Sparkles } from 'lucide-react';
+import { User, Shield, Sparkles, Crown } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
 import { useAppVersion } from '../hooks/useAppVersion';
@@ -103,6 +103,14 @@ const PublicLayout = () => {
               </Link>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
+              {/* Pricing link - always visible */}
+              <Link
+                to="/pricing"
+                className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 px-2 sm:px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                <Crown className="w-4 h-4" />
+                <span className="hidden sm:inline">Pricing</span>
+              </Link>
               {user ? (
                 <>
                   {isAdmin && (
@@ -194,6 +202,14 @@ const PublicLayout = () => {
                 Crafted by Tanay ✨
               </span>
             </span>
+          </div>
+          {/* Legal Links */}
+          <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-gray-500 mt-2">
+            <Link to="/terms" className="hover:text-gray-300 transition-colors">Terms</Link>
+            <span className="text-gray-700">•</span>
+            <Link to="/privacy" className="hover:text-gray-300 transition-colors">Privacy</Link>
+            <span className="text-gray-700">•</span>
+            <Link to="/cookies" className="hover:text-gray-300 transition-colors">Cookies</Link>
           </div>
         </div>
       </footer>

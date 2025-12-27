@@ -266,7 +266,14 @@ const AdminFeedback = () => {
                   <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                     <span className="flex items-center gap-1"><Clock size={12} />{formatDateTime(item.createdAt)}</span>
                     <span className="flex items-center gap-1"><ThumbsUp size={12} />{item.voteCount || 0} votes</span>
-                    <span className="flex items-center gap-1"><User size={12} />{item.email || item.user?.email || 'Anonymous'}</span>
+                    <span className="flex items-center gap-1">
+                      <User size={12} />
+                      {item.user?.username ? (
+                        <span className="text-purple-400">@{item.user.username}</span>
+                      ) : (
+                        item.email || item.user?.email || 'Anonymous'
+                      )}
+                    </span>
                   </div>
                 </div>
                 <button className="p-1 text-gray-400 hover:text-white">

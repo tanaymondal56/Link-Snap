@@ -9,7 +9,8 @@ import {
   Sparkles,
   ChevronLeft,
   Activity,
-  MessageSquare
+  MessageSquare,
+  CreditCard
 } from 'lucide-react';
 
 const AdminSidebar = ({ isOpen, onClose }) => {
@@ -18,6 +19,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     { path: '/admin-console/monitoring', icon: Activity, label: 'Monitoring' },
     { path: '/admin-console/users', icon: Users, label: 'Users' },
     { path: '/admin-console/links', icon: LinkIcon, label: 'Links' },
+    { path: '/admin-console/subscriptions', icon: CreditCard, label: 'Subscriptions' },
     { path: '/admin-console/feedback', icon: MessageSquare, label: 'Feedback' },
     { path: '/admin-console/changelog', icon: FileText, label: 'Changelog' },
     { path: '/admin-console/settings', icon: Settings, label: 'Settings' },

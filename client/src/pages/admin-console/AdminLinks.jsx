@@ -11,7 +11,9 @@ import {
   Link as LinkIcon,
   MousePointerClick,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Clock,
+  Filter
 } from 'lucide-react';
 import GlassTable from '../../components/admin-console/ui/GlassTable';
 import api from '../../api/axios';
@@ -27,6 +29,7 @@ const AdminLinks = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   
   // Pagination State
   const [page, setPage] = useState(1);
@@ -43,7 +46,8 @@ const AdminLinks = () => {
             params: {
                 page,
                 limit: 20,
-                search: debouncedSearch
+                search: debouncedSearch,
+                status: statusFilter
             }
         });
         setLinks(data.urls);
@@ -55,12 +59,12 @@ const AdminLinks = () => {
       } finally {
         setLoading(false);
       }
-  }, [debouncedSearch, page]);
+  }, [debouncedSearch, page, statusFilter]);
 
   const isRefreshing = usePullToRefresh(async () => {
     // Silent refresh
     try {
-        const { data } = await api.get(`/admin/links?search=${debouncedSearch}`);
+        const { data } = await api.get(`/admin/links?search=${debouncedSearch}&status=${statusFilter}`);
         setLinks(data.urls);
         showToast.success('Refreshed');
     } catch {
@@ -73,7 +77,7 @@ const AdminLinks = () => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
       setPage(1);
-    }, 300);
+    }, 600);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
@@ -119,9 +123,9 @@ const AdminLinks = () => {
     }
   };
 
-  // Compute stats - use totalLinks for accurate count
+  // Compute stats
   const stats = {
-    total: totalLinks, // Use the accurate total from API
+    total: totalLinks, 
     active: links.filter(l => l.isActive).length,
     disabled: links.filter(l => !l.isActive).length,
     totalClicks: links.reduce((sum, l) => sum + (l.clicks || 0), 0),
@@ -185,18 +189,37 @@ const AdminLinks = () => {
           </div>
         </div>
       </div>
-
-      {/* Search Bar */}
       <div className="flex flex-col sm:flex-row gap-4 p-1 rounded-2xl">
         <div className="relative flex-1 max-w-lg">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
           <input 
             type="text" 
-            placeholder="Search by title, original URL, or short ID..." 
+            placeholder="Search by title, original URL, short ID, alias, or owner..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-gray-900/40 backdrop-blur-md border border-white/5 rounded-xl text-sm focus:outline-none focus:border-blue-500/50 transition-all placeholder:text-gray-600"
           />
+        </div>
+
+        {/* Status Filter */}
+        <div className="relative">
+             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+             <select
+                value={statusFilter}
+                onChange={(e) => {
+                    setStatusFilter(e.target.value);
+                    setPage(1); // Reset page on filter change
+                }}
+                className="pl-10 pr-8 py-2.5 bg-gray-900/40 backdrop-blur-md border border-white/5 rounded-xl text-sm focus:outline-none focus:border-blue-500/50 transition-all text-gray-300 appearance-none cursor-pointer hover:bg-white/5"
+             >
+                 <option value="all">All Status</option>
+                 <option value="active">Active</option>
+                 <option value="disabled">Disabled</option>
+                 <option value="expired">Expired</option>
+             </select>
+             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                 <ChevronLeft size={14} className="rotate-[-90deg] text-gray-500" />
+             </div>
         </div>
       </div>
 
@@ -223,7 +246,9 @@ const AdminLinks = () => {
 
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <div className="flex items-center gap-1">
-                  <span className="text-gray-400">By: {link.createdBy?.email || link.userId?.email || 'Anonymous'}</span>
+                  <span className="text-gray-400">
+                    By: {link.createdBy?.username ? `@${link.createdBy.username}` : (link.createdBy?.email || link.userId?.email || 'Anonymous')}
+                  </span>
                    {link.ownerBanned && <span className="text-orange-400 flex items-center gap-1"><UserX size={10} /> Banned</span>}
                 </div>
               </div>
@@ -235,8 +260,21 @@ const AdminLinks = () => {
                 </div>
                 <div className="bg-black/20 rounded p-2 text-center">
                    <div className="text-xs text-gray-500">Status</div>
-                   <div className={link.isActive ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
-                     {link.isActive ? 'Active' : 'Disabled'}
+                   <div className="flex flex-col items-center justify-center min-h-[1.5rem]">
+                     {!link.isActive ? (
+                        <span className="text-red-400 font-bold">Disabled</span>
+                     ) : link.ownerBanned ? (
+                        <>
+                            <span className="text-orange-400 font-bold text-sm leading-tight">Owner Banned</span>
+                            <span className={`text-[10px] ${!link.createdBy?.disableLinksOnBan ? 'text-green-400' : 'text-red-400'}`}>
+                                {!link.createdBy?.disableLinksOnBan ? '(Link Active)' : '(Link Disabled)'}
+                            </span>
+                        </>
+                     ) : (link.expiresAt && new Date(link.expiresAt) < new Date()) ? (
+                        <span className="text-amber-400 font-bold">Expired</span>
+                     ) : (
+                        <span className="text-green-400 font-bold">Active</span>
+                     )}
                    </div>
                 </div>
               </div>
@@ -275,6 +313,7 @@ const AdminLinks = () => {
         ) : (
           links.map((link) => {
             const isOwnerBanned = link.ownerBanned;
+            const isExpired = link.expiresAt && new Date(link.expiresAt) < new Date();
             return (
             <tr key={link._id} className={`hover:bg-white/5 transition-colors group ${isOwnerBanned ? 'bg-orange-500/5' : ''}`}>
               <td className="p-4 whitespace-nowrap">
@@ -297,6 +336,9 @@ const AdminLinks = () => {
               </td>
               <td className="p-4 text-xs">
                 <div className="flex flex-col gap-1">
+                  {link.createdBy?.username && (
+                    <span className="text-purple-400">@{link.createdBy.username}</span>
+                  )}
                   <span className="text-gray-400">
                     {link.createdBy?.email || link.userId?.email || 'Anonymous'}
                   </span>
@@ -314,18 +356,32 @@ const AdminLinks = () => {
               </td>
               <td className="p-4">
                 <div className="flex flex-col gap-1">
-                  {link.isActive ? (
-                    <span className="text-green-400 text-xs flex items-center gap-1 w-fit">
-                      <CheckCircle size={12} /> Active
-                    </span>
-                  ) : (
-                    <span className="text-orange-400 text-xs flex items-center gap-1 w-fit">
+                  {!link.isActive ? (
+                    <span className="text-red-400 text-xs flex items-center gap-1 w-fit">
                       <Ban size={12} /> Disabled
                     </span>
-                  )}
-                  {link.ownerBanned && (
-                    <span className="text-xs text-orange-400/70 flex items-center gap-1">
-                      <Ban size={10} /> Owner Banned
+                  ) : isOwnerBanned ? (
+                    <div className="flex flex-col gap-0.5">
+                        <span className="text-orange-400 text-xs flex items-center gap-1 w-fit">
+                          <UserX size={12} /> Owner Banned
+                        </span>
+                        {!link.createdBy?.disableLinksOnBan ? (
+                             <span className="text-green-400 text-[10px] flex items-center gap-1 ml-4">
+                                <CheckCircle size={10} /> Link Active
+                             </span>
+                        ) : (
+                             <span className="text-red-400 text-[10px] flex items-center gap-1 ml-4">
+                                <Ban size={10} /> Link Disabled
+                             </span>
+                        )}
+                    </div>
+                  ) : isExpired ? (
+                    <span className="text-amber-400 text-xs flex items-center gap-1 w-fit" title={`Expired on ${new Date(link.expiresAt).toLocaleDateString()}`}>
+                      <Clock size={12} /> Expired
+                    </span>
+                  ) : (
+                    <span className="text-green-400 text-xs flex items-center gap-1 w-fit">
+                      <CheckCircle size={12} /> Active
                     </span>
                   )}
                 </div>

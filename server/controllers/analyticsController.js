@@ -1,6 +1,8 @@
 import Analytics from '../models/Analytics.js';
 import Url from '../models/Url.js';
 
+import { TIERS, getEffectiveTier } from '../services/subscriptionService.js';
+
 export const getUrlAnalytics = async (req, res) => {
     const { shortId } = req.params;
     const userId = req.user._id;
@@ -16,18 +18,26 @@ export const getUrlAnalytics = async (req, res) => {
             return res.status(404).json({ message: 'URL not found or unauthorized' });
         }
 
-        // 2. Aggregate Data
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        // 2. Determine Retention Period based on Tier
+        const tier = getEffectiveTier(req.user);
+        const retentionDays = TIERS[tier]?.analyticsRetention || TIERS.free.analyticsRetention;
         
-        // For the main chart, we show last 30 days (changed from 7 to match standard analytics)
-        // For other stats, we ALSO limit to last 30 days to avoid scanning millions of historical records
-        // This is crucial for performance on high-traffic links.
+        const retentionDate = new Date();
+        // If Infinity (Business), set to very old date (e.g., 2000) or handle differently
+        // Since Mongo doesn't handle Infinity well in date math, we use a large number if Infinity
+        if (retentionDays === Infinity) {
+             retentionDate.setFullYear(2000); // Effectively all history
+        } else {
+             retentionDate.setDate(retentionDate.getDate() - retentionDays);
+        }
+        
+        // 3. Aggregate Data
+        // We filter by timestamp > retentionDate
 
         const [clicksByDate, clicksByDevice, clicksByLocation, clicksByBrowser] = await Promise.all([
             // Clicks by Date (Last 30 Days)
             Analytics.aggregate([
-                { $match: { urlId: url._id, timestamp: { $gte: thirtyDaysAgo } } },
+                { $match: { urlId: url._id, timestamp: { $gte: retentionDate } } },
                 {
                     $group: {
                         _id: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
@@ -37,25 +47,25 @@ export const getUrlAnalytics = async (req, res) => {
                 { $sort: { _id: 1 } }
             ]),
 
-            // Clicks by Device (Last 30 Days)
+            // Clicks by Device (Retention filtered)
             Analytics.aggregate([
-                { $match: { urlId: url._id, timestamp: { $gte: thirtyDaysAgo } } },
+                { $match: { urlId: url._id, timestamp: { $gte: retentionDate } } },
                 { $group: { _id: "$device", count: { $sum: 1 } } },
                 { $sort: { count: -1 } },
                 { $limit: 5 }
             ]),
 
-            // Clicks by Location (Country) (Last 30 Days)
+            // Clicks by Location (Country) (Retention filtered)
             Analytics.aggregate([
-                { $match: { urlId: url._id, timestamp: { $gte: thirtyDaysAgo } } },
+                { $match: { urlId: url._id, timestamp: { $gte: retentionDate } } },
                 { $group: { _id: "$country", count: { $sum: 1 } } },
                 { $sort: { count: -1 } },
                 { $limit: 10 }
             ]),
 
-            // Clicks by Browser (Last 30 Days)
+            // Clicks by Browser (Retention filtered)
             Analytics.aggregate([
-                { $match: { urlId: url._id, timestamp: { $gte: thirtyDaysAgo } } },
+                { $match: { urlId: url._id, timestamp: { $gte: retentionDate } } },
                 { $group: { _id: "$browser", count: { $sum: 1 } } },
                 { $sort: { count: -1 } },
                 { $limit: 5 }

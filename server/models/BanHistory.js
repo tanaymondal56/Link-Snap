@@ -7,6 +7,11 @@ const banHistorySchema = new mongoose.Schema({
         required: true,
         index: true,
     },
+    // Permanent internal ID for audit trail (survives user deletion)
+    userInternalId: {
+        type: String,
+        index: true,
+    },
     action: {
         type: String,
         enum: ['ban', 'unban', 'temp_ban_expired', 'appeal_approved'],

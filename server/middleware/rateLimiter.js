@@ -119,3 +119,23 @@ export const passwordVerifyLimiter = rateLimit({
     },
     skip: (req) => isWhitelisted(req.ip),
 });
+
+// Profile update limiter - prevent rapid username changes
+export const profileUpdateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // 10 profile updates per 15 minutes
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many profile updates. Please try again later.' });
+    },
+    skip: (req) => isWhitelisted(req.ip),
+});
+
+// Username availability check limiter - prevent enumeration attacks
+export const usernameCheckLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 20, // 20 checks per minute (generous for real-time typing)
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many requests. Please slow down.' });
+    },
+    skip: (req) => isWhitelisted(req.ip),
+});

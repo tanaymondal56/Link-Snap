@@ -44,6 +44,11 @@ const skipFrontendRoutes = (req, res, next) => {
         return next();
     }
 
+    // Skip if path starts with @ (bio profile pages handled by SPA)
+    if (path.startsWith('@')) {
+        return next('route');
+    }
+
     // Skip if path has a file extension (static files)
     if (SKIP_EXTENSIONS.some(ext => path.endsWith(ext))) {
         return next('route');

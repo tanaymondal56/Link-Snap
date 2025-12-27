@@ -11,6 +11,7 @@
     "client": "npm run dev --prefix client",
     "install:all": "npm install && npm install --prefix server && npm install --prefix client",
     "build": "npm install --prefix client && npm run build --prefix client && npm install --prefix server",
+    "prod": "npm run start:prod --prefix server",
     "start": "cd server && npm start",
     "postinstall": "npm run build"
   },

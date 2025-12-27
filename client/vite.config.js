@@ -1,23 +1,30 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
-import Inspector from 'vite-plugin-react-inspector'
-import VitePluginDevTools from 'vite-plugin-devtools'
 import checker from 'vite-plugin-checker'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Dev-only plugins loaded conditionally
+const isDev = process.env.NODE_ENV !== 'production'
+
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [
-    react(),
-    Inspector(), // Click-to-code inspector
-    VitePluginDevTools({}), // The "Floater" debug toolbar
-    checker({
-      eslint: {
-        lintCommand: 'eslint "./src/**/*.{js,jsx}"',
-        useFlatConfig: true, // We are using ESLint 9+
-      },
-      overlay: true, // Shows errors in browser overlay
-    }),
+export default defineConfig(async () => {
+  // Load dev plugins only in development
+  const devPlugins = isDev ? [
+    (await import('vite-plugin-react-inspector')).default(),
+    (await import('vite-plugin-devtools')).default({})
+  ] : []
+
+  return {
+    plugins: [
+      react(),
+      ...devPlugins, // Click-to-code inspector + debug toolbar (dev only)
+      checker({
+        eslint: {
+          lintCommand: 'eslint "./src/**/*.{js,jsx}"',
+          useFlatConfig: true, // We are using ESLint 9+
+        },
+        overlay: isDev, // Only show errors in browser overlay during dev
+      }),
     VitePWA({
       // Use prompt mode to show mandatory update dialog
       // The new SW will wait until user clicks Update
@@ -112,4 +119,5 @@ export default defineConfig({
       },
     },
   },
+  }
 })

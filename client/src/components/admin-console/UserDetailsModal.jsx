@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { X, History, MessageSquare, ShieldAlert, CheckCircle, Clock, User, Phone, Building2, Globe } from 'lucide-react';
+import { X, History, MessageSquare, ShieldAlert, CheckCircle, Clock, User, Phone, Building2, Globe, ArrowRight } from 'lucide-react';
 import api from '../../api/axios';
 import { formatDate, formatDateTime } from '../../utils/dateUtils';
 import { useDialog } from '../ui/DialogProvider';
 import showToast from '../ui/Toast';
+import IdBadge from '../ui/IdBadge';
 
 const UserDetailsModal = ({ isOpen, onClose, user }) => {
   const { prompt } = useDialog();
-  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'history' | 'appeals'
+  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'history' | 'appeals' | 'usernames'
   const [banHistory, setBanHistory] = useState([]);
+  const [usernameHistory, setUsernameHistory] = useState({ history: [], currentUsername: '', usernameChangedAt: null });
   const [appeals, setAppeals] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -16,12 +18,14 @@ const UserDetailsModal = ({ isOpen, onClose, user }) => {
   const refreshData = async () => {
     setLoading(true);
     try {
-      const [historyRes, appealsRes] = await Promise.all([
+      const [historyRes, appealsRes, usernamesRes] = await Promise.all([
         api.get(`/admin/users/${user._id}/ban-history`),
-        api.get(`/admin/users/${user._id}/appeals`)
+        api.get(`/admin/users/${user._id}/appeals`),
+        api.get(`/admin/users/${user._id}/username-history`)
       ]);
       setBanHistory(historyRes.data);
       setAppeals(appealsRes.data);
+      setUsernameHistory(usernamesRes.data);
     } catch (error) {
       console.error('Failed to fetch details', error);
       showToast.error('Failed to refresh data');
@@ -68,24 +72,26 @@ const UserDetailsModal = ({ isOpen, onClose, user }) => {
     }
   };
 
+  // Fetch data when modal opens
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [historyRes, appealsRes] = await Promise.all([
-          api.get(`/admin/users/${user._id}/ban-history`),
-          api.get(`/admin/users/${user._id}/appeals`)
-        ]);
-        setBanHistory(historyRes.data);
-        setAppeals(appealsRes.data);
-      } catch (error) {
-        console.error('Failed to fetch details', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (isOpen && user) {
+      const fetchData = async () => {
+        setLoading(true);
+        try {
+          const [historyRes, appealsRes, usernamesRes] = await Promise.all([
+            api.get(`/admin/users/${user._id}/ban-history`),
+            api.get(`/admin/users/${user._id}/appeals`),
+            api.get(`/admin/users/${user._id}/username-history`)
+          ]);
+          setBanHistory(historyRes.data);
+          setAppeals(appealsRes.data);
+          setUsernameHistory(usernamesRes.data);
+        } catch (error) {
+          console.error('Failed to fetch details', error);
+        } finally {
+          setLoading(false);
+        }
+      };
       fetchData();
     }
   }, [isOpen, user]);
@@ -112,6 +118,7 @@ const UserDetailsModal = ({ isOpen, onClose, user }) => {
         <div className="shrink-0 p-4 md:p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
           <div>
             <h2 className="text-xl font-bold text-white">{user.firstName} {user.lastName}</h2>
+            {user.username && <p className="text-sm text-purple-400">@{user.username}</p>}
             <p className="text-sm text-gray-400">{user.email}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-white">
@@ -139,11 +146,19 @@ const UserDetailsModal = ({ isOpen, onClose, user }) => {
           </button>
           <button
             onClick={() => setActiveTab('appeals')}
-            className={`py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+            className={`py-4 mr-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'appeals' ? 'border-purple-500 text-purple-400' : 'border-transparent text-gray-400 hover:text-white'
             }`}
           >
             <MessageSquare size={16} /> Appeals
+          </button>
+          <button
+            onClick={() => setActiveTab('usernames')}
+            className={`py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'usernames' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-gray-400 hover:text-white'
+            }`}
+          >
+            <User size={16} /> Username History
           </button>
         </div>
 
@@ -225,6 +240,12 @@ const UserDetailsModal = ({ isOpen, onClose, user }) => {
                     <h4 className="text-sm font-medium text-gray-400 mb-3">Account Details</h4>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
+                        <span className="text-gray-500">Username:</span>
+                        <span className="ml-2 text-purple-400">
+                          {user.username ? `@${user.username}` : <span className="text-gray-600">Not set</span>}
+                        </span>
+                      </div>
+                      <div>
                         <span className="text-gray-500">Role:</span>
                         <span className={`ml-2 ${user.role === 'admin' ? 'text-purple-400' : 'text-blue-400'}`}>
                           {user.role}
@@ -245,6 +266,65 @@ const UserDetailsModal = ({ isOpen, onClose, user }) => {
                         <span className={`ml-2 ${(user.banned || user.isActive === false) ? 'text-red-400' : 'text-green-400'}`}>
                           {(user.banned || user.isActive === false) ? 'Banned' : 'Active'}
                         </span>
+                      </div>
+                      {user.snapId && (
+                        <div>
+                          <span className="text-gray-500">Snap ID:</span>
+                          <code className="ml-2 text-gray-300 bg-white/5 px-1.5 py-0.5 rounded border border-white/10 text-xs font-mono">
+                            {user.snapId}
+                          </code>
+                        </div>
+                      )}
+                      {(user.eliteId) && user.idTier && (
+                        <div className="col-span-2 mt-2 pt-2 border-t border-white/10 flex items-center">
+                          <span className="text-gray-500 mr-2">Elite Badge:</span>
+                          <IdBadge eliteId={user.eliteId} idTier={user.idTier} size="sm" />
+                        </div>
+                      )}
+                      
+                      {/* Subscription Section */}
+                      <div className="col-span-2 mt-4 pt-4 border-t border-white/10">
+                        <h4 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                          Subscription
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="text-gray-500">Tier:</span>
+                            <span className={`ml-2 font-semibold capitalize ${
+                              user.subscription?.tier === 'pro' ? 'text-purple-400' : 
+                              user.subscription?.tier === 'business' ? 'text-amber-400' : 
+                              'text-gray-400'
+                            }`}>
+                              {user.subscription?.tier || 'Free'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Status:</span>
+                            <span className={`ml-2 ${
+                              user.subscription?.status === 'active' ? 'text-green-400' : 
+                              user.subscription?.status === 'past_due' ? 'text-red-400' : 
+                              user.subscription?.status === 'cancelled' ? 'text-yellow-400' : 
+                              'text-gray-400'
+                            }`}>
+                              {user.subscription?.status || 'active'}
+                            </span>
+                          </div>
+                          {user.subscription?.currentPeriodEnd && (
+                            <div className="col-span-2">
+                              <span className="text-gray-500">Renews:</span>
+                              <span className="ml-2 text-white">{formatDate(user.subscription.currentPeriodEnd)}</span>
+                            </div>
+                          )}
+                          <div>
+                            <span className="text-gray-500">Links Used:</span>
+                            <span className="ml-2 text-white">{user.linkUsage?.count || 0}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Clicks Used:</span>
+                            <span className="ml-2 text-white">{user.clickUsage?.count || 0}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -334,6 +414,48 @@ const UserDetailsModal = ({ isOpen, onClose, user }) => {
                         </div>
                       </div>
                     ))
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'usernames' && (
+                <div className="space-y-4">
+                  {usernameHistory.history?.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">No username changes yet.</div>
+                  ) : (
+                    <>
+                      <div className="mb-4 p-3 bg-cyan-500/10 border border-cyan-500/20 rounded-lg">
+                        <p className="text-sm text-cyan-400">
+                          Current: <span className="font-medium">@{usernameHistory.currentUsername}</span>
+                          {usernameHistory.usernameChangedAt && (
+                            <span className="ml-2 text-gray-500 text-xs">
+                              (Last changed: {formatDate(usernameHistory.usernameChangedAt)})
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      {usernameHistory.history?.map((record, i) => (
+                        <div key={i} className="bg-white/5 rounded-xl p-4 border border-white/5">
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-gray-400">@{record.previousUsername}</span>
+                            <ArrowRight size={16} className="text-cyan-400" />
+                            <span className="text-sm text-white font-medium">@{record.newUsername}</span>
+                          </div>
+                          <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <Clock size={12} /> {formatDateTime(record.changedAt)}
+                            </span>
+                            <span>
+                              {record.changedBy ? (
+                                `Changed by: ${record.changedBy.firstName || record.changedBy.email}`
+                              ) : (
+                                'Self-initiated'
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </>
                   )}
                 </div>
               )}

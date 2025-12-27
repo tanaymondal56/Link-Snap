@@ -11,13 +11,16 @@
   },
   "dependencies": {
     "axios": "^1.13.2",
+    "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
     "lucide-react": "^0.555.0",
     "morgan": "^1.10.1",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-helmet-async": "^2.0.5",
     "react-hot-toast": "^2.6.0",
+    "react-is": "^19.2.3",
     "react-router-dom": "^7.9.6",
     "recharts": "^3.5.1",
     "tailwind-merge": "^3.4.0"

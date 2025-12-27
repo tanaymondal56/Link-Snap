@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useConfirm } from '../context/ConfirmContext';
+import { useAuth } from '../context/AuthContext';
 import {
   Copy,
   Check,
@@ -33,6 +34,7 @@ import LinkSuccessModal from '../components/LinkSuccessModal';
 import { cacheLinks, getCachedLinks, getCacheAge } from '../utils/offlineCache';
 
 const UserDashboard = () => {
+  const { user } = useAuth();
   const confirm = useConfirm();
   const [links, setLinks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -192,7 +194,9 @@ const UserDashboard = () => {
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-white">My Links</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-white">
+              My Links <span className="text-purple-400 font-normal text-lg">(@{user?.username})</span>
+            </h1>
             <p className="text-gray-400 text-xs sm:text-sm mt-1">
               {links.length} link{links.length !== 1 ? 's' : ''} • {totalClicks} click
               {totalClicks !== 1 ? 's' : ''}
@@ -208,6 +212,63 @@ const UserDashboard = () => {
             <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
+        
+        {/* Usage Stats */}
+        <div className="glass-dark p-4 rounded-xl border border-gray-700/50">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Links Usage */}
+            <div className="flex-1">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-gray-400 text-xs">Links</span>
+                <span className="text-white text-xs font-medium">
+                  {user?.linkUsage?.count || 0}/{user?.subscription?.tier === 'pro' ? 500 : user?.subscription?.tier === 'business' ? '10k' : 25}
+                </span>
+              </div>
+              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all ${
+                    ((user?.linkUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 500 : 25)) >= 0.8 
+                      ? 'bg-gradient-to-r from-orange-500 to-red-500' 
+                      : 'bg-gradient-to-r from-blue-500 to-purple-500'
+                  }`}
+                  style={{ width: `${Math.min(100, ((user?.linkUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 500 : 25)) * 100)}%` }}
+                />
+              </div>
+            </div>
+            
+            {/* Clicks Usage */}
+            <div className="flex-1">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-gray-400 text-xs">Clicks</span>
+                <span className="text-white text-xs font-medium">
+                  {(user?.clickUsage?.count || 0).toLocaleString()}/{user?.subscription?.tier === 'pro' ? '50k' : user?.subscription?.tier === 'business' ? '250k' : '1k'}
+                </span>
+              </div>
+              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all ${
+                    ((user?.clickUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 50000 : 1000)) >= 0.8 
+                      ? 'bg-gradient-to-r from-orange-500 to-red-500' 
+                      : 'bg-gradient-to-r from-purple-500 to-pink-500'
+                  }`}
+                  style={{ width: `${Math.min(100, ((user?.clickUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 50000 : 1000)) * 100)}%` }}
+                />
+              </div>
+            </div>
+            
+            {/* Upgrade Button for Free Users */}
+            {(!user?.subscription?.tier || user?.subscription?.tier === 'free') && (
+              <a 
+                href="/pricing"
+                className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-400 rounded-lg text-xs font-medium transition-all self-center"
+              >
+                <Sparkles size={12} />
+                Upgrade
+              </a>
+            )}
+          </div>
+        </div>
+        
         <button
           onClick={() => setIsCreateModalOpen(true)}
           className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white py-2.5 px-5 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 w-full sm:w-auto sm:self-start"
@@ -485,7 +546,10 @@ const UserDashboard = () => {
                                 ? 'bg-amber-500/10 border border-amber-500/20'
                                 : 'bg-gray-800/30 border border-gray-700/30'
                           }`}
-                          title={`Expires: ${new Date(link.expiresAt).toLocaleString()}`}
+                          title={isExpired 
+                            ? `Expired on ${new Date(link.expiresAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`
+                            : `Expires ${new Date(link.expiresAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`
+                          }
                         >
                           <Clock
                             size={12}

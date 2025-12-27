@@ -40,6 +40,7 @@ const urlSchema = new mongoose.Schema({
     expiresAt: {
         type: Date,
         default: null,  // null = never expires
+        index: { sparse: true }, // Index for expiration cleanup
     },
     // Password Protection
     isPasswordProtected: {
@@ -57,8 +58,6 @@ const urlSchema = new mongoose.Schema({
 // Index for fast lookups and dashboard sorting
 // Compound index avoids in-memory sort for "My Links" page
 urlSchema.index({ createdBy: 1, createdAt: -1 });
-// Index for expiration cleanup queries
-urlSchema.index({ expiresAt: 1 }, { sparse: true });
 
 const Url = mongoose.model('Url', urlSchema);
 

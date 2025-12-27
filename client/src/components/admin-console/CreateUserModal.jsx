@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, UserPlus, Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, UserPlus, Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle, Check } from 'lucide-react';
 import showToast from '../ui/Toast';
 import api from '../../api/axios';
 
 const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
   const [loading, setLoading] = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState('idle'); // idle | checking | available | taken | invalid | reserved
   const [form, setForm] = useState({
     email: '',
+    username: '',
     password: '',
     confirmPassword: '',
     role: 'user',
@@ -21,6 +23,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
   const handleClose = useCallback(() => {
     setForm({
       email: '',
+      username: '',
       password: '',
       confirmPassword: '',
       role: 'user',
@@ -31,8 +34,36 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
       website: ''
     });
     setShowPassword(false);
+    setUsernameStatus('idle');
     onClose();
   }, [onClose]);
+
+
+  // Debounced username availability check
+  useEffect(() => {
+    if (!form.username || form.username.length < 3) {
+      setUsernameStatus('idle');
+      return;
+    }
+    if (!/^[a-z0-9_-]+$/.test(form.username)) {
+      setUsernameStatus('invalid');
+      return;
+    }
+    if (form.username.length > 30) {
+      setUsernameStatus('invalid');
+      return;
+    }
+    setUsernameStatus('checking');
+    const timeoutId = setTimeout(async () => {
+      try {
+        const { data } = await api.get(`/auth/check-username/${form.username}`);
+        setUsernameStatus(data.available ? 'available' : (data.reason === 'reserved' ? 'reserved' : 'taken'));
+      } catch {
+        setUsernameStatus('idle');
+      }
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [form.username]);
 
   // Escape key to close modal
   useEffect(() => {
@@ -57,9 +88,17 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
       showToast.error('Passwords do not match');
       return;
     }
-    if (form.password.length < 6) {
-      showToast.warning('Password must be at least 6 characters');
+    if (form.password.length < 8) {
+      showToast.warning('Password must be at least 8 characters');
       return;
+    }
+    if (form.username && (form.username.length < 3 || form.username.length > 30)) {
+       showToast.warning('Username must be 3-30 characters');
+       return;
+    }
+    if (form.username && (usernameStatus === 'taken' || usernameStatus === 'reserved')) {
+       showToast.warning('This username is not available');
+       return;
     }
 
     setLoading(true);
@@ -76,6 +115,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
       onClose();
       setForm({
         email: '',
+        username: '',
         password: '',
         confirmPassword: '',
         role: 'user',
@@ -123,6 +163,37 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                     value={form.email}
                     onChange={e => setForm({ ...form, email: e.target.value })}
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Auto-generated if empty"
+                      className={`w-full bg-gray-800 border rounded-xl px-4 py-2.5 pr-10 text-white placeholder-gray-500 focus:border-blue-500/50 focus:outline-none ${
+                        usernameStatus === 'available' ? 'border-green-500/50' :
+                        usernameStatus === 'taken' || usernameStatus === 'reserved' || usernameStatus === 'invalid' ? 'border-red-500/50' :
+                        'border-white/10'
+                      }`}
+                      value={form.username}
+                      onChange={e => setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })}
+                    />
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                      {usernameStatus === 'checking' && <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />}
+                      {usernameStatus === 'available' && <Check className="w-4 h-4 text-green-500" />}
+                      {(usernameStatus === 'taken' || usernameStatus === 'reserved' || usernameStatus === 'invalid') && <X className="w-4 h-4 text-red-500" />}
+                    </div>
+                  </div>
+                  <p className={`mt-1 text-xs ${
+                    usernameStatus === 'available' ? 'text-green-500' :
+                    usernameStatus === 'taken' || usernameStatus === 'reserved' ? 'text-red-500' : 'text-gray-500'
+                  }`}>
+                    {usernameStatus === 'available' ? 'Available!' :
+                     usernameStatus === 'taken' ? 'Already taken' :
+                     usernameStatus === 'reserved' ? 'Not available' :
+                     usernameStatus === 'invalid' ? 'Invalid format' :
+                     'Lowercase letters, numbers, underscores, dashes. Auto-generated if empty.'}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">Role</label>

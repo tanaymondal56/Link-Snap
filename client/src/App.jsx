@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
 import PublicLayout from './layouts/PublicLayout';
 import DashboardLayout from './layouts/DashboardLayout';
@@ -34,6 +35,7 @@ const OverviewPage = lazy(() => import('./pages/OverviewPage'));
 const UserDashboard = lazy(() => import('./pages/UserDashboard'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const BioSettings = lazy(() => import('./pages/dashboard/BioSettings'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 
 // New Admin Console Pages
@@ -44,7 +46,14 @@ const AdminLinks = lazy(() => import('./pages/admin-console/AdminLinks'));
 const AdminFeedback = lazy(() => import('./pages/admin-console/AdminFeedback'));
 const AdminSettings = lazy(() => import('./pages/admin-console/AdminSettings'));
 const AdminMonitoring = lazy(() => import('./pages/admin-console/AdminMonitoring'));
+const AdminSubscriptions = lazy(() => import('./pages/admin-console/AdminSubscriptions'));
 const ChangelogManager = lazy(() => import('./components/admin/ChangelogManager')); // Reusing existing
+const PricingPage = lazy(() => import('./pages/PricingPage'));
+
+// Legal Pages
+const TermsPage = lazy(() => import('./pages/legal/TermsPage'));
+const PrivacyPage = lazy(() => import('./pages/legal/PrivacyPage'));
+const CookiePage = lazy(() => import('./pages/legal/CookiePage'));
 
 // Easter Egg Pages
 const CreditsPage = lazy(() => import('./pages/EasterEggPages').then(m => ({ default: m.CreditsPage })));
@@ -53,6 +62,9 @@ const ThanksPage = lazy(() => import('./pages/EasterEggPages').then(m => ({ defa
 const DevNullPage = lazy(() => import('./pages/EasterEggPages').then(m => ({ default: m.DevNullPage })));
 const Funny404Page = lazy(() => import('./pages/EasterEggPages').then(m => ({ default: m.Funny404Page })));
 const TeapotPage = lazy(() => import('./pages/EasterEggPages').then(m => ({ default: m.TeapotPage })));
+
+// Link-in-Bio Public Profile
+const PublicProfile = lazy(() => import('./pages/PublicProfile'));
 
 const LoadingFallback = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-900">
@@ -127,6 +139,12 @@ function AppContent() {
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/account-suspended" element={<AccountSuspended />} />
+            <Route path="/pricing" element={<PricingPage />} />
+            
+            {/* Legal Pages */}
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/cookies" element={<CookiePage />} />
           </Route>
 
           {/* Changelog Route - Standalone page */}
@@ -142,6 +160,9 @@ function AppContent() {
           <Route path="/404" element={<Funny404Page />} />
           <Route path="/teapot" element={<TeapotPage />} />
 
+          {/* Link-in-Bio Public Profile - using /u/ prefix (React Router V6 has issues with @ in paths) */}
+          <Route path="/u/:username" element={<PublicProfile />} />
+
           {/* Dashboard Routes (Protected) */}
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Navigate to="/dashboard/overview" replace />} />
@@ -149,6 +170,7 @@ function AppContent() {
             <Route path="/dashboard/links" element={<UserDashboard />} />
             <Route path="/dashboard/analytics" element={<AnalyticsPage />} />
             <Route path="/dashboard/analytics/:shortId" element={<AnalyticsPage />} />
+            <Route path="/dashboard/bio" element={<BioSettings />} />
             <Route path="/dashboard/settings" element={<SettingsPage />} />
           </Route>
 
@@ -170,6 +192,7 @@ function AppContent() {
             <Route path="links" element={<AdminLinks />} />
             <Route path="feedback" element={<AdminFeedback />} />
             <Route path="monitoring" element={<AdminMonitoring />} />
+            <Route path="subscriptions" element={<AdminSubscriptions />} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="changelog" element={<ChangelogManager />} />
           </Route>
@@ -223,21 +246,23 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <ConfirmDialogProvider>
-        <DialogProvider>
-          <OfflineIndicator>
-            <AppContent />
-          </OfflineIndicator>
-          {/* PWA Update Prompt - shows when new version is available */}
-          <PWAUpdatePrompt />
-          {/* Add to Home Screen Prompt - shows for mobile users */}
-          <InstallPrompt />
-          {/* Mobile Back Button - shows in PWA mode for navigation */}
-          <MobileBackButton />
-        </DialogProvider>
-      </ConfirmDialogProvider>
-    </AuthProvider>
+    <HelmetProvider>
+      <AuthProvider>
+        <ConfirmDialogProvider>
+          <DialogProvider>
+            <OfflineIndicator>
+              <AppContent />
+            </OfflineIndicator>
+            {/* PWA Update Prompt - shows when new version is available */}
+            <PWAUpdatePrompt />
+            {/* Add to Home Screen Prompt - shows for mobile users */}
+            <InstallPrompt />
+            {/* Mobile Back Button - shows in PWA mode for navigation */}
+            <MobileBackButton />
+          </DialogProvider>
+        </ConfirmDialogProvider>
+      </AuthProvider>
+    </HelmetProvider>
   );
 }
 

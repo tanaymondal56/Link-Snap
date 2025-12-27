@@ -49,11 +49,30 @@ const variants = {
 };
 
 // The actual dialog component
-const ConfirmDialogComponent = ({ isOpen, onClose, onConfirm, config }) => {
+export const ConfirmDialog = ({ 
+  isOpen, 
+  onClose, 
+  onConfirm, 
+  // Direct props support
+  title,
+  message,
+  variant = 'danger',
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
+  // Config object support (for Provider)
+  config = {} 
+}) => {
   if (!isOpen) return null;
 
-  const variant = variants[config.variant] || variants.danger;
-  const IconComponent = config.icon || variant.icon;
+  // Merge direct props with config (config takes precedence if present for provider usage)
+  const finalVariant = config.variant || variant;
+  const finalTitle = config.title || title || 'Are you sure?';
+  const finalMessage = config.message || message || 'This action cannot be undone.';
+  const finalConfirmText = config.confirmText || confirmText;
+  const finalCancelText = config.cancelText || cancelText;
+
+  const activeVariant = variants[finalVariant] || variants.danger;
+  const IconComponent = config.icon || activeVariant.icon;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -65,10 +84,10 @@ const ConfirmDialogComponent = ({ isOpen, onClose, onConfirm, config }) => {
 
       {/* Dialog */}
       <div
-        className={`relative w-[95%] max-w-md bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl ${variant.borderGlow} animate-modal-in overflow-hidden flex flex-col max-h-[95vh] overscroll-contain`}
+        className={`relative w-[95%] max-w-md bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl ${activeVariant.borderGlow} animate-modal-in overflow-hidden flex flex-col max-h-[95vh] overscroll-contain`}
       >
         {/* Gradient top border */}
-        <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${variant.buttonBg}`} />
+        <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${activeVariant.buttonBg}`} />
 
         {/* Close button */}
         <button
@@ -82,20 +101,20 @@ const ConfirmDialogComponent = ({ isOpen, onClose, onConfirm, config }) => {
         <div className="p-6 pt-8 overflow-y-auto custom-scrollbar">
           {/* Icon */}
           <div className="flex justify-center mb-5">
-            <div className={`p-4 ${variant.iconBg} rounded-2xl ring-4 ring-gray-800`}>
-              <IconComponent className={`w-8 h-8 ${variant.iconColor}`} />
+            <div className={`p-4 ${activeVariant.iconBg} rounded-2xl ring-4 ring-gray-800`}>
+              <IconComponent className={`w-8 h-8 ${activeVariant.iconColor}`} />
             </div>
           </div>
 
           {/* Title */}
           <h3 className="text-xl font-bold text-white text-center mb-2">
-            {config.title || 'Are you sure?'}
+            {finalTitle}
           </h3>
 
           {/* Message */}
-          <p className="text-gray-400 text-center text-sm leading-relaxed mb-6">
-            {config.message || 'This action cannot be undone.'}
-          </p>
+          <div className="text-gray-400 text-center text-sm leading-relaxed mb-6">
+            {finalMessage}
+          </div>
 
           {/* Buttons */}
           <div className="flex gap-3">
@@ -103,16 +122,15 @@ const ConfirmDialogComponent = ({ isOpen, onClose, onConfirm, config }) => {
               onClick={onClose}
               className="flex-1 px-4 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white font-medium rounded-xl transition-all duration-200 border border-gray-700"
             >
-              {config.cancelText || 'Cancel'}
+              {finalCancelText}
             </button>
             <button
               onClick={() => {
                 onConfirm();
-                onClose();
               }}
-              className={`flex-1 px-4 py-3 bg-gradient-to-r ${variant.buttonBg} text-white font-medium rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl`}
+              className={`flex-1 px-4 py-3 bg-gradient-to-r ${activeVariant.buttonBg} text-white font-medium rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl`}
             >
-              {config.confirmText || 'Confirm'}
+              {finalConfirmText}
             </button>
           </div>
         </div>
@@ -151,7 +169,7 @@ export const ConfirmDialogProvider = ({ children }) => {
   return (
     <ConfirmContext.Provider value={{ confirm }}>
       {children}
-      <ConfirmDialogComponent
+      <ConfirmDialog
         isOpen={isOpen}
         onClose={handleClose}
         onConfirm={handleConfirm}

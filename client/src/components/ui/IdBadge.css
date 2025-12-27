@@ -1,0 +1,271 @@
+/* Elite ID Badge Styles */
+
+.id-badge-container {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Base Badge */
+.id-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+
+/* Size variants */
+.id-badge-sm {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.id-badge-sm .id-badge-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.id-badge-md {
+  padding: 4px 12px;
+  font-size: 13px;
+}
+.id-badge-md .id-badge-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.id-badge-lg {
+  padding: 6px 16px;
+  font-size: 15px;
+}
+.id-badge-lg .id-badge-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Admin - Crimson with glow */
+.tier-admin {
+  background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
+  color: #FFF;
+  border-color: rgba(220, 38, 38, 0.5);
+  box-shadow: 
+    0 0 20px rgba(220, 38, 38, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  animation: adminPulse 2s ease-in-out infinite;
+}
+
+/* Pioneer - Golden sunrise */
+.tier-pioneer {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: #FFF;
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 
+    0 0 20px rgba(245, 158, 11, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  animation: pioneerGlow 3s ease-in-out infinite;
+}
+
+/* Torchbearer - Ember orange */
+.tier-torchbearer {
+  background: linear-gradient(135deg, #EA580C 0%, #C2410C 100%);
+  color: #FFF;
+  border-color: rgba(234, 88, 12, 0.5);
+  box-shadow: 0 0 15px rgba(234, 88, 12, 0.25);
+  animation: flameFLicker 0.5s ease-in-out infinite alternate;
+}
+
+/* Dreamer - Purple */
+.tier-dreamer {
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+  color: #FFF;
+  border-color: rgba(139, 92, 246, 0.5);
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.2);
+}
+
+/* Believer - Gold outline */
+.tier-believer {
+  background: transparent;
+  color: #EAB308;
+  border-color: #EAB308;
+  box-shadow: 0 0 10px rgba(234, 179, 8, 0.15);
+}
+
+/* Wave - Ocean blue */
+.tier-wave {
+  background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
+  color: #FFF;
+  border-color: rgba(14, 165, 233, 0.5);
+}
+
+/* Hover effects */
+.id-badge:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+/* Animations */
+@keyframes adminPulse {
+  0%, 100% {
+    box-shadow: 
+      0 0 20px rgba(220, 38, 38, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  50% {
+    box-shadow: 
+      0 0 30px rgba(220, 38, 38, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+}
+
+@keyframes pioneerGlow {
+  0%, 100% {
+    box-shadow: 
+      0 0 20px rgba(245, 158, 11, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  50% {
+    box-shadow: 
+      0 0 35px rgba(245, 158, 11, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+}
+
+@keyframes flameFLicker {
+  0% {
+    box-shadow: 0 0 12px rgba(234, 88, 12, 0.2);
+  }
+  100% {
+    box-shadow: 0 0 18px rgba(234, 88, 12, 0.35);
+  }
+}
+
+/* Tooltip - Smart positioning to prevent cropping */
+.id-badge-tooltip {
+  position: fixed;
+  padding: 12px 16px;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  min-width: 200px;
+  max-width: 280px;
+  z-index: 9999;
+  animation: tooltipFadeIn 0.2s ease;
+  pointer-events: none;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* Remove arrow since we use fixed positioning */
+.id-badge-tooltip::after {
+  display: none;
+}
+
+.tooltip-tier {
+  font-size: 14px;
+  font-weight: 600;
+  color: #FFF;
+  margin-bottom: 4px;
+}
+
+.tooltip-message {
+  font-size: 12px;
+  color: #94A3B8;
+  font-style: italic;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.tooltip-note {
+  font-size: 11px;
+  color: #64748B;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mobile Optimizations */
+@media (max-width: 640px) {
+  .id-badge {
+    gap: 4px;
+  }
+
+  .id-badge-sm {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+  .id-badge-sm .id-badge-icon {
+    width: 10px;
+    height: 10px;
+  }
+
+  .id-badge-md {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+  .id-badge-md .id-badge-icon {
+    width: 12px;
+    height: 12px;
+  }
+
+  .id-badge-lg {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+  .id-badge-lg .id-badge-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* Disable heavy animations on mobile for performance */
+  .tier-admin,
+  .tier-pioneer,
+  .tier-torchbearer {
+    animation: none;
+  }
+
+  /* Simpler shadows on mobile */
+  .tier-admin,
+  .tier-pioneer {
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+  }
+
+  .id-badge-tooltip {
+    min-width: 160px;
+    max-width: 220px;
+    padding: 10px 12px;
+  }
+
+  .tooltip-tier {
+    font-size: 12px;
+  }
+
+  .tooltip-message {
+    font-size: 11px;
+  }
+
+  .tooltip-note {
+    font-size: 10px;
+  }
+}
+
+/* Touch-friendly: disable hover effects on touch devices */
+@media (hover: none) {
+  .id-badge:hover {
+    transform: none;
+    filter: none;
+  }
+}
+

@@ -14,6 +14,48 @@ const userSchema = new mongoose.Schema({
     required: true,
     minlength: 8, // Matches Zod validator requirement
   },
+  username: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+    lowercase: true,
+    minlength: 3,
+    maxlength: 30,
+    match: [/^[a-z0-9_-]+$/, 'Username can only contain letters, numbers, underscores, and dashes'],
+    index: true,
+  },
+  usernameChangedAt: {
+    type: Date,
+    default: null,  // null = never changed, can change anytime
+  },
+  // Elite Badge (e.g. pioneer-VII) - Status/Gamification
+  eliteId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true,
+    immutable: true,
+  },
+  // Snap ID (e.g. SP-2025-W8K2P) - Technical/Support
+  snapId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true,
+    immutable: true,
+  },
+
+  // Elite ID tier (pioneer, torchbearer, dreamer, believer, wave, admin)
+  idTier: {
+    type: String,
+    enum: ['admin', 'pioneer', 'torchbearer', 'dreamer', 'believer', 'wave'],
+    immutable: true,
+  },
+  idNumber: {
+    type: Number,
+    immutable: true,
+  },
   firstName: {
     type: String,
     trim: true,
@@ -57,6 +99,74 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  
+  // Link-in-Bio Page Settings
+  bioPage: {
+    isEnabled: { type: Boolean, default: true }, // On/Off toggle for public profile
+    displayName: { type: String, maxlength: 50, trim: true },
+    bio: { type: String, maxlength: 160, trim: true }, // SEO-friendly length
+    avatarUrl: { type: String, trim: true },
+    theme: { 
+      type: String, 
+      enum: ['default', 'dark', 'midnight', 'ocean', 'forest', 'sunset', 'custom'],
+      default: 'default' 
+    },
+    customTheme: {
+      background: String,
+      textColor: String,
+      buttonColor: String,
+      buttonTextColor: String,
+      buttonStyle: { type: String, enum: ['rounded', 'pill', 'square'], default: 'rounded' }
+    },
+    socials: {
+      twitter: { type: String, trim: true },
+      instagram: { type: String, trim: true },
+      linkedin: { type: String, trim: true },
+      youtube: { type: String, trim: true },
+      github: { type: String, trim: true },
+      tiktok: { type: String, trim: true },
+      discord: { type: String, trim: true },
+      email: { type: String, trim: true },
+      website: { type: String, trim: true }
+    },
+    pinnedLinks: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Url' }],
+    lastUpdatedAt: { type: Date, default: Date.now }
+  },
+  
+  // Subscription & Billing
+  subscription: {
+    customerId: { type: String, index: true }, // lemon_squeezy_customer_id
+    subscriptionId: { type: String, index: true }, // lemon_squeezy_subscription_id
+    variantId: String, // lemon_squeezy_variant_id
+    tier: { 
+      type: String, 
+      enum: ['free', 'pro', 'business'], 
+      default: 'free' 
+    },
+    billingCycle: { type: String, enum: ['monthly', 'yearly', 'lifetime', 'one_time', null] },
+    status: { 
+      type: String, 
+      enum: ['active', 'on_trial', 'past_due', 'paused', 'cancelled', 'expired', 'unpaid'],
+      default: 'active' 
+    },
+    currentPeriodStart: Date,
+    currentPeriodEnd: Date,
+    trialEndsAt: Date,
+    cancelledAt: Date,
+    customerPortalUrl: String,
+    updatePaymentUrl: String,
+  },
+  
+  // Usage Tracking
+  linkUsage: {
+    count: { type: Number, default: 0 },
+    resetAt: { type: Date, default: Date.now }
+  },
+  clickUsage: {
+    count: { type: Number, default: 0 },
+    resetAt: { type: Date, default: Date.now }
+  },
+  hasUsedTrial: { type: Boolean, default: false },
   disableLinksOnBan: {
     type: Boolean,
     default: true, // When banned, links are disabled by default

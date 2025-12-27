@@ -81,3 +81,6 @@ pnpm-lock.yaml
 DOCs/
 feature-list/
 plans/
+
+# Utility scripts (may contain local paths or dev-only utilities)
+server/scripts/

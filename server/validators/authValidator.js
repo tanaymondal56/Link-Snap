@@ -33,12 +33,16 @@ export const registerSchema = z.object({
     .url({ message: "Invalid website URL" })
     .optional()
     .or(z.literal('')),
+  username: z.string()
+    .min(3, { message: "Username must be at least 3 characters" })
+    .max(30, { message: "Username is too long" })
+    .regex(/^[a-z0-9_-]+$/, { message: "Username can only contain lowercase letters, numbers, underscores, and dashes" }),
 });
 
 export const loginSchema = z.object({
-  email: z.string()
-    .email({ message: "Invalid email address" })
-    .max(255, { message: "Email is too long" }),
+  identifier: z.string()
+    .min(1, { message: "Email or username is required" })
+    .max(255, { message: "Identifier is too long" }),
   password: z.string()
     .min(1, { message: "Password is required" })
     .max(128, { message: "Password is too long" }),
@@ -65,6 +69,11 @@ export const updateProfileSchema = z.object({
     .optional()
     .or(z.literal('')),
   bio: z.string().max(500).optional(),
+  username: z.string()
+    .min(3, { message: "Username must be at least 3 characters" })
+    .max(30, { message: "Username is too long" })
+    .regex(/^[a-z0-9_-]+$/, { message: "Username can only contain lowercase letters, numbers, underscores, and dashes" })
+    .optional(),
 });
 
 export const verifyOtpSchema = z.object({

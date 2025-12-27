@@ -81,16 +81,18 @@ export const AuthProvider = ({ children }) => {
     setAuthModal({ isOpen: false, tab: 'login' });
   };
 
-  const login = async (email, password) => {
+  const login = async (identifier, password) => {
     try {
-      const { data } = await api.post('/auth/login', { email, password });
+      const { data } = await api.post('/auth/login', { identifier, password });
       
       // Update memory token
       setAccessToken(data.accessToken);
       
       const userData = {
         _id: data._id,
+        internalId: data.internalId,
         email: data.email,
+        username: data.username,
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role,
@@ -113,7 +115,7 @@ export const AuthProvider = ({ children }) => {
         );
         sessionStorage.setItem('banReason', errorData.bannedReason || '');
         sessionStorage.setItem('banSupport', JSON.stringify(errorData.support || {}));
-        sessionStorage.setItem('banUserEmail', errorData.userEmail || email);
+        sessionStorage.setItem('banUserEmail', errorData.userEmail || identifier);
 
         if (errorData.appealToken) {
           sessionStorage.setItem('banAppealToken', errorData.appealToken);
@@ -134,9 +136,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (email, password, additionalData = {}) => {
+  const register = async (username, email, password, additionalData = {}) => {
     try {
       const { data } = await api.post('/auth/register', {
+        username,
         email,
         password,
         ...additionalData,
@@ -160,6 +163,7 @@ export const AuthProvider = ({ children }) => {
       const userData = {
         _id: data._id,
         email: data.email,
+        username: data.username,
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role,

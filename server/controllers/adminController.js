@@ -6,10 +6,12 @@ import Settings from '../models/Settings.js';
 import BanHistory from '../models/BanHistory.js';
 import Appeal from '../models/Appeal.js';
 import Feedback from '../models/Feedback.js';
+import UsernameHistory from '../models/UsernameHistory.js';
 import { getCacheStats, clearCache, invalidateMultiple } from '../services/cacheService.js';
 import sendEmail from '../utils/sendEmail.js';
 import { suspensionEmail, reactivationEmail, appealDecisionEmail, testEmail } from '../utils/emailTemplates.js';
 import { escapeRegex } from '../utils/regexUtils.js';
+import { generateUserIdentity } from '../services/idService.js';
 
 // Helper function to calculate ban expiry date
 const calculateBanExpiry = (duration) => {
@@ -98,6 +100,7 @@ export const getAllUsers = async (req, res, next) => {
         const skip = (page - 1) * limit;
 
         const query = {};
+        const tier = req.query.tier || '';
 
         // Search logic
         if (search) {
@@ -105,13 +108,23 @@ export const getAllUsers = async (req, res, next) => {
             query.$or = [
                 { email: { $regex: escapedSearch, $options: 'i' } },
                 { firstName: { $regex: escapedSearch, $options: 'i' } },
-                { lastName: { $regex: escapedSearch, $options: 'i' } }
+                { lastName: { $regex: escapedSearch, $options: 'i' } },
+                { username: { $regex: escapedSearch, $options: 'i' } }
             ];
         }
 
         // Role filtering
         if (role && role !== 'all') {
             query.role = role;
+        }
+
+        // Tier filtering
+        if (tier && tier !== 'all') {
+            if (tier === 'paid') {
+                query['subscription.tier'] = { $in: ['pro', 'business'] };
+            } else {
+                query['subscription.tier'] = tier;
+            }
         }
 
         // Execute query with skip/limit
@@ -140,7 +153,7 @@ export const getAllUsers = async (req, res, next) => {
 export const updateUserStatus = async (req, res, next) => {
     try {
         const { reason, disableLinks, reenableLinks, duration } = req.body || {};
-        const user = await User.findById(req.params.id);
+        const user = await User.findById(req.params.userId);
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
@@ -185,6 +198,7 @@ export const updateUserStatus = async (req, res, next) => {
             // Log ban history
             await BanHistory.create({
                 userId: user._id,
+                userInternalId: user.internalId,
                 action: duration && duration !== 'permanent' ? 'ban' : 'ban',
                 reason: banReason,
                 duration: duration || 'permanent',
@@ -212,6 +226,7 @@ export const updateUserStatus = async (req, res, next) => {
             // Log unban history
             await BanHistory.create({
                 userId: user._id,
+                userInternalId: user.internalId,
                 action: 'unban',
                 reason: 'Manually unbanned by administrator',
                 linksAffected: reenableLinks || false,
@@ -267,7 +282,7 @@ export const updateUserStatus = async (req, res, next) => {
 // @access  Admin
 export const updateUserRole = async (req, res, next) => {
     try {
-        const user = await User.findById(req.params.id);
+        const user = await User.findById(req.params.userId);
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
@@ -306,7 +321,7 @@ export const updateUserRole = async (req, res, next) => {
 // @access  Admin
 export const deleteUser = async (req, res, next) => {
     try {
-        const user = await User.findById(req.params.id);
+        const user = await User.findById(req.params.userId);
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
@@ -317,18 +332,38 @@ export const deleteUser = async (req, res, next) => {
             return res.status(400).json({ message: 'Cannot delete your own admin account' });
         }
 
+        // Cancel Lemon Squeezy subscription if exists
+        if (user.subscription?.subscriptionId && process.env.LEMONSQUEEZY_API_KEY) {
+            try {
+                const axios = (await import('axios')).default;
+                await axios.delete(
+                    `https://api.lemonsqueezy.com/v1/subscriptions/${user.subscription.subscriptionId}`,
+                    {
+                        headers: {
+                            'Accept': 'application/vnd.api+json',
+                            'Authorization': `Bearer ${process.env.LEMONSQUEEZY_API_KEY}`
+                        }
+                    }
+                );
+                console.log(`[Delete User] Cancelled LS subscription for ${user.snapId}`);
+            } catch (lsError) {
+                // Log but don't block deletion - subscription may already be cancelled
+                console.warn(`[Delete User] Failed to cancel LS subscription: ${lsError.message}`);
+            }
+        }
+
         // Find all URLs by this user
-        const userUrls = await Url.find({ user: user._id });
-        const urlIds = userUrls.map(url => url._id);
+        const userUrls = await Url.find({ createdBy: user._id });
+        const userIds = userUrls.map(url => url._id);
 
         // Delete all analytics for these URLs
-        await Analytics.deleteMany({ urlId: { $in: urlIds } });
+        await Analytics.deleteMany({ urlId: { $in: userIds } });
 
         // Delete all URLs
-        await Url.deleteMany({ user: user._id });
+        await Url.deleteMany({ createdBy: user._id });
 
         // Delete the user
-        await User.findByIdAndDelete(req.params.id);
+        await User.findByIdAndDelete(req.params.userId);
 
         res.json({ message: 'User and associated data removed' });
     } catch (error) {
@@ -471,7 +506,7 @@ export const clearUrlCache = async (req, res, next) => {
 // @access  Admin
 export const createUser = async (req, res, next) => {
     try {
-        const { email, password, role, firstName, lastName, phone, company, website } = req.body;
+        const { email, password, role, firstName, lastName, phone, company, website, username } = req.body;
 
         // Validate input
         if (!email || !password) {
@@ -482,20 +517,72 @@ export const createUser = async (req, res, next) => {
         const validRoles = ['user', 'admin'];
         const userRole = validRoles.includes(role) ? role : 'user';
 
-        // Check if user already exists
+        // Check if user already exists by email
         const existingUser = await User.findOne({ email: email.toLowerCase() });
         if (existingUser) {
             return res.status(400).json({ message: 'User with this email already exists' });
         }
 
-        // Validate password strength
-        if (password.length < 6) {
-            return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+        // Handle username - either validate provided or generate
+        let finalUsername;
+        if (username) {
+            // Validate provided username
+            const usernameLower = username.toLowerCase().trim();
+            
+            if (usernameLower.length < 3 || usernameLower.length > 30) {
+                return res.status(400).json({ message: 'Username must be 3-30 characters' });
+            }
+            
+            if (!/^[a-z0-9_-]+$/.test(usernameLower)) {
+                return res.status(400).json({ message: 'Username can only contain lowercase letters, numbers, underscores, and dashes' });
+            }
+            
+            // Check reserved words (import at top of file)
+            const { isReservedWord } = await import('../config/reservedWords.js');
+            if (isReservedWord(usernameLower)) {
+                return res.status(400).json({ message: 'This username is not available' });
+            }
+            
+            // Check if username already exists
+            const existingUsername = await User.findOne({ username: usernameLower });
+            if (existingUsername) {
+                return res.status(400).json({ message: 'Username is already taken' });
+            }
+            
+            finalUsername = usernameLower;
+        } else {
+            // Auto-generate username from email (before @)
+            const emailPrefix = email.toLowerCase().split('@')[0].replace(/[^a-z0-9_-]/g, '').slice(0, 20);
+            let generatedUsername = emailPrefix;
+            let counter = 1;
+            
+            // Ensure uniqueness
+            while (await User.findOne({ username: generatedUsername })) {
+                generatedUsername = `${emailPrefix}${counter}`;
+                counter++;
+                if (counter > 100) {
+                    // Fallback to random suffix
+                    generatedUsername = `${emailPrefix}${Date.now().toString(36)}`;
+                    break;
+                }
+            }
+            finalUsername = generatedUsername;
         }
+
+        // Validate password strength
+        if (password.length < 8) {
+            return res.status(400).json({ message: 'Password must be at least 8 characters long' });
+        }
+
+        // Generate Elite ID based on role
+        // generateEliteId is deprecated wrapper, using generateUserIdentity
+        const isAdminRole = userRole === 'admin';
+        const eliteIdData = await generateUserIdentity(isAdminRole);
 
         // Create user - password will be hashed by pre-save hook
         const user = await User.create({
             email: email.toLowerCase(),
+            username: finalUsername,
             password,
             role: userRole,
             firstName,
@@ -504,13 +591,19 @@ export const createUser = async (req, res, next) => {
             company,
             website,
             isVerified: true, // Admin-created users are auto-verified
-            isActive: true
+            isActive: true,
+            // Identity system
+            eliteId: eliteIdData.eliteId,
+            snapId: eliteIdData.snapId,
+            idTier: eliteIdData.idTier,
+            idNumber: eliteIdData.idNumber,
         });
 
         // Return user without sensitive data
         res.status(201).json({
             _id: user._id,
             email: user.email,
+            username: user.username,
             firstName: user.firstName,
             lastName: user.lastName,
             phone: user.phone,
@@ -629,6 +722,7 @@ export const respondToAppeal = async (req, res, next) => {
                     // Log in ban history
                     await BanHistory.create({
                         userId: user._id,
+                        userInternalId: user.internalId,
                         action: 'unban',
                         reason: `Appeal approved: ${adminResponse || 'No additional comments'}`,
                         linksAffected: true,
@@ -659,6 +753,7 @@ export const respondToAppeal = async (req, res, next) => {
                     // Log in ban history
                     await BanHistory.create({
                         userId: user._id,
+                        userInternalId: user.internalId,
                         action: 'appeal_approved',
                         reason: `Appeal approved (Unban Pending): ${adminResponse || 'No additional comments'}`,
                         linksAffected: false,
@@ -714,7 +809,7 @@ export const respondToAppeal = async (req, res, next) => {
 export const exportFeedbackCSV = async (req, res, next) => {
     try {
         const feedback = await Feedback.find({ isDeleted: false })
-            .populate('user', 'email firstName lastName')
+            .populate('user', 'email username firstName lastName')
             .sort({ createdAt: -1 })
             .lean();
 
@@ -804,7 +899,7 @@ export const getAllFeedback = async (req, res, next) => {
         
         const [feedback, total] = await Promise.all([
             Feedback.find(filter)
-                .populate('user', 'email firstName lastName')
+                .populate('user', 'email username firstName lastName')
                 .sort(sortOption)
                 .skip(skip)
                 .limit(limit)
@@ -914,7 +1009,7 @@ export const updateFeedback = async (req, res, next) => {
         await feedback.save();
         
         // Populate user for response
-        await feedback.populate('user', 'email firstName lastName');
+        await feedback.populate('user', 'email username firstName lastName');
         
         res.json({
             message: 'Feedback updated',
@@ -946,6 +1041,35 @@ export const deleteFeedback = async (req, res, next) => {
         await feedback.save();
         
         res.json({ message: 'Feedback deleted' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get username history for a user
+// @route   GET /api/admin/users/:userId/username-history
+// @access  Admin
+export const getUsernameHistory = async (req, res, next) => {
+    try {
+        const { userId } = req.params;
+
+        // Verify user exists
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const history = await UsernameHistory.find({ userId })
+            .populate('changedBy', 'email firstName lastName')
+            .sort({ changedAt: -1 })
+            .limit(50)
+            .lean();
+
+        res.json({
+            currentUsername: user.username,
+            usernameChangedAt: user.usernameChangedAt,
+            history
+        });
     } catch (error) {
         next(error);
     }

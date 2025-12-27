@@ -2,6 +2,7 @@ import express from 'express';
 import { createShortUrl, getMyLinks, deleteUrl, checkAliasAvailability, updateUrl, verifyLinkPassword } from '../controllers/urlController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { createLinkLimiter, passwordVerifyLimiter } from '../middleware/rateLimiter.js';
+import { checkLinkLimit } from '../middleware/subscriptionMiddleware.js';
 
 const router = express.Router();
 
@@ -26,7 +27,7 @@ const optionalAuth = async (req, res, next) => {
     next();
 };
 
-router.post('/shorten', optionalAuth, createLinkLimiter, createShortUrl);
+router.post('/shorten', optionalAuth, createLinkLimiter, checkLinkLimit, createShortUrl);
 router.get('/my-links', protect, getMyLinks);
 router.get('/check-alias/:alias', protect, checkAliasAvailability);
 router.put('/:id', protect, updateUrl);

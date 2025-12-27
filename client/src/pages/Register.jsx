@@ -1,16 +1,56 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Mail, Lock, ArrowRight, CheckCircle } from 'lucide-react';
+import { Loader2, Mail, Lock, ArrowRight, CheckCircle, User, XCircle, Check, X } from 'lucide-react';
 import showToast from '../components/ui/Toast';
+import api from '../lib/api';
 
 const Register = () => {
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState('idle'); // idle | checking | available | taken | invalid | reserved
   const { register, user } = useAuth();
   const navigate = useNavigate();
+
+  // Debounced username availability check
+  useEffect(() => {
+    if (!username || username.length < 3) {
+      setUsernameStatus('idle');
+      return;
+    }
+
+    // Validate format first
+    if (!/^[a-z0-9_-]+$/.test(username)) {
+      setUsernameStatus('invalid');
+      return;
+    }
+
+    if (username.length > 30) {
+      setUsernameStatus('invalid');
+      return;
+    }
+
+    setUsernameStatus('checking');
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const { data } = await api.get(`/auth/check-username/${username}`);
+        if (data.available) {
+          setUsernameStatus('available');
+        } else {
+          setUsernameStatus(data.reason === 'reserved' ? 'reserved' : 'taken');
+        }
+      } catch (error) {
+        console.error('Username check failed:', error);
+        setUsernameStatus('idle'); // Don't block on error
+      }
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [username]);
 
   // Redirect if already logged in
   if (user) {
@@ -27,12 +67,58 @@ const Register = () => {
       showToast.warning("Your passwords don't match", 'Check Again');
       return;
     }
+    if (!username) {
+      showToast.warning("Please enter a username", 'Missing Info');
+      return;
+    }
+    if (username.length < 3 || username.length > 30) {
+      showToast.warning("Username must be 3-30 characters long", 'Invalid Username');
+      return;
+    }
+    if (!/^[a-z0-9_-]+$/.test(username)) {
+      showToast.warning("Username can only contain lowercase letters, numbers, underscores, and dashes", 'Invalid Username');
+      return;
+    }
+    if (usernameStatus === 'taken' || usernameStatus === 'reserved') {
+      showToast.warning("This username is not available", 'Username Taken');
+      return;
+    }
 
     setIsLoading(true);
-    const result = await register(email, password);
+    const result = await register(username, email, password);
     setIsLoading(false);
     if (result.success && !result.requireVerification) {
       navigate('/dashboard');
+    }
+  };
+
+  const getUsernameStatusIcon = () => {
+    switch (usernameStatus) {
+      case 'checking':
+        return <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />;
+      case 'available':
+        return <Check className="h-5 w-5 text-green-500" />;
+      case 'taken':
+      case 'reserved':
+      case 'invalid':
+        return <X className="h-5 w-5 text-red-500" />;
+      default:
+        return null;
+    }
+  };
+
+  const getUsernameStatusMessage = () => {
+    switch (usernameStatus) {
+      case 'available':
+        return <span className="text-green-500 text-xs">Available!</span>;
+      case 'taken':
+        return <span className="text-red-500 text-xs">Already taken</span>;
+      case 'reserved':
+        return <span className="text-red-500 text-xs">Not available</span>;
+      case 'invalid':
+        return <span className="text-red-500 text-xs">Invalid format</span>;
+      default:
+        return null;
     }
   };
 
@@ -58,6 +144,32 @@ const Register = () => {
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <User className="h-5 w-5 text-gray-400 group-focus-within:text-blue-400 transition-colors" />
+              </div>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                autoComplete="username"
+                required
+                className={`block w-full pl-10 pr-10 py-3 border rounded-xl leading-5 bg-gray-900/50 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 focus:bg-gray-900/80 transition-all duration-200 sm:text-sm ${
+                  usernameStatus === 'available' ? 'border-green-500/50' :
+                  usernameStatus === 'taken' || usernameStatus === 'reserved' || usernameStatus === 'invalid' ? 'border-red-500/50' :
+                  'border-gray-700'
+                }`}
+                placeholder="Username (unique, lowercase, alphanumeric)"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+              />
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                {getUsernameStatusIcon()}
+              </div>
+            </div>
+            {getUsernameStatusMessage() && (
+              <div className="ml-1 -mt-2">{getUsernameStatusMessage()}</div>
+            )}
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Mail className="h-5 w-5 text-gray-400 group-focus-within:text-blue-400 transition-colors" />
