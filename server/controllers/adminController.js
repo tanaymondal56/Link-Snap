@@ -67,11 +67,15 @@ export const getSystemStats = async (req, res, next) => {
         const totalUrls = await Url.estimatedDocumentCount(); // Fast estimate for large collection
         const totalClicks = await Analytics.estimatedDocumentCount(); // Fast estimate for very large collection
 
-        // Get recent users (last 5)
-        const recentUsers = await User.find()
-            .sort({ createdAt: -1 })
-            .limit(5)
+        // Get recent users (last 5) - fetch without sort, sort in JS (Cosmos DB index workaround)
+        let recentUsers = await User.find()
+            .limit(50) // Fetch more, then sort and slice in JS
             .select('-password -refreshTokens');
+        
+        // Sort in JavaScript (Cosmos DB doesn't have createdAt index)
+        recentUsers = recentUsers
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 5);
 
         // Get cache stats
         const cacheStats = getCacheStats();
@@ -127,12 +131,15 @@ export const getAllUsers = async (req, res, next) => {
             }
         }
 
-        // Execute query with skip/limit
-        const users = await User.find(query)
+        // Execute query without sort (Cosmos DB index workaround)
+        let users = await User.find(query)
             .select('-password -refreshTokens')
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit);
+            .limit(limit + skip); // Fetch enough for pagination
+        
+        // Sort in JavaScript
+        users = users
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(skip, skip + limit);
 
         const total = await User.countDocuments(query);
 
