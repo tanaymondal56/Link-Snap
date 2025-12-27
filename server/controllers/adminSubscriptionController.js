@@ -22,14 +22,18 @@ export const getSubscriptionStats = async (req, res) => {
       { $group: { _id: '$subscription.status', count: { $sum: 1 } } }
     ]);
     
-    // Get recent upgrades (use find instead of aggregate to avoid nested field sort issues)
-    const recentUpgrades = await User.find({
+    // Get recent upgrades (fetch without sort, sort in JS - Cosmos DB index workaround)
+    let recentUpgrades = await User.find({
       'subscription.tier': { $in: ['pro', 'business'] },
       'subscription.currentPeriodStart': { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
     })
-      .sort({ createdAt: -1 }) // Sort by createdAt instead of nested field
-      .limit(10)
-      .select('email snapId subscription.tier subscription.currentPeriodStart');
+      .limit(50) // Fetch more, sort in JS
+      .select('email snapId subscription.tier subscription.currentPeriodStart createdAt');
+    
+    // Sort in JavaScript
+    recentUpgrades = recentUpgrades
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 10);
     
     // Get total count
     const totalUsers = await User.countDocuments();
