@@ -51,7 +51,7 @@ export const getPublicChangelogs = async (req, res, next) => {
 
         const [changelogs, total] = await Promise.all([
             Changelog.find({ isPublished: true })
-                .sort({ order: -1, date: -1 })
+                .sort({ order: -1 }) // Single-field sort for Cosmos DB compatibility
                 .skip(skip)
                 .limit(limit)
                 .select('-__v -history'),
@@ -95,7 +95,7 @@ export const getPublicRoadmap = async (req, res, next) => {
         // Parallel execution: fetch paginated items AND aggregate total counts
         const [roadmapItems, countsAggregation] = await Promise.all([
             Changelog.find(query)
-                .sort({ roadmapPriority: -1, createdAt: -1 })
+                .sort({ roadmapPriority: -1 }) // Single-field sort for Cosmos DB compatibility
                 .skip(skip)
                 .limit(limit)
                 .select('version title description type icon changes roadmapStatus estimatedRelease roadmapPriority createdAt')
@@ -160,7 +160,7 @@ export const getPublicRoadmap = async (req, res, next) => {
 export const getAllChangelogs = async (req, res, next) => {
     try {
         const changelogs = await Changelog.find()
-            .sort({ order: -1, date: -1 })
+            .sort({ order: -1 }) // Single-field sort for Cosmos DB compatibility
             .select('-__v');
         
         res.json(changelogs);
@@ -440,9 +440,9 @@ export const togglePublish = async (req, res, next) => {
 // @access  Public
 export const getPublicLatestVersion = async (req, res, next) => {
     try {
-        // Find the latest PUBLISHED changelog by order/date
+        // Find the latest PUBLISHED changelog by order
         const latest = await Changelog.findOne({ isPublished: true })
-            .sort({ order: -1, date: -1 })
+            .sort({ order: -1 }) // Single-field sort for Cosmos DB compatibility
             .select('version date')
             .lean(); // Use lean() for faster read-only queries
 
@@ -612,7 +612,7 @@ export const reorderChangelogs = async (req, res, next) => {
         
         // If no orderedIds, normalize existing order to remove gaps
         const changelogs = await Changelog.find()
-            .sort({ order: -1, date: -1 })
+            .sort({ order: -1 }) // Single-field sort for Cosmos DB compatibility
             .select('_id');
         
         const bulkOps = changelogs.map((changelog, index) => ({
