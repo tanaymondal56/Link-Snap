@@ -54,7 +54,7 @@ export const getAllLinks = async (req, res) => {
 
         const urls = await Url.find(query)
             .populate('createdBy', 'email username isActive disableLinksOnBan')
-            .sort({ createdAt: -1 })
+            .sort({ createdAt: -1 }) // TODO: Remove this when Cosmos DB has createdAt index
             .skip(skip)
             .limit(limit);
 

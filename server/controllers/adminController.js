@@ -632,10 +632,14 @@ export const getUserBanHistory = async (req, res, next) => {
     try {
         const userId = req.params.userId;
 
-        const history = await BanHistory.find({ userId })
+        let history = await BanHistory.find({ userId })
             .populate('performedBy', 'email firstName lastName')
-            .sort({ createdAt: -1 })
-            .limit(50);
+            .limit(100); // Fetch more, sort in JS
+        
+        // Sort in JavaScript (Cosmos DB index workaround)
+        history = history
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 50);
 
         res.json(history);
     } catch (error) {
@@ -650,9 +654,11 @@ export const getUserAppeals = async (req, res, next) => {
     try {
         const userId = req.params.userId;
 
-        const appeals = await Appeal.find({ userId })
-            .populate('reviewedBy', 'email firstName lastName')
-            .sort({ createdAt: -1 });
+        let appeals = await Appeal.find({ userId })
+            .populate('reviewedBy', 'email firstName lastName');
+        
+        // Sort in JavaScript (Cosmos DB index workaround)
+        appeals = appeals.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
         res.json(appeals);
     } catch (error) {
@@ -668,10 +674,12 @@ export const getAllAppeals = async (req, res, next) => {
         const { status } = req.query;
         const filter = status ? { status } : {};
 
-        const appeals = await Appeal.find(filter)
+        let appeals = await Appeal.find(filter)
             .populate('userId', 'email firstName lastName bannedAt bannedReason')
-            .populate('reviewedBy', 'email firstName lastName')
-            .sort({ createdAt: -1 });
+            .populate('reviewedBy', 'email firstName lastName');
+        
+        // Sort in JavaScript (Cosmos DB index workaround)
+        appeals = appeals.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
         res.json(appeals);
     } catch (error) {
@@ -815,10 +823,12 @@ export const respondToAppeal = async (req, res, next) => {
 // @access  Admin
 export const exportFeedbackCSV = async (req, res, next) => {
     try {
-        const feedback = await Feedback.find({ isDeleted: false })
+        let feedback = await Feedback.find({ isDeleted: false })
             .populate('user', 'email username firstName lastName')
-            .sort({ createdAt: -1 })
             .lean();
+        
+        // Sort in JavaScript (Cosmos DB index workaround)
+        feedback = feedback.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
         // CSV Header
         const headers = ['ID', 'Type', 'Status', 'Priority', 'Title', 'Message', 'Votes', 'User Email', 'Category', 'Created At'];
@@ -935,7 +945,7 @@ export const getFeedbackStats = async (req, res, next) => {
             newCount,
             byType,
             byStatus,
-            topVoted
+            topVotedRaw
         ] = await Promise.all([
             Feedback.countDocuments({ isDeleted: false }),
             Feedback.countDocuments({ isDeleted: false, status: 'new' }),
@@ -948,10 +958,14 @@ export const getFeedbackStats = async (req, res, next) => {
                 { $group: { _id: '$status', count: { $sum: 1 } } }
             ]),
             Feedback.find({ isDeleted: false })
-                .sort({ voteCount: -1 })
-                .limit(5)
+                .limit(50) // Fetch more, sort in JS
                 .select('title type voteCount status')
         ]);
+        
+        // Sort topVoted in JavaScript (Cosmos DB index workaround)
+        const topVoted = topVotedRaw
+            .sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0))
+            .slice(0, 5);
         
         // Convert aggregation results to objects
         const typeStats = {};
@@ -1066,11 +1080,15 @@ export const getUsernameHistory = async (req, res, next) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const history = await UsernameHistory.find({ userId })
+        let history = await UsernameHistory.find({ userId })
             .populate('changedBy', 'email firstName lastName')
-            .sort({ changedAt: -1 })
-            .limit(50)
+            .limit(100)
             .lean();
+        
+        // Sort in JavaScript (Cosmos DB index workaround)
+        history = history
+            .sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt))
+            .slice(0, 50);
 
         res.json({
             currentUsername: user.username,
