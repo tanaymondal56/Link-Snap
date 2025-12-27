@@ -106,7 +106,7 @@ const AdminSettings = () => {
       const payload = { ...emailForm };
       if (!payload.emailPassword) delete payload.emailPassword; // Don't send empty pass
       
-      await api.post('/admin/settings/email-config', payload);
+      await api.put('/admin/settings', payload);
       setSettings(prev => ({ ...prev, emailConfigured: true }));
       showToast.success('Email configuration saved');
     } catch {
