@@ -69,7 +69,7 @@ export const listRedeemCodes = async (req, res) => {
     
     const codes = await RedeemCode.find(query)
       .populate('createdBy', 'email snapId')
-      .sort({ createdAt: -1 })
+      // .sort({ createdAt: -1 }) // Disabled for Cosmos DB
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
     
