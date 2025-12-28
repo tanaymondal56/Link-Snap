@@ -414,7 +414,7 @@ const SettingsPage = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-hidden">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-white">Settings</h1>
@@ -422,10 +422,10 @@ const SettingsPage = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-700/50">
+      <div className="flex gap-2 border-b border-gray-700/50 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
         <button
           onClick={() => setActiveTab('profile')}
-          className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+          className={`shrink-0 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
             activeTab === 'profile'
               ? 'text-white border-blue-500'
               : 'text-gray-400 border-transparent hover:text-white'
@@ -438,7 +438,7 @@ const SettingsPage = () => {
         </button>
         <button
           onClick={() => setActiveTab('security')}
-          className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+          className={`shrink-0 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
             activeTab === 'security'
               ? 'text-white border-blue-500'
               : 'text-gray-400 border-transparent hover:text-white'
@@ -451,7 +451,7 @@ const SettingsPage = () => {
         </button>
         <button
           onClick={() => setActiveTab('sessions')}
-          className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+          className={`shrink-0 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
             activeTab === 'sessions'
               ? 'text-white border-blue-500'
               : 'text-gray-400 border-transparent hover:text-white'
@@ -464,7 +464,7 @@ const SettingsPage = () => {
         </button>
         <button
           onClick={() => setActiveTab('subscription')}
-          className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+          className={`shrink-0 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
             activeTab === 'subscription'
               ? 'text-white border-blue-500'
               : 'text-gray-400 border-transparent hover:text-white'
