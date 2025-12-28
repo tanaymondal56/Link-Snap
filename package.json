@@ -13,7 +13,11 @@
     "build": "npm install --prefix client && npm run build --prefix client && npm install --prefix server",
     "prod": "npm run start:prod --prefix server",
     "start": "cd server && npm start",
-    "postinstall": "npm run build"
+    "postinstall": "npm run build",
+    "sync:version": "node scripts/sync-version.js",
+    "bump:patch": "node scripts/sync-version.js patch",
+    "bump:minor": "node scripts/sync-version.js minor",
+    "bump:major": "node scripts/sync-version.js major"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
