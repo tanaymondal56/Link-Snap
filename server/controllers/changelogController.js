@@ -2,6 +2,7 @@ import Changelog from '../models/Changelog.js';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import validator from 'validator';
+import { syncVersionOnPublish } from '../utils/versionSync.js';
 
 // Helper to validate ObjectId
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
@@ -428,6 +429,13 @@ export const togglePublish = async (req, res, next) => {
             changes: changelog.isPublished ? 'Published (hidden from roadmap)' : 'Unpublished (visible on roadmap if enabled)'
         });
         await changelog.save();
+
+        // Auto-sync version across all config files when publishing
+        if (changelog.isPublished) {
+            syncVersionOnPublish(changelog.version).catch(err => {
+                console.error('[Changelog] Version sync failed:', err.message);
+            });
+        }
 
         res.json(changelog);
     } catch (error) {
