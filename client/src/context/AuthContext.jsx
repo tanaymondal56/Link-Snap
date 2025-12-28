@@ -31,7 +31,6 @@ export const AuthProvider = ({ children }) => {
       } catch (error) {
         // Only treat 401/403 as definitive "not logged in"
         if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-          console.log('Not authenticated (No valid session)');
           setUser(null);
           setAccessToken(null);
           setLoading(false);
@@ -39,13 +38,8 @@ export const AuthProvider = ({ children }) => {
           // For network errors (server restarting), retry up to 5 times
           if (retryCount < 5) {
             const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
-            // Only log on first retry to reduce console noise
-            if (retryCount === 0) {
-              console.log('Server starting, waiting...');
-            }
             setTimeout(() => checkAuth(retryCount + 1), delay);
           } else {
-            console.error('Auth check failed after retries');
             setUser(null);
             setLoading(false);
           }
@@ -57,7 +51,6 @@ export const AuthProvider = ({ children }) => {
     const timeoutId = setTimeout(() => {
       setLoading((current) => {
         if (current) {
-          console.warn('Auth check timeout - proceeding without auth');
           return false;
         }
         return current;
@@ -183,8 +176,8 @@ export const AuthProvider = ({ children }) => {
       setAccessToken(null);
       setUser(null);
       showToast.info('See you next time!', 'Logged Out');
-    } catch (error) {
-      console.error('Logout error', error);
+    } catch {
+      // Logout error - ignore
     }
   };
 

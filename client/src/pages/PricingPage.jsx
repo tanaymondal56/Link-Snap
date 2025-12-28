@@ -47,16 +47,13 @@ const PricingPage = () => {
         });
         
     if (data.url) {
-            console.log('Redirecting to checkout:', data.url);
             window.location.href = data.url;
             // Don't setLoading(false) - keep loading screen while redirecting
         } else {
-            console.error('No checkout URL returned');
             showToast.error('Failed to initiate checkout. Please try again.');
             setLoading(false);
         }
-    } catch (err) {
-        console.error('Checkout failed', err);
+    } catch {
         showToast.error("Couldn't start checkout. Please check your connection.");
         setLoading(false);
     }
