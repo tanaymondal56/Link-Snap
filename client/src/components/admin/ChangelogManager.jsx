@@ -358,8 +358,12 @@ const ChangelogManager = () => {
     try {
       const { data } = await api.patch(`/changelog/admin/${id}/publish`);
       setChangelogs(prev => 
-        prev.map(c => c._id === id ? { ...c, isPublished: data.isPublished } : c)
+        prev.map(c => c._id === id ? { ...c, isPublished: data.isPublished, updatedAt: data.updatedAt } : c)
       );
+      // Fix: If we're currently editing this changelog, update the timestamp to prevent conflict
+      if (editingId === id && data.updatedAt) {
+        setEditingUpdatedAt(data.updatedAt);
+      }
       showToast.success(data.isPublished ? 'Published' : 'Unpublished');
     } catch {
       showToast.error('Failed to toggle publish');
