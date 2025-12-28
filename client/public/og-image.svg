@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6b21a8"/>
+      <stop offset="100%" style="stop-color:#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  
+  <!-- Decorative circles -->
+  <circle cx="100" cy="100" r="150" fill="rgba(255,255,255,0.03)"/>
+  <circle cx="1100" cy="530" r="200" fill="rgba(255,255,255,0.03)"/>
+  
+  <!-- Link icon -->
+  <g transform="translate(540, 180)">
+    <path d="M70 50L50 70a35 35 0 0 1-50 0 35 35 0 0 1 0-50l20-20m30 50l20-20a35 35 0 0 0 0-50 35 35 0 0 0-50 0L0 0" 
+          stroke="rgba(255,255,255,0.8)" stroke-width="8" fill="none" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Main title -->
+  <text x="600" y="320" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="bold" fill="white">
+    Link Snap
+  </text>
+  
+  <!-- Tagline -->
+  <text x="600" y="400" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="28" fill="rgba(255,255,255,0.8)">
+    Shorten URLs • Track Clicks • Generate QR Codes
+  </text>
+  
+  <!-- Subtitle -->
+  <text x="600" y="480" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="20" fill="rgba(255,255,255,0.5)">
+    Free URL Shortener with Analytics
+  </text>
+</svg>
