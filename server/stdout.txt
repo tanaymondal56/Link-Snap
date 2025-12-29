@@ -1,1 +1,0 @@
-[dotenv@17.2.3] injecting env (8) from .env -- tip: ⚙️  override existing env vars with { override: true }

@@ -22,7 +22,9 @@ import {
   MessageCircle,
   Mail,
   X,
-  RefreshCw
+  RefreshCw,
+  Lock,
+  Sparkles
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
@@ -58,7 +60,8 @@ const SOCIAL_FIELDS = [
 ];
 
 export default function BioSettings() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const [checkingStatus, setCheckingStatus] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -76,7 +79,36 @@ export default function BioSettings() {
   const [pinnedLinks, setPinnedLinks] = useState([]);
   const [allLinks, setAllLinks] = useState([]);
 
+  // Tier check - Bio page requires Pro or Business
+  const userTier = user?.subscription?.tier || 'free';
+  const isLocked = userTier === 'free';
+
   const profileUrl = `${window.location.origin}/u/${user?.username}`;
+
+  // Instant Unlock Logic
+  // 1. Poll user status if locked (in case they upgrade in another tab)
+  useEffect(() => {
+    let interval;
+    if (isLocked) {
+      interval = setInterval(() => {
+        refreshUser();
+      }, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [isLocked, refreshUser]);
+
+  // 2. If unlocked, ensure settings are fetched
+  useEffect(() => {
+    if (!isLocked) {
+      fetchSettings();
+    }
+  }, [isLocked, fetchSettings]);
+
+  const handleManualRefresh = async () => {
+    setCheckingStatus(true);
+    await refreshUser();
+    setTimeout(() => setCheckingStatus(false), 1000);
+  };
 
   // Warn user about unsaved changes
   useEffect(() => {
@@ -99,6 +131,13 @@ export default function BioSettings() {
   }, [isEnabled, displayName, bio, theme, socials, pinnedLinks, loading]);
 
   const fetchSettings = useCallback(async () => {
+    // If user is Free tier, don't call API (it will 403)
+    // Just set loading to false so the blurred preview shows
+    if (isLocked) {
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
       setFetchError(false);
@@ -135,7 +174,7 @@ export default function BioSettings() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isLocked]);
 
   useEffect(() => {
     fetchSettings();
@@ -239,7 +278,7 @@ export default function BioSettings() {
     );
   }
 
-  if (fetchError) {
+  if (fetchError && !isLocked) {
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
         <div className="text-red-400 text-4xl">⚠️</div>
@@ -256,7 +295,40 @@ export default function BioSettings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Pro/Business Lock Overlay */}
+      {isLocked && (
+        <div className="absolute inset-0 z-20 flex items-start justify-center pt-20">
+          <div className="bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-2xl p-8 text-center max-w-md mx-4 shadow-2xl">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+              <Lock className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">Bio Page is a Pro Feature</h2>
+            <p className="text-slate-400 text-sm mb-6">
+              Upgrade to Pro to create your personalized link-in-bio page with custom themes, social links, and pinned content.
+            </p>
+            <a
+              href="/pricing"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-semibold hover:opacity-90 transition"
+            >
+              <Sparkles className="w-5 h-5" />
+              Upgrade to Pro
+            </a>
+            
+            <button
+              onClick={handleManualRefresh}
+              disabled={checkingStatus}
+              className="block mx-auto mt-4 text-sm text-slate-400 hover:text-white transition flex items-center gap-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${checkingStatus ? 'animate-spin' : ''}`} />
+              {checkingStatus ? 'Checking...' : 'Already upgraded? Check Again'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Content - Blurred for Free users */}
+      <div className={isLocked ? 'blur-sm pointer-events-none select-none' : ''}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -512,6 +584,7 @@ export default function BioSettings() {
             })}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

@@ -102,7 +102,7 @@ const userSchema = new mongoose.Schema({
   
   // Link-in-Bio Page Settings
   bioPage: {
-    isEnabled: { type: Boolean, default: true }, // On/Off toggle for public profile
+    isEnabled: { type: Boolean, default: false }, // Off by default (requires Pro to enable)
     displayName: { type: String, maxlength: 50, trim: true },
     bio: { type: String, maxlength: 160, trim: true }, // SEO-friendly length
     avatarUrl: { type: String, trim: true },

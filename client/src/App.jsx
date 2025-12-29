@@ -47,6 +47,7 @@ const AdminFeedback = lazy(() => import('./pages/admin-console/AdminFeedback'));
 const AdminSettings = lazy(() => import('./pages/admin-console/AdminSettings'));
 const AdminMonitoring = lazy(() => import('./pages/admin-console/AdminMonitoring'));
 const AdminSubscriptions = lazy(() => import('./pages/admin-console/AdminSubscriptions'));
+const DeviceManagement = lazy(() => import('./pages/admin-console/DeviceManagement'));
 const ChangelogManager = lazy(() => import('./components/admin/ChangelogManager')); // Reusing existing
 const PricingPage = lazy(() => import('./pages/PricingPage'));
 
@@ -194,6 +195,7 @@ function AppContent() {
             <Route path="monitoring" element={<AdminMonitoring />} />
             <Route path="subscriptions" element={<AdminSubscriptions />} />
             <Route path="settings" element={<AdminSettings />} />
+            <Route path="devices" element={<DeviceManagement />} />
             <Route path="changelog" element={<ChangelogManager />} />
           </Route>
 

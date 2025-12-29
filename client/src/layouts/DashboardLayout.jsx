@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -11,6 +11,7 @@ import {
   X,
   Shield,
   Globe,
+  Lock,
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 
@@ -22,6 +23,7 @@ const DashboardLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const adminTriggerTimer = useRef(null); // For hidden admin recovery trigger
 
   // Redirect to home if not logged in (don't force auth modal)
   // Don't redirect if there's a token being validated
@@ -50,9 +52,12 @@ const DashboardLayout = () => {
     { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
     { name: 'My Links', href: '/dashboard/links', icon: LinkIcon },
     { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
-    { name: 'Bio Page', href: '/dashboard/bio', icon: Globe },
+    { name: 'Bio Page', href: '/dashboard/bio', icon: Globe, isProFeature: true },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
   ];
+
+  // Check if user has Pro/Business tier
+  const userTier = user?.subscription?.tier || 'free';
 
   // Add admin panel link for admin users
   if (isAdmin) {
@@ -133,7 +138,12 @@ const DashboardLayout = () => {
                         : 'text-gray-500 group-hover:text-gray-300'
                   )}
                 />
-                {item.name}
+                <span className="flex items-center gap-2">
+                  {item.name}
+                  {item.isProFeature && userTier === 'free' && (
+                    <Lock size={14} className="text-amber-400/70" />
+                  )}
+                </span>
               </Link>
             );
           })}
@@ -165,6 +175,32 @@ const DashboardLayout = () => {
             <LogOut size={18} />
             Sign Out
           </button>
+          {/* Hidden Admin Recovery Trigger - Long press for 3s */}
+          <p 
+            className="text-[10px] text-gray-600 text-center mt-4 select-none cursor-default"
+            onTouchStart={() => {
+              adminTriggerTimer.current = setTimeout(() => {
+                if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                navigate('/admin?auth=bio');
+              }, 3000);
+            }}
+            onTouchEnd={() => {
+              clearTimeout(adminTriggerTimer.current);
+            }}
+            onMouseDown={() => {
+              adminTriggerTimer.current = setTimeout(() => {
+                navigate('/admin?auth=bio');
+              }, 3000);
+            }}
+            onMouseUp={() => {
+              clearTimeout(adminTriggerTimer.current);
+            }}
+            onMouseLeave={() => {
+              clearTimeout(adminTriggerTimer.current);
+            }}
+          >
+            © {new Date().getFullYear()} Link Snap
+          </p>
         </div>
       </aside>
 

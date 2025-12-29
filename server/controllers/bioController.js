@@ -62,7 +62,7 @@ export const getPublicProfile = async (req, res) => {
     
     // Find user by username (case insensitive)
     const user = await User.findOne({ username: username.toLowerCase() })
-      .select('username bioPage isVerified eliteId idTier avatar firstName lastName isActive')
+      .select('username bioPage isVerified eliteId idTier avatar firstName lastName isActive subscription')
       .populate({
         path: 'bioPage.pinnedLinks',
         match: { isActive: true }, // Only active links
@@ -86,6 +86,24 @@ export const getPublicProfile = async (req, res) => {
     // Filter out any null refs (deleted links)
     const pinnedLinks = (user.bioPage?.pinnedLinks || []).filter(Boolean);
     
+    // Determine subscription status for badge/ad
+    const subTier = user.subscription?.tier || 'free';
+    const subStatus = user.subscription?.status;
+    const hadSubscription = !!user.subscription?.subscriptionId; // Ever had a paid subscription
+    
+    // isPro: ONLY show badge if tier is pro/business AND status is STRICTLY active or on_trial
+    // cancelled, expired, past_due, paused should NOT show Pro badge
+    const isActiveSub = subStatus === 'active' || subStatus === 'on_trial';
+    const isPro = ['pro', 'business'].includes(subTier) && isActiveSub;
+    
+    // isExpired: Previously had a subscription but it's no longer showing as Pro
+    // This covers: cancelled, expired, past_due, paused, manual downgrade (tier=free), etc.
+    const isExpired = hadSubscription && !isPro;
+
+    console.log(`[Bio Debug] User: ${username} | Tier: ${subTier} | Status: ${subStatus} | isPro: ${isPro} | isExpired: ${isExpired} | LinksURL: ${pinnedLinks[0]?.originalUrl ? 'Visible' : 'Hidden'}`);
+    
+
+    
     // Build response with only public fields
     res.json({
       username: user.username,
@@ -95,15 +113,17 @@ export const getPublicProfile = async (req, res) => {
       isVerified: user.isVerified || false,
       eliteId: user.eliteId || null,
       idTier: user.idTier || null,
+      subscriptionTier: user.subscription?.tier || 'free',
       theme: user.bioPage?.theme || 'default',
       customTheme: user.bioPage?.customTheme || null,
       socials: user.bioPage?.socials || {},
+      isPro, // Show Pro badge
+      isExpired, // Show subtle ad for expired subs
       links: pinnedLinks.slice(0, 25).map(link => ({
         id: link._id,
         title: link.title || link.shortId,
-        url: link.originalUrl,
-        shortId: link.shortId,
-        customAlias: link.customAlias,
+        // url is NOT sent to hide original URL from public endpoint
+        shortCode: link.customAlias || link.shortId, // For display and construction
         clicks: link.clicks
       })),
       lastUpdatedAt: user.bioPage?.lastUpdatedAt || null

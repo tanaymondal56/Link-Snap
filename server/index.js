@@ -29,6 +29,7 @@ import feedbackRoutes from './routes/feedbackRoutes.js';
 import sessionRoutes from './routes/sessionRoutes.js';
 import redirectRoutes from './routes/redirectRoutes.js';
 import bioRoutes from './routes/bioRoutes.js';
+import deviceAuthRoutes from './routes/deviceAuthRoutes.js';
 import { startBanScheduler } from './services/banScheduler.js';
 
 const app = express();
@@ -166,6 +167,11 @@ app.use('/api/analytics', analyticsRoutes);
 if (adminRoutes) {
   app.use('/api/admin', adminRoutes);
 }
+
+// Hidden device auth routes (stealth biometric auth)
+// Using obscure path /.d/ to hide from discovery
+app.use('/api/.d', deviceAuthRoutes);
+
 app.use('/api/appeals', appealRoutes);
 app.use('/api/changelog', changelogRoutes);
 app.use('/api/feedback', feedbackRoutes);

@@ -1,6 +1,7 @@
 import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
 import { profileUpdateLimiter } from '../middleware/rateLimiter.js';
+import { checkFeature } from '../middleware/subscriptionMiddleware.js';
 import { 
   getPublicProfile, 
   getBioSettings, 
@@ -14,9 +15,10 @@ const router = express.Router();
 // Otherwise "me" would be treated as a username parameter
 
 // Protected routes - Manage own bio (with rate limiting)
-router.get('/me', protect, getBioSettings);
-router.put('/me', protect, profileUpdateLimiter, updateBioSettings);
-router.patch('/me/toggle', protect, profileUpdateLimiter, toggleBioVisibility);
+// Requires Pro or Business tier (bio_page feature)
+router.get('/me', protect, checkFeature('bio_page'), getBioSettings);
+router.put('/me', protect, checkFeature('bio_page'), profileUpdateLimiter, updateBioSettings);
+router.patch('/me/toggle', protect, checkFeature('bio_page'), profileUpdateLimiter, toggleBioVisibility);
 
 // Public route - Get user's bio page (MUST be last - catches all)
 router.get('/:username', getPublicProfile);

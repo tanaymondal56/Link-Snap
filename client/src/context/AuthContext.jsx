@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api, { setAccessToken } from '../api/axios';
 import showToast from '../components/ui/Toast';
 
@@ -12,9 +12,9 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [authModal, setAuthModal] = useState({ isOpen: false, tab: 'login' });
 
-  // Check if user is logged in on mount
-  useEffect(() => {
-    const checkAuth = async (retryCount = 0) => {
+  // Check if user is logged in
+  const checkAuth = useCallback(async (initialRetryCount = 0) => {
+    const executeCheck = async (retryCount) => {
       // Secure Auth Load: Try to silent refresh immediately
       // This relies on the httpOnly cookie being present
       try {
@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }) => {
           // For network errors (server restarting), retry up to 5 times
           if (retryCount < 5) {
             const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
-            setTimeout(() => checkAuth(retryCount + 1), delay);
+            setTimeout(() => executeCheck(retryCount + 1), delay);
           } else {
             setUser(null);
             setLoading(false);
@@ -47,6 +47,11 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
+    await executeCheck(initialRetryCount);
+  }, []);
+
+  // Initial auth check on mount
+  useEffect(() => {
     // Set a timeout to prevent infinite loading
     const timeoutId = setTimeout(() => {
       setLoading((current) => {
@@ -64,7 +69,7 @@ export const AuthProvider = ({ children }) => {
       clearTimeout(timeoutId);
       clearTimeout(startupDelay);
     };
-  }, []);
+  }, [checkAuth]);
 
   const openAuthModal = (tab = 'login') => {
     setAuthModal({ isOpen: true, tab });
@@ -175,9 +180,21 @@ export const AuthProvider = ({ children }) => {
       await api.post('/auth/logout');
       setAccessToken(null);
       setUser(null);
+      // Clear bio auth timestamp (24h re-auth policy)
+      try {
+        localStorage.removeItem('ls_bio_auth_at');
+      } catch { /* ignore */ }
       showToast.info('See you next time!', 'Logged Out');
+      // Redirect to home page
+      window.location.href = '/';
     } catch {
-      // Logout error - ignore
+      // Logout error - still clear local state and redirect
+      setAccessToken(null);
+      setUser(null);
+      try {
+        localStorage.removeItem('ls_bio_auth_at');
+      } catch { /* ignore */ }
+      window.location.href = '/';
     }
   };
 
@@ -193,6 +210,7 @@ export const AuthProvider = ({ children }) => {
         authModal,
         openAuthModal,
         closeAuthModal,
+        refreshUser: () => checkAuth(), // Expose manual refresh
         isAdmin: user?.role === 'admin',
       }}
     >
