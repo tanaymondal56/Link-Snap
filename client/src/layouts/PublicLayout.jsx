@@ -4,6 +4,7 @@ import { User, Shield, Sparkles, Crown } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
 import { useAppVersion } from '../hooks/useAppVersion';
+import { hasTrustedDeviceMarker } from '../utils/deviceAuth';
 import PullToRefresh from '../components/PullToRefresh';
 
 const PublicLayout = () => {
@@ -53,8 +54,8 @@ const PublicLayout = () => {
     };
   }, [user]);
 
-  // Reset whitelist state when user logs in (computed, not in effect)
-  const showAdminLinkForWhitelistedIP = !user && isWhitelistedIP;
+  // Show admin link for whitelisted IPs OR trusted devices (bio auth enrolled)
+  const showAdminLinkForWhitelistedIP = !user && (isWhitelistedIP || hasTrustedDeviceMarker());
 
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col">
