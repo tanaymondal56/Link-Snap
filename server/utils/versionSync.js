@@ -18,14 +18,17 @@ const rootDir = path.resolve(__dirname, '..', '..');
 // File paths
 const FILES = {
     rootPackage: path.join(rootDir, 'package.json'),
+    rootPackageLock: path.join(rootDir, 'package-lock.json'),
     clientPackage: path.join(rootDir, 'client', 'package.json'),
+    clientPackageLock: path.join(rootDir, 'client', 'package-lock.json'),
     serverPackage: path.join(rootDir, 'server', 'package.json'),
+    serverPackageLock: path.join(rootDir, 'server', 'package-lock.json'),
     versionConfig: path.join(rootDir, 'client', 'src', 'config', 'version.js'),
 };
 
 /**
- * Update version in a package.json file
- * @param {string} filePath - Path to package.json
+ * Update version in a package.json or package-lock.json file
+ * @param {string} filePath - Path to package.json or package-lock.json
  * @param {string} newVersion - New version string
  * @returns {boolean} True if updated, false if already at version or error
  */
@@ -37,14 +40,27 @@ function updatePackageJson(filePath, newVersion) {
         }
         
         const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        const oldVersion = content.version;
+        let updated = false;
         
-        if (content.version === newVersion) {
+        // Update top-level version
+        if (content.version !== newVersion) {
+            content.version = newVersion;
+            updated = true;
+        }
+        
+        // For package-lock.json: also update packages[""].version
+        if (content.packages && content.packages[''] && content.packages[''].version !== newVersion) {
+            content.packages[''].version = newVersion;
+            updated = true;
+        }
+        
+        if (!updated) {
             return false; // Already at correct version
         }
         
-        content.version = newVersion;
         fs.writeFileSync(filePath, JSON.stringify(content, null, 2) + '\n');
-        console.log(`[VersionSync] Updated ${path.basename(filePath)}: ${content.version} → ${newVersion}`);
+        console.log(`[VersionSync] Updated ${path.basename(filePath)}: ${oldVersion} → ${newVersion}`);
         return true;
     } catch (error) {
         console.error(`[VersionSync] Error updating ${filePath}:`, error.message);
@@ -110,8 +126,11 @@ export async function syncVersionOnPublish(version) {
     try {
         // Update all package.json files
         if (updatePackageJson(FILES.rootPackage, version)) updated++;
+        if (updatePackageJson(FILES.rootPackageLock, version)) updated++;
         if (updatePackageJson(FILES.clientPackage, version)) updated++;
+        if (updatePackageJson(FILES.clientPackageLock, version)) updated++;
         if (updatePackageJson(FILES.serverPackage, version)) updated++;
+        if (updatePackageJson(FILES.serverPackageLock, version)) updated++;
         
         // Update FALLBACK_VERSION
         if (updateVersionConfig(FILES.versionConfig, version)) updated++;

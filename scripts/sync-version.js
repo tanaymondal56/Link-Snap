@@ -12,8 +12,8 @@
  * If no version provided, fetches from the latest published changelog in the database.
  * 
  * Files updated:
- * - client/package.json
- * - server/package.json  
+ * - package.json (root, client, server)
+ * - package-lock.json (root, client, server)
  * - client/src/config/version.js (FALLBACK_VERSION)
  */
 
@@ -28,8 +28,11 @@ const rootDir = path.resolve(__dirname, '..');
 // File paths relative to project root
 const FILES = {
     rootPackage: path.join(rootDir, 'package.json'),
+    rootPackageLock: path.join(rootDir, 'package-lock.json'),
     clientPackage: path.join(rootDir, 'client', 'package.json'),
+    clientPackageLock: path.join(rootDir, 'client', 'package-lock.json'),
     serverPackage: path.join(rootDir, 'server', 'package.json'),
+    serverPackageLock: path.join(rootDir, 'server', 'package-lock.json'),
     versionConfig: path.join(rootDir, 'client', 'src', 'config', 'version.js'),
 };
 
@@ -76,19 +79,35 @@ const log = {
 };
 
 /**
- * Update version in package.json
+ * Update version in package.json or package-lock.json
  */
 function updatePackageJson(filePath, newVersion) {
     try {
+        if (!fs.existsSync(filePath)) {
+            log.warn(`File not found: ${filePath}`);
+            return false;
+        }
         const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         const oldVersion = content.version;
+        let updated = false;
         
-        if (oldVersion === newVersion) {
+        // Update top-level version
+        if (content.version !== newVersion) {
+            content.version = newVersion;
+            updated = true;
+        }
+        
+        // For package-lock.json: also update packages[""].version
+        if (content.packages && content.packages[''] && content.packages[''].version !== newVersion) {
+            content.packages[''].version = newVersion;
+            updated = true;
+        }
+        
+        if (!updated) {
             log.info(`${path.basename(filePath)}: Already at ${newVersion}`);
             return false;
         }
         
-        content.version = newVersion;
         fs.writeFileSync(filePath, JSON.stringify(content, null, 2) + '\n');
         log.success(`${path.basename(filePath)}: ${oldVersion} → ${newVersion}`);
         return true;
@@ -103,6 +122,10 @@ function updatePackageJson(filePath, newVersion) {
  */
 function updateVersionConfig(filePath, newVersion) {
     try {
+        if (!fs.existsSync(filePath)) {
+            log.warn(`File not found: ${filePath}`);
+            return false;
+        }
         let content = fs.readFileSync(filePath, 'utf8');
         
         // Match the FALLBACK_VERSION export
@@ -136,9 +159,13 @@ function updateVersionConfig(filePath, newVersion) {
  */
 async function fetchLatestVersionFromDB() {
     try {
-        // Dynamic import mongoose and the model
-        const mongoose = (await import('mongoose')).default;
-        const dotenv = (await import('dotenv')).default;
+        // Use createRequire to load modules from server's context
+        const { createRequire } = await import('module');
+        const serverRequire = createRequire(path.join(rootDir, 'server', 'index.js'));
+        
+        // Load dependencies from server
+        const mongoose = serverRequire('mongoose');
+        const dotenv = serverRequire('dotenv');
         
         // Load environment variables
         dotenv.config({ path: path.join(rootDir, 'server', '.env') });
@@ -152,8 +179,14 @@ async function fetchLatestVersionFromDB() {
         log.info('Connecting to database...');
         await mongoose.connect(mongoUri);
         
-        // Import the Changelog model
-        const { default: Changelog } = await import(path.join(rootDir, 'server', 'models', 'Changelog.js'));
+        // Define inline schema to avoid import issues
+        const changelogSchema = new mongoose.Schema({
+            version: String,
+            isPublished: Boolean,
+            order: Number
+        }, { collection: 'changelogs' });
+        
+        const Changelog = mongoose.models.Changelog || mongoose.model('Changelog', changelogSchema);
         
         // Find latest published changelog
         const latest = await Changelog.findOne({ isPublished: true })
@@ -172,6 +205,15 @@ async function fetchLatestVersionFromDB() {
         return latest.version;
     } catch (error) {
         log.error(`Database fetch failed: ${error.message}`);
+        // Ensure mongoose disconnects even on error
+        try {
+            const { createRequire } = await import('module');
+            const serverRequire = createRequire(path.join(rootDir, 'server', 'index.js'));
+            const mongoose = serverRequire('mongoose');
+            if (mongoose.connection.readyState !== 0) {
+                await mongoose.disconnect();
+            }
+        } catch { /* ignore disconnect errors */ }
         return null;
     }
 }
@@ -213,14 +255,17 @@ async function syncVersion(providedVersion) {
     
     let updated = 0;
     
-    // Update root package.json
+    // Update root package.json and lock
     if (updatePackageJson(FILES.rootPackage, version)) updated++;
+    if (updatePackageJson(FILES.rootPackageLock, version)) updated++;
     
-    // Update client package.json
+    // Update client package.json and lock
     if (updatePackageJson(FILES.clientPackage, version)) updated++;
+    if (updatePackageJson(FILES.clientPackageLock, version)) updated++;
     
-    // Update server package.json
+    // Update server package.json and lock
     if (updatePackageJson(FILES.serverPackage, version)) updated++;
+    if (updatePackageJson(FILES.serverPackageLock, version)) updated++;
     
     // Update version.js FALLBACK_VERSION
     if (updateVersionConfig(FILES.versionConfig, version)) updated++;
