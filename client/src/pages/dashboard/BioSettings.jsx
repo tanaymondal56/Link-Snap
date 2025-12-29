@@ -97,12 +97,7 @@ export default function BioSettings() {
     return () => clearInterval(interval);
   }, [isLocked, refreshUser]);
 
-  // 2. If unlocked, ensure settings are fetched
-  useEffect(() => {
-    if (!isLocked) {
-      fetchSettings();
-    }
-  }, [isLocked, fetchSettings]);
+
 
   const handleManualRefresh = async () => {
     setCheckingStatus(true);

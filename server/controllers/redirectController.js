@@ -1279,9 +1279,19 @@ export const redirectUrl = async (req, res, next) => {
         }
 
         // 2. Cache miss - query database
-        const url = await Url.findOne({
+        let url = await Url.findOne({
             $or: [{ shortId }, { customAlias: shortId }],
         });
+
+        // 2b. Fallback: Case-insensitive search if strict match fails
+        if (!url) {
+            url = await Url.findOne({
+                $or: [
+                    { shortId: { $regex: new RegExp(`^${shortId}$`, 'i') } },
+                    { customAlias: { $regex: new RegExp(`^${shortId}$`, 'i') } }
+                ]
+            });
+        }
 
         if (!url) {
             // Next middleware (frontend)
@@ -1357,9 +1367,19 @@ export const previewUrl = async (req, res, next) => {
 
     try {
         // Query database for the URL
-        const url = await Url.findOne({
+        let url = await Url.findOne({
             $or: [{ shortId }, { customAlias: shortId }],
         });
+
+        // Fallback: Case-insensitive search
+        if (!url) {
+            url = await Url.findOne({
+                $or: [
+                    { shortId: { $regex: new RegExp(`^${shortId}$`, 'i') } },
+                    { customAlias: { $regex: new RegExp(`^${shortId}$`, 'i') } }
+                ]
+            });
+        }
 
         if (!url) {
             return next();
