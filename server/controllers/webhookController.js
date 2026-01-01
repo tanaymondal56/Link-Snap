@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
 import WebhookEvent from '../models/WebhookEvent.js';
+import SubscriptionAuditLog from '../models/SubscriptionAuditLog.js';
 import logger from '../utils/logger.js';
 import { generateUserIdentity } from '../services/idService.js';
 
@@ -132,6 +133,19 @@ export const handleWebhook = async (req, res) => {
         cycle = 'yearly';
     } 
     
+    // Store previous subscription state BEFORE any modifications
+    const previousSubscription = {
+      tier: user.subscription?.tier,
+      status: user.subscription?.status,
+      subscriptionId: user.subscription?.subscriptionId,
+      customerId: user.subscription?.customerId,
+      variantId: user.subscription?.variantId,
+      currentPeriodStart: user.subscription?.currentPeriodStart,
+      currentPeriodEnd: user.subscription?.currentPeriodEnd,
+      billingCycle: user.subscription?.billingCycle,
+      cancelledAt: user.subscription?.cancelledAt
+    };
+    
     // Update Logic
     switch (eventName) {
       case 'subscription_created':
@@ -197,6 +211,50 @@ export const handleWebhook = async (req, res) => {
     }
 
     await user.save();
+    
+    // Map event names to audit actions
+    const actionMap = {
+      'subscription_created': 'created',
+      'subscription_updated': 'updated',
+      'subscription_resumed': 'resumed',
+      'subscription_payment_success': 'updated',
+      'subscription_unpaused': 'resumed',
+      'subscription_cancelled': 'cancelled',
+      'subscription_paused': 'paused',
+      'subscription_expired': 'expired',
+      'subscription_payment_failed': 'updated'
+    };
+    
+    // Create audit log for subscription changes
+    try {
+      await SubscriptionAuditLog.create({
+        userId: user._id,
+        userEmail: user.email,
+        userSnapId: user.snapId,
+        action: actionMap[eventName] || 'updated',
+        source: 'webhook',
+        reason: `Webhook event: ${eventName}`,
+        previousData: previousSubscription,
+        newData: {
+          tier: user.subscription?.tier,
+          status: user.subscription?.status,
+          subscriptionId: user.subscription?.subscriptionId,
+          customerId: user.subscription?.customerId,
+          variantId: user.subscription?.variantId,
+          currentPeriodStart: user.subscription?.currentPeriodStart,
+          currentPeriodEnd: user.subscription?.currentPeriodEnd,
+          billingCycle: user.subscription?.billingCycle,
+          cancelledAt: user.subscription?.cancelledAt
+        },
+        webhookEvent: {
+          eventName: eventName,
+          eventId: webhookId
+        }
+      });
+    } catch (auditErr) {
+      // Don't fail the webhook if audit logging fails
+      logger.error(`[Webhook Audit Log Error] ${auditErr.message}`);
+    }
     
     // 5. Log Success
     await WebhookEvent.create({

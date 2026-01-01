@@ -32,9 +32,11 @@ import {
     getRedeemCodeStats 
 } from '../controllers/redeemCodeController.js';
 import { 
-    getSubscriptionStats, 
+    getSubscriptionStats,
+    getAuditLogs,
     overrideUserSubscription,
-    syncUserSubscription
+    syncUserSubscription,
+    deleteUserSubscription
 } from '../controllers/adminSubscriptionController.js';
 
 const router = express.Router();
@@ -87,7 +89,9 @@ router.delete('/redeem-codes/:id', deactivateRedeemCode);
 
 // Subscription Management
 router.get('/subscriptions/stats', getSubscriptionStats);
+router.get('/subscriptions/audit-logs', getAuditLogs);
 router.patch('/users/:userId/subscription', overrideUserSubscription);
 router.post('/users/:userId/subscription/sync', syncUserSubscription);
+router.delete('/users/:userId/subscription', deleteUserSubscription);
 
 export default router;

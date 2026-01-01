@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, CreditCard, Save, Loader2, AlertCircle, Calendar, Clock, Crown } from 'lucide-react';
+import { X, CreditCard, Save, Loader2, AlertCircle, Calendar, Clock, Crown, Trash2, AlertTriangle } from 'lucide-react';
 import showToast from '../ui/Toast';
 import api from '../../api/axios';
 
@@ -12,6 +12,12 @@ const ManageSubscriptionModal = ({ isOpen, onClose, user, onUpdate }) => {
     durationDays: 30, 
     reason: ''
   });
+  
+  // Delete confirmation state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   // Reset form when user changes
   useEffect(() => {
@@ -23,6 +29,10 @@ const ManageSubscriptionModal = ({ isOpen, onClose, user, onUpdate }) => {
         durationDays: 30,
         reason: ''
       });
+      // Reset delete state
+      setShowDeleteConfirm(false);
+      setDeleteConfirmText('');
+      setDeleteReason('');
     }
   }, [isOpen, user]);
 
@@ -79,6 +89,36 @@ const ManageSubscriptionModal = ({ isOpen, onClose, user, onUpdate }) => {
       setLoading(false);
     }
   };
+
+  // Handle permanent delete
+  const handlePermanentDelete = async () => {
+    if (deleteConfirmText !== 'DELETE') {
+      showToast.warning('Please type DELETE to confirm');
+      return;
+    }
+    if (deleteReason.trim().length < 10) {
+      showToast.warning('Please provide a detailed reason (min 10 characters)');
+      return;
+    }
+    
+    setDeleting(true);
+    try {
+      const { data } = await api.delete(`/admin/users/${user._id}/subscription`, {
+        data: { reason: deleteReason, confirmationText: deleteConfirmText }
+      });
+      showToast.success('Subscription permanently deleted and logged for audit');
+      if (onUpdate) onUpdate(data.user);
+      handleClose();
+    } catch (error) {
+      showToast.error(error.response?.data?.message || 'Failed to delete subscription');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Check if user has a subscription to delete
+  const hasSubscription = user?.subscription?.subscriptionId || 
+                          (user?.subscription?.tier && user.subscription.tier !== 'free');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -210,6 +250,68 @@ const ManageSubscriptionModal = ({ isOpen, onClose, user, onUpdate }) => {
                     onChange={e => setForm({ ...form, reason: e.target.value })}
                 />
             </div>
+
+            {/* Danger Zone - Only show if user has subscription */}
+            {hasSubscription && (
+              <div className="mt-6 pt-4 border-t border-red-500/20">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+                  className="text-red-400 hover:text-red-300 text-sm flex items-center gap-2 font-medium"
+                >
+                  <Trash2 size={16} /> 
+                  {showDeleteConfirm ? 'Cancel Delete' : 'Permanently Delete Subscription'}
+                </button>
+                
+                {showDeleteConfirm && (
+                  <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl space-y-4 animate-fade-in">
+                    <div className="flex items-start gap-2 text-red-400 text-sm">
+                      <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+                      <p>
+                        This will <strong>permanently remove ALL subscription data</strong> including 
+                        the LemonSqueezy link. The user will be reset to Free tier and the Sync button 
+                        will no longer work. This action is <strong>logged for audit</strong>.
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Reason for deletion *</label>
+                      <textarea
+                        placeholder="Provide a detailed reason (min 10 chars) - this will be logged for audit"
+                        className="w-full bg-gray-800 border border-red-500/30 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:border-red-500/50 focus:outline-none"
+                        value={deleteReason}
+                        onChange={e => setDeleteReason(e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Type DELETE to confirm *</label>
+                      <input
+                        type="text"
+                        placeholder="Type DELETE"
+                        className="w-full bg-gray-800 border border-red-500/30 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:border-red-500/50 focus:outline-none font-mono"
+                        value={deleteConfirmText}
+                        onChange={e => setDeleteConfirmText(e.target.value.toUpperCase())}
+                      />
+                    </div>
+                    
+                    <button
+                      type="button"
+                      onClick={handlePermanentDelete}
+                      disabled={deleting || deleteConfirmText !== 'DELETE' || deleteReason.trim().length < 10}
+                      className="w-full py-2.5 bg-red-600 hover:bg-red-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                    >
+                      {deleting ? (
+                        <><Loader2 className="animate-spin" size={16} /> Deleting...</>
+                      ) : (
+                        <><Trash2 size={16} /> Confirm Permanent Delete</>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
           </form>
         </div>

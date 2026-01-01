@@ -1,6 +1,6 @@
 {
   "name": "link-snap",
-  "version": "0.5.7",
+  "version": "0.5.5",
   "private": true,
   "engines": {
     "node": ">=18.0.0"

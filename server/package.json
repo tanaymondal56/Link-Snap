@@ -1,6 +1,6 @@
 {
   "name": "server",
-  "version": "0.5.7",
+  "version": "0.5.5",
   "description": "Link Snap URL Shortener API",
   "main": "index.js",
   "engines": {
