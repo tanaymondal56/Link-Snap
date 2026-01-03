@@ -85,3 +85,9 @@ fix-needed/
 
 # Utility scripts (may contain local paths or dev-only utilities)
 server/scripts/
+
+# Docker (not used in this project)
+docker-compose.yml
+docker-compose*.yml
+Dockerfile
+.docker/
