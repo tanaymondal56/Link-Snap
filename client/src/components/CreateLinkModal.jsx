@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Link as LinkIcon,
@@ -17,6 +18,7 @@ import api from '../api/axios';
 import showToast from '../components/ui/Toast';
 import { getShortUrl } from '../utils/urlHelper';
 
+import { useScrollLock } from '../hooks/useScrollLock';
 import { Link } from 'react-router-dom';
 import { ProBadge } from './subscription/PremiumField';
 import { usePremiumField } from '../hooks/usePremiumField';
@@ -89,7 +91,6 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
   const [deviceRedirects, setDeviceRedirects] = useState({
     enabled: false,
     rules: [],
-    fallbackUrl: ''
   });
 
   // Alias availability state
@@ -147,7 +148,85 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
     }
   }, [debouncedAlias, checkAlias]);
 
-  // Reset form when modal opens/closes
+  // Storage key for draft persistence
+  const DRAFT_KEY = 'linksnap_create_link_draft';
+
+  // Save form draft to localStorage
+  const saveDraft = useCallback(() => {
+    const draft = {
+      url,
+      customAlias,
+      expiresIn,
+      customExpiresAt,
+      enablePassword,
+      password,
+      deviceRedirects,
+      savedAt: Date.now()
+    };
+    // Only save if there's actual content (use optional chaining for safety)
+    if (url || customAlias || enablePassword || (deviceRedirects?.rules?.length > 0)) {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    }
+  }, [url, customAlias, expiresIn, customExpiresAt, enablePassword, password, deviceRedirects]);
+
+  // Load draft from localStorage
+  const loadDraft = useCallback(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const draft = JSON.parse(saved);
+        // Only restore if saved within last 24 hours
+        if (draft.savedAt && Date.now() - draft.savedAt < 24 * 60 * 60 * 1000) {
+          setUrl(draft.url || '');
+          setCustomAlias(draft.customAlias || '');
+          setExpiresIn(draft.expiresIn || 'never');
+          setCustomExpiresAt(draft.customExpiresAt || '');
+          setEnablePassword(draft.enablePassword || false);
+          setPassword(draft.password || '');
+          // Validate deviceRedirects structure to prevent undefined access errors
+          const savedDeviceRedirects = draft.deviceRedirects;
+          if (savedDeviceRedirects && typeof savedDeviceRedirects === 'object' && Array.isArray(savedDeviceRedirects.rules)) {
+            setDeviceRedirects({
+              enabled: Boolean(savedDeviceRedirects.enabled),
+              rules: savedDeviceRedirects.rules,
+            });
+          } else {
+            setDeviceRedirects({ enabled: false, rules: [] });
+          }
+          return true;
+        }
+      }
+    } catch {
+      // Ignore parse errors - clear corrupted draft
+      localStorage.removeItem(DRAFT_KEY);
+    }
+    return false;
+  }, []);
+
+  // Clear draft
+  const clearDraft = useCallback(() => {
+    localStorage.removeItem(DRAFT_KEY);
+  }, []);
+
+  // Load draft when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      loadDraft();
+    }
+  }, [isOpen, loadDraft]);
+
+  // Scroll Lock
+  useScrollLock(isOpen);
+
+  // Save draft periodically and on changes
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(saveDraft, 500); // Debounced save
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, url, customAlias, expiresIn, customExpiresAt, enablePassword, password, deviceRedirects, saveDraft]);
+
+  // Reset form when modal closes (but don't clear draft - that happens on success)
   useEffect(() => {
     if (!isOpen) {
       setUrl('');
@@ -157,7 +236,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       setEnablePassword(false);
       setPassword('');
       setShowPassword(false);
-      setDeviceRedirects({ enabled: false, rules: [], fallbackUrl: '' });
+      setDeviceRedirects({ enabled: false, rules: [] });
       setAliasStatus({ checking: false, available: null, reason: null });
     }
   }, [isOpen]);
@@ -206,15 +285,15 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       }
 
       // Add device redirects
-      if (deviceRedirects.enabled && deviceRedirects.rules.length > 0) {
+      if (deviceRedirects.rules.length > 0) {
         payload.deviceRedirects = {
-          enabled: true,
+          enabled: deviceRedirects.enabled,
           rules: deviceRedirects.rules.filter(r => r.url && r.url.trim() !== ''),
-          fallbackUrl: deviceRedirects.fallbackUrl || null
         };
       }
 
       const { data } = await api.post('/url/shorten', payload);
+      clearDraft(); // Clear draft on successful creation
       onSuccess(data);
       onClose();
     } catch (error) {
@@ -254,13 +333,17 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
     return 'border-gray-700';
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+    return createPortal(
+    <div className="fixed inset-0 z-[1000] overflow-y-auto">
+      <div 
+        className="flex min-h-full items-start justify-center p-4 sm:items-center sm:pt-4"
+        style={{ paddingTop: 'max(2.5rem, env(safe-area-inset-top))' }}
+      >
+        {/* Backdrop */}
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal */}
-      <div className="relative w-full max-w-lg bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl animate-modal-in">
+        {/* Modal - Allowed to grow */}
+        <div className="relative w-full max-w-lg bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl animate-modal-in flex flex-col my-8 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-700/50">
           <div className="flex items-center gap-3">
@@ -280,7 +363,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
           </button>
         </div>
 
-        {/* Form */}
+        {/* Form - Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
           {/* URL Input */}
           <div>
@@ -560,45 +643,48 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
               )}
             </div>
           )}
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors font-medium"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={
-                isCreating ||
-                !url ||
-                !isValidUrl(url) ||
-                (customAlias.length > 0 && customAlias.length < 3) ||
-                (customAlias && aliasStatus.available === false) ||
-                (expiresIn === 'custom' && !customExpiresAt) ||
-                (enablePassword && password.length > 0 && password.length < 4)
-              }
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 disabled:from-gray-600 disabled:to-gray-600 disabled:cursor-not-allowed text-white rounded-xl transition-all font-medium"
-            >
-              {isCreating ? (
-                <>
-                  <Loader2 className="animate-spin" size={18} />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <LinkIcon size={18} />
-                  Create Link
-                </>
-              )}
-            </button>
-          </div>
         </form>
+
+        {/* Action Buttons - Fixed at bottom */}
+        <div className="flex gap-3 p-5 pt-3 border-t border-gray-700/50 bg-gray-900/95">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 px-4 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors font-medium"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={
+              isCreating ||
+              !url ||
+              !isValidUrl(url) ||
+              (customAlias.length > 0 && customAlias.length < 3) ||
+              (customAlias && aliasStatus.available === false) ||
+              (expiresIn === 'custom' && !customExpiresAt) ||
+              (enablePassword && password.length > 0 && password.length < 4)
+            }
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 disabled:from-gray-600 disabled:to-gray-600 disabled:cursor-not-allowed text-white rounded-xl transition-all font-medium"
+          >
+            {isCreating ? (
+              <>
+                <Loader2 className="animate-spin" size={18} />
+                Creating...
+              </>
+            ) : (
+              <>
+                <LinkIcon size={18} />
+                Create Link
+              </>
+            )}
+          </button>
+        </div>
       </div>
-    </div>
+      </div>
+    </div>,
+    document.body
   );
 };
 

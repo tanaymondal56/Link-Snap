@@ -259,7 +259,7 @@ const DashboardLayout = () => {
         </header>
 
         {/* Scrollable Content Area */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+        <main id="main-content" className="flex-1 overflow-y-auto p-4 lg:p-8">
           <PullToRefresh onRefresh={() => window.location.reload()}>
             <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
               <Outlet />
@@ -273,7 +273,7 @@ const DashboardLayout = () => {
       <CreateLinkModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onLinkCreated={handleLinkCreated}
+        onSuccess={handleLinkCreated}
       />
 
       <LinkSuccessModal

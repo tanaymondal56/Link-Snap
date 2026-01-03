@@ -22,6 +22,7 @@ import {
   Sparkles,
   Link as LinkIcon
 } from 'lucide-react';
+import PullToRefresh from '../components/PullToRefresh';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 
@@ -386,6 +387,7 @@ export default function PublicProfile() {
   const displayName = profile?.displayName || profile?.username;
 
   return (
+    <PullToRefresh onRefresh={() => window.location.reload()}>
     <div 
       className={`min-h-screen bg-gradient-to-br ${profile?.theme !== 'custom' ? theme.bg : ''}`}
       style={profile?.theme === 'custom' ? { background: customStyles.background } : {}}
@@ -731,5 +733,6 @@ export default function PublicProfile() {
         </div>
       )}
     </div>
+    </PullToRefresh>
   );
 }

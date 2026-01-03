@@ -40,7 +40,7 @@ const urlSchema = new mongoose.Schema({
     expiresAt: {
         type: Date,
         default: null,  // null = never expires
-        index: { sparse: true }, // Index for expiration cleanup
+        default: null,  // null = never expires
     },
     // Password Protection
     isPasswordProtected: {
@@ -63,7 +63,6 @@ const urlSchema = new mongoose.Schema({
             url: { type: String, required: true },
             priority: { type: Number, default: 0 } // Higher = checked first
         }],
-        fallbackUrl: { type: String } // Optional - defaults to originalUrl
     },
 }, {
     timestamps: true,

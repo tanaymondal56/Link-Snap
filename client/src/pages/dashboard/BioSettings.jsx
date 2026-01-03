@@ -59,6 +59,8 @@ const SOCIAL_FIELDS = [
   { id: 'website', label: 'Website', icon: Globe, placeholder: 'yoursite.com' },
 ];
 
+import { getEffectiveTier } from '../../utils/subscriptionUtils';
+
 export default function BioSettings() {
   const { user, refreshUser } = useAuth();
   const [checkingStatus, setCheckingStatus] = useState(false);
@@ -79,9 +81,9 @@ export default function BioSettings() {
   const [pinnedLinks, setPinnedLinks] = useState([]);
   const [allLinks, setAllLinks] = useState([]);
 
-  // Tier check - Bio page requires Pro or Business
-  const userTier = user?.subscription?.tier || 'free';
-  const isLocked = userTier === 'free';
+  // Tier check - Use effective API-safe tier logic
+  const effectiveTier = getEffectiveTier(user);
+  const isLocked = effectiveTier === 'free';
 
   const profileUrl = `${window.location.origin}/u/${user?.username}`;
 
@@ -226,7 +228,7 @@ export default function BioSettings() {
         return prev.filter(id => id !== linkId);
       } else {
         // Check tier limits
-        const maxLinks = user?.subscription?.tier === 'free' ? 10 : 25;
+        const maxLinks = effectiveTier === 'free' ? 10 : 25;
         if (prev.length >= maxLinks) {
           toast.error(`Maximum ${maxLinks} links allowed`);
           return prev;
@@ -527,7 +529,7 @@ export default function BioSettings() {
             Pinned Links
           </div>
           <span className="text-sm text-slate-400">
-            {pinnedLinks.length}/{user?.subscription?.tier === 'free' ? 10 : 25} selected
+            {pinnedLinks.length}/{effectiveTier === 'free' ? 10 : 25} selected
           </span>
         </div>
 

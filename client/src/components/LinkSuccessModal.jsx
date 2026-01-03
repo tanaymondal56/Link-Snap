@@ -1,20 +1,25 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Link as LinkIcon, Sparkles, Check, ExternalLink, Copy, Download, AlertTriangle, Clock } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+
 import { QRCodeSVG } from 'qrcode.react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+
 import showToast from '../components/ui/Toast';
 import { getShortUrl } from '../utils/urlHelper';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
-  const { user } = useAuth();
+
   const [copiedId, setCopiedId] = useState(null);
+
+  // Scroll Lock
+  useScrollLock(isOpen);
 
   if (!isOpen || !linkData) return null;
 
   const randomUrl = getShortUrl(linkData.shortId);
-  const customUrl = linkData.customAlias ? getShortUrl(linkData.customAlias) : null;
+
 
   const copyToClipboard = (url, id) => {
     navigator.clipboard.writeText(url);
@@ -48,129 +53,17 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
     img.src = url;
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] overflow-y-auto">
+      <div 
+        className="flex min-h-full items-start justify-center p-4 sm:items-center sm:pt-4"
+        style={{ paddingTop: 'max(2.5rem, env(safe-area-inset-top))' }}
+      >
+        {/* Backdrop */}
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal */}
-      <div className="relative w-full max-w-2xl bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl animate-modal-in max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-700/50 sticky top-0 bg-gray-900/95 z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
-              <Check size={20} className="text-white" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-white">Link Created Successfully!</h2>
-              <p className="text-sm text-gray-400">
-                {linkData.title || 'Your link is ready to share'}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-700/50 rounded-lg text-gray-400 hover:text-white transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-5 space-y-6">
-          {/* Guest/Expiry Warning */}
-          {linkData.expiresAt && (
-            <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl animate-fade-in">
-                <Clock className="text-amber-400 shrink-0 mt-0.5" size={18} />
-                <div>
-                    <h3 className="text-sm font-semibold text-amber-400">Temporary Link</h3>
-                    <p className="text-xs text-amber-200/70 mt-1">
-                        This link expires in <span className="text-amber-200 font-bold">{formatDistanceToNow(new Date(linkData.expiresAt))}</span>. 
-                        {!user && (
-                            <> <Link to="/register" className="ml-1 underline hover:text-white font-medium">Create free account</Link> to make it permanent.</>
-                        )}
-                    </p>
-                </div>
-            </div>
-          )}
-
-          {/* Custom Alias Link (if exists) - Show First */}
-          {customUrl && (
-            <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-xl p-5 border border-purple-500/20">
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles size={18} className="text-purple-400" />
-                <span className="text-sm font-medium text-purple-300">Custom Alias</span>
-                <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">
-                  Primary
-                </span>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-4">
-                {/* QR Code */}
-                <div
-                  id="qr-custom"
-                  className="bg-white p-3 rounded-xl shadow-lg self-center sm:self-start"
-                >
-                  <QRCodeSVG value={customUrl} size={120} level="H" />
-                </div>
-
-                {/* Link Info & Actions */}
-                <div className="flex-1 space-y-3">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Short URL</p>
-                    <p className="text-purple-400 font-mono text-lg font-medium break-all">
-                      {customUrl}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => copyToClipboard(customUrl, 'custom')}
-                      className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-colors"
-                    >
-                      {copiedId === 'custom' ? <Check size={16} /> : <Copy size={16} />}
-                      Copy
-                    </button>
-                    <a
-                      href={customUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
-                    >
-                      <ExternalLink size={16} />
-                      Open
-                    </a>
-                    <button
-                      onClick={() => downloadQR('qr-custom', `qr-${linkData.customAlias}.png`)}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-                    >
-                      <Download size={16} />
-                      QR
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Random ID Link */}
-          <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700/50">
-            <div className="flex items-center gap-2 mb-4">
-              <LinkIcon size={18} className="text-blue-400" />
-              <span className="text-sm font-medium text-blue-300">Random Short ID</span>
-              {!customUrl && (
-                <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full">
-                  Primary
-                </span>
-              )}
-              {customUrl && (
-                <span className="text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded-full">
-                  Backup
-                </span>
-              )}
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-4">
+        {/* Modal - Allowed to grow */}
+        <div className="relative w-full max-w-2xl bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl animate-modal-in flex flex-col my-8">
               {/* QR Code */}
               <div
                 id="qr-random"
@@ -214,14 +107,13 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
+
 
           {/* Original URL Info */}
           <div className="bg-gray-800/30 rounded-xl p-4 border border-gray-700/30">
             <p className="text-xs text-gray-500 mb-1">Redirects to</p>
             <p className="text-gray-300 text-sm break-all">{linkData.originalUrl}</p>
-          </div>
+  
         </div>
 
         {/* Footer */}
@@ -235,6 +127,8 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
         </div>
       </div>
     </div>
+    </div>,
+    document.body
   );
 };
 

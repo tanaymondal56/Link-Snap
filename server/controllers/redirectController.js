@@ -1066,7 +1066,6 @@ const getPasswordEntryPage = (shortId, title) => {
                 </svg>
             </div>
             <h1>Password Protected</h1>
-            <p class="link-title">${safeTitle}</p>
             <p class="subtitle">This link is protected. Enter the password to continue.</p>
             <form id="passwordForm">
                 <div class="form-group">

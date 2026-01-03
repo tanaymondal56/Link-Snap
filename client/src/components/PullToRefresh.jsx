@@ -65,6 +65,14 @@ const PullToRefresh = ({ children, onRefresh, disabled = false }) => {
 
   const handleTouchStart = useCallback((e) => {
     if (disabled || isRefreshing || !isPWA) return;
+
+    // Auto-detect scroll lock (modals active)
+    const isBodyLocked = window.getComputedStyle(document.body).overflow === 'hidden';
+    const mainContent = document.getElementById('main-content');
+    const isMainLocked = mainContent ? window.getComputedStyle(mainContent).overflow === 'hidden' : false;
+
+    if (isBodyLocked || isMainLocked) return;
+
     if (!isAtTop()) return;
     
     startYRef.current = e.touches[0].clientY;

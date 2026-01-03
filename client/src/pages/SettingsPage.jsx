@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import {
@@ -35,6 +35,8 @@ import {
   Zap,
   BarChart3,
   Crown,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 import { formatDate } from '../utils/dateUtils';
@@ -59,6 +61,42 @@ const SettingsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [copiedSnapId, setCopiedSnapId] = useState(false);
+
+  // Tabs scroll logic
+  const tabsRef = useRef(null);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(true);
+
+  const checkScroll = () => {
+    if (tabsRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = tabsRef.current;
+      setShowLeftArrow(scrollLeft > 0);
+      setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 5); // 5px buffer
+    }
+  };
+
+  useEffect(() => {
+    // Only check scroll if not loading and element exists
+    if (!isLoading) {
+       // Small delay to ensure DOM is ready
+       setTimeout(checkScroll, 100);
+    }
+  }, [isLoading]);
+
+  useEffect(() => {
+    window.addEventListener('resize', checkScroll);
+    return () => window.removeEventListener('resize', checkScroll);
+  }, []);
+
+  const scrollTabs = (direction) => {
+    if (tabsRef.current) {
+      const scrollAmount = 150;
+      tabsRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   const handleCopySnapId = (id) => {
     navigator.clipboard.writeText(id);
@@ -422,59 +460,90 @@ const SettingsPage = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-700/50 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={`shrink-0 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
-            activeTab === 'profile'
-              ? 'text-white border-blue-500'
-              : 'text-gray-400 border-transparent hover:text-white'
-          }`}
+      <div className="relative mx-auto w-full group">
+        
+        {/* Left Arrow (Mobile/Desktop if needed) */}
+        <div className={`absolute left-0 top-0 bottom-1 z-10 flex items-center px-1 bg-gradient-to-r from-gray-900 via-gray-900/80 to-transparent transition-opacity duration-300 ${!showLeftArrow ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+           <button 
+             onClick={() => scrollTabs('left')}
+             className="p-1.5 rounded-full bg-gray-800 border border-gray-700 text-white shadow-xl hover:bg-gray-700 active:scale-95 transition-all"
+             aria-label="Scroll left"
+           >
+             <ChevronLeft size={18} />
+           </button>
+        </div>
+
+        <div 
+          ref={tabsRef}
+          onScroll={checkScroll}
+          className="flex gap-2 border-b border-gray-700/50 overflow-x-auto overflow-y-hidden touch-pan-x scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 pb-1 items-center"
         >
-          <span className="flex items-center gap-2">
-            <User size={16} />
-            Profile
-          </span>
-        </button>
-        <button
-          onClick={() => setActiveTab('security')}
-          className={`shrink-0 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
-            activeTab === 'security'
-              ? 'text-white border-blue-500'
-              : 'text-gray-400 border-transparent hover:text-white'
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <Shield size={16} />
-            Security
-          </span>
-        </button>
-        <button
-          onClick={() => setActiveTab('sessions')}
-          className={`shrink-0 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
-            activeTab === 'sessions'
-              ? 'text-white border-blue-500'
-              : 'text-gray-400 border-transparent hover:text-white'
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <Monitor size={16} />
-            Sessions
-          </span>
-        </button>
-        <button
-          onClick={() => setActiveTab('subscription')}
-          className={`shrink-0 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
-            activeTab === 'subscription'
-              ? 'text-white border-blue-500'
-              : 'text-gray-400 border-transparent hover:text-white'
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <CreditCard size={16} />
-            Subscription
-          </span>
-        </button>
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`shrink-0 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === 'profile'
+                ? 'text-white border-blue-500'
+                : 'text-gray-400 border-transparent hover:text-white'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <User size={16} />
+              Profile
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('security')}
+            className={`shrink-0 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === 'security'
+                ? 'text-white border-blue-500'
+                : 'text-gray-400 border-transparent hover:text-white'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Shield size={16} />
+              Security
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('sessions')}
+            className={`shrink-0 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === 'sessions'
+                ? 'text-white border-blue-500'
+                : 'text-gray-400 border-transparent hover:text-white'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Monitor size={16} />
+              Sessions
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('subscription')}
+            className={`shrink-0 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === 'subscription'
+                ? 'text-white border-blue-500'
+                : 'text-gray-400 border-transparent hover:text-white'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <CreditCard size={16} />
+              Subscription
+            </span>
+          </button>
+          {/* Spacer for right fade */}
+          <div className="w-8 shrink-0 sm:hidden" />
+        </div>
+
+        {/* Right Arrow */}
+        <div className={`absolute right-0 top-0 bottom-1 z-10 flex items-center justify-end px-1 bg-gradient-to-l from-gray-900 via-gray-900/80 to-transparent transition-opacity duration-300 ${!showRightArrow ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+           <button 
+             onClick={() => scrollTabs('right')}
+             className="p-1.5 rounded-full bg-gray-800 border border-gray-700 text-white shadow-xl hover:bg-gray-700 active:scale-95 transition-all"
+             aria-label="Scroll right"
+           >
+             <ChevronRight size={18} />
+           </button>
+        </div>
       </div>
 
       {/* Profile Tab */}

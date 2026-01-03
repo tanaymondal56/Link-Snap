@@ -104,7 +104,44 @@ const DevCommandCenter = () => {
     { id: 'go-home', label: 'Go Home', icon: LayoutDashboard, action: () => navigate('/'), category: 'Navigation', keywords: 'landing' },
     
     // Dev Actions
-    { id: 'reload', label: 'Hard Reload', icon: RefreshCw, action: () => window.location.reload(), category: 'Dev', keywords: 'refresh' },
+    { 
+      id: 'reload', 
+      label: 'Empty Cache & Hard Reload', 
+      icon: RefreshCw, 
+      action: async () => {
+        const toastId = toast.loading('Cleaning caches...');
+        
+        try {
+          // 1. Clear Cache Storage API (Service Worker caches)
+          if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
+            console.log('Caches cleared');
+          }
+
+          // 2. Unregister Service Workers
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map(r => r.unregister()));
+            console.log('Service Workers unregistered');
+          }
+
+          // 3. Clear Local Forage (if used) or standard storages if requested (preserving for now as this is "Cache" reload)
+          // We don't clear localStorage/sessionStorage here as that's separate commands.
+
+          toast.success('Clean! Reloading...', { id: toastId });
+          
+          // 4. Force Reload
+          setTimeout(() => window.location.reload(), 500);
+        } catch (error) {
+          console.error('Cache clear failed:', error);
+          // Fallback to simple reload
+          window.location.reload();
+        }
+      }, 
+      category: 'Dev', 
+      keywords: 'refresh clean hard' 
+    },
     { id: 'clear-local', label: 'Clear Local Storage', icon: Trash2, action: () => { localStorage.clear(); toast.loading('Cleared! Reloading...'); setTimeout(() => window.location.reload(), 1000); }, category: 'Dev', danger: true, keywords: 'reset' },
     { id: 'clear-session', label: 'Clear Session Storage', icon: Database, action: () => { sessionStorage.clear(); toast.loading('Cleared! Reloading...'); setTimeout(() => window.location.reload(), 1000); }, category: 'Dev', danger: true, keywords: 'reset' },
     { id: 'force-logout', label: 'Force Logout', icon: LogOut, action: () => { localStorage.clear(); document.cookie.split(";").forEach(c => document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")); window.location.href = '/login'; }, category: 'Dev', danger: true, keywords: 'signout' },

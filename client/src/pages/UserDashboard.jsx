@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useConfirm } from '../context/ConfirmContext';
 import { useAuth } from '../context/AuthContext';
@@ -32,6 +33,7 @@ import CreateLinkModal from '../components/CreateLinkModal';
 import EditLinkModal from '../components/EditLinkModal';
 import LinkSuccessModal from '../components/LinkSuccessModal';
 import { cacheLinks, getCachedLinks, getCacheAge } from '../utils/offlineCache';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 const UserDashboard = () => {
   const { user } = useAuth();
@@ -49,6 +51,9 @@ const UserDashboard = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  // Scroll Lock for QR Modal
+  useScrollLock(!!qrModalLink);
 
   useEffect(() => {
     fetchLinks(page);
@@ -659,137 +664,136 @@ const UserDashboard = () => {
       )}
 
       {/* QR Code Modal - Enhanced for both links */}
-      {qrModalLink && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {qrModalLink && createPortal(
+        <div className="fixed inset-0 z-[1000] overflow-y-auto">
+          <div className="flex min-h-full items-start justify-center p-4 pt-10 sm:items-center sm:pt-4">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setQrModalLink(null)}
           />
 
-          {/* Modal */}
-          <div className="relative w-full max-w-lg bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl animate-modal-in max-h-[90vh] overflow-y-auto">
+          {/* Modal - Allowed to grow */}
+          <div className="relative w-full max-w-lg bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl animate-modal-in my-8">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-700/50 sticky top-0 bg-gray-900/95 z-10">
               <div className="flex flex-col">
                 <h3 className="text-lg font-semibold text-white">QR Codes</h3>
-                <span className="text-sm text-gray-400">
-                  {qrModalLink.title || 'Link QR Codes'}
-                </span>
+                <p className="text-sm text-gray-400">Download for your marketing materials</p>
               </div>
               <button
                 onClick={() => setQrModalLink(null)}
-                className="p-2 hover:bg-gray-700/50 rounded-lg text-gray-400 hover:text-white transition-colors"
+                className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* QR Codes Content */}
-            <div className="p-5 space-y-5">
-              {/* Custom Alias QR - Show first if exists */}
-              {qrModalLink.customAlias && (
-                <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-xl p-4 border border-purple-500/20">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Sparkles size={16} className="text-purple-400" />
-                    <span className="text-sm font-medium text-purple-300">Custom Alias</span>
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-4 items-center">
-                    <div id="qr-modal-custom" className="bg-white p-3 rounded-xl shadow-lg">
-                      <QRCodeSVG
-                        value={getShortUrl(qrModalLink.customAlias)}
-                        size={150}
-                        level="H"
-                        includeMargin={true}
-                      />
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <p className="text-purple-400 font-mono text-sm break-all">
-                        {getShortUrl(qrModalLink.customAlias)}
-                      </p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => copyToClipboard(qrModalLink.customAlias)}
-                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-colors text-sm"
-                        >
-                          <Copy size={14} />
-                          Copy
-                        </button>
-                        <button
-                          onClick={() => {
-                            const svg = document.querySelector('#qr-modal-custom svg');
-                            if (!svg) return;
-                            const canvas = document.createElement('canvas');
-                            const ctx = canvas.getContext('2d');
-                            const data = new XMLSerializer().serializeToString(svg);
-                            const img = new Image();
-                            const svgBlob = new Blob([data], {
-                              type: 'image/svg+xml;charset=utf-8',
-                            });
-                            const url = URL.createObjectURL(svgBlob);
-                            img.onload = () => {
-                              canvas.width = img.width;
-                              canvas.height = img.height;
-                              ctx.fillStyle = 'white';
-                              ctx.fillRect(0, 0, canvas.width, canvas.height);
-                              ctx.drawImage(img, 0, 0);
-                              URL.revokeObjectURL(url);
-                              const pngUrl = canvas.toDataURL('image/png');
-                              const downloadLink = document.createElement('a');
-                              downloadLink.href = pngUrl;
-                              downloadLink.download = `qr-${qrModalLink.customAlias}.png`;
-                              downloadLink.click();
-                            };
-                            img.src = url;
-                          }}
-                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors text-sm"
-                        >
-                          <Download size={14} />
-                          Download
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Short Link QR */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-sm font-medium text-white flex items-center gap-2">
+                    <LinkIcon size={14} className="text-green-400" />
+                    Short Link QR
+                  </label>
+                  <span className="text-xs px-2 py-0.5 bg-green-500/10 text-green-400 rounded-full border border-green-500/20">
+                    Recommended
+                  </span>
                 </div>
-              )}
-
-              {/* Random ID QR */}
-              <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50">
-                <div className="flex items-center gap-2 mb-3">
-                  <LinkIcon size={16} className="text-blue-400" />
-                  <span className="text-sm font-medium text-blue-300">Random Short ID</span>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-4 items-center">
-                  <div id="qr-modal-random" className="bg-white p-3 rounded-xl shadow-lg">
+                <div className="flex gap-4 p-4 bg-gray-800/30 rounded-xl border border-gray-700/30 hover:border-green-500/30 transition-colors group">
+                  <div className="bg-white p-2 rounded-lg shrink-0">
                     <QRCodeSVG
-                      value={getShortUrl(qrModalLink.shortId)}
-                      size={150}
-                      level="H"
-                      includeMargin={true}
+                      id="short-qr"
+                      value={qrModalLink.shortUrl}
+                      size={100}
+                      level="M"
+                      includeMargin={false}
                     />
                   </div>
-                  <div className="flex-1 space-y-2">
-                    <p className="text-blue-400 font-mono text-sm break-all">
-                      {getShortUrl(qrModalLink.shortId)}
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => copyToClipboard(qrModalLink.shortId)}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-colors text-sm"
-                      >
-                        <Copy size={14} />
-                        Copy
-                      </button>
+                  <div className="flex flex-col justify-between flex-1 min-w-0">
+                    <div>
+                      <p className="text-white font-medium truncate mb-1">/{qrModalLink.shortId}</p>
+                      <p className="text-xs text-gray-400">
+                        Tracks clicks and analytics. Best for printing on flyers or business cards.
+                      </p>
+                    </div>
+                    <div className="flex gap-2 mt-3">
                       <button
                         onClick={() => {
-                          const svg = document.querySelector('#qr-modal-random svg');
-                          if (!svg) return;
+                          const svg = document.getElementById('short-qr');
                           const canvas = document.createElement('canvas');
                           const ctx = canvas.getContext('2d');
-                          const data = new XMLSerializer().serializeToString(svg);
                           const img = new Image();
-                          const svgBlob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
-                          const url = URL.createObjectURL(svgBlob);
+                          const xml = new XMLSerializer().serializeToString(svg);
+                          const svg64 = btoa(xml);
+                          const b64Start = 'data:image/svg+xml;base64,';
+                          const image64 = b64Start + svg64;
+
+                          img.onload = () => {
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            ctx.fillStyle = 'white';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            // URL is not defined here, it should be revoked after use.
+                            // For this specific case, img.src is a data URL, so no URL.revokeObjectURL needed.
+                            const pngUrl = canvas.toDataURL('image/png');
+                            const downloadLink = document.createElement('a');
+                            downloadLink.href = pngUrl;
+                            downloadLink.download = `qr-${qrModalLink.shortId}.png`;
+                            downloadLink.click();
+                          };
+                          img.src = image64;
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white text-gray-900 hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium"
+                      >
+                        <Download size={14} />
+                        Download PNG
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Original Link QR */}
+              <div>
+                <label className="text-sm font-medium text-white flex items-center gap-2 mb-3">
+                  <ExternalLink size={14} className="text-blue-400" />
+                  Direct Link QR
+                </label>
+                <div className="flex gap-4 p-4 bg-gray-800/30 rounded-xl border border-gray-700/30 group">
+                  <div className="bg-white p-2 rounded-lg opacity-80 group-hover:opacity-100 transition-opacity shrink-0">
+                    <QRCodeSVG
+                      id="original-qr"
+                      value={qrModalLink.originalUrl}
+                      size={100}
+                      level="M"
+                      includeMargin={false}
+                    />
+                  </div>
+                  <div className="flex flex-col justify-between flex-1 min-w-0">
+                    <div>
+                      <p className="text-gray-300 font-medium truncate mb-1">{qrModalLink.originalUrl}</p>
+                      <p className="text-xs text-gray-500">
+                        Direct connection. Bypasses Link Snap tracking and features.
+                      </p>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => {
+                          const svg = document.getElementById('original-qr');
+                          const canvas = document.createElement('canvas');
+                          const ctx = canvas.getContext('2d');
+                          const img = new Image();
+                          const xml = new XMLSerializer().serializeToString(svg);
+
+
+                          
+                          // Creating a URL directly from SVG data
+                          const blob = new Blob([xml], {type: 'image/svg+xml'});
+                          const url = URL.createObjectURL(blob);
+
                           img.onload = () => {
                             canvas.width = img.width;
                             canvas.height = img.height;
@@ -800,7 +804,7 @@ const UserDashboard = () => {
                             const pngUrl = canvas.toDataURL('image/png');
                             const downloadLink = document.createElement('a');
                             downloadLink.href = pngUrl;
-                            downloadLink.download = `qr-${qrModalLink.shortId}.png`;
+                            downloadLink.download = `qr-${qrModalLink.shortId}-original.png`;
                             downloadLink.click();
                           };
                           img.src = url;
@@ -808,7 +812,7 @@ const UserDashboard = () => {
                         className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors text-sm"
                       >
                         <Download size={14} />
-                        Download
+                        Download PNG
                       </button>
                     </div>
                   </div>
@@ -823,6 +827,8 @@ const UserDashboard = () => {
             </div>
           </div>
         </div>
+        </div>,
+        document.body
       )}
 
       {/* Create Link Modal */}

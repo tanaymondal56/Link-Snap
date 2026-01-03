@@ -3,6 +3,7 @@ import AdminSidebar from '../components/admin-console/AdminSidebar';
 import { useAuth } from '../context/AuthContext';
 import { Menu, Bell, User, LogOut, AlertTriangle, X } from 'lucide-react';
 import { useState } from 'react';
+import PullToRefresh from '../components/PullToRefresh';
 
 const AdminConsoleLayout = () => {
   const { user, logout, loading } = useAuth();
@@ -103,9 +104,12 @@ const AdminConsoleLayout = () => {
         )}
 
         {/* Page Content */}
-        <div className="animate-fade-in">
-          <Outlet />
-        </div>
+        {/* Page Content */}
+        <PullToRefresh onRefresh={() => window.location.reload()}>
+          <div className="animate-fade-in">
+            <Outlet />
+          </div>
+        </PullToRefresh>
 
       </main>
     </div>

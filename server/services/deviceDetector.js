@@ -76,6 +76,15 @@ export const matchDeviceRule = (deviceInfo, rules) => {
     const osSpecificRules = sortedRules.filter(r => ['ios', 'android'].includes(r.device));
     const deviceTypeRules = sortedRules.filter(r => !['ios', 'android'].includes(r.device));
 
+    // TABLET PRIORITY: If device is a tablet, check for Tablet rule FIRST
+    // This allows iPads to use the "Tablet" rule instead of the "iOS" rule if a Tablet rule is explicitly set
+    if (deviceInfo.type === 'tablet') {
+        const tabletRule = deviceTypeRules.find(r => r.device === 'tablet');
+        if (tabletRule) {
+             return { url: tabletRule.url, matched: 'tablet' };
+        }
+    }
+
     // First pass: Check OS-specific rules
     for (const rule of osSpecificRules) {
         if (rule.device === 'ios' && deviceInfo.os === 'ios') {
@@ -135,9 +144,6 @@ export const getDeviceRedirectUrl = (urlDoc, userAgent) => {
         if (matchResult) {
             targetUrl = matchResult.url;
             deviceMatchType = matchResult.matched;
-        } else if (urlDoc.deviceRedirects.fallbackUrl) {
-            targetUrl = urlDoc.deviceRedirects.fallbackUrl;
-            deviceMatchType = 'fallback';
         }
     }
 

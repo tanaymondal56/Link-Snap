@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Link as LinkIcon,
@@ -17,6 +18,7 @@ import {
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
 import { getShortUrl } from '../utils/urlHelper';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { Link } from 'react-router-dom';
 import { ProBadge } from './subscription/PremiumField';
 import { usePremiumField } from '../hooks/usePremiumField';
@@ -103,7 +105,6 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
   const [deviceRedirects, setDeviceRedirects] = useState({
     enabled: false,
     rules: [],
-    fallbackUrl: ''
   });
 
   // Hover states for premium field tooltips
@@ -113,6 +114,9 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
 
   const debouncedAlias = useDebounce(customAlias, 400);
   const baseDomain = getBaseDomain();
+
+  // Scroll Lock
+  useScrollLock(isOpen);
 
   // Initialize form with link data
   useEffect(() => {
@@ -126,7 +130,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
       setPassword('');
       setShowPassword(false);
       // Initialize device redirects from link data
-      setDeviceRedirects(link.deviceRedirects || { enabled: false, rules: [], fallbackUrl: '' });
+      setDeviceRedirects(link.deviceRedirects || { enabled: false, rules: [] });
       setAliasStatus({ checking: false, available: null, reason: null });
     }
   }, [link, isOpen]);
@@ -229,16 +233,11 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
       }
 
       // Handle device redirects
-      if (deviceRedirects.enabled && deviceRedirects.rules.length > 0) {
-        payload.deviceRedirects = {
-          enabled: true,
-          rules: deviceRedirects.rules.filter(r => r.url && r.url.trim() !== ''),
-          fallbackUrl: deviceRedirects.fallbackUrl || null
-        };
-      } else if (!deviceRedirects.enabled && link.deviceRedirects?.enabled) {
-        // Disable device redirects if they were enabled before
-        payload.deviceRedirects = { enabled: false, rules: [], fallbackUrl: null };
-      }
+      // Always send current rules (even if disabled) so they are preserved
+      payload.deviceRedirects = {
+        enabled: deviceRedirects.enabled,
+        rules: deviceRedirects.rules.filter(r => r.url && r.url.trim() !== '')
+      };
 
       const { data } = await api.put(`/url/${link._id}`, payload);
       onSuccess(data);
@@ -280,13 +279,17 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
     return 'border-gray-700';
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] overflow-y-auto">
+      <div 
+        className="flex min-h-full items-start justify-center p-4 sm:items-center sm:pt-4"
+        style={{ paddingTop: 'max(2.5rem, env(safe-area-inset-top))' }}
+      >
+        {/* Backdrop */}
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal */}
-      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl animate-modal-in">
+        {/* Modal - Allowed to grow, outer wrapper handles scroll */}
+        <div className="relative w-full max-w-lg bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl animate-modal-in flex flex-col my-8 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-700/50">
           <div className="flex items-center gap-3">
@@ -309,7 +312,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-5">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* URL Input */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -709,8 +712,10 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
             </button>
           </div>
         </form>
-      </div>
+        </div>
     </div>
+    </div>,
+    document.body
   );
 };
 

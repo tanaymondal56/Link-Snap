@@ -80,7 +80,6 @@ const createUrlSchema = z.object({
             }),
             priority: z.number().default(0)
         })).default([]),
-        fallbackUrl: z.string().url().optional().or(z.literal('')).or(z.null())
     }).optional(),
 });
 
@@ -90,15 +89,26 @@ const createUrlSchema = z.object({
 const createShortUrl = async (req, res, next) => {
     try {
         // Normalize URL: Prepend https:// if missing (User Experience)
+        // Normalize URL: Prepend https:// if missing (User Experience)
         if (req.body.originalUrl && typeof req.body.originalUrl === 'string' && !/^https?:\/\//i.test(req.body.originalUrl)) {
             req.body.originalUrl = `https://${req.body.originalUrl}`;
+        }
+
+        // Normalize Device Redirect URLs: Prepend https:// if missing
+        if (req.body.deviceRedirects?.rules && Array.isArray(req.body.deviceRedirects.rules)) {
+            req.body.deviceRedirects.rules.forEach(rule => {
+                if (rule.url && typeof rule.url === 'string' && !/^https?:\/\//i.test(rule.url)) {
+                    rule.url = `https://${rule.url}`;
+                }
+            });
         }
 
         // Security: Zod strips unknown fields and validates types, preventing NoSQL injection via req.body
         const result = createUrlSchema.safeParse(req.body);
         if (!result.success) {
             res.status(400);
-            throw new Error(result.error.errors[0].message);
+            const errorMessage = result.error?.errors?.[0]?.message || 'Invalid request data';
+            throw new Error(errorMessage);
         }
 
         const { originalUrl, customAlias, title, expiresIn, expiresAt, password } = result.data;
@@ -192,24 +202,10 @@ const createShortUrl = async (req, res, next) => {
                 throw new Error('Device redirect URLs cannot point to this service (circular redirect)');
             }
             
-            // Check fallback URL for circular redirect
-            if (result.data.deviceRedirects.fallbackUrl) {
-                const normalizedFallback = normalizeUrl(result.data.deviceRedirects.fallbackUrl);
-                if (isCircularRedirect(normalizedFallback)) {
-                    res.status(400);
-                    throw new Error('Fallback URL cannot point to this service (circular redirect)');
-                }
-                deviceRedirectsData = {
-                    ...result.data.deviceRedirects,
-                    rules: processedRules,
-                    fallbackUrl: normalizedFallback
-                };
-            } else {
-                deviceRedirectsData = {
-                    ...result.data.deviceRedirects,
-                    rules: processedRules
-                };
-            }
+            deviceRedirectsData = {
+                ...result.data.deviceRedirects,
+                rules: processedRules
+            };
         }
 
         const newUrl = await Url.create({
@@ -392,7 +388,6 @@ const updateUrlSchema = z.object({
             }),
             priority: z.number().default(0)
         })).default([]),
-        fallbackUrl: z.string().url().optional().or(z.literal('')).or(z.null())
     }).optional(),
 });
 
@@ -414,14 +409,25 @@ const updateUrl = async (req, res, next) => {
         }
 
         // Normalize URL if provided
+        // Normalize URL if provided
         if (req.body.originalUrl && typeof req.body.originalUrl === 'string' && !/^https?:\/\//i.test(req.body.originalUrl)) {
             req.body.originalUrl = `https://${req.body.originalUrl}`;
         }
 
+        // Normalize Device Redirect URLs for update
+        if (req.body.deviceRedirects?.rules && Array.isArray(req.body.deviceRedirects.rules)) {
+            req.body.deviceRedirects.rules.forEach(rule => {
+                if (rule.url && typeof rule.url === 'string' && !/^https?:\/\//i.test(rule.url)) {
+                    rule.url = `https://${rule.url}`;
+                }
+            });
+        }
+        
         const result = updateUrlSchema.safeParse(req.body);
         if (!result.success) {
             res.status(400);
-            throw new Error(result.error.errors[0].message);
+            const errorMessage = result.error?.errors?.[0]?.message || 'Invalid request data';
+            throw new Error(errorMessage);
         }
 
         const { originalUrl, customAlias, title, expiresIn, expiresAt, removeExpiration, password, removePassword } = result.data;
@@ -547,24 +553,10 @@ const updateUrl = async (req, res, next) => {
                     throw new Error('Device redirect URLs cannot point to this service (circular redirect)');
                 }
                 
-                // Check fallback URL for circular redirect
-                if (deviceRedirects.fallbackUrl) {
-                    const normalizedFallback = normalizeUrl(deviceRedirects.fallbackUrl);
-                    if (isCircularRedirect(normalizedFallback)) {
-                        res.status(400);
-                        throw new Error('Fallback URL cannot point to this service (circular redirect)');
-                    }
-                    updateFields.deviceRedirects = {
-                        ...deviceRedirects,
-                        rules: processedRules,
-                        fallbackUrl: normalizedFallback
-                    };
-                } else {
-                    updateFields.deviceRedirects = {
-                        ...deviceRedirects,
-                        rules: processedRules
-                    };
-                }
+                updateFields.deviceRedirects = {
+                    ...deviceRedirects,
+                    rules: processedRules
+                };
             } else {
                 // Device redirects disabled - just save as-is
                 updateFields.deviceRedirects = deviceRedirects;

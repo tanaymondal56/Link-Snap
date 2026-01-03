@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, MessageSquare, Bug, Lightbulb, HelpCircle, Send, Loader2, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import showToast from './ui/Toast';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 const feedbackTypes = [
   { id: 'feature_request', label: 'Feature Request', icon: Lightbulb, color: 'text-purple-400', bg: 'bg-purple-500/20' },
@@ -13,6 +15,10 @@ const feedbackTypes = [
 
 const FeedbackModal = ({ isOpen, onClose, defaultType = 'feature_request' }) => {
   const { user } = useAuth();
+  
+  // Scroll Lock
+  useScrollLock(isOpen);
+
   const [formData, setFormData] = useState({
     type: defaultType,
     title: '',
@@ -111,12 +117,16 @@ const FeedbackModal = ({ isOpen, onClose, defaultType = 'feature_request' }) => 
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[1000] overflow-y-auto bg-black/60 backdrop-blur-sm animate-fade-in"
       onClick={handleBackdropClick}
     >
-      <div className="relative w-full max-w-lg bg-gray-900 border border-white/10 rounded-2xl shadow-2xl animate-slide-up overflow-hidden">
+      <div 
+        className="flex min-h-full items-start justify-center p-4 sm:items-center sm:pt-4"
+        style={{ paddingTop: 'max(2.5rem, env(safe-area-inset-top))' }}
+      >
+        <div className="relative w-full max-w-lg bg-gray-900 border border-white/10 rounded-2xl shadow-2xl animate-slide-up overflow-hidden flex flex-col my-8">
         {/* Success State */}
         {success ? (
           <div className="flex flex-col items-center justify-center py-16 px-8">
@@ -306,7 +316,9 @@ const FeedbackModal = ({ isOpen, onClose, defaultType = 'feature_request' }) => 
           </>
         )}
       </div>
-    </div>
+      </div>
+    </div>,
+    document.body
   );
 };
 

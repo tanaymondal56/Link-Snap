@@ -4,11 +4,11 @@ import react from '@vitejs/plugin-react-swc'
 import checker from 'vite-plugin-checker'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// Dev-only plugins loaded conditionally
-const isDev = process.env.NODE_ENV !== 'production'
-
 // https://vite.dev/config/
-export default defineConfig(async () => {
+export default defineConfig(async ({ mode }) => {
+  // Dev-only plugins loaded conditionally
+  const isDev = mode !== 'production'
+
   // Load dev plugins only in development
   const devPlugins = isDev ? [
     (await import('vite-plugin-react-inspector')).default(),
