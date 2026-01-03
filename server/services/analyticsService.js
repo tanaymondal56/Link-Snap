@@ -37,7 +37,7 @@ const startFlushTimer = () => {
 
 startFlushTimer();
 
-export const trackVisit = async (urlId, req) => {
+export const trackVisit = async (urlId, req, extras = {}) => {
     try {
         const agent = useragent.parse(req.headers['user-agent']);
 
@@ -56,6 +56,8 @@ export const trackVisit = async (urlId, req) => {
             device: agent.device.toString() !== 'Other 0.0.0' ? agent.device.toString() : 'Desktop', // Simple fallback
             country: geo ? geo.country : 'Unknown',
             city: geo ? geo.city : 'Unknown',
+            // Device-based redirect tracking
+            deviceMatchType: extras.deviceMatchType || null,
             // Mongoose timestamps won't auto-generate for insertMany unless specified or schema default
             // Schema has timestamps: true, but insertMany bypasses mongoose defaults usually? 
             // Actually, Mongoose 5+ handle defaults in insertMany if model is passed.

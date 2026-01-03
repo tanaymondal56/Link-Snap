@@ -29,6 +29,7 @@ import {
     generateRedeemCode, 
     listRedeemCodes, 
     deactivateRedeemCode, 
+    updateRedeemCode,
     getRedeemCodeStats 
 } from '../controllers/redeemCodeController.js';
 import { 
@@ -85,6 +86,7 @@ router.delete('/feedback/:id', deleteFeedback);
 router.get('/redeem-codes/stats', getRedeemCodeStats);
 router.get('/redeem-codes', listRedeemCodes);
 router.post('/redeem-codes', generateRedeemCode);
+router.put('/redeem-codes/:id', updateRedeemCode);
 router.delete('/redeem-codes/:id', deactivateRedeemCode);
 
 // Subscription Management

@@ -58,7 +58,7 @@ export const decodeSnapId = (snapId) => {
     const decoded = sqids.decode(hash);
     
     return decoded.length ? decoded[0] : null;
-  } catch (err) {
+  } catch {
     return null;
   }
 };

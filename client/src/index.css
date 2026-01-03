@@ -94,6 +94,17 @@
   animation-delay: -10s;
 }
 
+/* Master Admin Theme Overrides (Crimson/Gold/Orange) */
+.master-theme .orb-1 {
+  background: #dc2626; /* Red-600 */
+}
+.master-theme .orb-2 {
+  background: #ea580c; /* Orange-600 */
+}
+.master-theme .orb-3 {
+  background: #ca8a04; /* Yellow-600 */
+}
+
 @keyframes float {
   0% { transform: translate(0, 0) rotate(0deg); }
   33% { transform: translate(30px, -50px) rotate(10deg); }

@@ -210,8 +210,9 @@ export const AuthProvider = ({ children }) => {
         authModal,
         openAuthModal,
         closeAuthModal,
-        refreshUser: () => checkAuth(), // Expose manual refresh
-        isAdmin: user?.role === 'admin',
+        // Expose manual refresh
+        refreshUser: () => checkAuth(),
+        isAdmin: user?.role === 'admin' || user?.role === 'master_admin',
       }}
     >
       {children}

@@ -188,6 +188,7 @@ const primaryButton = (text, url) => `
 `;
 
 // Secondary button
+// eslint-disable-next-line no-unused-vars -- Helper kept for future email templates
 const secondaryButton = (text, url) => `
 <table border="0" cellpadding="0" cellspacing="0" width="100%">
   <tr>
@@ -704,7 +705,21 @@ export const passwordResetEmail = (user, resetToken, otp) => {
     const resetUrl = `${getAppUrl()}/reset-password/${resetToken}`;
     
     const content = `
-    ${emailHeader('Reset Your Password')}
+    <!-- Icon -->
+    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+      <tr>
+        <td align="center" style="padding-bottom: 24px;">
+          <div style="background: linear-gradient(135deg, ${brandColors.warning} 0%, #d97706 100%); width: 72px; height: 72px; border-radius: 50%; display: inline-block; text-align: center; line-height: 72px;">
+            <span style="font-size: 36px;">🔑</span>
+          </div>
+        </td>
+      </tr>
+    </table>
+    
+    <!-- Heading -->
+    <h1 style="margin: 0 0 16px 0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 28px; font-weight: 700; color: ${brandColors.dark}; text-align: center;">
+      Reset Your Password
+    </h1>
     
     <p style="margin: 0 0 16px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: ${brandColors.dark};">
       Hi ${firstName},
@@ -725,7 +740,7 @@ export const passwordResetEmail = (user, resetToken, otp) => {
       Or click the button below to reset via link (valid for 1 hour):
     </p>
     
-    ${button('Reset Password', resetUrl)}
+    ${primaryButton('Reset Password', resetUrl)}
     
     <p style="margin: 24px 0 0 0; font-family: Arial, sans-serif; font-size: 13px; color: ${brandColors.grayLight}; text-align: center;">
       Can't click the button? Copy this link:<br/>

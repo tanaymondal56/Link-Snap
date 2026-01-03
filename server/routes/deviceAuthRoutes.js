@@ -13,6 +13,16 @@ import {
   revokeAllDevices,
 } from '../controllers/deviceAuthController.js';
 
+// Middleware to block Master Admin from using biometric features
+const blockMasterAdmin = (req, res, next) => {
+  if (req.user?.role === 'master_admin') {
+    return res.status(403).json({ 
+      message: 'Biometric/Device authentication is disabled for Master Admin accounts for security reasons.' 
+    });
+  }
+  next();
+};
+
 const router = express.Router();
 
 // ============================================
@@ -35,22 +45,22 @@ router.post('/verify', verifyAuthentication);
 
 // Get registration options (requires STRICT whitelisted IP)
 // Registration must happen physically from a secure location
-router.post('/register/options', strictIpWhitelist, verifyToken, verifyAdmin, getRegistrationOptions);
+router.post('/register/options', strictIpWhitelist, verifyToken, verifyAdmin, blockMasterAdmin, getRegistrationOptions);
 
 // Complete registration (requires STRICT whitelisted IP)
-router.post('/register/verify', strictIpWhitelist, verifyToken, verifyAdmin, verifyRegistration);
+router.post('/register/verify', strictIpWhitelist, verifyToken, verifyAdmin, blockMasterAdmin, verifyRegistration);
 
 // Get all devices for current user
 // Uses standard whitelist (allows remote access if biometrically matched)
-router.get('/devices', ipWhitelist, verifyToken, verifyAdmin, getDevices);
+router.get('/devices', ipWhitelist, verifyToken, verifyAdmin, blockMasterAdmin, getDevices);
 
 // Update device name (Remote OK)
-router.patch('/devices/:deviceId', ipWhitelist, verifyToken, verifyAdmin, updateDeviceName);
+router.patch('/devices/:deviceId', ipWhitelist, verifyToken, verifyAdmin, blockMasterAdmin, updateDeviceName);
 
 // Revoke a specific device (Remote OK - Allows killing lost devices remotely)
-router.delete('/devices/:deviceId', ipWhitelist, verifyToken, verifyAdmin, revokeDevice);
+router.delete('/devices/:deviceId', ipWhitelist, verifyToken, verifyAdmin, blockMasterAdmin, revokeDevice);
 
 // Revoke all devices (Remote OK - Emergency)
-router.delete('/devices', ipWhitelist, verifyToken, verifyAdmin, revokeAllDevices);
+router.delete('/devices', ipWhitelist, verifyToken, verifyAdmin, blockMasterAdmin, revokeAllDevices);
 
 export default router;

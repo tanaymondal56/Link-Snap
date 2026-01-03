@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-unused-vars -- Keeping TIERS import for reference documentation
 import { TIERS } from '../services/subscriptionService.js';
 import User from '../models/User.js';
 import axios from 'axios';
@@ -5,12 +6,14 @@ import logger from '../utils/logger.js';
 
 // Cache for pricing data (simple in-memory cache)
 // In production, use Redis.
+// eslint-disable-next-line no-unused-vars -- Cache implementation placeholder
 let priceCache = {
   data: null,
   timestamp: 0,
   currency: 'USD'
 };
 
+// eslint-disable-next-line no-unused-vars -- TTL for future cache implementation
 const CACHE_TTL = 3600 * 1000; // 1 hour
 
 /**

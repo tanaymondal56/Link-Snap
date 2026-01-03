@@ -1,21 +1,21 @@
+// eslint-disable-next-line no-unused-vars -- Kept for potential future use in role lookup
 import User from '../models/User.js';
 
 export const verifyAdmin = async (req, res, next) => {
     try {
-        // req.user is already populated by verifyToken middleware
-        const user = await User.findById(req.user._id || req.user.id);
+        // req.user is already populated by verifyToken middleware (which handles both User and MasterAdmin)
+        const user = req.user;
 
         console.log(`[VerifyAdmin] User: ${user?.email}, Role: ${user?.role}, WhitelistedIP: ${req.isWhitelistedIP}`);
 
-        // Allow ONLY if user is admin
-        // Note: IP whitelist is handled by previous middleware, but we must not bypass role check
-        if (user && user.role === 'admin') {
+        // Allow if user is admin or master_admin
+        if (user && (user.role === 'admin' || user.role === 'master_admin')) {
             next();
         } else {
             // Return 404 to hide the existence of admin routes
             res.status(404).json({ message: 'Not Found' });
         }
-    } catch (error) {
+    } catch {
         // Return 404 to hide the existence of admin routes
         res.status(404).json({ message: 'Not Found' });
     }

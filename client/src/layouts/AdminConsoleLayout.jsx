@@ -1,12 +1,13 @@
 import { Outlet, Navigate } from 'react-router-dom';
 import AdminSidebar from '../components/admin-console/AdminSidebar';
 import { useAuth } from '../context/AuthContext';
-import { Menu, Bell, User, LogOut } from 'lucide-react';
+import { Menu, Bell, User, LogOut, AlertTriangle, X } from 'lucide-react';
 import { useState } from 'react';
 
 const AdminConsoleLayout = () => {
   const { user, logout, loading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showBanner, setShowBanner] = useState(true);
 
   if (loading) {
     return (
@@ -17,12 +18,12 @@ const AdminConsoleLayout = () => {
   }
 
   // Admin Protection
-  if (!user || user.role !== 'admin') {
+  if (!user || !['admin', 'master_admin'].includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }
 
   return (
-    <div className="min-h-screen relative font-sans text-gray-100 overflow-x-hidden">
+    <div className={`min-h-screen relative font-sans text-gray-100 overflow-x-hidden ${user.role === 'master_admin' ? 'master-theme' : ''}`}>
       {/* Mesh Gradient Background Layer */}
       <div className="mesh-gradient-bg">
         <div className="mesh-orb orb-1"></div>
@@ -72,6 +73,34 @@ const AdminConsoleLayout = () => {
             </div>
           </div>
         </header>
+
+        {/* Master Admin Warning Banner (Sleek & Dismissible) */}
+        {user.role === 'master_admin' && showBanner && (
+          <div className="mb-6 relative group animate-in slide-in-from-top-4 fade-in duration-700">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-red-600 to-orange-500 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+            <div className="relative flex items-center justify-between p-4 rounded-xl bg-gray-950/50 backdrop-blur-md border border-red-500/20 shadow-xl">
+               <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-red-500/20 to-orange-500/20 border border-red-500/30 text-red-400">
+                     <AlertTriangle size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-400 to-orange-400">
+                      Master Admin Active
+                    </h3>
+                    <p className="text-sm text-gray-400">
+                      System recovery mode enabled. Changes are permanent.
+                    </p>
+                  </div>
+               </div>
+               <button 
+                  onClick={() => setShowBanner(false)}
+                  className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  <X size={18} />
+               </button>
+            </div>
+          </div>
+        )}
 
         {/* Page Content */}
         <div className="animate-fade-in">

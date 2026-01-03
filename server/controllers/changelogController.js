@@ -113,7 +113,7 @@ export const getPublicRoadmap = async (req, res, next) => {
         };
         let totalItems = 0;
         countsAggregation.forEach(c => {
-            if (counts.hasOwnProperty(c._id)) {
+            if (Object.hasOwn(counts, c._id)) {
                 counts[c._id] = c.count;
             } else {
                 // Handle unknown statuses if any
@@ -462,7 +462,7 @@ export const togglePublish = async (req, res, next) => {
 // @desc    Get latest published version (Public - for app version display)
 // @route   GET /api/changelog/version
 // @access  Public
-export const getPublicLatestVersion = async (req, res, next) => {
+export const getPublicLatestVersion = async (req, res) => {
     try {
         // Find the latest PUBLISHED changelog by order
         const latest = await Changelog.findOne({ isPublished: true })

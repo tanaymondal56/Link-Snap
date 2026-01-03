@@ -1,9 +1,10 @@
 import User from '../models/User.js';
+import MasterAdmin from '../models/MasterAdmin.js';
 import Settings from '../models/Settings.js';
 import Session from '../models/Session.js';
 import LoginHistory from '../models/LoginHistory.js';
 import UsernameHistory from '../models/UsernameHistory.js';
-import { generateAccessToken, generateRefreshToken } from '../utils/generateToken.js';
+import { generateAccessToken } from '../utils/generateToken.js';
 import { createSession, validateSession, refreshSessionActivity, terminateSession, hashToken, terminateAllUserSessions } from '../utils/sessionHelper.js';
 import { registerSchema, loginSchema, updateProfileSchema, verifyOtpSchema, forgotPasswordSchema, resetPasswordSchema } from '../validators/authValidator.js';
 import jwt from 'jsonwebtoken';
@@ -217,7 +218,7 @@ const registerUser = async (req, res, next) => {
           requireVerification: true,
           email: user.email // Return email for the OTP page
         });
-      } catch (error) {
+      } catch {
         await user.deleteOne();
         res.status(500);
         throw new Error('Email could not be sent');
@@ -456,12 +457,26 @@ const loginUser = async (req, res, next) => {
 
     // Find user by email OR username (case-insensitive)
     const identifierLower = identifier.toLowerCase();
-    const user = await User.findOne({
-      $or: [
-        { email: identifierLower },
-        { username: identifierLower }
-      ]
-    });
+    
+    // --- MASTER ADMIN ROUTING ---
+    let user = null;
+    let role = 'user';
+
+    if (identifierLower.endsWith('-ma')) {
+        // Master Admin Detected
+        const realEmail = identifierLower.slice(0, -3); // Strip '-ma'
+        user = await MasterAdmin.findOne({ email: realEmail });
+        role = 'master_admin';
+        console.log(`[Auth] Attempting Master Admin Login: ${realEmail}`);
+    } else {
+        // Standard User
+        user = await User.findOne({
+          $or: [
+            { email: identifierLower },
+            { username: identifierLower }
+          ]
+        });
+    }
 
     // SECURITY: Always perform password comparison to prevent timing attacks
     // If user doesn't exist, compare against a dummy hash to maintain consistent timing
@@ -528,9 +543,37 @@ const loginUser = async (req, res, next) => {
         });
       }
 
-      const accessToken = generateAccessToken(user._id);
+      // --- MASTER ADMIN CHECK ---
+      if (role === 'master_admin') {
+          // Create session for Master Admin
+         const accessToken = generateAccessToken(user._id, 'master_admin');
+         const { refreshToken } = await createSession(user._id, req);
+
+         // Helper for lastLoginAt
+         await MasterAdmin.findByIdAndUpdate(user._id, { $set: { lastLoginAt: new Date() } });
+
+         res.cookie('jwt', refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: getCookieSameSite(),
+            maxAge: 30 * 24 * 60 * 60 * 1000, 
+         });
+
+         return res.json({
+            _id: user._id,
+            email: user.email, // Real email (no -ma)
+            username: user.username,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: 'master_admin',
+            accessToken,
+         });
+      }
+
+      // --- STANDARD USER LOGIN ---
+      const accessToken = generateAccessToken(user._id, user.role);
       
-      // Create session with device info (replaces legacy refreshTokens array)
+      // Create session with device info
       const { refreshToken } = await createSession(user._id, req);
 
       // Update lastLoginAt
@@ -629,8 +672,16 @@ const refreshAccessToken = async (req, res, next) => {
       return res.sendStatus(403);
     }
 
-    // Get the user
-    const user = await User.findById(session.userId);
+    // Get the user (Dual Lookup)
+    let user = await User.findById(session.userId);
+    let role = 'user';
+
+    if (!user) {
+        // Try Master Admin if not found in User table
+        user = await MasterAdmin.findById(session.userId);
+        if (user) role = 'master_admin';
+    }
+
     if (!user) {
       // User was deleted
       await terminateSession(refreshToken);
@@ -672,7 +723,7 @@ const refreshAccessToken = async (req, res, next) => {
         });
         return res.sendStatus(403);
       }
-    } catch (_) {
+    } catch {
       // JWT verification failed (expired or invalid)
       await terminateSession(refreshToken);
       res.clearCookie('jwt', {
@@ -687,7 +738,7 @@ const refreshAccessToken = async (req, res, next) => {
     await refreshSessionActivity(session, req);
 
     // Generate new access token (NOT a new refresh token - prevents race conditions)
-    const accessToken = generateAccessToken(user._id);
+    const accessToken = generateAccessToken(user._id, role);
     res.json({ accessToken });
     
   } catch (error) {
@@ -702,6 +753,25 @@ const refreshAccessToken = async (req, res, next) => {
 // @route   GET /api/auth/me
 // @access  Private
 const getMe = async (req, res) => {
+  if (req.user.role === 'master_admin') {
+      // Simplified profile for Master Admin
+      return res.status(200).json({
+          _id: req.user._id,
+          username: req.user.username,
+          email: req.user.email,
+          firstName: req.user.firstName,
+          lastName: req.user.lastName,
+          role: 'master_admin',
+          avatar: req.user.avatar,
+          createdAt: req.user.createdAt,
+          lastLoginAt: req.user.lastLoginAt,
+          // Mock data to satisfy frontend props
+          subscription: { tier: 'pro', status: 'active' }, // Give pro features
+          linkUsage: { count: 0, resetAt: new Date() },
+          clickUsage: { count: 0, resetAt: new Date() },
+      });
+  }
+
   const user = {
     _id: req.user._id,
     eliteId: req.user.eliteId,

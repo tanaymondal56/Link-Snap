@@ -12,7 +12,7 @@ import connectDB from './config/db.js';
 import errorHandler from './middleware/errorHandler.js';
 import mongoSanitize from './middleware/sanitizer.js';
 import logger from './utils/logger.js';
-import { apiLimiter, authLimiter } from './middleware/rateLimiter.js';
+import { apiLimiter } from './middleware/rateLimiter.js';
 
 import authRoutes from './routes/authRoutes.js';
 import urlRoutes from './routes/urlRoutes.js';
@@ -28,6 +28,7 @@ import changelogRoutes from './routes/changelogRoutes.js';
 import feedbackRoutes from './routes/feedbackRoutes.js';
 import sessionRoutes from './routes/sessionRoutes.js';
 import redirectRoutes from './routes/redirectRoutes.js';
+// eslint-disable-next-line no-unused-vars -- bioRoutes imported for future use
 import bioRoutes from './routes/bioRoutes.js';
 import deviceAuthRoutes from './routes/deviceAuthRoutes.js';
 import { startBanScheduler } from './services/banScheduler.js';
@@ -178,9 +179,12 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/subscription', subscriptionRoutes);
-app.use('/api/bio', bioRoutes);
-
 // Serve static assets in production (BEFORE redirect routes)
+if (process.env.NODE_ENV === 'development') {
+  const devRoutes = (await import('./routes/devRoutes.js')).default;
+  app.use('/api/dev', devRoutes);
+  logger.info('Dev routes enabled under /api/dev');
+}
 if (process.env.NODE_ENV === 'production') {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   // Serve static files from client build with proper cache headers

@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-unused-vars -- User imported for JSDoc type hints
 import User from '../models/User.js';
 
 export const TIERS = {
@@ -15,7 +16,7 @@ export const TIERS = {
     analyticsRetention: 365,
     features: ['custom_alias', 'link_expiration', 'password_protection', 
                'custom_datetime', 'custom_qr', 'api_access', 'geo_analytics', 
-               'utm_builder', 'bio_page', 'advanced_analytics']
+               'utm_builder', 'bio_page', 'device_targeting', 'advanced_analytics']
   },
   business: {
     name: 'Business',
@@ -26,7 +27,7 @@ export const TIERS = {
     features: ['custom_alias', 'link_expiration', 'password_protection',
                'custom_datetime', 'custom_qr', 'api_access', 'geo_analytics',
                'utm_builder', 'bio_page', 'ab_testing', 'device_redirects',
-               'team', 'webhooks', 'custom_domains', 'advanced_analytics']
+               'device_targeting', 'team', 'webhooks', 'custom_domains', 'advanced_analytics']
   }
 };
 

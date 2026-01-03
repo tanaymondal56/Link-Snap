@@ -213,6 +213,14 @@ const DialogProvider = ({ children }) => {
     });
   }, []);
 
+  const confirm = useCallback((options = {}) => {
+    return new Promise((resolve) => {
+      setConfig({ ...options, type: 'confirm' });
+      setIsOpen(true);
+      setResolvePromise(() => resolve);
+    });
+  }, []);
+
   const handleClose = useCallback(() => {
     setIsOpen(false);
     if (resolvePromise) {
@@ -231,7 +239,7 @@ const DialogProvider = ({ children }) => {
   );
 
   return (
-    <DialogContext.Provider value={{ prompt, alert }}>
+    <DialogContext.Provider value={{ prompt, alert, confirm }}>
       {children}
       <DialogComponent
         isOpen={isOpen}

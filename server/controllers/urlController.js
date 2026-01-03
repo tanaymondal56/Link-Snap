@@ -1,11 +1,12 @@
 import Url from '../models/Url.js';
-import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { invalidateCache } from '../services/cacheService.js';
 import { isReservedWord } from '../config/reservedWords.js';
 import { incrementLinkUsage } from '../middleware/subscriptionMiddleware.js';
 import { hasFeature } from '../services/subscriptionService.js';
+import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
+import { trackVisit } from '../services/analyticsService.js';
 
 // Extract domain from URL (safe - no network request)
 const extractDomain = (url) => {
@@ -15,6 +16,30 @@ const extractDomain = (url) => {
         return hostname.replace(/^www\./i, '');
     } catch {
         return null;
+    }
+};
+
+// Normalize URL - add https:// if missing
+const normalizeUrl = (input) => {
+    if (!input) return '';
+    const trimmed = input.trim();
+    if (!/^https?:\/\//i.test(trimmed)) {
+        return `https://${trimmed}`;
+    }
+    return trimmed;
+};
+
+// Check if URL points to our own domain (circular redirect prevention)
+const isCircularRedirect = (url) => {
+    try {
+        const targetHost = new URL(url).hostname.toLowerCase();
+        const ownHost = (process.env.CLIENT_URL || process.env.BASE_URL || 'localhost')
+            .replace(/^https?:\/\//, '')
+            .replace(/\/.*$/, '')
+            .toLowerCase();
+        return targetHost === ownHost || targetHost.endsWith(`.${ownHost}`);
+    } catch {
+        return false;
     }
 };
 
@@ -45,6 +70,18 @@ const createUrlSchema = z.object({
     expiresAt: z.string().datetime().optional().or(z.null()),  // ISO date string for custom
     // Password Protection
     password: z.string().min(4, "Password must be at least 4 characters").max(100).optional().or(z.literal('')),
+    // Device-Based Redirects (Pro/Business)
+    deviceRedirects: z.object({
+        enabled: z.boolean().default(false),
+        rules: z.array(z.object({
+            device: z.enum(['ios', 'android', 'mobile', 'desktop', 'tablet']),
+            url: z.string().url({ message: "Invalid device redirect URL" }).refine((url) => /^https?:\/\//i.test(url), {
+                message: "Device redirect URLs must be HTTP or HTTPS",
+            }),
+            priority: z.number().default(0)
+        })).default([]),
+        fallbackUrl: z.string().url().optional().or(z.literal('')).or(z.null())
+    }).optional(),
 });
 
 // @desc    Create Short URL
@@ -129,6 +166,52 @@ const createShortUrl = async (req, res, next) => {
             isPasswordProtected = true;
         }
 
+        // Handle device redirects (Pro/Business only)
+        let deviceRedirectsData = null;
+        if (result.data.deviceRedirects?.enabled) {
+            // Check subscription tier AND status using hasFeature
+            if (!req.user) {
+                res.status(403);
+                throw new Error('Device targeting requires an account');
+            }
+            if (!hasFeature(req.user, 'device_targeting')) {
+                res.status(403);
+                throw new Error('Device targeting is a Pro/Business feature');
+            }
+            
+            // Normalize and validate device redirect URLs
+            const processedRules = result.data.deviceRedirects.rules.map(rule => ({
+                ...rule,
+                url: normalizeUrl(rule.url)
+            }));
+            
+            // Check for circular redirects
+            const circularUrls = processedRules.filter(rule => isCircularRedirect(rule.url));
+            if (circularUrls.length > 0) {
+                res.status(400);
+                throw new Error('Device redirect URLs cannot point to this service (circular redirect)');
+            }
+            
+            // Check fallback URL for circular redirect
+            if (result.data.deviceRedirects.fallbackUrl) {
+                const normalizedFallback = normalizeUrl(result.data.deviceRedirects.fallbackUrl);
+                if (isCircularRedirect(normalizedFallback)) {
+                    res.status(400);
+                    throw new Error('Fallback URL cannot point to this service (circular redirect)');
+                }
+                deviceRedirectsData = {
+                    ...result.data.deviceRedirects,
+                    rules: processedRules,
+                    fallbackUrl: normalizedFallback
+                };
+            } else {
+                deviceRedirectsData = {
+                    ...result.data.deviceRedirects,
+                    rules: processedRules
+                };
+            }
+        }
+
         const newUrl = await Url.create({
             originalUrl,
             customAlias: customAlias || undefined,
@@ -137,6 +220,7 @@ const createShortUrl = async (req, res, next) => {
             expiresAt: finalExpiresAt,
             isPasswordProtected,
             passwordHash,
+            deviceRedirects: deviceRedirectsData,
         });
 
         // Return without passwordHash (already excluded by select: false)
@@ -298,6 +382,18 @@ const updateUrlSchema = z.object({
     // Password Protection
     password: z.string().min(4, "Password must be at least 4 characters").max(100).optional().or(z.literal('')),
     removePassword: z.boolean().optional(),
+    // Device-Based Redirects (Pro/Business)
+    deviceRedirects: z.object({
+        enabled: z.boolean().default(false),
+        rules: z.array(z.object({
+            device: z.enum(['ios', 'android', 'mobile', 'desktop', 'tablet']),
+            url: z.string().url({ message: "Invalid device redirect URL" }).refine((url) => /^https?:\/\//i.test(url), {
+                message: "Device redirect URLs must be HTTP or HTTPS",
+            }),
+            priority: z.number().default(0)
+        })).default([]),
+        fallbackUrl: z.string().url().optional().or(z.literal('')).or(z.null())
+    }).optional(),
 });
 
 // @desc    Update Link
@@ -428,6 +524,56 @@ const updateUrl = async (req, res, next) => {
             if (url.customAlias) invalidateCache(url.customAlias);
         }
 
+        // Handle device redirects (Pro/Business only)
+        const { deviceRedirects } = result.data;
+        if (deviceRedirects !== undefined) {
+            if (deviceRedirects?.enabled) {
+                // Check subscription tier AND status using hasFeature
+                if (!hasFeature(req.user, 'device_targeting')) {
+                    res.status(403);
+                    throw new Error('Device targeting is a Pro/Business feature');
+                }
+                
+                // Normalize and validate device redirect URLs
+                const processedRules = deviceRedirects.rules.map(rule => ({
+                    ...rule,
+                    url: normalizeUrl(rule.url)
+                }));
+                
+                // Check for circular redirects
+                const circularUrls = processedRules.filter(rule => isCircularRedirect(rule.url));
+                if (circularUrls.length > 0) {
+                    res.status(400);
+                    throw new Error('Device redirect URLs cannot point to this service (circular redirect)');
+                }
+                
+                // Check fallback URL for circular redirect
+                if (deviceRedirects.fallbackUrl) {
+                    const normalizedFallback = normalizeUrl(deviceRedirects.fallbackUrl);
+                    if (isCircularRedirect(normalizedFallback)) {
+                        res.status(400);
+                        throw new Error('Fallback URL cannot point to this service (circular redirect)');
+                    }
+                    updateFields.deviceRedirects = {
+                        ...deviceRedirects,
+                        rules: processedRules,
+                        fallbackUrl: normalizedFallback
+                    };
+                } else {
+                    updateFields.deviceRedirects = {
+                        ...deviceRedirects,
+                        rules: processedRules
+                    };
+                }
+            } else {
+                // Device redirects disabled - just save as-is
+                updateFields.deviceRedirects = deviceRedirects;
+            }
+            // Invalidate cache when device rules change
+            invalidateCache(url.shortId);
+            if (url.customAlias) invalidateCache(url.customAlias);
+        }
+
         // Build update operation
         const updateOperation = {};
         if (Object.keys(updateFields).length > 0) {
@@ -495,10 +641,16 @@ const verifyLinkPassword = async (req, res, next) => {
         // Password correct - increment clicks and track visit
         Url.findByIdAndUpdate(url._id, { $inc: { clicks: 1 } }).exec();
 
-        // Password correct - return the original URL
+        // Apply device-based redirect if configured
+        const { targetUrl, deviceMatchType } = getDeviceRedirectUrl(url, req.headers['user-agent']);
+        
+        // Track visit with device match type
+        trackVisit(url._id, req, { deviceMatchType });
+
+        // Return the device-specific URL (or original if no match)
         res.json({
             success: true,
-            originalUrl: url.originalUrl,
+            originalUrl: targetUrl,
             shortId: url.shortId
         });
     } catch (error) {

@@ -1,6 +1,7 @@
 import logger from '../utils/logger.js';
 
-const errorHandler = (err, req, res, next) => {
+// eslint-disable-next-line no-unused-vars -- next is required by Express error handler signature
+const errorHandler = (err, req, res, _next) => {
   const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
 
   logger.error(`${statusCode} - ${err.message} - ${req.originalUrl} - ${req.method} - ${req.ip}`);

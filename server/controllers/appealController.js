@@ -32,7 +32,7 @@ export const submitAppeal = async (req, res) => {
                     return res.status(401).json({ message: 'Invalid token type' });
                 }
                 userId = decoded.id;
-            } catch (err) {
+            } catch {
                 return res.status(401).json({ message: 'Invalid or expired appeal session. Please try logging in again.' });
             }
         } else {
@@ -120,7 +120,7 @@ export const checkAppealStatus = async (req, res) => {
                 if (decoded.type === 'appeal') {
                     userId = decoded.id;
                 }
-            } catch (err) {
+            } catch {
                 // Token invalid/expired, ignore and try email
             }
         }

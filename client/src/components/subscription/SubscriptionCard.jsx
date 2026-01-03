@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CreditCard, Zap, BarChart3, CheckCircle, RefreshCw, Gift, Loader2 } from 'lucide-react';
+import { CreditCard, Zap, BarChart3, CheckCircle, RefreshCw, Gift, Loader2, AlertTriangle, ArrowRight, X } from 'lucide-react';
 import { formatDate } from '../../utils/dateUtils';
 import showToast from '../ui/Toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -10,13 +10,21 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successType, setSuccessType] = useState('upgrade'); // 'upgrade' or 'redeem'
   const [syncing, setSyncing] = useState(false);
   const [redeemCode, setRedeemCode] = useState('');
   const [redeeming, setRedeeming] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validationData, setValidationData] = useState(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
-    if (searchParams.get('upgrade') === 'success') {
+    const upgradeSuccess = searchParams.get('upgrade') === 'success';
+    const redeemSuccess = searchParams.get('redeem') === 'success';
+
+    if (upgradeSuccess || redeemSuccess) {
        setShowSuccessModal(true);
+       setSuccessType(redeemSuccess ? 'redeem' : 'upgrade');
        
        // Fire confetti
        const duration = 3000;
@@ -47,6 +55,7 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
        // Clean URL
        setSearchParams(params => {
            params.delete('upgrade');
+           params.delete('redeem');
            return params;
        });
     }
@@ -66,16 +75,38 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
     }
   };
 
-  // Redeem a promo code
-  const handleRedeem = async (e) => {
+  // Check code first
+  const handleCheckCode = async (e) => {
     e.preventDefault();
     if (!redeemCode.trim()) return;
     
+    setValidating(true);
+    try {
+      const { data } = await api.post('/subscription/redeem/validate', { code: redeemCode.trim() });
+      setValidationData(data);
+      setShowConfirmModal(true);
+    } catch (error) {
+      showToast.error(error.response?.data?.message || 'Invalid code');
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  // Actual redeem call
+  const handleConfirmRedeem = async () => {
     setRedeeming(true);
     try {
       const { data } = await api.post('/subscription/redeem', { code: redeemCode.trim() });
       showToast.success(data.message);
       setRedeemCode('');
+      setShowConfirmModal(false);
+      
+      setRedeemCode('');
+      setShowConfirmModal(false);
+      
+      // Trigger success modal based on action type
+      setSuccessType(data.action === 'extend' ? 'extend' : 'upgrade');
+      setShowSuccessModal(true);
       
       // Trigger confetti for successful redemption
       confetti({
@@ -86,7 +117,7 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
       
       if (onRefresh) onRefresh();
     } catch (error) {
-      showToast.error(error.response?.data?.message || 'Invalid code');
+      showToast.error(error.response?.data?.message || 'Redemption failed');
     } finally {
       setRedeeming(false);
     }
@@ -102,15 +133,20 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                         onClick={() => setShowSuccessModal(false)}
                         className="absolute top-4 right-4 text-gray-400 hover:text-white"
                     >
-                        ✕
+                        <X size={20} />
                     </button>
                     <div className="text-center">
                         <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/30">
                             <Zap size={32} className="text-white" fill="white" />
                         </div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Welcome to Pro! 🚀</h2>
+                        <h2 className="text-2xl font-bold text-white mb-2">
+                            {successType === 'extend' ? 'Redemption Successful! 🎉' : 'Welcome to Pro! 🚀'}
+                        </h2>
                         <p className="text-gray-300 mb-6">
-                            Your account has been successfully upgraded. Enjoy unlimited possibilities with custom aliases, advanced analytics, and more.
+                            {successType === 'extend' 
+                                ? 'Your subscription has been successfully extended. Enjoy your continued access!' 
+                                : 'Your account has been successfully upgraded. Enjoy unlimited possibilities with custom aliases, advanced analytics, and more.'
+                            }
                         </p>
                         <button
                             onClick={() => setShowSuccessModal(false)}
@@ -118,6 +154,85 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                         >
                             Awesome, let's go!
                         </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Redemption Confirmation Modal */}
+        {showConfirmModal && validationData && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowConfirmModal(false)}>
+                <div className="bg-gradient-to-br from-gray-800 to-gray-900 border border-white/10 rounded-2xl p-6 max-w-md w-full relative shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                    
+                    {/* Decorative Shine (matched from RedeemPage) */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+
+                    <button 
+                        onClick={() => setShowConfirmModal(false)}
+                        className="absolute top-4 right-4 text-gray-400 hover:text-white z-10"
+                    >
+                        <X size={20} />
+                    </button>
+                    
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-4 mb-6">
+                                <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center border border-green-500/30">
+                                <CheckCircle className="text-green-400" size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-white">Code Verified</h3>
+                                <p className="text-gray-400 text-sm font-mono">{validationData.code}</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4 mb-6">
+                            {/* Comparison */}
+                            <div className="grid grid-cols-[1fr,auto,1fr] gap-2 items-center text-sm">
+                                <div className="text-center p-3 bg-gray-950/50 rounded-lg border border-gray-800">
+                                    <p className="text-gray-500 text-xs uppercase mb-1">Current</p>
+                                    <p className="font-semibold text-white capitalize">{validationData.current.tier}</p>
+                                </div>
+                                <ArrowRight className="text-gray-600" size={16} />
+                                <div className="text-center p-3 bg-blue-500/10 rounded-lg border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+                                    <p className="text-blue-300 text-xs uppercase mb-1">New Plan</p>
+                                    <p className="font-bold text-white capitalize">{validationData.future.tier}</p>
+                                </div>
+                            </div>
+
+                            <div className="bg-gray-950/30 rounded-lg p-4 text-sm space-y-2 border border-white/5">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-400">Duration</span>
+                                    <span className="text-white font-medium capitalize">{validationData.duration.replace('_', ' ')}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-400">New Expiry</span>
+                                    <span className="text-green-400 font-medium">{formatDate(validationData.future.expiresAt)}</span>
+                                </div>
+                            </div>
+
+                            {validationData.warning && (
+                                <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-200 text-xs">
+                                    <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                                    <p>{validationData.warning}</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowConfirmModal(false)}
+                                className="flex-1 py-3 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-xl transition-all border border-gray-700"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmRedeem}
+                                disabled={redeeming}
+                                className="flex-[2] py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+                            >
+                                {redeeming ? <Loader2 size={18} className="animate-spin" /> : 'Confirm & Redeem'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -279,12 +394,12 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
         </div>
         
         {/* Redeem Code Section */}
-        <div className="glass-dark rounded-2xl border border-gray-700/50 p-6">
+          <div className="glass-dark rounded-2xl border border-gray-700/50 p-6">
           <h4 className="font-medium text-white flex items-center gap-2 mb-4">
             <Gift size={18} className="text-amber-400" />
             Have a promo code?
           </h4>
-          <form onSubmit={handleRedeem} className="flex gap-3">
+          <form onSubmit={handleCheckCode} className="flex gap-3">
             <input
               type="text"
               value={redeemCode}
@@ -295,13 +410,13 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
             />
             <button
               type="submit"
-              disabled={redeeming || !redeemCode.trim()}
+              disabled={validating || !redeemCode.trim()}
               className="px-6 py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all flex items-center gap-2"
             >
-              {redeeming ? (
+              {validating ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
-                  Redeeming...
+                  checking...
                 </>
               ) : (
                 'Redeem'

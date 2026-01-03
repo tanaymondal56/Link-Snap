@@ -50,6 +50,7 @@ const AdminSubscriptions = lazy(() => import('./pages/admin-console/AdminSubscri
 const DeviceManagement = lazy(() => import('./pages/admin-console/DeviceManagement'));
 const ChangelogManager = lazy(() => import('./components/admin/ChangelogManager')); // Reusing existing
 const PricingPage = lazy(() => import('./pages/PricingPage'));
+const RedeemPage = lazy(() => import('./pages/RedeemPage'));
 
 // Legal Pages
 const TermsPage = lazy(() => import('./pages/legal/TermsPage'));
@@ -141,6 +142,7 @@ function AppContent() {
             <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/account-suspended" element={<AccountSuspended />} />
             <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/redeem" element={<RedeemPage />} />
             
             {/* Legal Pages */}
             <Route path="/terms" element={<TermsPage />} />

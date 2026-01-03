@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard,
   Users,
@@ -15,6 +16,8 @@ import {
 } from 'lucide-react';
 
 const AdminSidebar = ({ isOpen, onClose }) => {
+  const { user } = useAuth();
+
   const navItems = [
     { path: '/admin-console/overview', icon: LayoutDashboard, label: 'Overview' },
     { path: '/admin-console/monitoring', icon: Activity, label: 'Monitoring' },
@@ -25,7 +28,11 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     { path: '/admin-console/changelog', icon: FileText, label: 'Changelog' },
     { path: '/admin-console/devices', icon: Fingerprint, label: 'Devices' },
     { path: '/admin-console/settings', icon: Settings, label: 'Settings' },
-  ];
+  ].filter(item => {
+    // Hide Devices for Master Admin
+    if (user?.role === 'master_admin' && item.label === 'Devices') return false;
+    return true;
+  });
 
   return (
     <>

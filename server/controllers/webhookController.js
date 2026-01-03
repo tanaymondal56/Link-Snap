@@ -4,7 +4,6 @@ import User from '../models/User.js';
 import WebhookEvent from '../models/WebhookEvent.js';
 import SubscriptionAuditLog from '../models/SubscriptionAuditLog.js';
 import logger from '../utils/logger.js';
-import { generateUserIdentity } from '../services/idService.js';
 
 // Verify the signature from Lemon Squeezy
 // Docs: https://docs.lemonsqueezy.com/guides/developer-guide/webhooks#signing-requests

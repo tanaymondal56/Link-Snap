@@ -28,7 +28,10 @@ import {
   HelpCircle,
   Link2,
   Share2,
+  UserX,
+  UserPlus
 } from 'lucide-react';
+import api from '../api/axios';
 
 // Only render in development mode
 const isDev = import.meta.env.MODE === 'development' || import.meta.env.DEV;
@@ -140,7 +143,72 @@ const DevCommandCenter = () => {
       category: 'Debug', 
       keywords: 'size screen' 
     },
+    // Subscription Dev Tools (Self)
     { 
+      id: 'add-sub', 
+      label: 'Add Pro Subs (Self)', 
+      icon: UserPlus, 
+      action: async () => {
+        try {
+          await api.post('/dev/subscription/upgrade');
+          toast.success('Dev: Upgraded to Pro');
+          setTimeout(() => window.location.reload(), 1000);
+        } catch (e) {
+          toast.error(e.response?.data?.message || 'Failed. Is server in Dev mode?');
+        }
+      }, 
+      category: 'Dev', 
+      keywords: 'upgrade sub pro boost' 
+    },
+    { 
+      id: 'delete-sub-full', 
+      label: 'Reset Subs (Full Wipe)', 
+      icon: UserX, 
+      action: async () => {
+        try {
+          await api.post('/dev/subscription/reset');
+          toast.success('Dev: Reset + Wiped History');
+          setTimeout(() => window.location.reload(), 1000);
+        } catch (e) {
+          toast.error(e.response?.data?.message || 'Failed. Is server in Dev mode?');
+        }
+      }, 
+      category: 'Dev', 
+      danger: true,
+      keywords: 'cancel remove sub free reset clear wipe' 
+    },
+    { 
+      id: 'delete-sub-soft', 
+      label: 'Reset Subs (Keep History)', 
+      icon: UserX, 
+      action: async () => {
+        try {
+          await api.post('/dev/subscription/reset?keepHistory=true');
+          toast.success('Dev: Reset (History Kept)');
+          setTimeout(() => window.location.reload(), 1000);
+        } catch (e) {
+          toast.error(e.response?.data?.message || 'Failed. Is server in Dev mode?');
+        }
+      }, 
+      category: 'Dev', 
+      keywords: 'cancel remove sub free reset soft' 
+    },
+    { 
+      id: 'recycle-code', 
+      label: 'Recycle Codes (Keep Tier)', 
+      icon: RefreshCw, 
+      action: async () => {
+        try {
+          await api.post('/dev/subscription/clear-history');
+          toast.success('Dev: Codes Recycled (Tier Kept)');
+        } catch (e) {
+          toast.error(e.response?.data?.message || 'Failed. Is server in Dev mode?');
+        }
+      }, 
+      category: 'Dev', 
+      keywords: 'recycle clear history reuse code' 
+    },
+    {  
       id: 'network-info', 
       label: 'Network Info', 
       icon: Server, 

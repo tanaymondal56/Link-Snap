@@ -19,7 +19,8 @@ import {
   FileText,
   Eye,
   X,
-  Settings
+  Settings,
+  Edit2
 } from 'lucide-react';
 import api from '../../api/axios';
 import showToast from '../../components/ui/Toast';
@@ -28,6 +29,7 @@ import { useDialog } from '../../components/ui/DialogProvider';
 import GlassTable from '../../components/admin-console/ui/GlassTable';
 import IdBadge from '../../components/ui/IdBadge';
 import GenerateCodeModal from '../../components/admin-console/GenerateCodeModal';
+import EditCodeModal from '../../components/admin-console/EditCodeModal';
 import ManageSubscriptionModal from '../../components/admin-console/ManageSubscriptionModal';
 
 const AdminSubscriptions = () => {
@@ -44,6 +46,7 @@ const AdminSubscriptions = () => {
   const [activeTab, setActiveTab] = useState('overview'); // overview | subscribers | codes | audit
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null); // For manage subscription modal
+  const [selectedCode, setSelectedCode] = useState(null); // For edit code modal
   
   // Audit logs state
   const [auditLogs, setAuditLogs] = useState([]);
@@ -65,8 +68,7 @@ const AdminSubscriptions = () => {
 
   // Pagination for Codes
   const [codesPage, setCodesPage] = useState(1);
-  // Unused pagination state removed to fix lint errors
-  // const [codesTotalPages, setCodesTotalPages] = useState(1);
+  const [codesTotalPages, setCodesTotalPages] = useState(1);
   // const [totalCodes, setTotalCodes] = useState(0);
 
   const fetchCodes = async (page = 1) => {
@@ -75,6 +77,7 @@ const AdminSubscriptions = () => {
       const { data } = await api.get(`/admin/redeem-codes?page=${page}&limit=20`);
       setCodes(data.codes);
       setCodesPage(data.page);
+      setCodesTotalPages(data.pages);
     } catch {
       showToast.error('Failed to load redeem codes');
     } finally {
@@ -499,6 +502,12 @@ const AdminSubscriptions = () => {
                        >
                          <Copy size={14} />
                        </button>
+                       <button
+                         onClick={() => setSelectedCode(code)}
+                         className="p-1.5 text-gray-400 hover:text-white"
+                       >
+                         <Edit2 size={14} />
+                       </button>
                      </div>
                      <div className="flex items-center gap-2">
                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${
@@ -604,6 +613,13 @@ const AdminSubscriptions = () => {
                            >
                              <Copy size={16} />
                            </button>
+                           <button
+                             onClick={() => setSelectedCode(code)}
+                             className="p-2 text-gray-400 hover:text-white transition-colors"
+                             title="Edit code"
+                           >
+                             <Edit2 size={16} />
+                           </button>
                            {code.isActive && (
                              <button
                                onClick={() => handleDeactivateCode(code._id, code.code)}
@@ -621,6 +637,16 @@ const AdminSubscriptions = () => {
                </tbody>
              </table>
            </div>
+
+
+           {/* Pagination */}
+           {codesTotalPages > 1 && (
+                <div className="flex justify-center gap-2 mt-4">
+                    <button onClick={() => fetchCodes(codesPage - 1)} disabled={codesPage === 1} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 text-white"><ChevronLeft size={20}/></button>
+                    <span className="px-4 py-2 text-gray-400">Page {codesPage} of {codesTotalPages}</span>
+                    <button onClick={() => fetchCodes(codesPage + 1)} disabled={codesPage === codesTotalPages} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 text-white"><ChevronRight size={20}/></button>
+                </div>
+           )}
          </div>
       )}
 
@@ -963,6 +989,13 @@ const AdminSubscriptions = () => {
         isOpen={showGenerateModal}
         onClose={() => setShowGenerateModal(false)}
         onCodeGenerated={() => fetchCodes(1)}
+      />
+
+      <EditCodeModal
+        isOpen={!!selectedCode}
+        onClose={() => setSelectedCode(null)}
+        code={selectedCode}
+        onSuccess={() => fetchCodes(codesPage)}
       />
       
       <ManageSubscriptionModal

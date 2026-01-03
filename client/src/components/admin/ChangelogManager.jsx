@@ -194,11 +194,22 @@ const ChangelogManager = () => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [showForm, handleCreate, resetForm]);
 
-  // Bug #4: Scroll form modal to top when opened
+  // Bug #4: Scroll form modal to top when opened + lock body scroll
   useEffect(() => {
-    if (showForm && formModalRef.current) {
-      formModalRef.current.scrollTop = 0;
+    if (showForm) {
+      // Lock body scroll
+      document.body.style.overflow = 'hidden';
+      if (formModalRef.current) {
+        formModalRef.current.scrollTop = 0;
+      }
+    } else {
+      // Unlock body scroll
+      document.body.style.overflow = '';
     }
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [showForm]);
 
   // Fetch changelogs
@@ -670,8 +681,11 @@ const ChangelogManager = () => {
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div ref={formModalRef} className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[95vh] overflow-hidden flex flex-col overscroll-contain">
+        <div 
+          className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4 pt-4 sm:pt-4 overflow-y-auto overscroll-none touch-pan-y"
+          onClick={(e) => e.target === e.currentTarget && (setShowForm(false), resetForm())}
+        >
+          <div ref={formModalRef} className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[90vh] sm:max-h-[85vh] overflow-hidden flex flex-col shadow-2xl my-auto">
             <div className="sticky top-0 bg-gray-900 border-b border-gray-700 p-4 flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">
                 {editingId ? 'Edit Release' : 'New Release'}
@@ -684,9 +698,9 @@ const ChangelogManager = () => {
               </button>
             </div>
 
-            <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
+            <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 overflow-y-auto overscroll-none flex-1 min-h-0">
               {/* Version & Date */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-1">Version *</label>
                   <input
@@ -694,7 +708,7 @@ const ChangelogManager = () => {
                     value={form.version}
                     onChange={(e) => setForm(prev => ({ ...prev, version: e.target.value }))}
                     placeholder="e.g., 1.0.0 or 1.0.0-beta"
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                    className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
                   />
                 </div>
                 <div>
@@ -703,7 +717,7 @@ const ChangelogManager = () => {
                     type="date"
                     value={form.date}
                     onChange={(e) => setForm(prev => ({ ...prev, date: e.target.value }))}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                    className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
                   />
                 </div>
               </div>
@@ -717,7 +731,7 @@ const ChangelogManager = () => {
                   onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))}
                   placeholder="e.g., Major Performance Update 🚀"
                   maxLength={100}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                  className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
                 />
               </div>
 
@@ -735,7 +749,7 @@ const ChangelogManager = () => {
               </div>
 
               {/* Type & Icon */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-1">Release Type</label>
                   <div className="flex gap-2 flex-wrap">
@@ -900,7 +914,7 @@ const ChangelogManager = () => {
                   
                   {form.showOnRoadmap && (
                     <>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div>
                           <label className="block text-xs text-gray-400 mb-1">Status</label>
                           <select
@@ -959,18 +973,18 @@ const ChangelogManager = () => {
             </div>
             
             {/* Sticky Actions Footer */}
-            <div className="p-4 border-t border-gray-700 bg-gray-900 sticky bottom-0 z-10">
+            <div className="p-3 sm:p-4 border-t border-gray-700 bg-gray-900 shrink-0">
               <div className="flex gap-3">
                 <button
                   onClick={() => { setShowForm(false); resetForm(); }}
-                  className="flex-1 py-3 bg-gray-800 text-gray-300 rounded-xl hover:bg-gray-700 transition-colors font-medium border border-gray-700"
+                className="flex-1 py-2.5 sm:py-3 bg-gray-800 text-gray-300 rounded-xl hover:bg-gray-700 transition-colors font-medium border border-gray-700 text-sm sm:text-base"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex-1 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg"
+                  className="flex-1 py-2.5 sm:py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg text-sm sm:text-base"
                 >
                   {saving && <Loader2 className="w-5 h-5 animate-spin" />}
                   {editingId ? 'Update' : 'Create'}

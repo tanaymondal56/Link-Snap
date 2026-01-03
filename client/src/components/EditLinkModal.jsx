@@ -20,6 +20,7 @@ import { getShortUrl } from '../utils/urlHelper';
 import { Link } from 'react-router-dom';
 import { ProBadge } from './subscription/PremiumField';
 import { usePremiumField } from '../hooks/usePremiumField';
+import DeviceTargetingSection from './DeviceTargetingSection';
 
 // Expiration presets
 const EXPIRATION_OPTIONS = [
@@ -96,6 +97,14 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
   const aliasField = usePremiumField('custom_alias');
   const expirationField = usePremiumField('link_expiration');
   const passwordField = usePremiumField('password_protection');
+  const deviceTargetingField = usePremiumField('device_targeting');
+
+  // Device targeting state
+  const [deviceRedirects, setDeviceRedirects] = useState({
+    enabled: false,
+    rules: [],
+    fallbackUrl: ''
+  });
 
   // Hover states for premium field tooltips
   const [showAliasUpgrade, setShowAliasUpgrade] = useState(false);
@@ -116,6 +125,8 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
       setPasswordAction('keep');
       setPassword('');
       setShowPassword(false);
+      // Initialize device redirects from link data
+      setDeviceRedirects(link.deviceRedirects || { enabled: false, rules: [], fallbackUrl: '' });
       setAliasStatus({ checking: false, available: null, reason: null });
     }
   }, [link, isOpen]);
@@ -215,6 +226,18 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
         payload.removePassword = true;
       } else if (passwordAction === 'set' && password.length >= 4) {
         payload.password = password;
+      }
+
+      // Handle device redirects
+      if (deviceRedirects.enabled && deviceRedirects.rules.length > 0) {
+        payload.deviceRedirects = {
+          enabled: true,
+          rules: deviceRedirects.rules.filter(r => r.url && r.url.trim() !== ''),
+          fallbackUrl: deviceRedirects.fallbackUrl || null
+        };
+      } else if (!deviceRedirects.enabled && link.deviceRedirects?.enabled) {
+        // Disable device redirects if they were enabled before
+        payload.deviceRedirects = { enabled: false, rules: [], fallbackUrl: null };
       }
 
       const { data } = await api.put(`/url/${link._id}`, payload);
@@ -597,6 +620,14 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
               )}
             </div>
           </div>
+
+          {/* Device Targeting - Pro/Business Feature */}
+          <DeviceTargetingSection
+            deviceRedirects={deviceRedirects}
+            setDeviceRedirects={setDeviceRedirects}
+            isLocked={deviceTargetingField.isLocked}
+            upgradePath={deviceTargetingField.upgradePath}
+          />
 
           {/* Info Box - Random ID preserved */}
           <div className="bg-blue-500/10 rounded-xl p-4 border border-blue-500/20">

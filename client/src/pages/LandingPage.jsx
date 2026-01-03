@@ -19,6 +19,7 @@ import {
   Eye,
   EyeOff,
   Crown,
+  LayoutDashboard,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
@@ -377,6 +378,19 @@ const LandingPage = () => {
               </h3>
 
               <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
+                {/* Mobile Only: Go to Dashboard Button (Logged In) */}
+                {user && (
+                    <div className="md:hidden w-full mb-4">
+                        <Link
+                            to="/dashboard"
+                            className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/10 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 mb-2"
+                        >
+                            <LayoutDashboard size={18} className="text-blue-400" />
+                            Go to Dashboard
+                        </Link>
+                    </div>
+                )}
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-400 ml-1">Destination URL</label>
                   <div className="relative group">
@@ -600,6 +614,14 @@ const LandingPage = () => {
                   {isLoading ? 'Shortening...' : 'Shorten URL'}
                   {!isLoading && <ArrowRight size={20} />}
                 </button>
+                
+                {/* Feature Upsell Text */}
+                {user && (
+                    <p className="text-center text-xs text-gray-400 mt-3 flex items-center justify-center gap-1.5 opacity-80">
+                        <Sparkles size={12} className="text-purple-400" />
+                        Many more features available in <Link to="/dashboard" className="text-purple-400 hover:text-purple-300 hover:underline">Dashboard</Link>
+                    </p>
+                )}
               </form>
 
               {/* Result Area - Only show for non-logged-in users (logged-in users get modal) */}

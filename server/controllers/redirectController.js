@@ -3,6 +3,7 @@ import Url from '../models/Url.js';
 import { trackVisit } from '../services/analyticsService.js';
 import { getFromCache, setInCache } from '../services/cacheService.js';
 import { checkAndIncrementClickUsage } from '../middleware/subscriptionMiddleware.js';
+import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
 
 // Helper to escape HTML to prevent XSS
 const escapeHtml = (unsafe) => {
@@ -658,7 +659,7 @@ const getDaysAgo = (date) => {
 };
 
 // Beautiful HTML page for inactive links
-const getInactiveLinkPage = (shortId) => `
+const getInactiveLinkPage = () => `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1272,10 +1273,30 @@ export const redirectUrl = async (req, res, next) => {
             // Async: Update clicks in DB (fire and forget)
             Url.findByIdAndUpdate(cached._id, { $inc: { clicks: 1 } }).exec();
 
-            // Async Analytics Tracking
-            trackVisit(cached._id, req);
+            // Device-based redirect logic
+            const { targetUrl, deviceMatchType } = getDeviceRedirectUrl(cached, req.headers['user-agent']);
 
-            return res.redirect(cached.originalUrl);
+            // Async Analytics Tracking with device match type
+            trackVisit(cached._id, req, { deviceMatchType });
+
+            // Preserve query parameters (UTM tags, etc.)
+            let finalUrl = targetUrl;
+            if (Object.keys(req.query).length > 0) {
+                try {
+                    const urlObj = new URL(targetUrl);
+                    for (const [key, value] of Object.entries(req.query)) {
+                        urlObj.searchParams.append(key, value);
+                    }
+                    finalUrl = urlObj.toString();
+                } catch {
+                    // If targetUrl is relative or invalid, simplistic append (fallback)
+                    const separator = targetUrl.includes('?') ? '&' : '?';
+                    const queryString = new URLSearchParams(req.query).toString();
+                    finalUrl = `${targetUrl}${separator}${queryString}`;
+                }
+            }
+
+            return res.redirect(finalUrl);
         }
 
         // 2. Cache miss - query database
@@ -1347,10 +1368,30 @@ export const redirectUrl = async (req, res, next) => {
         // Increment clicks
         Url.findByIdAndUpdate(url._id, { $inc: { clicks: 1 } }).exec();
 
-        // Async Analytics Tracking
-        trackVisit(url._id, req);
+        // Device-based redirect logic
+        const { targetUrl, deviceMatchType } = getDeviceRedirectUrl(url, req.headers['user-agent']);
 
-        return res.redirect(url.originalUrl);
+        // Async Analytics Tracking with device match type
+        trackVisit(url._id, req, { deviceMatchType });
+
+        // Preserve query parameters (UTM tags, etc.)
+        let finalUrl = targetUrl;
+        if (Object.keys(req.query).length > 0) {
+            try {
+                const urlObj = new URL(targetUrl);
+                for (const [key, value] of Object.entries(req.query)) {
+                    urlObj.searchParams.append(key, value);
+                }
+                finalUrl = urlObj.toString();
+            } catch {
+                // If targetUrl is relative or invalid, simplistic append (fallback)
+                const separator = targetUrl.includes('?') ? '&' : '?';
+                const queryString = new URLSearchParams(req.query).toString();
+                finalUrl = `${targetUrl}${separator}${queryString}`;
+            }
+        }
+
+        return res.redirect(finalUrl);
     } catch (error) {
         console.error('Redirect Error:', error);
         return res.status(500).send('Server Error');
@@ -1363,7 +1404,7 @@ export const previewUrl = async (req, res, next) => {
     let shortId = req.params[0] || req.params.shortId;
 
     // Clean up: Remove any + or trailing slash just in case
-    shortId = shortId.replace(/[\+\/]+$/, '');
+    shortId = shortId.replace(/[+/]+$/, '');
 
     try {
         // Query database for the URL

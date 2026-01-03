@@ -16,14 +16,37 @@ import {
 import { cn } from '../utils/cn';
 
 import { Loader2 } from 'lucide-react';
+
 import PullToRefresh from '../components/PullToRefresh';
+import CreateLinkModal from '../components/CreateLinkModal';
+import LinkSuccessModal from '../components/LinkSuccessModal';
 
 const DashboardLayout = () => {
   const { user, logout, loading, isAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  const [createdLink, setCreatedLink] = useState(null);
   const adminTriggerTimer = useRef(null); // For hidden admin recovery trigger
+
+  const handleLinkCreated = (newLink) => {
+    setCreatedLink(newLink);
+     // Success modal logic is handled by the CreateLinkModal's parent usually, 
+     // but here we need to manage it since we are the parent.
+     // Wait, CreateLinkModal doesn't open success modal itself?
+     // Let's check UserDashboard usage. 
+     // UserDashboard: setCreatedLink(newLink). And renders LinkSuccessModal independently.
+     // So we need to set createdLink and open SuccessModal.
+     // Actually checking UserDashboard again... 
+     //   const handleLinkCreated = (newLink) => {
+     //     setLinks([newLink, ...links]);
+     //     setCreatedLink(newLink);
+     //   };
+     // And: <LinkSuccessModal isOpen={!!createdLink} onClose={() => setCreatedLink(null)} linkData={createdLink} />
+     // So setting createdLink is enough if we use that pattern.
+  };
 
   // Redirect to home if not logged in (don't force auth modal)
   // Don't redirect if there's a token being validated
@@ -52,9 +75,13 @@ const DashboardLayout = () => {
     { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
     { name: 'My Links', href: '/dashboard/links', icon: LinkIcon },
     { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
-    { name: 'Bio Page', href: '/dashboard/bio', icon: Globe, isProFeature: true },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
   ];
+
+  // Only add Bio Page for normal users
+  if (user?.role !== 'master_admin') {
+      navigation.splice(3, 0, { name: 'Bio Page', href: '/dashboard/bio', icon: Globe, isProFeature: true });
+  }
 
   // Check if user has Pro/Business tier
   const userTier = user?.subscription?.tier || 'free';
@@ -99,13 +126,16 @@ const DashboardLayout = () => {
         </div>
 
         <div className="p-6">
-          <Link
-            to="/"
+          <button
+            onClick={() => {
+              setIsCreateModalOpen(true);
+              setIsSidebarOpen(false); // Close sidebar on mobile when clicked
+            }}
             className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white py-3 px-4 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
           >
             <LinkIcon size={18} />
             <span>New Link</span>
-          </Link>
+          </button>
         </div>
 
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
@@ -237,6 +267,20 @@ const DashboardLayout = () => {
           </PullToRefresh>
         </main>
       </div>
+
+
+      {/* Global Modals */}
+      <CreateLinkModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onLinkCreated={handleLinkCreated}
+      />
+
+      <LinkSuccessModal
+        isOpen={!!createdLink}
+        onClose={() => setCreatedLink(null)}
+        linkData={createdLink}
+      />
     </div>
   );
 };

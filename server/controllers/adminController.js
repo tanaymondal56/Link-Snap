@@ -160,6 +160,7 @@ export const getAllUsers = async (req, res, next) => {
 export const updateUserStatus = async (req, res, next) => {
     try {
         const { reason, disableLinks, reenableLinks, duration } = req.body || {};
+        let banReason = reason;
         const user = await User.findById(req.params.userId);
 
         if (!user) {
@@ -177,7 +178,6 @@ export const updateUserStatus = async (req, res, next) => {
             return res.status(400).json({ message: 'Cannot ban another admin. Demote them first.' });
         }
 
-        const wasBanned = !user.isActive;
         const newIsActive = !user.isActive;
 
         let bannedUntil = null;
@@ -185,8 +185,11 @@ export const updateUserStatus = async (req, res, next) => {
         if (!newIsActive) {
             // Banning user - use atomic operation
             bannedUntil = calculateBanExpiry(duration);
-            const banReason = reason || 'Account suspended by administrator';
-            
+            if (req.user.role === 'master_admin') {
+                // Master Admin doesn't exist in User table, so we can't link ID
+                banReason = `[Master Admin] ${banReason}`;
+            }
+
             await User.findByIdAndUpdate(
                 user._id,
                 {
@@ -194,7 +197,7 @@ export const updateUserStatus = async (req, res, next) => {
                         isActive: false,
                         bannedAt: new Date(),
                         bannedReason: banReason,
-                        bannedBy: req.user.id,
+                        bannedBy: req.user.role === 'master_admin' ? null : req.user.id,
                         bannedUntil: bannedUntil,
                         ...(typeof disableLinks === 'boolean' && { disableLinksOnBan: disableLinks }),
                         refreshTokens: [] // Invalidate all tokens
@@ -211,7 +214,7 @@ export const updateUserStatus = async (req, res, next) => {
                 duration: duration || 'permanent',
                 bannedUntil,
                 linksAffected: disableLinks || false,
-                performedBy: req.user.id,
+                performedBy: req.user.role === 'master_admin' ? null : req.user.id,
                 ipAddress: req.ip || req.connection?.remoteAddress
             });
 
@@ -237,7 +240,7 @@ export const updateUserStatus = async (req, res, next) => {
                 action: 'unban',
                 reason: 'Manually unbanned by administrator',
                 linksAffected: reenableLinks || false,
-                performedBy: req.user.id,
+                performedBy: req.user.role === 'master_admin' ? null : req.user.id,
                 ipAddress: req.ip || req.connection?.remoteAddress
             });
 
@@ -718,7 +721,7 @@ export const respondToAppeal = async (req, res, next) => {
             $set: {
                 status: status,
                 adminResponse: adminResponse || null,
-                reviewedBy: req.user.id,
+                reviewedBy: req.user.role === 'master_admin' ? null : req.user.id,
                 reviewedAt: new Date()
             }
         });

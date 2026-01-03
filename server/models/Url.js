@@ -51,6 +51,20 @@ const urlSchema = new mongoose.Schema({
         type: String,
         select: false,  // Never return password hash by default
     },
+    // Device-Based Redirects (Pro/Business feature)
+    deviceRedirects: {
+        enabled: { type: Boolean, default: false },
+        rules: [{
+            device: {
+                type: String,
+                enum: ['ios', 'android', 'mobile', 'desktop', 'tablet'],
+                required: true
+            },
+            url: { type: String, required: true },
+            priority: { type: Number, default: 0 } // Higher = checked first
+        }],
+        fallbackUrl: { type: String } // Optional - defaults to originalUrl
+    },
 }, {
     timestamps: true,
 });

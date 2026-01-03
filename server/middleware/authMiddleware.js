@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import MasterAdmin from '../models/MasterAdmin.js';
 
 const protect = async (req, res, next) => {
   let token;
@@ -13,23 +14,37 @@ const protect = async (req, res, next) => {
 
       const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
 
-      req.user = await User.findById(decoded.id).select('-password -refreshTokens');
+      if (decoded.type === 'master' || decoded.role === 'master_admin') {
+          // --- MASTER ADMIN LOOKUP ---
+          req.user = await MasterAdmin.findById(decoded.id).select('-password');
+          
+          if (!req.user) {
+              res.status(401);
+              throw new Error('Master Admin not found');
+          }
+          
+          // Inject mock subscription for Master Admin to enable Pro features
+          req.user.subscription = { tier: 'pro', status: 'active', plan: 'pro_annual' };
+      } else {
+          // --- STANDARD USER LOOKUP ---
+          req.user = await User.findById(decoded.id).select('-password -refreshTokens');
 
-      if (!req.user) {
-        res.status(401);
-        throw new Error('User not found');
-      }
+          if (!req.user) {
+            res.status(401);
+            throw new Error('User not found');
+          }
 
-      if (!req.user.isActive) {
-        // Return ban response immediately without going through error handler
-        return res.status(403).json({
-          message: 'Your account has been suspended. Please contact support for assistance.',
-          banned: true,
-          bannedAt: req.user.bannedAt,
-          bannedUntil: req.user.bannedUntil,
-          bannedReason: req.user.bannedReason,
-          userEmail: req.user.email
-        });
+          if (!req.user.isActive) {
+            // Return ban response immediately without going through error handler
+            return res.status(403).json({
+              message: 'Your account has been suspended. Please contact support for assistance.',
+              banned: true,
+              bannedAt: req.user.bannedAt,
+              bannedUntil: req.user.bannedUntil,
+              bannedReason: req.user.bannedReason,
+              userEmail: req.user.email
+            });
+          }
       }
 
       next();

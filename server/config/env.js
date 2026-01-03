@@ -37,6 +37,7 @@ const IMPORTANT_VARS = [
   'LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID',
 ];
 
+// eslint-disable-next-line no-unused-vars -- Kept for reference/documentation
 const OPTIONAL_VARS = [
   'CLIENT_URL',
   'SMTP_HOST',

@@ -34,7 +34,7 @@ export const getUrlAnalytics = async (req, res) => {
         // 3. Aggregate Data
         // We filter by timestamp > retentionDate
 
-        const [clicksByDate, clicksByDevice, clicksByLocation, clicksByBrowser] = await Promise.all([
+        const [clicksByDate, clicksByDevice, clicksByLocation, clicksByBrowser, clicksByDeviceMatch] = await Promise.all([
             // Clicks by Date (Last 30 Days)
             Analytics.aggregate([
                 { $match: { urlId: url._id, timestamp: { $gte: retentionDate } } },
@@ -69,6 +69,13 @@ export const getUrlAnalytics = async (req, res) => {
                 { $group: { _id: "$browser", count: { $sum: 1 } } },
                 { $sort: { count: -1 } },
                 { $limit: 5 }
+            ]),
+
+            // Clicks by Device Match Type (Pro/Business feature - shows device targeting effectiveness)
+            Analytics.aggregate([
+                { $match: { urlId: url._id, timestamp: { $gte: retentionDate }, deviceMatchType: { $ne: null } } },
+                { $group: { _id: "$deviceMatchType", count: { $sum: 1 } } },
+                { $sort: { count: -1 } }
             ])
         ]);
 
@@ -78,7 +85,8 @@ export const getUrlAnalytics = async (req, res) => {
                 clicksByDate,
                 clicksByDevice,
                 clicksByLocation,
-                clicksByBrowser
+                clicksByBrowser,
+                clicksByDeviceMatch  // Device targeting analytics
             }
         });
 

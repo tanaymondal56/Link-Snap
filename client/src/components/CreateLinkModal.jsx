@@ -20,6 +20,7 @@ import { getShortUrl } from '../utils/urlHelper';
 import { Link } from 'react-router-dom';
 import { ProBadge } from './subscription/PremiumField';
 import { usePremiumField } from '../hooks/usePremiumField';
+import DeviceTargetingSection from './DeviceTargetingSection';
 
 // Expiration presets
 const EXPIRATION_OPTIONS = [
@@ -84,6 +85,13 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  // Device targeting state
+  const [deviceRedirects, setDeviceRedirects] = useState({
+    enabled: false,
+    rules: [],
+    fallbackUrl: ''
+  });
+
   // Alias availability state
   const [aliasStatus, setAliasStatus] = useState({
     checking: false,
@@ -95,6 +103,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
   const aliasField = usePremiumField('custom_alias');
   const expirationField = usePremiumField('link_expiration');
   const passwordField = usePremiumField('password_protection');
+  const deviceTargetingField = usePremiumField('device_targeting');
 
   // Hover states for premium field tooltips
   const [showAliasUpgrade, setShowAliasUpgrade] = useState(false);
@@ -148,6 +157,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       setEnablePassword(false);
       setPassword('');
       setShowPassword(false);
+      setDeviceRedirects({ enabled: false, rules: [], fallbackUrl: '' });
       setAliasStatus({ checking: false, available: null, reason: null });
     }
   }, [isOpen]);
@@ -193,6 +203,15 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       // Add password
       if (enablePassword && password.length >= 4) {
         payload.password = password;
+      }
+
+      // Add device redirects
+      if (deviceRedirects.enabled && deviceRedirects.rules.length > 0) {
+        payload.deviceRedirects = {
+          enabled: true,
+          rules: deviceRedirects.rules.filter(r => r.url && r.url.trim() !== ''),
+          fallbackUrl: deviceRedirects.fallbackUrl || null
+        };
       }
 
       const { data } = await api.post('/url/shorten', payload);
@@ -509,6 +528,14 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
               )}
             </div>
           </div>
+
+          {/* Device Targeting - Pro/Business Feature */}
+          <DeviceTargetingSection
+            deviceRedirects={deviceRedirects}
+            setDeviceRedirects={setDeviceRedirects}
+            isLocked={deviceTargetingField.isLocked}
+            upgradePath={deviceTargetingField.upgradePath}
+          />
 
           {/* Preview */}
           {(customAlias.length >= 3 || url) && (

@@ -2,6 +2,7 @@ import RedeemCode from '../models/RedeemCode.js';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
+import { calculateSubscriptionEndDate } from '../utils/dateUtils.js';
 
 /**
  * Generate a new redeem code (Admin only)
@@ -89,6 +90,56 @@ export const listRedeemCodes = async (req, res) => {
 };
 
 /**
+ * Update a redeem code (Admin only)
+ * PUT /api/admin/redeem-codes/:id
+ */
+export const updateRedeemCode = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tier, duration, maxUses, expiresAt, notes, code: newCode, isActive } = req.body;
+    
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid code ID format' });
+    }
+
+    const updates = {};
+    if (tier) updates.tier = tier;
+    if (duration) updates.duration = duration;
+    if (maxUses) updates.maxUses = parseInt(maxUses);
+    if (expiresAt !== undefined) updates.expiresAt = expiresAt ? new Date(expiresAt) : null;
+    if (notes !== undefined) updates.notes = notes;
+    if (isActive !== undefined) updates.isActive = isActive;
+
+    const existingCode = await RedeemCode.findById(id);
+    if (!existingCode) {
+      return res.status(404).json({ message: 'Code not found' });
+    }
+
+    // Handle code string update check
+    if (newCode && newCode !== existingCode.code) {
+        const duplicate = await RedeemCode.findOne({ code: newCode.toUpperCase().trim() });
+        if (duplicate) return res.status(400).json({ message: 'Code already exists' });
+        updates.code = newCode.toUpperCase().trim();
+    }
+    
+    const updatedCode = await RedeemCode.findByIdAndUpdate(
+      id,
+      { $set: updates },
+      { new: true }
+    );
+    
+    logger.info(`[Redeem Code] Admin ${req.user.snapId} updated code ${updatedCode.code}`);
+    
+    res.json({ message: 'Code updated successfully', code: updatedCode });
+    
+  } catch (error) {
+    logger.error(`[Redeem Code Error] ${error.message}`);
+    res.status(500).json({ message: 'Failed to update code' });
+  }
+};
+
+/**
  * Deactivate a redeem code (Admin only)
  * DELETE /api/admin/redeem-codes/:id
  */
@@ -172,22 +223,12 @@ export const redeemCode = async (req, res) => {
       });
     }
     
-    // Calculate subscription end date based on duration
-    const durationDays = {
-      '1_month': 30,
-      '3_months': 90,
-      '6_months': 180,
-      '1_year': 365,
-      'lifetime': 36500 // ~100 years
-    };
+    // Determined End Date using shared utility
+    const calculateEndDate = calculateSubscriptionEndDate; // Alias for minimal refactor diff, or just use directly below
+
     
-    const days = durationDays[redeemCodeDoc.duration] || 30;
+    // Determine Start Date
     const now = new Date();
-    
-    // Store original subscription state for potential rollback
-    const originalSubscription = user.subscription ? { ...user.subscription.toObject() } : null;
-    
-    // If user has existing active subscription, extend from current end date
     let startDate = now;
     if (user.subscription?.currentPeriodEnd && user.subscription.status === 'active') {
       const existingEnd = new Date(user.subscription.currentPeriodEnd);
@@ -195,23 +236,32 @@ export const redeemCode = async (req, res) => {
         startDate = existingEnd;
       }
     }
-    const endDate = new Date(startDate.getTime() + days * 24 * 60 * 60 * 1000);
+
+    // Store original subscription state for potential rollback
+    const originalSubscription = user.subscription ? { ...user.subscription.toObject() } : null;
+
+    const endDate = calculateEndDate(startDate, redeemCodeDoc.duration);
     
+    // Determine action type (Upgrade or Extend) BEFORE update
+    // Upgrade if coming from Free, OR if moving to a higher paid tier (e.g. Pro -> Business)
+    const isUpgrade = tierRank[redeemCodeDoc.tier] > tierRank[currentTier];
+    const actionType = isUpgrade ? 'upgrade' : 'extend';
+
     // Update user subscription
-    const updatedUser = await User.findByIdAndUpdate(
+    await User.findByIdAndUpdate(
       user._id,
       {
         $set: {
-          'subscription.tier': redeemCodeDoc.tier,
-          'subscription.status': 'active',
-          'subscription.billingCycle': redeemCodeDoc.duration === 'lifetime' ? 'lifetime' : 'one_time',
-          'subscription.currentPeriodStart': now,
-          'subscription.currentPeriodEnd': endDate,
-          'subscription.variantId': `REDEEM-${redeemCodeDoc.code}`,
-          // Clear external subscription data to prevent confusion
-          'subscription.subscriptionId': null,
-          'subscription.customerPortalUrl': null,
-          'subscription.updatePaymentUrl': null,
+            'subscription.tier': redeemCodeDoc.tier,
+            'subscription.status': 'active',
+            'subscription.billingCycle': redeemCodeDoc.duration === 'lifetime' ? 'lifetime' : 'one_time',
+            'subscription.currentPeriodStart': now,
+            'subscription.currentPeriodEnd': endDate,
+            'subscription.variantId': `REDEEM-${redeemCodeDoc.code}`,
+            // Clear external subscription data to prevent confusion
+            'subscription.subscriptionId': null,
+            'subscription.customerPortalUrl': null,
+            'subscription.updatePaymentUrl': null,
         }
       },
       { new: true }
@@ -257,15 +307,82 @@ export const redeemCode = async (req, res) => {
     logger.info(`[Redeem Code] User ${user.snapId} redeemed code ${redeemCodeDoc.code} for ${redeemCodeDoc.tier}`);
     
     res.json({
-      message: `Successfully upgraded to ${redeemCodeDoc.tier.toUpperCase()} plan!`,
+      message: isUpgrade 
+        ? `Successfully upgraded to ${redeemCodeDoc.tier.toUpperCase()} plan!` 
+        : `Subscription extended successfully!`,
       tier: redeemCodeDoc.tier,
       duration: redeemCodeDoc.duration,
-      expiresAt: endDate
+      expiresAt: endDate,
+      action: actionType
     });
     
   } catch (error) {
     logger.error(`[Redeem Code Error] ${error.message}`);
     res.status(500).json({ message: 'Failed to redeem code' });
+  }
+};
+
+/**
+ * Validate code and get preview details (User)
+ * POST /api/subscription/redeem/validate
+ */
+export const validateRedeemCode = async (req, res) => {
+  try {
+    const { code } = req.body;
+    const user = req.user;
+    
+    if (!code) return res.status(400).json({ message: 'Code is required' });
+    
+    const redeemCodeDoc = await RedeemCode.findOne({ 
+      code: code.toUpperCase().trim() 
+    });
+    
+    if (!redeemCodeDoc) return res.status(404).json({ message: 'Invalid code' });
+    if (!redeemCodeDoc.isActive) return res.status(400).json({ message: 'Code deactivated' });
+    if (redeemCodeDoc.usedCount >= redeemCodeDoc.maxUses) return res.status(400).json({ message: 'Code fully used' });
+    if (redeemCodeDoc.expiresAt && new Date(redeemCodeDoc.expiresAt) < new Date()) return res.status(400).json({ message: 'Code expired' });
+    
+    // Check usage
+    if (redeemCodeDoc.usedBy.some(u => u.user.toString() === user._id.toString())) {
+        return res.status(400).json({ message: 'You have already used this code' });
+    }
+
+    // Helper for calendar-based addition (Shared utility)
+    const calculateEndDate = calculateSubscriptionEndDate;
+
+    const now = new Date();
+    let startDate = now;
+    if (user.subscription?.currentPeriodEnd && user.subscription.status === 'active') {
+      const existingEnd = new Date(user.subscription.currentPeriodEnd);
+      if (existingEnd > now) startDate = existingEnd;
+    }
+    
+    const newExpiry = calculateEndDate(startDate, redeemCodeDoc.duration);
+    
+    const currentTier = user.subscription?.tier || 'free';
+    const currentExpiry = user.subscription?.currentPeriodEnd || null;
+
+    res.json({
+        valid: true,
+        code: redeemCodeDoc.code,
+        tier: redeemCodeDoc.tier,
+        duration: redeemCodeDoc.duration,
+        current: {
+            tier: currentTier,
+            expiresAt: currentExpiry
+        },
+        future: {
+            tier: redeemCodeDoc.tier,
+            expiresAt: newExpiry,
+            startsAt: startDate
+        },
+        warning: currentTier !== 'free' && currentTier !== redeemCodeDoc.tier ? 
+            `Switching from ${currentTier} to ${redeemCodeDoc.tier} will adjust your plan immediately.` : null
+    });
+
+  } catch (error) {
+    logger.error(`[Validate Code Error] ${error.message}`);
+    res.status(500).json({ message: 'Validation failed' });
   }
 };
 

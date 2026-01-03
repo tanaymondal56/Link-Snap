@@ -31,6 +31,12 @@ const analyticsSchema = new mongoose.Schema({
     city: {
         type: String,
     },
+    // Device-based redirect tracking (null if not using device targeting)
+    deviceMatchType: {
+        type: String,
+        enum: ['ios', 'android', 'mobile', 'tablet', 'desktop', 'mobile_fallback', 'fallback', null],
+        default: null,
+    },
 });
 
 // Index for faster aggregation by URL and Date

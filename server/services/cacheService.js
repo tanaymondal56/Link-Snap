@@ -44,7 +44,7 @@ export const getFromCache = (shortId) => {
 /**
  * Store a URL in cache
  * @param {string} shortId - The short URL identifier
- * @param {object} urlData - URL data to cache { originalUrl, isActive, ownerId }
+ * @param {object} urlData - URL data to cache
  */
 export const setInCache = (shortId, urlData) => {
     urlCache.set(shortId, {
@@ -54,6 +54,12 @@ export const setInCache = (shortId, urlData) => {
         ownerId: urlData.ownerId || urlData.createdBy || null,
         ownerBanned: urlData.ownerBanned,
         disableLinksOnBan: urlData.disableLinksOnBan,
+        // Device-based redirects (Pro/Business feature)
+        deviceRedirects: urlData.deviceRedirects || null,
+        // Link expiration
+        expiresAt: urlData.expiresAt || null,
+        // Password protection (redirect controller needs this)
+        isPasswordProtected: urlData.isPasswordProtected || false,
     });
 };
 

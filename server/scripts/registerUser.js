@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-unused-vars -- mongoose imported for type hints
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';

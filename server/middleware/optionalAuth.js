@@ -33,7 +33,7 @@ export const optionalAuth = async (req, res, next) => {
       } else {
         req.user = null;
       }
-    } catch (tokenError) {
+    } catch {
       // Invalid token, continue as guest
       req.user = null;
     }
