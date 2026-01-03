@@ -35,7 +35,12 @@ export default defineConfig(async () => {
         globPatterns: ['**/*.{js,css,ico,png,svg,webp,html}'],
         // Don't cache API calls
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api/, /^\/__/],
+        navigateFallbackDenylist: [
+          /^\/api/,           // API routes
+          /^\/__/,            // Internal routes
+          /^\/[a-zA-Z0-9_-]{3,20}$/,  // Short URL patterns (3-20 alphanum chars)
+          /^\/[a-zA-Z0-9_-]{3,20}\+$/, // Preview URL patterns (short URL + plus sign)
+        ],
         // IMPORTANT: Must be false for prompt mode!
         // skipWaiting:false means new SW waits until updateServiceWorker(true) is called
         skipWaiting: false,
