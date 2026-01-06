@@ -31,6 +31,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+build_log.txt*
 
 # OS files
 .DS_Store
