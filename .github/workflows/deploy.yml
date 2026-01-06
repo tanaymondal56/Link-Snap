@@ -1,0 +1,31 @@
+name: Deploy Status
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Register Deployment
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create GitHub Deployment
+        uses: chrnorm/deployment-action@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          environment: production
+          environment-url: https://linksnap.centralindia.cloudapp.azure.com
+          description: "Link-Snap Production Deployment"
+
+      - name: Update Deployment Status
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          environment-url: https://linksnap.centralindia.cloudapp.azure.com
+          state: success
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}

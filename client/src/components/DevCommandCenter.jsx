@@ -264,7 +264,7 @@ const DevCommandCenter = () => {
     { id: 'api-health', label: 'API Health', icon: Server, action: () => window.open('/api/health', '_blank'), category: 'External', keywords: 'server status' },
     { id: 'vite-server', label: 'Vite Server', icon: Zap, action: () => window.open('http://localhost:5173', '_blank'), category: 'External', keywords: 'frontend' },
     { id: 'backend', label: 'Backend Server', icon: Server, action: () => window.open('http://localhost:5000', '_blank'), category: 'External', keywords: 'api' },
-    { id: 'github', label: 'GitHub', icon: ExternalLink, action: () => window.open('https://github.com', '_blank'), category: 'External', keywords: 'repo code' },
+    { id: 'github', label: 'GitHub', icon: ExternalLink, action: () => window.open('https://github.com/tanaymondal56/Link-Snap', '_blank'), category: 'External', keywords: 'repo code' },
     
     // Help
     { 

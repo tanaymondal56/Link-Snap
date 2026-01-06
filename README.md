@@ -47,6 +47,7 @@
 **DevOps & Tools**
 *   **ESLint & Prettier** for code quality.
 *   **PostCSS** for CSS processing.
+*   **Dev Command Center** - Built-in developer toolkit (`Ctrl+Shift+D`).
 
 ---
 

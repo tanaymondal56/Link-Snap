@@ -65,7 +65,7 @@ const PWAUpdatePrompt = () => {
         }, 60 * 1000);
       }
     },
-    onRegisterError(error) {
+    onRegisterError() {
       // console.log('[PWA] SW registration error:', error);
     },
     onNeedRefresh() {
@@ -203,7 +203,7 @@ const PWAUpdatePrompt = () => {
       // Try to update the service worker first
       try {
         await updateServiceWorker(true);
-      } catch (swError) {
+      } catch {
         // console.log('[PWA] SW update skipped, doing hard reload:', swError);
       }
       
