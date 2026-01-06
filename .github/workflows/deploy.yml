@@ -5,27 +5,23 @@ on:
     branches: [master]
   workflow_dispatch:
 
+# Required permissions for deployments
+permissions:
+  contents: read
+  deployments: write
+
 jobs:
   deploy:
     name: Register Deployment
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://linksnap.centralindia.cloudapp.azure.com
     
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Create GitHub Deployment
-        uses: chrnorm/deployment-action@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          environment: production
-          environment-url: https://linksnap.centralindia.cloudapp.azure.com
-          description: "Link-Snap Production Deployment"
+      - name: Deployment Success
+        run: echo "✅ Deployed to production at https://linksnap.centralindia.cloudapp.azure.com"
 
-      - name: Update Deployment Status
-        uses: chrnorm/deployment-status@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          environment-url: https://linksnap.centralindia.cloudapp.azure.com
-          state: success
-          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
