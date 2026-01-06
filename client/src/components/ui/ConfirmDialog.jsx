@@ -161,6 +161,7 @@ export const ConfirmDialogProvider = ({ children }) => {
   }, [resolvePromise]);
 
   const handleConfirm = useCallback(() => {
+    setIsOpen(false);
     if (resolvePromise) {
       resolvePromise(true);
     }

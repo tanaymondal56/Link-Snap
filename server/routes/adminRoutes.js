@@ -66,6 +66,7 @@ router.delete('/links/:linkId', deleteLinkAdmin);
 // Settings
 router.get('/settings', getSettings);
 router.put('/settings', updateSettings);
+router.patch('/settings', updateSettings);  // Support partial updates
 router.post('/settings/test-email', testEmailConfiguration);
 
 // Cache
