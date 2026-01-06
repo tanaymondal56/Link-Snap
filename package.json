@@ -2,6 +2,15 @@
   "name": "link-snap",
   "version": "0.5.5",
   "private": true,
+  "description": "Advanced URL Shortening, Analytics, & Bio-Link Platform with Stealth Security.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tanaymondal56/Link-Snap.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tanaymondal56/Link-Snap/issues"
+  },
+  "homepage": "https://github.com/tanaymondal56/Link-Snap#readme",
   "engines": {
     "node": ">=18.0.0"
   },

@@ -52,7 +52,7 @@ const PWAUpdatePrompt = () => {
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(registration) {
-      console.log('[PWA] SW Registered:', registration);
+      // console.log('[PWA] SW Registered:', registration);
       
       if (registration) {
         // Check for updates immediately
@@ -60,21 +60,21 @@ const PWAUpdatePrompt = () => {
         
         // Then check every 60 seconds
         setInterval(() => {
-          console.log('[PWA] Checking for SW updates...');
+          // console.log('[PWA] Checking for SW updates...');
           registration.update();
         }, 60 * 1000);
       }
     },
     onRegisterError(error) {
-      console.log('[PWA] SW registration error:', error);
+      // console.log('[PWA] SW registration error:', error);
     },
     onNeedRefresh() {
-      console.log('[PWA] New content available - will update automatically');
+      // console.log('[PWA] New content available - will update automatically');
       setHasUpdate(true);
       sessionStorage.setItem('pwa_update_available', 'true');
     },
     onOfflineReady() {
-      console.log('[PWA] App ready for offline use');
+      // console.log('[PWA] App ready for offline use');
     },
   });
 
@@ -204,7 +204,7 @@ const PWAUpdatePrompt = () => {
       try {
         await updateServiceWorker(true);
       } catch (swError) {
-        console.log('[PWA] SW update skipped, doing hard reload:', swError);
+        // console.log('[PWA] SW update skipped, doing hard reload:', swError);
       }
       
       // Force a hard reload to get the latest content

@@ -13,7 +13,7 @@ const SystemHealthCard = () => {
   const checkHealth = useCallback(async () => {
     setLoading(true);
     setError(null);
-    console.log('[SystemHealth] Starting health check...');
+    // console.log('[SystemHealth] Starting health check...');
     
     try {
       // Check both endpoints using axios api instance
@@ -22,22 +22,22 @@ const SystemHealthCard = () => {
         api.get('/health/deep'),
       ]);
 
-      console.log('[SystemHealth] Basic health response:', basicRes);
-      console.log('[SystemHealth] Deep health response:', deepRes);
+      // console.log('[SystemHealth] Basic health response:', basicRes);
+      // console.log('[SystemHealth] Deep health response:', deepRes);
 
       if (basicRes.status === 'fulfilled') {
-        console.log('[SystemHealth] Setting health:', basicRes.value.data);
+        // console.log('[SystemHealth] Setting health:', basicRes.value.data);
         setHealth(basicRes.value.data);
       } else {
-        console.log('[SystemHealth] Basic health failed:', basicRes.reason);
+        // console.log('[SystemHealth] Basic health failed:', basicRes.reason);
         setHealth({ status: 'error', error: basicRes.reason?.message });
       }
 
       if (deepRes.status === 'fulfilled') {
-        console.log('[SystemHealth] Setting deepHealth:', deepRes.value.data);
+        // console.log('[SystemHealth] Setting deepHealth:', deepRes.value.data);
         setDeepHealth(deepRes.value.data);
       } else {
-        console.log('[SystemHealth] Deep health failed:', deepRes.reason);
+        // console.log('[SystemHealth] Deep health failed:', deepRes.reason);
         setDeepHealth({ status: 'error', error: deepRes.reason?.message });
       }
 

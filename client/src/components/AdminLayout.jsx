@@ -69,7 +69,7 @@ const AdminLayout = ({ children }) => {
   // Check for trusted device marker on mount + URL param + WebAuthn support
   useEffect(() => {
     const checkDevice = hasTrustedDeviceMarker();
-    console.log('[Admin] Mount check - Marker:', checkDevice, 'URL Param:', window.location.search);
+    // console.log('[Admin] Mount check - Marker:', checkDevice, 'URL Param:', window.location.search);
     setHasTrustedDevice(checkDevice);
     
     // Check URL param for forced biometric (e.g., ?auth=bio)
@@ -83,7 +83,7 @@ const AdminLayout = ({ children }) => {
     
     // If has trusted device marker OR force param, and WebAuthn supported
     if ((checkDevice || forceBiometric) && supportsWebAuthn()) {
-      console.log('[Admin] Enabling biometric prompt via:', checkDevice ? 'device_marker' : 'url_param');
+      // console.log('[Admin] Enabling biometric prompt via:', checkDevice ? 'device_marker' : 'url_param');
       setShowBiometricPrompt(true);
       // Clean up URL param
       if (forceBiometric) {
@@ -158,7 +158,7 @@ const AdminLayout = ({ children }) => {
         await api.head('/admin/stats');
         // IP is allowed - store this for Back to Login button
         setWasIPAllowed(true);
-        console.log('[Admin] Access Check: Success (IP allowed, User Logged In)');
+        // console.log('[Admin] Access Check: Success (IP allowed, User Logged In)');
         
         // If IP is allowed, only force bio if explicitly requested by URL
         // If we found a marker but allow access, we should NOT show the prompt (user is already logged in)
@@ -167,7 +167,7 @@ const AdminLayout = ({ children }) => {
           setShowBiometricPrompt(true);
         } else if (hasTrustedDevice && isBioAuthExpired() && supportsWebAuthn()) {
           // 24h re-auth policy: Force biometric verification if last bio auth was >24h ago
-          console.log('[Admin] Bio auth expired (>24h). Requiring re-verification.');
+          // console.log('[Admin] Bio auth expired (>24h). Requiring re-verification.');
           setIsReauthRequired(true); // Mark as re-auth for UI
           setIsAllowedIP(null);
           setShowBiometricPrompt(true);
