@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.6] - 2026-01-07
+
+### Update for Session & Security Stability
+Updated the codebase to fix critical security flaws and implement robust session management.
+
+- ⬆️ **Improvement:** Session Management now handles with a more robust secure system (cookie-session).
+- 🐛 **Fix:** Critical Dependency `ERR_MODULE_NOT_FOUND` fixed by migrating to `ua-parser-js`.
+- 🐛 **Fix:** CSRF implementation fixed to support stateless login flows.
+- 🔒 **Security:** Hardened GitHub Actions permissions and Enforced Branch Protection.
+
 ## [0.5.5] - 2025-01-07
 
 ### Security
