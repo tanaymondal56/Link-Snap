@@ -17,7 +17,7 @@
     "lucide-react": "^0.555.0",
     "morgan": "^1.10.1",
     "qrcode.react": "^4.2.0",
-    "react": "^19.2.0",
+    "react": "^19.2.3",
     "react-dom": "^19.2.0",
     "react-helmet-async": "^2.0.5",
     "react-hot-toast": "^2.6.0",
