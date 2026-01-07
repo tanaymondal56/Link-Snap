@@ -218,10 +218,18 @@ export const verifyRegistration = async (req, res) => {
     // === DUPLICATE DEVICE DETECTION ===
     // Check if user already has a device with similar fingerprint
     // If so, auto-deactivate the old one to prevent duplicates
+    
+    // Sanitize deviceInfo to prevent NoSQL injection
+    // Ensure all values are plain strings, max 100 chars each
+    const sanitizeDeviceField = (value) => {
+      if (typeof value !== 'string') return 'Unknown';
+      return String(value).slice(0, 100).trim() || 'Unknown';
+    };
+    
     const deviceFingerprint = {
-      model: deviceInfo?.model || 'Unknown',
-      os: deviceInfo?.os || 'Unknown',
-      browser: (deviceInfo?.browser || 'Unknown').replace(' (PWA)', ''), // Normalize PWA suffix
+      model: sanitizeDeviceField(deviceInfo?.model),
+      os: sanitizeDeviceField(deviceInfo?.os),
+      browser: sanitizeDeviceField(deviceInfo?.browser).replace(' (PWA)', ''), // Normalize PWA suffix
     };
     
     const existingDevices = await TrustedDevice.find({ 
@@ -275,10 +283,10 @@ export const verifyRegistration = async (req, res) => {
       publicKey: credPublicKeyBuffer,
       counter: verification.registrationInfo.counter,
       transports: response.response?.transports || ['internal'],
-      deviceName: deviceName || 'Unknown Device',
-      deviceModel: deviceInfo?.model || 'Unknown',
-      deviceOS: deviceInfo?.os || 'Unknown',
-      browser: deviceInfo?.browser || 'Unknown',
+      deviceName: typeof deviceName === 'string' ? String(deviceName).slice(0, 50).trim() || 'Unknown Device' : 'Unknown Device',
+      deviceModel: deviceFingerprint.model,
+      deviceOS: deviceFingerprint.os,
+      browser: deviceFingerprint.browser,
       registeredIP: clientIP,
       registeredGeo: {
         city: 'Unknown',

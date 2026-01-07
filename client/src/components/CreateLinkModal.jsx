@@ -151,15 +151,15 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
   // Storage key for draft persistence
   const DRAFT_KEY = 'linksnap_create_link_draft';
 
-  // Save form draft to localStorage
+  // Save form draft to localStorage (excluding sensitive data like password)
   const saveDraft = useCallback(() => {
     const draft = {
       url,
       customAlias,
       expiresIn,
       customExpiresAt,
-      enablePassword,
-      password,
+      // Do NOT save password to localStorage - security best practice
+      enablePassword, // Only save the toggle state, not the password itself
       deviceRedirects,
       savedAt: Date.now()
     };
@@ -167,7 +167,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
     if (url || customAlias || enablePassword || (deviceRedirects?.rules?.length > 0)) {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     }
-  }, [url, customAlias, expiresIn, customExpiresAt, enablePassword, password, deviceRedirects]);
+  }, [url, customAlias, expiresIn, customExpiresAt, enablePassword, deviceRedirects]);
 
   // Load draft from localStorage
   const loadDraft = useCallback(() => {
@@ -182,7 +182,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
           setExpiresIn(draft.expiresIn || 'never');
           setCustomExpiresAt(draft.customExpiresAt || '');
           setEnablePassword(draft.enablePassword || false);
-          setPassword(draft.password || '');
+          // Password is never saved/loaded from localStorage for security
           // Validate deviceRedirects structure to prevent undefined access errors
           const savedDeviceRedirects = draft.deviceRedirects;
           if (savedDeviceRedirects && typeof savedDeviceRedirects === 'object' && Array.isArray(savedDeviceRedirects.rules)) {
@@ -224,7 +224,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       const timer = setTimeout(saveDraft, 500); // Debounced save
       return () => clearTimeout(timer);
     }
-  }, [isOpen, url, customAlias, expiresIn, customExpiresAt, enablePassword, password, deviceRedirects, saveDraft]);
+  }, [isOpen, url, customAlias, expiresIn, customExpiresAt, enablePassword, deviceRedirects, saveDraft]);
 
   // Reset form when modal closes (but don't clear draft - that happens on success)
   useEffect(() => {

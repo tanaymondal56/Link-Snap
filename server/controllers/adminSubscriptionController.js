@@ -92,10 +92,22 @@ export const getAuditLogs = async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20)); // Cap at 50
     const skip = (page - 1) * limit;
-    const action = req.query.action; // Filter by action type
-    const source = req.query.source; // Filter by source
     
-    // Build query
+    // Validate query parameters to prevent NoSQL injection
+    const allowedActions = ['created', 'updated', 'resumed', 'cancelled', 'paused', 'expired', 'overridden', 'synced', 'deleted'];
+    const allowedSources = ['webhook', 'admin', 'system', 'user'];
+    
+    const rawAction = req.query.action;
+    const rawSource = req.query.source;
+    
+    const action = (typeof rawAction === 'string' && allowedActions.includes(rawAction.toLowerCase().trim()))
+      ? rawAction.toLowerCase().trim()
+      : null;
+    const source = (typeof rawSource === 'string' && allowedSources.includes(rawSource.toLowerCase().trim()))
+      ? rawSource.toLowerCase().trim()
+      : null;
+    
+    // Build query (validated)
     const query = {};
     if (action && action !== 'all') {
       query.action = action;

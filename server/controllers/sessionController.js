@@ -191,10 +191,13 @@ export const updateSessionName = async (req, res) => {
       return res.status(400).json({ message: 'Name must be a string with max 50 characters' });
     }
     
-    // Sanitize name - remove HTML tags and trim
+    // Sanitize name - escape HTML characters (complete protection)
     const sanitizedName = name
-      .replace(/<[^>]*>/g, '') // Remove HTML tags
-      .replace(/[<>]/g, '')    // Remove any remaining angle brackets
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;')
       .trim();
     
     // Find and update the session

@@ -13,6 +13,7 @@ import errorHandler from './middleware/errorHandler.js';
 import mongoSanitize from './middleware/sanitizer.js';
 import logger from './utils/logger.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
+import { setCsrfToken, validateCsrfToken } from './middleware/csrfMiddleware.js';
 
 import authRoutes from './routes/authRoutes.js';
 import urlRoutes from './routes/urlRoutes.js';
@@ -123,6 +124,11 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// CSRF Protection (double-submit cookie pattern)
+// Sets token cookie and validates on state-changing requests
+app.use(setCsrfToken);
+app.use('/api', validateCsrfToken);
 
 // NoSQL injection protection
 app.use(mongoSanitize);

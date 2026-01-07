@@ -86,6 +86,7 @@ DOCs/
 feature-list/
 plans/
 fix-needed/
+My-VM-Automation/
 
 # Utility scripts (may contain local paths or dev-only utilities)
 server/scripts/

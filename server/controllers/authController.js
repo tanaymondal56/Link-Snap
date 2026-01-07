@@ -954,13 +954,29 @@ const resendOTP = async (req, res, next) => {
   try {
     const { email } = req.body;
 
-    // Validate email format
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    // Validate email format using simple checks (ReDoS-safe)
+    // Avoid vulnerable regex /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const isValidEmail = (e) => {
+      if (!e || typeof e !== 'string' || e.length > 254) return false;
+      const atIndex = e.indexOf('@');
+      if (atIndex < 1 || atIndex > 64) return false;
+      const domain = e.slice(atIndex + 1);
+      if (!domain || domain.length > 253) return false;
+      const dotIndex = domain.indexOf('.');
+      if (dotIndex < 1 || dotIndex === domain.length - 1) return false;
+      if (e.includes(' ')) return false;
+      return true;
+    };
+    
+    if (!email || !isValidEmail(email)) {
       res.status(400);
       throw new Error('Please provide a valid email address');
     }
 
-    const user = await User.findOne({ email });
+    // Normalize and sanitize email for database query
+    const sanitizedEmail = String(email).toLowerCase().trim();
+
+    const user = await User.findOne({ email: sanitizedEmail });
 
     // Security: Don't reveal if user exists, is verified, or is banned
     if (!user || user.isVerified || !user.isActive) {

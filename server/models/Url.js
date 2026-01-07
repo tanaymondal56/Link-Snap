@@ -40,7 +40,6 @@ const urlSchema = new mongoose.Schema({
     expiresAt: {
         type: Date,
         default: null,  // null = never expires
-        default: null,  // null = never expires
     },
     // Password Protection
     isPasswordProtected: {

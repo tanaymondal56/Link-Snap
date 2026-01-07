@@ -16,10 +16,21 @@ const escapeHtml = (unsafe) => {
         .replace(/'/g, "&#039;");
 };
 
+// Helper to escape regex special characters from user input
+// Prevents regex injection attacks when using user input in RegExp
+const escapeRegex = (str) => {
+    if (!str) return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // Beautiful HTML page for link preview (when user adds + or / at end)
 const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCustom) => {
     const safeTitle = escapeHtml(url.title || url.shortId);
     const safeOriginalUrl = escapeHtml(url.originalUrl);
+    // Escape user-controllable URLs to prevent XSS
+    const safeShortUrl = escapeHtml(shortUrl);
+    const safeRandomUrl = escapeHtml(randomUrl || '');
+    const safeCustomUrl = escapeHtml(customUrl || '');
 
     return `
 <!DOCTYPE html>
@@ -499,11 +510,11 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
                 </div>
                 
                 <h1>${safeTitle}</h1>
-                <p class="short-url">${shortUrl}</p>
+                <p class="short-url">${safeShortUrl}</p>
                 ${viewingViaCustom && randomUrl ? `
                     <div class="alternate-link">
                         <span class="alternate-link-label">Also available at:</span>
-                        <span class="alternate-link-url" onclick="copyAlternateLink()">${randomUrl}</span>
+                        <span class="alternate-link-url" onclick="copyAlternateLink()">${safeRandomUrl}</span>
                         <button class="alternate-link-copy" onclick="copyAlternateLink()" title="Copy random link">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
@@ -515,7 +526,7 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
                 ${!viewingViaCustom && customUrl ? `
                     <div class="alternate-link">
                         <span class="alternate-link-label">Custom alias:</span>
-                        <span class="alternate-link-url" onclick="copyCustomLink()">${customUrl}</span>
+                        <span class="alternate-link-url" onclick="copyCustomLink()">${safeCustomUrl}</span>
                         <button class="alternate-link-copy" onclick="copyCustomLink()" title="Copy custom link">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
@@ -615,19 +626,19 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
     
     <script>
         function copyLink() {
-            navigator.clipboard.writeText('${shortUrl}').then(() => {
+            navigator.clipboard.writeText('${safeShortUrl}').then(() => {
                 showToast();
             });
         }
         
         function copyAlternateLink() {
-            navigator.clipboard.writeText('${randomUrl || ''}').then(() => {
+            navigator.clipboard.writeText('${safeRandomUrl}').then(() => {
                 showToast();
             });
         }
         
         function copyCustomLink() {
-            navigator.clipboard.writeText('${customUrl || ''}').then(() => {
+            navigator.clipboard.writeText('${safeCustomUrl}').then(() => {
                 showToast();
             });
         }
@@ -1000,6 +1011,8 @@ const getExpiredLinkPage = (shortId, expiresAt) => {
 // HTML page for password-protected links
 const getPasswordEntryPage = (shortId, title) => {
     const safeTitle = escapeHtml(title || shortId);
+    // Escape shortId for use in JavaScript string to prevent XSS
+    const safeShortId = escapeHtml(shortId).replace(/'/g, "\\'");
     return `
 <!DOCTYPE html>
 <html lang="en">
@@ -1131,7 +1144,7 @@ const getPasswordEntryPage = (shortId, title) => {
             errorMsg.classList.remove('show');
             
             try {
-                const res = await fetch('/api/url/${shortId}/verify-password', {
+                const res = await fetch('/api/url/${safeShortId}/verify-password', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ password })
@@ -1307,8 +1320,8 @@ export const redirectUrl = async (req, res, next) => {
         if (!url) {
             url = await Url.findOne({
                 $or: [
-                    { shortId: { $regex: new RegExp(`^${shortId}$`, 'i') } },
-                    { customAlias: { $regex: new RegExp(`^${shortId}$`, 'i') } }
+                    { shortId: { $regex: new RegExp(`^${escapeRegex(shortId)}$`, 'i') } },
+                    { customAlias: { $regex: new RegExp(`^${escapeRegex(shortId)}$`, 'i') } }
                 ]
             });
         }
@@ -1402,8 +1415,11 @@ export const previewUrl = async (req, res, next) => {
     // Extract shortId from regex match or params
     let shortId = req.params[0] || req.params.shortId;
 
-    // Clean up: Remove any + or trailing slash just in case
-    shortId = shortId.replace(/[+/]+$/, '');
+    // Clean up: Remove any + or trailing slash using linear-time approach
+    // Avoids ReDoS vulnerability from /[+/]+$/ regex
+    while (shortId.length > 0 && (shortId.endsWith('+') || shortId.endsWith('/'))) {
+        shortId = shortId.slice(0, -1);
+    }
 
     try {
         // Query database for the URL
@@ -1415,8 +1431,8 @@ export const previewUrl = async (req, res, next) => {
         if (!url) {
             url = await Url.findOne({
                 $or: [
-                    { shortId: { $regex: new RegExp(`^${shortId}$`, 'i') } },
-                    { customAlias: { $regex: new RegExp(`^${shortId}$`, 'i') } }
+                    { shortId: { $regex: new RegExp(`^${escapeRegex(shortId)}$`, 'i') } },
+                    { customAlias: { $regex: new RegExp(`^${escapeRegex(shortId)}$`, 'i') } }
                 ]
             });
         }

@@ -219,10 +219,10 @@ const statusBox = (type, icon, title, message) => {
           <tr>
             <td style="font-family: Arial, sans-serif;">
               <p style="margin: 0 0 4px 0; font-size: 14px; font-weight: 600; color: ${c.text};">
-                ${icon} ${title}
+                ${icon} ${escapeHtml(title)}
               </p>
               <p style="margin: 0; font-size: 14px; color: ${c.text};">
-                ${message}
+                ${escapeHtml(message)}
               </p>
             </td>
           </tr>

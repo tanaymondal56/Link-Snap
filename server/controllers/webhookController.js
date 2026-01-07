@@ -70,7 +70,16 @@ export const handleWebhook = async (req, res) => {
     logger.info(`[Webhook] Received ${eventName} for User ${snapId || userId}`);
 
     // 2. Idempotency Check
-    const webhookId = req.headers['x-event-id'] || meta.id;
+    // Sanitize webhookId to prevent NoSQL injection
+    const rawWebhookId = req.headers['x-event-id'] || meta.id;
+    const webhookId = (typeof rawWebhookId === 'string' && rawWebhookId.length <= 100) 
+      ? String(rawWebhookId).trim() 
+      : null;
+    
+    if (!webhookId) {
+      logger.warn('[Webhook] Invalid or missing webhook ID');
+      return res.status(400).json({ message: 'Invalid webhook ID' });
+    }
     
     // Only skip if we have successfully processed this event before
     const existingEvent = await WebhookEvent.findOne({ 
@@ -83,23 +92,44 @@ export const handleWebhook = async (req, res) => {
       return res.status(200).json({ message: 'Event already processed' });
     }
 
-    // 3. Find User
+    // 3. Find User (with input sanitization to prevent NoSQL injection)
     let user = null;
-    const isSnapId = (id) => typeof id === 'string' && id.startsWith('SP-');
+    
+    // Validate SnapID format: must be string starting with 'SP-' and alphanumeric
+    const isValidSnapId = (id) => {
+      if (typeof id !== 'string') return false;
+      if (!id.startsWith('SP-')) return false;
+      // Only allow alphanumeric and hyphens, max 50 chars
+      return /^SP-[A-Za-z0-9-]{1,47}$/.test(id);
+    };
 
-    if (snapId) {
-       user = await User.findOne({ snapId });
+    if (snapId && isValidSnapId(snapId)) {
+       user = await User.findOne({ snapId: String(snapId) });
     } else if (userId) {
-       if (isSnapId(userId)) {
+       if (typeof userId === 'string' && isValidSnapId(userId)) {
           logger.info(`[Webhook] userId looks like SnapID: ${userId}. Searching by snapId.`);
-          user = await User.findOne({ snapId: userId });
-       } else if (mongoose.isValidObjectId(userId)) {
-          user = await User.findById(userId);
+          user = await User.findOne({ snapId: String(userId) });
+       } else if (typeof userId === 'string' && mongoose.isValidObjectId(userId)) {
+          // findById with explicit string conversion
+          user = await User.findById(String(userId));
        } else {
           logger.warn(`[Webhook] Invalid userId format: ${userId}. Skipping lookup to prevent crash.`);
        }
     } else if (data.attributes.user_email) {
-       user = await User.findOne({ email: data.attributes.user_email });
+       // Sanitize email to prevent NoSQL injection
+       // Only allow string values, strip any operators or objects
+       const rawEmail = data.attributes.user_email;
+       if (typeof rawEmail === 'string' && rawEmail.length <= 254) {
+         // Normalize email and ensure it's a plain string (no $ operators)
+         const sanitizedEmail = rawEmail.toLowerCase().trim();
+         if (/^[^\s@$]+@[^\s@$]+\.[^\s@$]+$/.test(sanitizedEmail)) {
+           user = await User.findOne({ email: sanitizedEmail });
+         } else {
+           logger.warn(`[Webhook] Invalid email format: ${rawEmail}. Skipping lookup.`);
+         }
+       } else {
+         logger.warn(`[Webhook] Invalid email type or length. Skipping lookup.`);
+       }
     }
 
     // If user not found, log fail-lookup but don't crash

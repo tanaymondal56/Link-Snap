@@ -100,11 +100,23 @@ export const getAllUsers = async (req, res, next) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const search = req.query.search || '';
-        const role = req.query.role || '';
         const skip = (page - 1) * limit;
 
         const query = {};
-        const tier = req.query.tier || '';
+        
+        // Validate role and tier to prevent NoSQL injection
+        const allowedRoles = ['user', 'admin', 'moderator'];
+        const allowedTiers = ['free', 'pro', 'business', 'paid'];
+        
+        const rawRole = req.query.role;
+        const rawTier = req.query.tier;
+        
+        const role = (typeof rawRole === 'string' && allowedRoles.includes(rawRole.toLowerCase().trim())) 
+            ? rawRole.toLowerCase().trim() 
+            : null;
+        const tier = (typeof rawTier === 'string' && allowedTiers.includes(rawTier.toLowerCase().trim())) 
+            ? rawTier.toLowerCase().trim() 
+            : null;
 
         // Search logic
         if (search) {
@@ -117,12 +129,12 @@ export const getAllUsers = async (req, res, next) => {
             ];
         }
 
-        // Role filtering
+        // Role filtering (validated)
         if (role && role !== 'all') {
             query.role = role;
         }
 
-        // Tier filtering
+        // Tier filtering (validated)
         if (tier && tier !== 'all') {
             if (tier === 'paid') {
                 query['subscription.tier'] = { $in: ['pro', 'business'] };
@@ -674,7 +686,12 @@ export const getUserAppeals = async (req, res, next) => {
 // @access  Admin
 export const getAllAppeals = async (req, res, next) => {
     try {
-        const { status } = req.query;
+        // Validate status to prevent NoSQL injection
+        const allowedStatuses = ['pending', 'approved', 'rejected'];
+        const rawStatus = req.query.status;
+        const status = (typeof rawStatus === 'string' && allowedStatuses.includes(rawStatus.toLowerCase().trim())) 
+            ? rawStatus.toLowerCase().trim() 
+            : null;
         const filter = status ? { status } : {};
 
         let appeals = await Appeal.find(filter)
@@ -879,23 +896,32 @@ export const getAllFeedback = async (req, res, next) => {
         const limit = Math.min(parseInt(req.query.limit) || 20, 100);
         const skip = (page - 1) * limit;
         
-        // Build filter
+        // Build filter (with input validation to prevent NoSQL injection)
         const filter = { isDeleted: false };
         
-        if (req.query.type && req.query.type !== 'all') {
-            filter.type = req.query.type;
+        // Validate and sanitize filter inputs - only allow known string values
+        const allowedTypes = ['bug', 'feature', 'improvement', 'question', 'other'];
+        const allowedStatuses = ['pending', 'reviewing', 'planned', 'in_progress', 'completed', 'declined', 'active', 'resolved'];
+        const allowedPriorities = ['low', 'medium', 'high', 'critical'];
+        
+        const queryType = typeof req.query.type === 'string' ? req.query.type.toLowerCase().trim() : null;
+        const queryStatus = typeof req.query.status === 'string' ? req.query.status.toLowerCase().trim() : null;
+        const queryPriority = typeof req.query.priority === 'string' ? req.query.priority.toLowerCase().trim() : null;
+        
+        if (queryType && queryType !== 'all' && allowedTypes.includes(queryType)) {
+            filter.type = queryType;
         }
-        if (req.query.status && req.query.status !== 'all') {
-            if (req.query.status === 'active') {
+        if (queryStatus && queryStatus !== 'all') {
+            if (queryStatus === 'active') {
                 filter.status = { $nin: ['completed', 'declined'] };
-            } else if (req.query.status === 'resolved') {
+            } else if (queryStatus === 'resolved') {
                 filter.status = { $in: ['completed', 'declined'] };
-            } else {
-                filter.status = req.query.status;
+            } else if (allowedStatuses.includes(queryStatus)) {
+                filter.status = queryStatus;
             }
         }
-        if (req.query.priority && req.query.priority !== 'all') {
-            filter.priority = req.query.priority;
+        if (queryPriority && queryPriority !== 'all' && allowedPriorities.includes(queryPriority)) {
+            filter.priority = queryPriority;
         }
         if (req.query.search) {
             // Escape special regex characters to prevent ReDoS

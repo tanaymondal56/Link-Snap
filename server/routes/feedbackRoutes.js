@@ -38,21 +38,48 @@ const voteLimiter = rateLimit({
 
 /**
  * Sanitize user input to prevent XSS attacks
- * Strips HTML tags and dangerous characters
+ * Escapes HTML characters to prevent any injection
  */
 const sanitizeInput = (input) => {
   if (!input || typeof input !== 'string') return '';
   
-  return input
-    // Remove HTML tags
-    .replace(/<[^>]*>/g, '')
-    // Remove script-related patterns
-    .replace(/javascript:/gi, '')
-    .replace(/on\w+=/gi, '')
-    // Remove potential SQL injection patterns (keep apostrophes for readability)
-    .replace(/[";]/g, '')
-    // Trim whitespace
-    .trim();
+  // Limit input length first to prevent any DoS
+  let result = input.slice(0, 10000);
+  
+  // Escape HTML special characters (most secure approach)
+  // This converts dangerous characters to safe HTML entities
+  result = result
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+  
+  // Remove dangerous URL schemes (case insensitive, loop until clean)
+  // Covers javascript:, data:, and vbscript: protocols
+  let prev;
+  do {
+    prev = result;
+    result = result.split('javascript:').join('');
+    result = result.split('JAVASCRIPT:').join('');
+    result = result.split('data:').join('');
+    result = result.split('DATA:').join('');
+    result = result.split('vbscript:').join('');
+    result = result.split('VBSCRIPT:').join('');
+  } while (result !== prev);
+  
+  // Remove event handlers like onclick=, onload=, etc.
+  // Loop until no more matches to handle nested patterns
+  do {
+    prev = result;
+    result = result.replace(/on[a-z]{1,15}=/gi, '');
+  } while (result !== prev);
+  
+  // Remove potential SQL injection patterns
+  result = result.replace(/[";]/g, '');
+  
+  // Trim whitespace
+  return result.trim();
 };
 
 /**
