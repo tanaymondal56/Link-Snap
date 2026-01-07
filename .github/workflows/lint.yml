@@ -20,7 +20,7 @@ jobs:
         cache-dependency-path: client/package-lock.json
     - name: Install dependencies
       working-directory: ./client
-      run: npm ci
+      run: npm ci --legacy-peer-deps
     - name: Run Lint
       working-directory: ./client
       run: npm run lint
