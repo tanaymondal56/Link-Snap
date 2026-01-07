@@ -6,7 +6,6 @@
   "engines": {
     "node": ">=18.0.0"
   },
-
   "scripts": {
     "start": "node --env-file=.env index.js",
     "start:prod": "cross-env NODE_ENV=production node --env-file=.env index.js",
@@ -31,6 +30,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "lru-cache": "^11.2.4",
+    "lusca": "^1.7.0",
     "mongoose": "^9.0.0",
     "morgan": "^1.10.1",
     "nanoid": "^5.1.6",

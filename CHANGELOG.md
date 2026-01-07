@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fixed 25 security vulnerabilities** identified by CodeQL:
   - 4 ReDoS (Regular Expression Denial of Service) vulnerabilities
   - 3 Regex injection vulnerabilities  
-  - 1 Missing CSRF protection (implemented double-submit cookie pattern)
+  - 1 Missing CSRF protection (implemented double-submit cookie pattern using `lusca`)
   - 2 Incomplete sanitization issues
   - 9 NoSQL injection vulnerabilities (added allowlist validation)
   - 3 XSS/HTML injection vulnerabilities

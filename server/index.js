@@ -13,7 +13,7 @@ import errorHandler from './middleware/errorHandler.js';
 import mongoSanitize from './middleware/sanitizer.js';
 import logger from './utils/logger.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
-import { setCsrfToken, validateCsrfToken } from './middleware/csrfMiddleware.js';
+import lusca from 'lusca';
 
 import authRoutes from './routes/authRoutes.js';
 import urlRoutes from './routes/urlRoutes.js';
@@ -125,10 +125,21 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// CSRF Protection (double-submit cookie pattern)
-// Sets token cookie and validates on state-changing requests
-app.use(setCsrfToken);
-app.use('/api', validateCsrfToken);
+// CSRF Protection (using lusca as recommended by CodeQL)
+
+// Configure CSRF with double-submit cookie pattern
+app.use(lusca.csrf({
+  cookie: {
+    name: 'XSRF-TOKEN',
+    options: {
+      httpOnly: false, // Allow client to read for header inclusion
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    }
+  },
+  header: 'X-XSRF-TOKEN',
+  blacklist: ['/api/webhooks'] // Exclude webhooks if needed, though they usually use signatures
+}));
 
 // NoSQL injection protection
 app.use(mongoSanitize);
