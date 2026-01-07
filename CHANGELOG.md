@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Professional GitHub documentation suite (README, CONTRIBUTING, SECURITY)
 - Pull Request and Issue templates
 - Dependabot configuration for automated dependency updates
+- Automated Linting workflow (Client & Server)
 - Environment variable documentation (.env.example)
 
 ### Changed
