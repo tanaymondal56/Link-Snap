@@ -1,5 +1,5 @@
 import Analytics from '../models/Analytics.js';
-import useragent from 'useragent';
+import { UAParser } from 'ua-parser-js';
 import geoip from 'geoip-lite';
 
 // Buffer configuration
@@ -39,7 +39,10 @@ startFlushTimer();
 
 export const trackVisit = async (urlId, req, extras = {}) => {
     try {
-        const agent = useragent.parse(req.headers['user-agent']);
+        const parser = new UAParser(req.headers['user-agent'] || '');
+        const browser = parser.getBrowser();
+        const os = parser.getOS();
+        const device = parser.getDevice();
 
         // Get IP address (handle proxies)
         const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.ip || req.connection.remoteAddress;
@@ -51,9 +54,10 @@ export const trackVisit = async (urlId, req, extras = {}) => {
             urlId,
             ip,
             userAgent: req.headers['user-agent'],
-            browser: agent.toAgent(),
-            os: agent.os.toString(),
-            device: agent.device.toString() !== 'Other 0.0.0' ? agent.device.toString() : 'Desktop', // Simple fallback
+            browser: browser.name || 'Unknown',
+            os: os.name || 'Unknown',
+            // ua-parser-js returns undefined for type 'desktop', so we default to 'Desktop'
+            device: device.type ? (device.type.charAt(0).toUpperCase() + device.type.slice(1)) : 'Desktop',
             country: geo ? geo.country : 'Unknown',
             city: geo ? geo.city : 'Unknown',
             // Device-based redirect tracking

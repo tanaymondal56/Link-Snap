@@ -14,6 +14,7 @@ import mongoSanitize from './middleware/sanitizer.js';
 import logger from './utils/logger.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
 import lusca from 'lusca';
+import cookieSession from 'cookie-session';
 
 import authRoutes from './routes/authRoutes.js';
 import urlRoutes from './routes/urlRoutes.js';
@@ -125,7 +126,19 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// ... imports
+
 // CSRF Protection (using lusca as recommended by CodeQL)
+// Lusca requires a session to store the CSRF secret.
+// We use cookie-session to provide a client-side session.
+app.use(cookieSession({
+    name: 'session',
+    keys: [process.env.SESSION_SECRET || 'default-secret-key'],
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: 'strict',
+}));
 
 // Configure CSRF with double-submit cookie pattern
 app.use(lusca.csrf({
