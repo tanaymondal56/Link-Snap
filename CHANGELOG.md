@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.5] - 2025-01-07
 
 ### Security
-- **Fixed 25 security vulnerabilities** identified by CodeQL:
+- **Fixed 27 security vulnerabilities** identified by CodeQL:
   - 4 ReDoS (Regular Expression Denial of Service) vulnerabilities
   - 3 Regex injection vulnerabilities  
   - 1 Missing CSRF protection (implemented double-submit cookie pattern using `lusca`)
@@ -18,8 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 9 NoSQL injection vulnerabilities (added allowlist validation)
   - 3 XSS/HTML injection vulnerabilities
   - 1 Incomplete URL scheme check (added data: and vbscript: filtering)
-  - 1 Clear-text storage of password in localStorage
+  - 1 Clear-text storage of password & sensitive logic in localStorage
   - 1 Clear-text logging of password
+  - 1 Incomplete string escaping (escaped backslashes in JS contexts)
 
 ### Added
 - Professional GitHub documentation suite (README, CONTRIBUTING, SECURITY)

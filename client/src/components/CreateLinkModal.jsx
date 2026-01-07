@@ -158,16 +158,15 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       customAlias,
       expiresIn,
       customExpiresAt,
-      // Do NOT save password to localStorage - security best practice
-      enablePassword, // Only save the toggle state, not the password itself
+      // Do NOT save password or password-enabled state to localStorage - security best practice & prevents CodeQL alerts
       deviceRedirects,
       savedAt: Date.now()
     };
     // Only save if there's actual content (use optional chaining for safety)
-    if (url || customAlias || enablePassword || (deviceRedirects?.rules?.length > 0)) {
+    if (url || customAlias || (deviceRedirects?.rules?.length > 0)) {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     }
-  }, [url, customAlias, expiresIn, customExpiresAt, enablePassword, deviceRedirects]);
+  }, [url, customAlias, expiresIn, customExpiresAt, deviceRedirects]);
 
   // Load draft from localStorage
   const loadDraft = useCallback(() => {
@@ -181,7 +180,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
           setCustomAlias(draft.customAlias || '');
           setExpiresIn(draft.expiresIn || 'never');
           setCustomExpiresAt(draft.customExpiresAt || '');
-          setEnablePassword(draft.enablePassword || false);
+          // Password protection preference is not saved/restored
           // Password is never saved/loaded from localStorage for security
           // Validate deviceRedirects structure to prevent undefined access errors
           const savedDeviceRedirects = draft.deviceRedirects;
@@ -224,7 +223,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       const timer = setTimeout(saveDraft, 500); // Debounced save
       return () => clearTimeout(timer);
     }
-  }, [isOpen, url, customAlias, expiresIn, customExpiresAt, enablePassword, deviceRedirects, saveDraft]);
+  }, [isOpen, url, customAlias, expiresIn, customExpiresAt, deviceRedirects, saveDraft]);
 
   // Reset form when modal closes (but don't clear draft - that happens on success)
   useEffect(() => {

@@ -1012,7 +1012,8 @@ const getExpiredLinkPage = (shortId, expiresAt) => {
 const getPasswordEntryPage = (shortId, title) => {
     const safeTitle = escapeHtml(title || shortId);
     // Escape shortId for use in JavaScript string to prevent XSS
-    const safeShortId = escapeHtml(shortId).replace(/'/g, "\\'");
+    // Must escape backslashes first, then quotes to prevent breaking out of string
+    const safeShortId = escapeHtml(shortId).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     return `
 <!DOCTYPE html>
 <html lang="en">
