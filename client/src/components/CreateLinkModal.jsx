@@ -13,6 +13,8 @@ import {
   Eye,
   EyeOff,
   Crown,
+  Globe,
+  Info
 } from 'lucide-react';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
@@ -23,6 +25,7 @@ import { Link } from 'react-router-dom';
 import { ProBadge } from './subscription/PremiumField';
 import { usePremiumField } from '../hooks/usePremiumField';
 import DeviceTargetingSection from './DeviceTargetingSection';
+import TimeRoutingSection from './TimeRoutingSection';
 
 // Expiration presets
 const EXPIRATION_OPTIONS = [
@@ -49,6 +52,13 @@ const isValidUrl = (input) => {
   if (!input) return false;
   const normalized = normalizeUrl(input);
   return /^https?:\/\/[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})+/.test(normalized);
+};
+
+// Check if a datetime-local value is in the past (for mobile browser fallback)
+const isPastDate = (dateTimeString) => {
+  if (!dateTimeString) return false;
+  const selectedDate = new Date(dateTimeString);
+  return selectedDate <= new Date();
 };
 
 // Debounce hook
@@ -93,6 +103,17 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
     rules: [],
   });
 
+  // Schedule Activation (Free feature - link goes live at this time)
+  const [enableSchedule, setEnableSchedule] = useState(false);
+  const [activeStartTime, setActiveStartTime] = useState('');
+
+  // Time-Based Redirects state (Pro feature)
+  const [timeRedirects, setTimeRedirects] = useState({
+    enabled: false,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    rules: [],
+  });
+
   // Alias availability state
   const [aliasStatus, setAliasStatus] = useState({
     checking: false,
@@ -105,14 +126,17 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
   const expirationField = usePremiumField('link_expiration');
   const passwordField = usePremiumField('password_protection');
   const deviceTargetingField = usePremiumField('device_targeting');
-
-  // Hover states for premium field tooltips
-  const [showAliasUpgrade, setShowAliasUpgrade] = useState(false);
-  const [showExpirationUpgrade, setShowExpirationUpgrade] = useState(false);
-  const [showPasswordUpgrade, setShowPasswordUpgrade] = useState(false);
+  const timeRedirectsField = usePremiumField('time_redirects');
 
   const debouncedAlias = useDebounce(customAlias, 400);
   const baseDomain = getBaseDomain();
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState('essentials');
+
+  // Calculate badges/indicators
+  const settingsActive = (expiresIn !== 'never' && expiresIn !== '') || enablePassword || enableSchedule;
+  const targetingActive = (deviceRedirects.enabled && deviceRedirects.rules.length > 0) || (timeRedirects.enabled && timeRedirects.rules.length > 0);
 
   // Check alias availability
   const checkAlias = useCallback(async (alias) => {
@@ -160,13 +184,17 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       customExpiresAt,
       // Do NOT save password or password-enabled state to localStorage - security best practice & prevents CodeQL alerts
       deviceRedirects,
+      // TBR fields
+      enableSchedule,
+      activeStartTime,
+      timeRedirects,
       savedAt: Date.now()
     };
     // Only save if there's actual content (use optional chaining for safety)
-    if (url || customAlias || (deviceRedirects?.rules?.length > 0)) {
+    if (url || customAlias || (deviceRedirects?.rules?.length > 0) || enableSchedule || (timeRedirects?.rules?.length > 0)) {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     }
-  }, [url, customAlias, expiresIn, customExpiresAt, deviceRedirects]);
+  }, [url, customAlias, expiresIn, customExpiresAt, deviceRedirects, enableSchedule, activeStartTime, timeRedirects]);
 
   // Load draft from localStorage
   const loadDraft = useCallback(() => {
@@ -192,6 +220,23 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
           } else {
             setDeviceRedirects({ enabled: false, rules: [] });
           }
+          
+          // Restore TBR fields
+          if (draft.enableSchedule !== undefined) {
+            setEnableSchedule(Boolean(draft.enableSchedule));
+          }
+          if (draft.activeStartTime) {
+            setActiveStartTime(draft.activeStartTime);
+          }
+          const savedTimeRedirects = draft.timeRedirects;
+          if (savedTimeRedirects && typeof savedTimeRedirects === 'object' && Array.isArray(savedTimeRedirects.rules)) {
+            setTimeRedirects({
+              enabled: Boolean(savedTimeRedirects.enabled),
+              timezone: savedTimeRedirects.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+              rules: savedTimeRedirects.rules,
+            });
+          }
+          
           return true;
         }
       }
@@ -237,11 +282,16 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       setShowPassword(false);
       setDeviceRedirects({ enabled: false, rules: [] });
       setAliasStatus({ checking: false, available: null, reason: null });
+      // Reset TBR states
+      setEnableSchedule(false);
+      setActiveStartTime('');
+      setTimeRedirects({ enabled: false, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', rules: [] });
+      setActiveTab('essentials');
     }
   }, [isOpen]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
 
     if (!url) return;
 
@@ -267,27 +317,49 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
         originalUrl: normalizeUrl(url),
       };
 
-      if (customAlias && customAlias.length >= 3) {
+      if (!aliasField.isLocked && customAlias && customAlias.length >= 3) {
         payload.customAlias = customAlias;
       }
 
-      // Add expiration
-      if (expiresIn === 'custom' && customExpiresAt) {
-        payload.expiresAt = new Date(customExpiresAt).toISOString();
-      } else if (expiresIn && expiresIn !== 'never' && expiresIn !== 'custom') {
-        payload.expiresIn = expiresIn;
+      // Add expiration (Pro)
+      if (!expirationField.isLocked) {
+        if (expiresIn === 'custom' && customExpiresAt) {
+          payload.expiresAt = new Date(customExpiresAt).toISOString();
+        } else if (expiresIn && expiresIn !== 'never' && expiresIn !== 'custom') {
+          payload.expiresIn = expiresIn;
+        }
       }
 
-      // Add password
-      if (enablePassword && password.length >= 4) {
+      // Add password (Pro)
+      if (!passwordField.isLocked && enablePassword && password.length >= 4) {
         payload.password = password;
       }
 
-      // Add device redirects
-      if (deviceRedirects.rules.length > 0) {
+      // Add device redirects (Pro)
+      if (!deviceTargetingField.isLocked && deviceRedirects.rules.length > 0) {
         payload.deviceRedirects = {
           enabled: deviceRedirects.enabled,
           rules: deviceRedirects.rules.filter(r => r.url && r.url.trim() !== ''),
+        };
+      }
+
+      // Add schedule activation (Free feature)
+      if (enableSchedule && activeStartTime) {
+        // Validate date is not in the past (mobile browsers may bypass min attribute)
+        if (isPastDate(activeStartTime)) {
+          showToast.error('Schedule time must be in the future');
+          setActiveTab('settings');
+          return;
+        }
+        payload.activeStartTime = new Date(activeStartTime).toISOString();
+      }
+
+      // Add time-based redirects (Pro feature)
+      if (!timeRedirectsField.isLocked && timeRedirects.enabled && timeRedirects.rules.length > 0) {
+        payload.timeRedirects = {
+          enabled: true,
+          timezone: timeRedirects.timezone,
+          rules: timeRedirects.rules.filter(r => r.destination && r.startTime && r.endTime),
         };
       }
 
@@ -303,6 +375,16 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
     }
   };
 
+  // Validation check for switching tabs on error
+  const validateAndSubmit = async () => {
+    // If password enabled but invalid, switch to settings
+    if (enablePassword && password.length < 4) {
+      setActiveTab('settings');
+      // The handleSubmit will show the toast msg
+    }
+    handleSubmit();
+  };
+
   // Handle alias input - only allow valid characters
   const handleAliasChange = (e) => {
     const value = e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, '');
@@ -311,133 +393,118 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
 
   if (!isOpen) return null;
 
-  const getAliasStatusIcon = () => {
-    if (aliasStatus.checking) {
-      return <Loader2 className="animate-spin text-gray-400" size={18} />;
-    }
-    if (aliasStatus.available === true) {
-      return <Check className="text-green-400" size={18} />;
-    }
-    if (aliasStatus.available === false) {
-      return <AlertCircle className="text-red-400" size={18} />;
-    }
-    return null;
-  };
-
-  const getAliasInputBorderColor = () => {
-    if (customAlias.length === 0) return 'border-gray-700 focus:border-purple-500';
-    if (aliasStatus.checking) return 'border-gray-600';
-    if (aliasStatus.available === true) return 'border-green-500';
-    if (aliasStatus.available === false) return 'border-red-500';
-    return 'border-gray-700';
-  };
-
-    return createPortal(
-    <div className="fixed inset-0 z-[1000] overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-gray-900/80">
       <div 
-        className="flex min-h-full items-start justify-center p-4 sm:items-center sm:pt-4"
-        style={{ paddingTop: 'max(2.5rem, env(safe-area-inset-top))' }}
+        className="relative w-full max-w-2xl bg-gray-900 border border-gray-800 rounded-2xl shadow-xl max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Backdrop */}
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-
-        {/* Modal - Allowed to grow */}
-        <div className="relative w-full max-w-lg bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl animate-modal-in flex flex-col my-8 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-700/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
-              <LinkIcon size={20} className="text-white" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-white">Create New Link</h2>
-              <p className="text-sm text-gray-400">Shorten a URL with optional custom alias</p>
-            </div>
+        <div className="flex items-center justify-between p-6 border-b border-gray-800 shrink-0">
+          <div>
+            <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-purple-400">
+              Create New Link
+            </h2>
+            <p className="text-sm text-gray-400 mt-1">Shorten and customize your URL</p>
           </div>
-          <button
+          <button 
             onClick={onClose}
-            className="p-2 hover:bg-gray-700/50 rounded-lg text-gray-400 hover:text-white transition-colors"
+            className="p-2 text-gray-400 hover:text-white bg-gray-800/50 hover:bg-gray-800 rounded-full transition-colors"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Form - Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-5">
-          {/* URL Input */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Destination URL <span className="text-red-400">*</span>
-            </label>
+        {/* Tabs */}
+        <div className="flex p-2 gap-2 border-b border-gray-800 bg-gray-900/50 shrink-0 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('essentials')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+              activeTab === 'essentials' 
+                ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' 
+                : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <LinkIcon size={16} />
+            Essentials
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+              activeTab === 'settings' 
+                ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' 
+                : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
+            }`}
+          >
             <div className="relative">
-              <input
-                type="text"
-                placeholder="https://example.com/very-long-url-here"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                className={`w-full bg-gray-800/50 border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none transition-colors ${
-                  url && isValidUrl(url)
-                    ? 'border-green-500'
-                    : url && !isValidUrl(url)
-                      ? 'border-red-500'
-                      : 'border-gray-700 focus:border-green-500'
-                }`}
-                required
-                autoFocus
-              />
-              {url && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  {isValidUrl(url) ? (
-                    <Check className="text-green-400" size={18} />
-                  ) : (
-                    <AlertCircle className="text-red-400" size={18} />
-                  )}
-                </div>
+              <Lock size={16} />
+              {settingsActive && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-violet-500 rounded-full ring-2 ring-gray-900" />
               )}
             </div>
-            {url && !isValidUrl(url) && (
-              <p className="mt-1.5 text-sm text-red-400">Please enter a valid URL</p>
-            )}
-          </div>
-
-          {/* Custom Alias Input - Pro Feature */}
-          <div 
-            className="relative"
-            onMouseEnter={() => aliasField.isLocked && setShowAliasUpgrade(true)}
-            onMouseLeave={() => setShowAliasUpgrade(false)}
+            Settings
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('targeting')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+              activeTab === 'targeting' 
+                ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' 
+                : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
+            }`}
           >
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                <span className="flex items-center gap-2">
-                  Custom Alias
-                  <span className="text-xs text-gray-500 font-normal">(optional)</span>
-                  {aliasField.isLocked ? <ProBadge /> : <Crown size={14} className="text-amber-400" />}
-                </span>
+            <div className="relative">
+              <Globe size={16} />
+              {targetingActive && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-violet-500 rounded-full ring-2 ring-gray-900" />
+              )}
+            </div>
+            Targeting
+            <ProBadge className="ml-1 scale-75" />
+          </button>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="overflow-y-auto p-6 space-y-6 custom-scrollbar">
+          
+          {/* TAB 1: ESSENTIALS */}
+          <div className={activeTab === 'essentials' ? 'space-y-6' : 'hidden'}>
+            
+            {/* Destination URL */}
+            <div className="space-y-4">
+              <label className="block text-sm font-medium text-gray-300">
+                Destination URL <span className="text-red-400">*</span>
               </label>
-              <div className="relative">
-                <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none ${aliasField.isLocked ? 'opacity-50' : ''}`}>
-                  {baseDomain}/
-                </span>
+              <div className="relative group">
                 <input
                   type="text"
-                  placeholder="my-brand"
-                  value={aliasField.isLocked ? '' : customAlias}
-                  onChange={aliasField.isLocked ? undefined : handleAliasChange}
-                  disabled={aliasField.isLocked}
-                  className={`w-full bg-gray-800/50 border rounded-xl pl-[${baseDomain.length * 7 + 24}px] pr-10 py-3 text-white placeholder-gray-500 focus:outline-none transition-colors ${aliasField.isLocked ? 'border-gray-700/50 cursor-not-allowed opacity-50' : getAliasInputBorderColor()}`}
-                  style={{ paddingLeft: `${baseDomain.length * 7.5 + 20}px` }}
-                  maxLength={20}
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://example.com/long-url"
+                  className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 pl-11 text-white placeholder-gray-500 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50 focus:outline-none transition-all group-hover:border-gray-600"
+                  autoFocus
                 />
-                {!aliasField.isLocked && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    {getAliasStatusIcon()}
-                  </div>
-                )}
-                
-                {/* Hover tooltip for locked state */}
-                {showAliasUpgrade && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm rounded-xl z-20">
-                    <Link
+                <LinkIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 group-hover:text-violet-400 transition-colors" size={18} />
+              </div>
+            </div>
+
+            {/* Custom Alias */}
+            <div className="space-y-4">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                <Sparkles size={16} className="text-violet-400" />
+                Custom Link
+                <Crown size={14} className="text-amber-400" />
+              </label>
+              
+              {aliasField.isLocked ? (
+                <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-orange-500/30">
+                  <div className="flex items-center justify-between relative z-10">
+                    <div>
+                      <h4 className="font-medium text-gray-300 mb-1">Upgrade to customize</h4>
+                      <p className="text-sm text-gray-500">Create branded links with custom back-halves.</p>
+                    </div>
+                    <Link 
                       to={aliasField.upgradePath}
                       className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
                     >
@@ -445,62 +512,120 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
                       {aliasField.upgradeText}
                     </Link>
                   </div>
-                )}
-              </div>
-
-              {/* Alias Status Message */}
-              {!aliasField.isLocked && (
-                <div className="mt-1.5 flex items-center justify-between">
-                  <div>
-                    {customAlias.length > 0 && customAlias.length < 3 && (
-                      <p className="text-sm text-gray-500">Minimum 3 characters</p>
-                    )}
-                    {aliasStatus.reason && aliasStatus.available === false && (
-                      <p className="text-sm text-red-400">{aliasStatus.reason}</p>
-                    )}
-                    {aliasStatus.available === true && (
-                      <p className="text-sm text-green-400">✓ This alias is available!</p>
-                    )}
+                </div>
+              ) : (
+                <div className="relative">
+                  <div className="flex items-center">
+                    <span className="hidden sm:flex items-center px-4 py-3 bg-gray-800/50 border border-r-0 border-gray-700 rounded-l-xl text-gray-400 text-sm min-w-[140px]">
+                      {baseDomain.replace(/^https?:\/\//, '')}/
+                    </span>
+                    <input
+                      type="text"
+                      value={customAlias}
+                      onChange={handleAliasChange}
+                      onBlur={() => checkAlias(customAlias)}
+                      placeholder="custom-alias"
+                      className="flex-1 bg-gray-800/30 border border-gray-700 sm:rounded-l-none rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50 focus:outline-none transition-all"
+                    />
+                    {/* Alias Status Indicator */}
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {aliasStatus.checking ? (
+                         <Loader2 size={16} className="animate-spin text-gray-400" />
+                      ) : customAlias && customAlias.length >= 3 && (
+                        aliasStatus.available ? (
+                          <Check size={16} className="text-green-500" />
+                        ) : (
+                          <X size={16} className="text-red-500" />
+                        )
+                      )}
+                    </div>
                   </div>
-                  <span className="text-xs text-gray-500">{customAlias.length}/20</span>
+                  {customAlias && customAlias.length >= 3 && !aliasStatus.checking && !aliasStatus.available && (
+                     <div className="absolute -bottom-6 left-0 flex items-center gap-1.5 text-xs text-red-400 animate-in fade-in slide-in-from-top-1">
+                        <AlertCircle size={12} />
+                        {aliasStatus.reason || 'Alias unavailable'}
+                     </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Expiration Dropdown - Pro Feature */}
-          <div 
-            className="relative"
-            onMouseEnter={() => expirationField.isLocked && setShowExpirationUpgrade(true)}
-            onMouseLeave={() => setShowExpirationUpgrade(false)}
-          >
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                <span className="flex items-center gap-2">
-                  <Clock size={14} className="text-amber-400" />
-                  Link Expiration
-                  {expirationField.isLocked ? <ProBadge /> : <Crown size={14} className="text-amber-400" />}
-                </span>
+          {/* TAB 2: SETTINGS (Protection & Lifecycle) */}
+          <div className={activeTab === 'settings' ? 'space-y-6' : 'hidden'}>
+            
+            {/* Schedule Activation */}
+            <div className="p-4 rounded-xl bg-gray-800/20 border border-gray-800 space-y-4">
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-2">
+                   <div className="p-2 bg-blue-500/10 rounded-lg">
+                     <Clock size={18} className="text-blue-400" />
+                   </div>
+                   <div>
+                     <h3 className="text-sm font-medium text-white">Schedule Activation</h3>
+                     <p className="text-xs text-gray-400">Link goes live at a specific time</p>
+                   </div>
+                 </div>
+                 <label className="relative inline-flex items-center cursor-pointer">
+                   <input type="checkbox" checked={enableSchedule} onChange={(e) => setEnableSchedule(e.target.checked)} className="sr-only peer" />
+                   <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                 </label>
+               </div>
+               
+                {enableSchedule && (
+                  <div className="mt-4 pt-4 border-t border-gray-700/50 animate-in slide-in-from-top-2">
+                     <label className="block text-sm text-gray-400 mb-2">Start Time (Your Local Time)</label>
+                     <div className="overflow-hidden rounded-lg">
+                       <input
+                         type="datetime-local"
+                         value={activeStartTime}
+                         onChange={(e) => {
+                            const value = e.target.value;
+                            if (value && isPastDate(value)) {
+                              showToast.error('Please select a future date and time');
+                              return;
+                            }
+                            setActiveStartTime(value);
+                          }}
+                         min={new Date().toISOString().slice(0, 16)}
+                         className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2.5 text-white focus:border-blue-500 focus:outline-none text-sm"
+                       />
+                     </div>
+                     {activeStartTime && (
+                       <div className="mt-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200">
+                         <p className="font-medium mb-1">Schedule Summary:</p>
+                         <div className="grid grid-cols-1 sm:grid-cols-[auto,1fr] gap-y-2 sm:gap-y-1 gap-x-4">
+                           <div className="flex items-center justify-between gap-2 sm:contents">
+                             <span className="text-blue-200/60">Local:</span>
+                             <span className="text-right sm:text-left">{new Date(activeStartTime).toLocaleString()}</span>
+                           </div>
+                           <div className="flex items-center justify-between gap-2 sm:contents">
+                             <span className="text-blue-200/60">UTC:</span>
+                             <span className="font-mono text-right sm:text-left">{new Date(activeStartTime).toISOString().slice(0, 16).replace('T', ' ')} UTC</span>
+                           </div>
+                         </div>
+                       </div>
+                     )}
+                  </div>
+                )}
+             </div>
+
+            {/* Expiration */}
+            <div className="space-y-4">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                <Clock size={16} className="text-orange-400" />
+                Link Expiration
+                <Crown size={14} className="text-amber-400" />
               </label>
-              <div className="relative">
-                <select
-                  value={expirationField.isLocked ? 'never' : expiresIn}
-                  onChange={expirationField.isLocked ? undefined : (e) => setExpiresIn(e.target.value)}
-                  disabled={expirationField.isLocked}
-                  className={`w-full bg-gray-800/50 border rounded-xl px-4 py-3 text-white focus:outline-none transition-colors appearance-none ${expirationField.isLocked ? 'border-gray-700/50 cursor-not-allowed opacity-50' : 'border-gray-700 focus:border-amber-500 cursor-pointer'}`}
-                  style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.75rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
-                >
-                  {EXPIRATION_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                
-                {/* Hover tooltip for locked state */}
-                {showExpirationUpgrade && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm rounded-xl z-20">
-                    <Link
+              
+              {expirationField.isLocked ? (
+                <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-orange-500/30">
+                  <div className="flex items-center justify-between relative z-10">
+                    <div>
+                      <h4 className="font-medium text-gray-300 mb-1">Upgrade to set Expiry</h4>
+                      <p className="text-sm text-gray-500">Auto-delete links after a set time.</p>
+                    </div>
+                    <Link 
                       to={expirationField.upgradePath}
                       className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
                     >
@@ -508,52 +633,76 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
                       {expirationField.upgradeText}
                     </Link>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {EXPIRATION_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setExpiresIn(option.value);
+                        if (option.value !== 'custom') setCustomExpiresAt('');
+                      }}
+                      className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all ${
+                        expiresIn === option.value
+                          ? 'bg-orange-500/10 text-orange-400 border-orange-500/50'
+                          : 'bg-gray-800/50 text-gray-400 border-gray-700 hover:bg-gray-800 hover:text-gray-300'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               
               {!expirationField.isLocked && expiresIn === 'custom' && (
                 <input
                   type="datetime-local"
                   value={customExpiresAt}
-                  onChange={(e) => setCustomExpiresAt(e.target.value)}
-                  min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
-                  className="w-full mt-2 bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-amber-500 focus:outline-none transition-colors"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && isPastDate(value)) {
+                      showToast.error('Expiration date must be in the future');
+                      return;
+                    }
+                    setCustomExpiresAt(value);
+                  }}
+                  className="w-full mt-2 bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-orange-500 focus:outline-none"
+                  min={new Date().toISOString().slice(0, 16)}
                 />
               )}
             </div>
-          </div>
 
-          {/* Password Protection Toggle - Pro Feature */}
-          <div 
-            className="relative"
-            onMouseEnter={() => passwordField.isLocked && setShowPasswordUpgrade(true)}
-            onMouseLeave={() => setShowPasswordUpgrade(false)}
-          >
-            <div>
-              <label className={`flex items-center gap-3 group ${passwordField.isLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    checked={passwordField.isLocked ? false : enablePassword}
-                    onChange={passwordField.isLocked ? undefined : (e) => setEnablePassword(e.target.checked)}
-                    disabled={passwordField.isLocked}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-700 rounded-full peer peer-focus:ring-2 peer-focus:ring-purple-500/50 peer-checked:bg-purple-600 transition-colors"></div>
-                  <div className="absolute left-[2px] top-[2px] bg-white w-5 h-5 rounded-full transition-transform peer-checked:translate-x-5"></div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Lock size={14} className="text-purple-400" />
-                  <span className="text-sm font-medium text-gray-300">Password Protect</span>
-                  {passwordField.isLocked ? <ProBadge /> : <Crown size={14} className="text-amber-400" />}
-                </div>
-              </label>
-              
-              {/* Hover tooltip for locked state */}
-              {showPasswordUpgrade && (
-                <div className="absolute inset-0 -m-2 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm rounded-xl z-20 pointer-events-none">
-                  <div className="pointer-events-auto">
-                    <Link
+            {/* Password Protection */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                  <Lock size={16} className="text-purple-400" />
+                  Password Protection
+                  <Crown size={14} className="text-amber-400" />
+                </label>
+                {!passwordField.isLocked && (
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={enablePassword} 
+                      onChange={(e) => setEnablePassword(e.target.checked)} 
+                      className="sr-only peer" 
+                    />
+                    <div className="w-9 h-5 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                  </label>
+                )}
+              </div>
+
+              {passwordField.isLocked ? (
+                <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-purple-500/30">
+                  <div className="flex items-center justify-between relative z-10">
+                    <div>
+                      <h4 className="font-medium text-gray-300 mb-1">Upgrade to set Password</h4>
+                      <p className="text-sm text-gray-500">Secure your links from unauthorized access.</p>
+                    </div>
+                    <Link 
                       to={passwordField.upgradePath}
                       className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
                     >
@@ -562,129 +711,94 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
                     </Link>
                   </div>
                 </div>
-              )}
-              
-              {!passwordField.isLocked && enablePassword && (
-                <div className="mt-3 relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter password (min. 4 characters)"
-                    className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
-                    maxLength={100}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                  {password.length > 0 && password.length < 4 && (
-                    <p className="text-xs text-red-400 mt-1.5">Password must be at least 4 characters</p>
-                  )}
-                  {password.length >= 4 && (
-                    <div className="mt-2">
-                      <div className="flex gap-1">
-                        <div className={`h-1 w-6 rounded-full ${password.length >= 4 ? 'bg-red-400' : 'bg-gray-600'}`} />
-                        <div className={`h-1 w-6 rounded-full ${password.length >= 8 ? 'bg-amber-400' : 'bg-gray-600'}`} />
-                        <div className={`h-1 w-6 rounded-full ${password.length >= 12 && /[A-Z]/.test(password) && /[0-9]/.test(password) ? 'bg-green-400' : 'bg-gray-600'}`} />
-                      </div>
-                      <p className={`text-xs mt-1 ${
-                        password.length >= 12 && /[A-Z]/.test(password) && /[0-9]/.test(password) 
-                          ? 'text-green-400'
-                          : password.length >= 8 
-                            ? 'text-amber-400' 
-                            : 'text-red-400'
-                      }`}>
-                        {password.length >= 12 && /[A-Z]/.test(password) && /[0-9]/.test(password) 
-                          ? '✓ Strong password' 
-                          : password.length >= 8 
-                            ? 'Medium strength' 
-                            : 'Weak password'}
-                      </p>
+              ) : (
+                enablePassword && (
+                    <div className="relative animate-in fade-in slide-in-from-top-2">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter password (min. 4 characters)"
+                        autoComplete="new-password"
+                        name="new-link-password"
+                        id="link-password-input"
+                        data-1p-ignore="true"
+                        data-lpignore="true"
+                        data-form-type="other"
+                        className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
+                        maxLength={100}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                      
+                      {/* Password Strength Indicators (Simplified for brevity as user verified) */}
+                      {password.length > 0 && password.length < 4 && (
+                        <p className="text-xs text-red-400 mt-1.5 flex items-center gap-1">
+                          <AlertCircle size={12} />
+                          Minimum 4 characters required
+                        </p>
+                      )}
                     </div>
-                  )}
-                </div>
+                )
               )}
             </div>
           </div>
 
-          {/* Device Targeting - Pro/Business Feature */}
-          <DeviceTargetingSection
-            deviceRedirects={deviceRedirects}
-            setDeviceRedirects={setDeviceRedirects}
-            isLocked={deviceTargetingField.isLocked}
-            upgradePath={deviceTargetingField.upgradePath}
-          />
+          {/* TAB 3: TARGETING (Device & Time) */}
+          <div className={activeTab === 'targeting' ? 'space-y-8' : 'hidden'}>
+            
+            <DeviceTargetingSection 
+              deviceRedirects={deviceRedirects}
+              setDeviceRedirects={setDeviceRedirects}
+              isLocked={deviceTargetingField.isLocked}
+              upgradePath={deviceTargetingField.upgradePath}
+            />
 
-          {/* Preview */}
-          {(customAlias.length >= 3 || url) && (
-            <div className="bg-gray-800/30 rounded-xl p-4 border border-gray-700/50">
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Preview</p>
-              <div className="flex items-center gap-2">
-                <ExternalLink size={16} className="text-gray-400" />
-                <span className="text-green-400 font-mono text-sm">
-                  {baseDomain}/{customAlias.length >= 3 ? customAlias : 'xxxxxxxx'}
-                </span>
-                {expiresIn !== 'never' && (
-                  <span className="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded">
-                    Expires: {EXPIRATION_OPTIONS.find(o => o.value === expiresIn)?.label}
-                  </span>
-                )}
-                {enablePassword && password.length >= 4 && (
-                  <Lock size={12} className="text-purple-400" />
-                )}
-              </div>
-              {url && isValidUrl(url) && (
-                <p className="text-xs text-gray-500 mt-2 truncate">→ {normalizeUrl(url)}</p>
-              )}
-            </div>
-          )}
-        </form>
+            <TimeRoutingSection
+              timeRedirects={timeRedirects}
+              setTimeRedirects={setTimeRedirects}
+              isLocked={timeRedirectsField.isLocked}
+              upgradePath={timeRedirectsField.upgradePath}
+            />
 
-        {/* Action Buttons - Fixed at bottom */}
-        <div className="flex gap-3 p-5 pt-3 border-t border-gray-700/50 bg-gray-900/95">
+          </div>
+
+        </div>
+
+        {/* Footer */}
+        <div className="p-6 border-t border-gray-800 shrink-0 flex items-center justify-end gap-3 bg-gray-900/95 rounded-b-2xl">
           <button
-            type="button"
             onClick={onClose}
-            className="flex-1 px-4 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors font-medium"
+            className="px-5 py-2.5 text-gray-300 hover:text-white font-medium hover:bg-gray-800 rounded-xl transition-colors"
           >
             Cancel
           </button>
           <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={
-              isCreating ||
-              !url ||
-              !isValidUrl(url) ||
-              (customAlias.length > 0 && customAlias.length < 3) ||
-              (customAlias && aliasStatus.available === false) ||
-              (expiresIn === 'custom' && !customExpiresAt) ||
-              (enablePassword && password.length > 0 && password.length < 4)
-            }
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 disabled:from-gray-600 disabled:to-gray-600 disabled:cursor-not-allowed text-white rounded-xl transition-all font-medium"
+            onClick={validateAndSubmit}
+            disabled={isCreating || !isValidUrl(url)}
+            className="px-6 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-medium rounded-xl shadow-lg hover:shadow-violet-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-95 flex items-center gap-2"
           >
             {isCreating ? (
               <>
-                <Loader2 className="animate-spin" size={18} />
+                <Loader2 size={18} className="animate-spin" />
                 Creating...
               </>
             ) : (
               <>
-                <LinkIcon size={18} />
                 Create Link
+                <Sparkles size={18} />
               </>
             )}
           </button>
         </div>
       </div>
-      </div>
-    </div>,
-    document.body
-  );
+    </div>
+  , document.body);
 };
 
 export default CreateLinkModal;

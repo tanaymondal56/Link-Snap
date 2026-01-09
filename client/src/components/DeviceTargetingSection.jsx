@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Smartphone, 
   Monitor, 
@@ -39,10 +40,23 @@ const DeviceTargetingSection = ({
   upgradePath = '/pricing'
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
-
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  
+  const buttonRef = useRef(null);
+
+  // Calculate dropdown position when opening
+  useEffect(() => {
+    if (isDropdownOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    }
+  }, [isDropdownOpen]);
 
   // Get available devices (ones not already added)
   const getAvailableDevices = () => {
@@ -96,22 +110,46 @@ const DeviceTargetingSection = ({
 
   const availableDevices = getAvailableDevices();
 
+
+  // Render Locked State (Premium Card)
+  if (isLocked) {
+    return (
+      <div className="space-y-4">
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+          <Target size={16} className="text-cyan-400" />
+          Device Targeting
+        </label>
+        
+        <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-cyan-500/30">
+          <div className="flex items-center justify-between relative z-10">
+            <div>
+              <h4 className="font-medium text-gray-300 mb-1">Upgrade to Target Devices</h4>
+              <p className="text-sm text-gray-500">Redirect users based on their device (iOS, Android, etc).</p>
+            </div>
+            <Link 
+              to={upgradePath}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
+            >
+              <Crown size={16} />
+              Upgrade to Pro
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Render Unlocked State (Accordion)
   return (
-    <div 
-      className="relative"
-      onMouseEnter={() => isLocked && setShowUpgradePrompt(true)}
-      onMouseLeave={() => setShowUpgradePrompt(false)}
-    >
+    <div className="relative">
       {/* Header with toggle */}
       <div 
         className={`flex items-center justify-between p-3 rounded-xl border transition-colors cursor-pointer ${
-          isLocked 
-            ? 'border-gray-700/50 bg-gray-800/30 opacity-60' 
-            : deviceRedirects.enabled 
+           deviceRedirects.enabled 
               ? 'border-cyan-500/50 bg-cyan-500/10' 
               : 'border-gray-700/50 bg-gray-800/30 hover:bg-gray-800/50'
         }`}
-        onClick={!isLocked ? () => setIsExpanded(!isExpanded) : undefined}
+        onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-lg ${deviceRedirects.enabled ? 'bg-cyan-500/20' : 'bg-gray-700/50'}`}>
@@ -120,7 +158,7 @@ const DeviceTargetingSection = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-white">Device Targeting</span>
-              {isLocked ? <ProBadge /> : <Crown size={14} className="text-amber-400" />}
+              <Crown size={14} className="text-amber-400" />
             </div>
             <p className="text-xs text-gray-500">
               {deviceRedirects.rules.length > 0 
@@ -133,7 +171,6 @@ const DeviceTargetingSection = ({
         
         {/* Toggle button & Info */}
         <div className="flex items-center gap-2">
-          {!isLocked && (
              <button 
                type="button"
                onClick={(e) => { 
@@ -150,45 +187,32 @@ const DeviceTargetingSection = ({
              >
                <HelpCircle size={18} />
              </button>
-          )}
-          {!isLocked && deviceRedirects.rules.length > 0 && (
-             <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDeviceRedirects({ ...deviceRedirects, enabled: !deviceRedirects.enabled });
-                }}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${
-                  deviceRedirects.enabled ? 'bg-cyan-500' : 'bg-gray-700'
-                }`}
-                title={deviceRedirects.enabled ? "Turn off device targeting" : "Turn on device targeting"}
-              >
-                <span
-                  className={`${
-                    deviceRedirects.enabled ? 'translate-x-6' : 'translate-x-1'
-                  } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
-                />
-              </button>
-          )}
-          {!isLocked && (isExpanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />)}
+
+             {deviceRedirects.rules.length > 0 && (
+              <button
+                 type="button"
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   setDeviceRedirects({ ...deviceRedirects, enabled: !deviceRedirects.enabled });
+                 }}
+                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${
+                   deviceRedirects.enabled ? 'bg-cyan-500' : 'bg-gray-700'
+                 }`}
+                 title={deviceRedirects.enabled ? "Turn off device targeting" : "Turn on device targeting"}
+               >
+                 <span
+                   className={`${
+                     deviceRedirects.enabled ? 'translate-x-6' : 'translate-x-1'
+                   } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                 />
+               </button>
+             )}
+          {isExpanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
         </div>
       </div>
 
-      {/* Upgrade prompt overlay */}
-      {showUpgradePrompt && isLocked && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm rounded-xl z-20">
-          <Link
-            to={upgradePath}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-cyan-500/30 transition-all"
-          >
-            <Crown size={16} />
-            Upgrade to Pro
-          </Link>
-        </div>
-      )}
-
       {/* Expandable content */}
-      {isExpanded && !isLocked && (
+      {isExpanded && (
         <div className="mt-3 space-y-3 animate-fade-in">
           
           {/* Priority Info Card */}
@@ -254,6 +278,7 @@ const DeviceTargetingSection = ({
           {availableDevices.length > 0 && (
             <div className="relative">
               <button
+                ref={buttonRef}
                 type="button"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="w-full flex items-center justify-center gap-2 py-2.5 border border-dashed border-gray-700 rounded-lg text-gray-400 hover:text-cyan-400 hover:border-cyan-500/50 transition-colors"
@@ -263,35 +288,43 @@ const DeviceTargetingSection = ({
                 {isDropdownOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </button>
               
-              {/* Backdrop to close dropdown when clicking outside */}
-              {isDropdownOpen && (
-                <div 
-                  className="fixed inset-0 z-30" 
-                  onClick={() => setIsDropdownOpen(false)}
-                />
-              )}
-              
-              {/* Dropdown menu - Opens Upwards to prevent cutoff */}
-              {isDropdownOpen && (
-                <div className="absolute left-0 right-0 bottom-full mb-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden z-40 animate-fade-in max-h-60 overflow-y-auto">
-                  {availableDevices.map((device) => {
-                    const DeviceIcon = device.icon;
-                    return (
-                      <button
-                        key={device.value}
-                        type="button"
-                        onClick={() => {
-                          addDeviceRule(device.value);
-                          setIsDropdownOpen(false);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-700/50 transition-colors"
-                      >
-                        <DeviceIcon size={16} className={device.color} />
-                        <span className="text-sm text-white">{device.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+              {/* Portal-based dropdown to avoid overflow/z-index issues */}
+              {isDropdownOpen && createPortal(
+                <>
+                  {/* Backdrop to close dropdown */}
+                  <div 
+                    className="fixed inset-0 z-[100]" 
+                    onClick={() => setIsDropdownOpen(false)}
+                  />
+                  {/* Dropdown menu */}
+                  <div 
+                    className="fixed bg-gray-900 border border-gray-700 rounded-lg shadow-2xl overflow-hidden z-[101] animate-fade-in max-h-60 overflow-y-auto"
+                    style={{
+                      top: dropdownPosition.top,
+                      left: dropdownPosition.left,
+                      width: dropdownPosition.width,
+                    }}
+                  >
+                    {availableDevices.map((device) => {
+                      const DeviceIcon = device.icon;
+                      return (
+                        <button
+                          key={device.value}
+                          type="button"
+                          onClick={() => {
+                            addDeviceRule(device.value);
+                            setIsDropdownOpen(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-700/50 transition-colors"
+                        >
+                          <DeviceIcon size={16} className={device.color} />
+                          <span className="text-sm text-white">{device.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>,
+                document.body
               )}
             </div>
           )}

@@ -1,9 +1,11 @@
 import User from '../models/User.js';
 import Url from '../models/Url.js';
 import { trackVisit } from '../services/analyticsService.js';
-import { getFromCache, setInCache } from '../services/cacheService.js';
+import { getFromCache, setInCache, getSubscriptionCache, setSubscriptionCache } from '../services/cacheService.js';
 import { checkAndIncrementClickUsage } from '../middleware/subscriptionMiddleware.js';
 import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
+import { isLinkActive, getTimeBasedDestination } from '../services/timeService.js';
+import { hasFeature } from '../services/subscriptionService.js';
 
 // Helper to escape HTML to prevent XSS
 const escapeHtml = (unsafe) => {
@@ -1265,6 +1267,12 @@ export const redirectUrl = async (req, res, next) => {
                  }
             }
 
+            // Check if link is ready to go live (activeStartTime)
+            if (cached.activeStartTime && !isLinkActive(cached.activeStartTime)) {
+                // Return 404 - link doesn't exist yet (hidden)
+                return next();
+            }
+
             // Check if link has expired
             if (cached.expiresAt && new Date() > new Date(cached.expiresAt)) {
                 return res.status(410).send(getExpiredLinkPage(shortId, cached.expiresAt));
@@ -1285,6 +1293,29 @@ export const redirectUrl = async (req, res, next) => {
 
             // Async: Update clicks in DB (fire and forget)
             Url.findByIdAndUpdate(cached._id, { $inc: { clicks: 1 } }).exec();
+
+            // Time-Based Redirect logic (Pro/Business feature)
+            // Only apply if owner has time_redirects feature
+            if (cached.timeRedirects?.enabled && cached.ownerId) {
+                // Check subscription cache first (24h TTL)
+                let ownerSub = getSubscriptionCache(cached.ownerId.toString());
+                if (!ownerSub) {
+                    // Cache miss - fetch from DB and cache
+                    const owner = await User.findById(cached.ownerId).select('subscription role');
+                    if (owner) {
+                        ownerSub = { subscription: owner.subscription, role: owner.role };
+                        setSubscriptionCache(cached.ownerId.toString(), ownerSub);
+                    }
+                }
+                
+                if (ownerSub && (ownerSub.role === 'admin' || hasFeature(ownerSub, 'time_redirects'))) {
+                    const timeDestination = getTimeBasedDestination(cached.timeRedirects);
+                    if (timeDestination) {
+                        trackVisit(cached._id, req, { deviceMatchType: 'time_redirect' });
+                        return res.redirect(timeDestination);
+                    }
+                }
+            }
 
             // Device-based redirect logic
             const { targetUrl, deviceMatchType } = getDeviceRedirectUrl(cached, req.headers['user-agent']);
@@ -1352,6 +1383,12 @@ export const redirectUrl = async (req, res, next) => {
             return res.status(410).send(getInactiveLinkPage(shortId));
         }
 
+        // Check if link is ready to go live (activeStartTime)
+        if (url.activeStartTime && !isLinkActive(url.activeStartTime)) {
+            // Return 404 - link doesn't exist yet (hidden)
+            return next();
+        }
+
         // Check if link has expired
         if (url.expiresAt && new Date() > new Date(url.expiresAt)) {
             return res.status(410).send(getExpiredLinkPage(shortId, url.expiresAt));
@@ -1380,6 +1417,28 @@ export const redirectUrl = async (req, res, next) => {
 
         // Increment clicks
         Url.findByIdAndUpdate(url._id, { $inc: { clicks: 1 } }).exec();
+
+        // Time-Based Redirect logic (Pro/Business feature)
+        // Only apply if owner has time_redirects feature
+        if (url.timeRedirects?.enabled && url.createdBy) {
+            // Fetch owner subscription and cache it (24h TTL)
+            const ownerFull = await User.findById(url.createdBy).select('subscription role');
+            if (ownerFull) {
+                // Cache for future requests
+                setSubscriptionCache(url.createdBy.toString(), { 
+                    subscription: ownerFull.subscription, 
+                    role: ownerFull.role 
+                });
+                
+                if (ownerFull.role === 'admin' || hasFeature(ownerFull, 'time_redirects')) {
+                    const timeDestination = getTimeBasedDestination(url.timeRedirects);
+                    if (timeDestination) {
+                        trackVisit(url._id, req, { deviceMatchType: 'time_redirect' });
+                        return res.redirect(timeDestination);
+                    }
+                }
+            }
+        }
 
         // Device-based redirect logic
         const { targetUrl, deviceMatchType } = getDeviceRedirectUrl(url, req.headers['user-agent']);

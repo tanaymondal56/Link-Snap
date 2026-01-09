@@ -16,7 +16,7 @@ export const TIERS = {
     analyticsRetention: 365,
     features: ['custom_alias', 'link_expiration', 'password_protection', 
                'custom_datetime', 'custom_qr', 'api_access', 'geo_analytics', 
-               'utm_builder', 'bio_page', 'device_targeting', 'advanced_analytics']
+               'utm_builder', 'bio_page', 'device_targeting', 'advanced_analytics', 'time_redirects']
   },
   business: {
     name: 'Business',
@@ -27,7 +27,7 @@ export const TIERS = {
     features: ['custom_alias', 'link_expiration', 'password_protection',
                'custom_datetime', 'custom_qr', 'api_access', 'geo_analytics',
                'utm_builder', 'bio_page', 'ab_testing', 'device_redirects',
-               'device_targeting', 'team', 'webhooks', 'custom_domains', 'advanced_analytics']
+               'device_targeting', 'team', 'webhooks', 'custom_domains', 'advanced_analytics', 'time_redirects']
   }
 };
 

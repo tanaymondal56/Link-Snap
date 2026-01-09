@@ -10,9 +10,9 @@ export default defineConfig(async ({ mode }) => {
   const isDev = mode !== 'production'
 
   // Load dev plugins only in development
+  // Load dev plugins only in development
   const devPlugins = isDev ? [
-    (await import('vite-plugin-react-inspector')).default(),
-    (await import('vite-plugin-devtools')).default({})
+    // Plugins removed to declutter UI
   ] : []
 
   return {

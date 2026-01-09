@@ -84,6 +84,7 @@ pnpm-lock.yaml
 # Uncomment if you want to track these in git
 DOCs/
 feature-list/
+feature-docs/
 plans/
 fix-needed/
 My-VM-Automation/
