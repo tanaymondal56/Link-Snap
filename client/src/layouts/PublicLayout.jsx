@@ -8,7 +8,7 @@ import { hasTrustedDeviceMarker } from '../utils/deviceAuth';
 import PullToRefresh from '../components/PullToRefresh';
 
 const PublicLayout = () => {
-  const { user, logout, openAuthModal, isAdmin } = useAuth();
+  const { user, loading, logout, openAuthModal, isAdmin } = useAuth();
   const appVersion = useAppVersion();
   const [isWhitelistedIP, setIsWhitelistedIP] = useState(false);
   const [showNewBadge, setShowNewBadge] = useState(hasUnseenChangelog());
@@ -112,7 +112,13 @@ const PublicLayout = () => {
                 <Crown className="w-4 h-4" />
                 <span className="hidden sm:inline">Pricing</span>
               </Link>
-              {user ? (
+              {loading ? (
+                // Skeleton loading state - prevents flash of logged-out UI
+                <div className="flex items-center gap-2 sm:gap-3 animate-pulse">
+                  <div className="w-20 h-9 bg-gray-800 rounded-lg hidden sm:block"></div>
+                  <div className="w-24 h-9 bg-gradient-to-r from-blue-600/50 to-purple-600/50 rounded-lg"></div>
+                </div>
+              ) : user ? (
                 <>
                   {isAdmin && (
                     <Link

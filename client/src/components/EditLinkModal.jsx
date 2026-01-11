@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -15,7 +15,11 @@ import {
   EyeOff,
   Crown,
   Globe,
-  Info
+  Info,
+  ChevronUp,
+  ChevronDown,
+  ChevronRight,
+  ChevronLeft
 } from 'lucide-react';
 import api from '../api/axios';
 import showToast from '../components/ui/Toast';
@@ -133,6 +137,47 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
 
   // Tab state
   const [activeTab, setActiveTab] = useState('essentials');
+
+  // Scroll indicator state (content)
+  const scrollContainerRef = useRef(null);
+  const [showTopArrow, setShowTopArrow] = useState(false);
+  const [showBottomArrow, setShowBottomArrow] = useState(false);
+
+  // Tab scroll state (horizontal tabs)
+  const tabsRef = useRef(null);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(true);
+
+  // Check tab scroll position
+  const checkTabScroll = useCallback(() => {
+    const tabsEl = tabsRef.current;
+    if (!tabsEl) return;
+    const { scrollLeft, scrollWidth, clientWidth } = tabsEl;
+    setShowLeftArrow(scrollLeft > 10);
+    setShowRightArrow(scrollLeft + clientWidth < scrollWidth - 10);
+  }, []);
+
+  // Check on mount and resize
+  useEffect(() => {
+    checkTabScroll();
+    window.addEventListener('resize', checkTabScroll);
+    return () => window.removeEventListener('resize', checkTabScroll);
+  }, [checkTabScroll]);
+
+  // Check content scroll position
+  const checkScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    setShowTopArrow(scrollTop > 20);
+    setShowBottomArrow(scrollTop + clientHeight < scrollHeight - 20);
+  }, []);
+
+  // Check scroll when tab changes
+  useEffect(() => {
+    setTimeout(checkScroll, 100);
+  }, [activeTab, checkScroll]);
 
   // Calculate badges/indicators
   const settingsActive = (expiresAction !== 'keep' && expiresAction !== '') || passwordAction !== 'keep' || enableSchedule;
@@ -367,59 +412,93 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex p-2 gap-2 border-b border-gray-800 bg-gray-900/50 shrink-0 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('essentials')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === 'essentials' 
-                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' 
-                : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
-            }`}
-          >
-            <LinkIcon size={16} />
-            Essentials
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === 'settings' 
-                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' 
-                : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
-            }`}
-          >
-            <div className="relative">
-              <Lock size={16} />
-              {settingsActive && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-gray-900" />
-              )}
+        {/* Tabs with Bidirectional Scroll Indicators */}
+        <div className="relative shrink-0">
+          {/* Left scroll indicator */}
+          {showLeftArrow && (
+            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-gray-900 via-gray-900/90 to-transparent pointer-events-none z-10 sm:hidden flex items-center justify-start pl-1">
+              <ChevronLeft size={18} className="text-blue-400" strokeWidth={3} />
             </div>
-            Settings
-          </button>
+          )}
           
-          <button
-            onClick={() => setActiveTab('targeting')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === 'targeting' 
-                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' 
-                : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
-            }`}
+          <div 
+            ref={tabsRef}
+            onScroll={checkTabScroll}
+            className="flex p-2 gap-2 border-b border-gray-800 bg-gray-900/50 overflow-x-auto scrollbar-hide"
           >
-            <div className="relative">
-              <Globe size={16} />
-              {targetingActive && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-gray-900" />
-              )}
+            <button
+              onClick={() => setActiveTab('essentials')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === 'essentials' 
+                  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' 
+                  : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
+              }`}
+            >
+              <LinkIcon size={16} />
+              Essentials
+            </button>
+            
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === 'settings' 
+                  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' 
+                  : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
+              }`}
+            >
+              <div className="relative">
+                <Lock size={16} />
+                {settingsActive && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-gray-900" />
+                )}
+              </div>
+              Settings
+            </button>
+            
+            <button
+              onClick={() => setActiveTab('targeting')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === 'targeting' 
+                  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' 
+                  : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
+              }`}
+            >
+              <div className="relative">
+                <Globe size={16} />
+                {targetingActive && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-gray-900" />
+                )}
+              </div>
+              Targeting
+              <ProBadge className="ml-1 scale-75" />
+            </button>
+          </div>
+          
+          {/* Right scroll indicator */}
+          {showRightArrow && (
+            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-gray-900 via-gray-900/90 to-transparent pointer-events-none z-10 sm:hidden flex items-center justify-end pr-1">
+              <ChevronRight size={18} className="text-blue-400" strokeWidth={3} />
             </div>
-            Targeting
-            <ProBadge className="ml-1 scale-75" />
-          </button>
+          )}
         </div>
 
-        {/* Scrollable Content */}
-        <div className="overflow-y-auto p-6 space-y-6 custom-scrollbar flex-1">
+        {/* Scrollable Content with Scroll Indicators */}
+        <div className="relative flex-1 min-h-0">
+          {/* Top Scroll Indicator */}
+          {showTopArrow && (
+            <div className="absolute top-0 left-0 right-0 z-10 flex justify-center pointer-events-none">
+              <div className="bg-gradient-to-b from-gray-900 via-gray-900/90 to-transparent px-4 py-2 flex items-center gap-1 text-gray-400">
+                <ChevronUp size={16} className="animate-bounce" />
+                <span className="text-xs">Scroll up</span>
+              </div>
+            </div>
+          )}
           
+          <div 
+            ref={scrollContainerRef}
+            onScroll={checkScroll}
+            className="overflow-y-auto p-6 pb-8 space-y-6 custom-scrollbar h-full max-h-[calc(90vh-250px)]"
+          >
           {/* TAB 1: ESSENTIALS */}
           <div className={activeTab === 'essentials' ? 'space-y-6' : 'hidden'}>
             
@@ -773,6 +852,10 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
                         placeholder="Enter new password (min. 4 characters)"
                         autoComplete="new-password"
                         name="edit-link-password"
+                        id="edit-link-password-input"
+                        data-1p-ignore="true"
+                        data-lpignore="true"
+                        data-form-type="other"
                         className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
                         maxLength={100}
                       />
@@ -815,6 +898,17 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
 
           </div>
 
+          </div>
+          
+          {/* Bottom Scroll Indicator */}
+          {showBottomArrow && (
+            <div className="absolute bottom-0 left-0 right-0 z-10 flex justify-center pointer-events-none">
+              <div className="bg-gradient-to-t from-gray-900 via-gray-900/90 to-transparent px-4 py-2 flex items-center gap-1 text-gray-400">
+                <ChevronDown size={16} className="animate-bounce" />
+                <span className="text-xs">Scroll for more</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
