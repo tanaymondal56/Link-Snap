@@ -27,10 +27,21 @@ const DEVICE_OPTIONS = [
   { value: 'desktop', label: 'Desktop', icon: Monitor, color: 'text-amber-400', bg: 'bg-amber-500/20' },
 ];
 
-// Helper to validate URL
+// Helper to normalize URL (add https:// if missing)
+const normalizeUrl = (input) => {
+  if (!input) return '';
+  const trimmed = input.trim();
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
+};
+
+// Helper to validate URL (normalizes first)
 const isValidUrl = (input) => {
   if (!input) return false;
-  return /^https?:\/\/[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})+/.test(input);
+  const normalized = normalizeUrl(input);
+  return /^https?:\/\/[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})+/.test(normalized);
 };
 
 const DeviceTargetingSection = ({ 

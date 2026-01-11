@@ -339,7 +339,9 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       if (!deviceTargetingField.isLocked && deviceRedirects.rules.length > 0) {
         payload.deviceRedirects = {
           enabled: deviceRedirects.enabled,
-          rules: deviceRedirects.rules.filter(r => r.url && r.url.trim() !== ''),
+          rules: deviceRedirects.rules
+            .filter(r => r.url && r.url.trim() !== '')
+            .map(r => ({ ...r, url: normalizeUrl(r.url) })),
         };
       }
 
@@ -359,7 +361,9 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
         payload.timeRedirects = {
           enabled: true,
           timezone: timeRedirects.timezone,
-          rules: timeRedirects.rules.filter(r => r.destination && r.startTime && r.endTime),
+          rules: timeRedirects.rules
+            .filter(r => r.destination && r.startTime && r.endTime)
+            .map(r => ({ ...r, destination: normalizeUrl(r.destination) })),
         };
       }
 

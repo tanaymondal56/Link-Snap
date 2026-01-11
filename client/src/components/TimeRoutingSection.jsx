@@ -41,10 +41,21 @@ const DAY_OPTIONS = [
   { value: 6, short: 'S', label: 'Saturday' },
 ];
 
-// Helper to validate URL
+// Helper to normalize URL (add https:// if missing)
+const normalizeUrl = (input) => {
+  if (!input) return '';
+  const trimmed = input.trim();
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
+};
+
+// Helper to validate URL (normalizes first)
 const isValidUrl = (input) => {
   if (!input) return false;
-  return /^https?:\/\/.+/.test(input);
+  const normalized = normalizeUrl(input);
+  return /^https?:\/\/[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})+/.test(normalized);
 };
 
 const TimeRoutingSection = ({ 
@@ -82,7 +93,9 @@ const TimeRoutingSection = ({
     if (isLocked) return;
     
     const newRules = [...timeRedirects.rules];
-    newRules[index] = { ...newRules[index], [field]: value };
+    // Normalize destination URLs when field is 'destination'
+    const finalValue = field === 'destination' && value ? value : value;
+    newRules[index] = { ...newRules[index], [field]: finalValue };
     setTimeRedirects({ ...timeRedirects, rules: newRules });
   };
 
