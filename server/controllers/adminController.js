@@ -12,6 +12,7 @@ import sendEmail from '../utils/sendEmail.js';
 import { suspensionEmail, reactivationEmail, appealDecisionEmail, testEmail } from '../utils/emailTemplates.js';
 import { escapeRegex } from '../utils/regexUtils.js';
 import { generateUserIdentity } from '../services/idService.js';
+import { scanPendingLinks, scanUncheckedLinks } from '../services/safeBrowsingService.js';
 
 // Helper function to calculate ban expiry date
 const calculateBanExpiry = (duration) => {
@@ -426,17 +427,32 @@ export const updateSettings = async (req, res, next) => {
         }
 
         const {
-            requireEmailVerification,
-            emailProvider,
-            emailUsername,
             emailPassword,
             smtpHost,
             smtpPort,
-            smtpSecure
+            smtpSecure,
+            safeBrowsingEnabled,
+            safeBrowsingAutoCheck
         } = req.body;
 
         if (requireEmailVerification !== undefined) {
             settings.requireEmailVerification = requireEmailVerification;
+        }
+
+        if (safeBrowsingEnabled !== undefined) {
+            settings.safeBrowsingEnabled = safeBrowsingEnabled;
+        }
+
+        if (safeBrowsingAutoCheck !== undefined) {
+             settings.safeBrowsingAutoCheck = safeBrowsingAutoCheck;
+        }
+
+        if (safeBrowsingEnabled !== undefined) {
+            settings.safeBrowsingEnabled = safeBrowsingEnabled;
+        }
+
+        if (safeBrowsingAutoCheck !== undefined) {
+             settings.safeBrowsingAutoCheck = safeBrowsingAutoCheck;
         }
 
         if (emailProvider !== undefined) {
@@ -1121,8 +1137,30 @@ export const getUsernameHistory = async (req, res, next) => {
 
         res.json({
             currentUsername: user.username,
-            usernameChangedAt: user.usernameChangedAt,
-            history
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Trigger Manual Safety Scan
+// @route   POST /api/admin/safety/scan
+// @access  Admin
+export const triggerSafetyScan = async (req, res, next) => {
+    try {
+        const { type } = req.body; // 'pending' or 'unchecked'
+
+        let result;
+        if (type === 'pending') {
+            result = await scanPendingLinks();
+        } else if (type === 'unchecked') {
+            result = await scanUncheckedLinks();
+        } else {
+             return res.status(400).json({ message: 'Invalid scan type. Use "pending" or "unchecked".' });
+        }
+
+        res.json({ 
+            message: 'Scan completed', 
+            details: result 
         });
     } catch (error) {
         next(error);

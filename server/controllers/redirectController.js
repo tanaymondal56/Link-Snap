@@ -6,6 +6,7 @@ import { checkAndIncrementClickUsage } from '../middleware/subscriptionMiddlewar
 import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
 import { isLinkActive, getTimeBasedDestination } from '../services/timeService.js';
 import { hasFeature } from '../services/subscriptionService.js';
+import { sanitizeAlias } from '../utils/urlSecurity.js';
 
 // Helper to escape HTML to prevent XSS
 const escapeHtml = (unsafe) => {
@@ -1393,6 +1394,13 @@ const getLimitReachedPage = () => `
 
 export const redirectUrl = async (req, res, next) => {
     const { shortId } = req.params;
+
+    // Security: NoSQL Injection Prevention - Validate shortId contains only safe characters
+    const aliasCheck = sanitizeAlias(shortId);
+    if (!aliasCheck.valid) {
+        // Invalid alias format - treat as not found
+        return next();
+    }
 
     try {
         // 1. Check cache first (fast path)

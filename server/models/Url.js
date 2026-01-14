@@ -36,6 +36,18 @@ const urlSchema = new mongoose.Schema({
     qrCode: {
         type: String, // Base64 string or URL
     },
+    // Safe Browsing Status
+    safetyStatus: {
+        type: String,
+        enum: ['pending', 'safe', 'malware', 'phishing', 'unwanted', 'unchecked'],
+        default: 'pending',
+    },
+    safetyDetails: {
+        type: String, // Stores threat type or API errors
+    },
+    lastCheckedAt: {
+        type: Date,
+    },
     // Link Expiration
     expiresAt: {
         type: Date,
@@ -103,6 +115,8 @@ urlSchema.index({ createdBy: 1, createdAt: -1 });
 // Indexes for background cleanup and scheduling
 urlSchema.index({ expiresAt: 1 }, { sparse: true });
 urlSchema.index({ activeStartTime: 1 }, { sparse: true });
+urlSchema.index({ safetyStatus: 1 }); // Optimize background scans
+urlSchema.index({ lastCheckedAt: 1 }); // Optimize retry logic
 
 const Url = mongoose.model('Url', urlSchema);
 

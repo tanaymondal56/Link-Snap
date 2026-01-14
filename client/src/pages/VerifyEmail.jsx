@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api, { setAccessToken } from '../api/axios';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';

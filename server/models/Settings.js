@@ -99,6 +99,15 @@ const settingsSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    // Safe Browsing Configuration
+    safeBrowsingEnabled: {
+        type: Boolean,
+        default: false, // Disabled by default until API key is provided
+    },
+    safeBrowsingAutoCheck: {
+        type: Boolean,
+        default: true, // Auto-check new links immediately
+    },
 }, { timestamps: true });
 
 // Pre-save hook to encrypt password and set emailConfigured

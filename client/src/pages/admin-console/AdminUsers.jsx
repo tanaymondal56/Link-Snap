@@ -27,7 +27,7 @@ import { formatDate } from '../../utils/dateUtils';
 import BanUserModal from '../../components/BanUserModal';
 import UnbanUserModal from '../../components/UnbanUserModal';
 import { useConfirm } from '../../context/ConfirmContext';
-import showToast from '../../components/ui/Toast';
+import showToast from '../../utils/toastUtils';
 
 import CreateUserModal from '../../components/admin-console/CreateUserModal';
 import ManageSubscriptionModal from '../../components/admin-console/ManageSubscriptionModal';

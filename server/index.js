@@ -33,6 +33,7 @@ import redirectRoutes from './routes/redirectRoutes.js';
 import bioRoutes from './routes/bioRoutes.js';
 import deviceAuthRoutes from './routes/deviceAuthRoutes.js';
 import { startBanScheduler } from './services/banScheduler.js';
+import { startCronJobs } from './services/cronService.js';
 
 const app = express();
 
@@ -278,6 +279,9 @@ const startServer = async () => {
 
       // Start the temporary ban scheduler
       startBanScheduler();
+      
+      // Start background cron jobs (Safe Browsing, etc.)
+      startCronJobs();
     });
   } catch (error) {
     logger.error(`Failed to start server: ${error.message}`);

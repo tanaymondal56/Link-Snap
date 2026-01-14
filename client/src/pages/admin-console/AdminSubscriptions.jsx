@@ -23,7 +23,7 @@ import {
   Edit2
 } from 'lucide-react';
 import api from '../../api/axios';
-import showToast from '../../components/ui/Toast';
+import showToast from '../../utils/toastUtils';
 import { formatDate } from '../../utils/dateUtils';
 import { useDialog } from '../../components/ui/DialogProvider';
 import GlassTable from '../../components/admin-console/ui/GlassTable';

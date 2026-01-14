@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import BentoCard from '../../components/admin-console/ui/BentoCard';
 import api from '../../api/axios';
-import showToast from '../../components/ui/Toast';
+import showToast from '../../utils/toastUtils';
 
 const AdminSettings = () => {
   const [loading, setLoading] = useState(true);
@@ -175,6 +175,98 @@ const AdminSettings = () => {
                 />
               </button>
             </div>
+            
+            {/* Safe Browsing Config */}
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
+              <div>
+                <h3 className="font-medium text-white">Safe Browsing Integration</h3>
+                <p className="text-sm text-gray-400">Check links for malware/phishing (Google API)</p>
+              </div>
+              <button 
+                onClick={async () => {
+                    try {
+                        const newValue = !settings.safeBrowsingEnabled;
+                        const { data } = await api.patch('/admin/settings', { safeBrowsingEnabled: newValue });
+                        setSettings(data);
+                        showToast.success(`Safe Browsing ${newValue ? 'enabled' : 'disabled'}`);
+                    } catch {
+                        showToast.error('Failed to update settings');
+                    }
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900 ${
+                  settings.safeBrowsingEnabled ? 'bg-blue-600' : 'bg-gray-700'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    settings.safeBrowsingEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {settings.safeBrowsingEnabled && (
+                <>
+                <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
+                  <div>
+                    <h3 className="font-medium text-white">Auto-Check New Links</h3>
+                    <p className="text-sm text-gray-400">Scan immediately upon creation</p>
+                  </div>
+                  <button 
+                    onClick={async () => {
+                        try {
+                            const newValue = !settings.safeBrowsingAutoCheck;
+                            const { data } = await api.patch('/admin/settings', { safeBrowsingAutoCheck: newValue });
+                            setSettings(data);
+                            showToast.success(`Auto-check ${newValue ? 'enabled' : 'disabled'}`);
+                        } catch {
+                            showToast.error('Failed to update settings');
+                        }
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900 ${
+                      settings.safeBrowsingAutoCheck ? 'bg-blue-600' : 'bg-gray-700'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        settings.safeBrowsingAutoCheck ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                     <button
+                        onClick={async () => {
+                            try {
+                                showToast.loading('Scanning unchecked links...');
+                                const { data } = await api.post('/admin/settings/scan', { type: 'unchecked' });
+                                showToast.success(`Scan complete: Processed ${data.details?.processed || 0} links`);
+                            } catch (err) {
+                                showToast.error('Scan failed');
+                            }
+                        }}
+                        className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium text-gray-300 transition-colors"
+                     >
+                        Scan Unchecked
+                     </button>
+                     <button
+                        onClick={async () => {
+                            try {
+                                showToast.loading('Retrying failed scans...');
+                                const { data } = await api.post('/admin/settings/scan', { type: 'pending' });
+                                showToast.success(`Retry complete: Processed ${data.details?.processed || 0} links`);
+                            } catch (err) {
+                                showToast.error('Retry failed');
+                            }
+                        }}
+                        className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium text-gray-300 transition-colors"
+                     >
+                        Retry Pending
+                     </button>
+                </div>
+                </>
+            )}
             {/* Add more toggles here */}
           </div>
         </BentoCard>

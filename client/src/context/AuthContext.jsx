@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api, { setAccessToken } from '../api/axios';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 
 const AuthContext = createContext();
 

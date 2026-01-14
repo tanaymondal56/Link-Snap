@@ -22,7 +22,8 @@ import {
     updateFeedback,
     deleteFeedback,
     exportFeedbackCSV,
-    getUsernameHistory
+    getUsernameHistory,
+    triggerSafetyScan
 } from '../controllers/adminController.js';
 import { getAllLinks, updateLinkStatus, deleteLinkAdmin } from '../controllers/adminLinkController.js';
 import { 
@@ -68,6 +69,7 @@ router.get('/settings', getSettings);
 router.put('/settings', updateSettings);
 router.patch('/settings', updateSettings);  // Support partial updates
 router.post('/settings/test-email', testEmailConfiguration);
+router.post('/settings/scan', triggerSafetyScan);
 
 // Cache
 router.post('/cache/clear', clearUrlCache);

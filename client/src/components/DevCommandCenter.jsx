@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { toast } from 'react-hot-toast';
+import showToast from '../utils/toastUtils';
 import { useNavigate } from 'react-router-dom';
 import {
   Terminal,
@@ -29,7 +29,12 @@ import {
   Link2,
   Share2,
   UserX,
-  UserPlus
+  UserPlus,
+  Bell,
+  CheckCircle,
+  AlertTriangle,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import api from '../api/axios';
 
@@ -87,9 +92,9 @@ const DevCommandCenter = () => {
   // Commands - simplified and working
   const commands = useMemo(() => [
     // Quick Actions
-    { id: 'share-url', label: 'Copy Page URL', icon: Share2, action: () => { navigator.clipboard.writeText(window.location.href); toast.success('URL copied!'); }, category: 'Quick', keywords: 'copy link share' },
+    { id: 'share-url', label: 'Copy Page URL', icon: Share2, action: () => { navigator.clipboard.writeText(window.location.href); showToast.success('URL copied!'); }, category: 'Quick', keywords: 'copy link share' },
     { id: 'create-link', label: 'Create New Link', icon: Link2, action: () => navigate('/dashboard'), category: 'Quick', keywords: 'shorten url' },
-    { id: 'qr-code', label: 'Copy Page URL (QR)', icon: Share2, action: () => { navigator.clipboard.writeText(window.location.href); toast.success('URL copied! Use any QR generator.'); }, category: 'Quick', keywords: 'qrcode scan share' },
+    { id: 'qr-code', label: 'Copy Page URL (QR)', icon: Share2, action: () => { navigator.clipboard.writeText(window.location.href); showToast.success('URL copied! Use any QR generator.'); }, category: 'Quick', keywords: 'qrcode scan share' },
     
     // Navigation
     { id: 'admin-console', label: 'Admin Console', icon: Shield, action: () => navigate('/admin-console'), category: 'Navigation', keywords: 'admin panel' },
@@ -109,7 +114,7 @@ const DevCommandCenter = () => {
       label: 'Empty Cache & Hard Reload', 
       icon: RefreshCw, 
       action: async () => {
-        const toastId = toast.loading('Cleaning caches...');
+        const toastId = showToast.loading('Cleaning caches...');
         
         try {
           // 1. Clear Cache Storage API (Service Worker caches)
@@ -129,7 +134,7 @@ const DevCommandCenter = () => {
           // 3. Clear Local Forage (if used) or standard storages if requested (preserving for now as this is "Cache" reload)
           // We don't clear localStorage/sessionStorage here as that's separate commands.
 
-          toast.success('Clean! Reloading...', { id: toastId });
+          showToast.success('Clean! Reloading...', { id: toastId });
           
           // 4. Force Reload
           setTimeout(() => window.location.reload(), 500);
@@ -142,11 +147,11 @@ const DevCommandCenter = () => {
       category: 'Dev', 
       keywords: 'refresh clean hard' 
     },
-    { id: 'clear-local', label: 'Clear Local Storage', icon: Trash2, action: () => { localStorage.clear(); toast.loading('Cleared! Reloading...'); setTimeout(() => window.location.reload(), 1000); }, category: 'Dev', danger: true, keywords: 'reset' },
-    { id: 'clear-session', label: 'Clear Session Storage', icon: Database, action: () => { sessionStorage.clear(); toast.loading('Cleared! Reloading...'); setTimeout(() => window.location.reload(), 1000); }, category: 'Dev', danger: true, keywords: 'reset' },
+    { id: 'clear-local', label: 'Clear Local Storage', icon: Trash2, action: () => { localStorage.clear(); showToast.loading('Cleared! Reloading...'); setTimeout(() => window.location.reload(), 1000); }, category: 'Dev', danger: true, keywords: 'reset' },
+    { id: 'clear-session', label: 'Clear Session Storage', icon: Database, action: () => { sessionStorage.clear(); showToast.loading('Cleared! Reloading...'); setTimeout(() => window.location.reload(), 1000); }, category: 'Dev', danger: true, keywords: 'reset' },
     { id: 'force-logout', label: 'Force Logout', icon: LogOut, action: () => { localStorage.clear(); document.cookie.split(";").forEach(c => document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")); window.location.href = '/login'; }, category: 'Dev', danger: true, keywords: 'signout' },
-    { id: 'clear-recent', label: 'Clear Recent', icon: XCircle, action: () => { localStorage.removeItem('dev_recent_commands'); setRecentCommands([]); toast.success('Recent commands cleared'); }, category: 'Dev', keywords: 'history' },
-    { id: 'fullscreen', label: 'Toggle Fullscreen', icon: MonitorSmartphone, action: () => { try { if (document.fullscreenElement) { document.exitFullscreen(); } else { document.documentElement.requestFullscreen().catch(() => toast.error('Fullscreen not supported')); } } catch { toast.error('Fullscreen not supported'); } }, category: 'Dev', keywords: 'full screen maximize' },
+    { id: 'clear-recent', label: 'Clear Recent', icon: XCircle, action: () => { localStorage.removeItem('dev_recent_commands'); setRecentCommands([]); showToast.success('Recent commands cleared'); }, category: 'Dev', keywords: 'history' },
+    { id: 'fullscreen', label: 'Toggle Fullscreen', icon: MonitorSmartphone, action: () => { try { if (document.fullscreenElement) { document.exitFullscreen(); } else { document.documentElement.requestFullscreen().catch(() => showToast.error('Fullscreen not supported')); } } catch { showToast.error('Fullscreen not supported'); } }, category: 'Dev', keywords: 'full screen maximize' },
     
     // Debug
     { 
@@ -171,7 +176,7 @@ const DevCommandCenter = () => {
       category: 'Debug', 
       keywords: 'time' 
     },
-    { id: 'copy-token', label: 'Copy Auth Token', icon: Copy, action: () => { const token = document.cookie.match(/jwt=([^;]+)/)?.[1] || localStorage.getItem('token') || 'No token'; navigator.clipboard.writeText(token); toast(token !== 'No token' ? 'Token copied!' : 'No token found', { icon: token !== 'No token' ? '🔑' : '❌' }); }, category: 'Debug', keywords: 'jwt auth' },
+    { id: 'copy-token', label: 'Copy Auth Token', icon: Copy, action: () => { const token = document.cookie.match(/jwt=([^;]+)/)?.[1] || localStorage.getItem('token') || 'No token'; navigator.clipboard.writeText(token); showToast.info(token !== 'No token' ? 'Token copied!' : 'No token found', { icon: token !== 'No token' ? '🔑' : '❌' }); }, category: 'Debug', keywords: 'jwt auth' },
     { 
       id: 'viewport-info', 
       label: 'Show Viewport Info', 
@@ -188,10 +193,10 @@ const DevCommandCenter = () => {
       action: async () => {
         try {
           await api.post('/dev/subscription/upgrade');
-          toast.success('Dev: Upgraded to Pro');
+          showToast.success('Dev: Upgraded to Pro');
           setTimeout(() => window.location.reload(), 1000);
         } catch (e) {
-          toast.error(e.response?.data?.message || 'Failed. Is server in Dev mode?');
+          showToast.error(e.response?.data?.message || 'Failed. Is server in Dev mode?');
         }
       }, 
       category: 'Dev', 
@@ -204,10 +209,10 @@ const DevCommandCenter = () => {
       action: async () => {
         try {
           await api.post('/dev/subscription/reset');
-          toast.success('Dev: Reset + Wiped History');
+          showToast.success('Dev: Reset + Wiped History');
           setTimeout(() => window.location.reload(), 1000);
         } catch (e) {
-          toast.error(e.response?.data?.message || 'Failed. Is server in Dev mode?');
+          showToast.error(e.response?.data?.message || 'Failed. Is server in Dev mode?');
         }
       }, 
       category: 'Dev', 
@@ -221,10 +226,10 @@ const DevCommandCenter = () => {
       action: async () => {
         try {
           await api.post('/dev/subscription/reset?keepHistory=true');
-          toast.success('Dev: Reset (History Kept)');
+          showToast.success('Dev: Reset (History Kept)');
           setTimeout(() => window.location.reload(), 1000);
         } catch (e) {
-          toast.error(e.response?.data?.message || 'Failed. Is server in Dev mode?');
+          showToast.error(e.response?.data?.message || 'Failed. Is server in Dev mode?');
         }
       }, 
       category: 'Dev', 
@@ -237,9 +242,9 @@ const DevCommandCenter = () => {
       action: async () => {
         try {
           await api.post('/dev/subscription/clear-history');
-          toast.success('Dev: Codes Recycled (Tier Kept)');
+          showToast.success('Dev: Codes Recycled (Tier Kept)');
         } catch (e) {
-          toast.error(e.response?.data?.message || 'Failed. Is server in Dev mode?');
+          showToast.error(e.response?.data?.message || 'Failed. Is server in Dev mode?');
         }
       }, 
       category: 'Dev', 
@@ -256,7 +261,7 @@ const DevCommandCenter = () => {
       category: 'Debug', 
       keywords: 'connection speed' 
     },
-    { id: 'perf-timing', label: 'Page Load Time', icon: Clock, action: () => { const perf = performance.getEntriesByType('navigation')[0]; const loadTime = perf ? Math.round(perf.loadEventEnd - perf.startTime) : 'N/A'; toast.success(`Page load: ${loadTime}ms`, { icon: '⚡' }); }, category: 'Debug', keywords: 'performance speed' },
+    { id: 'perf-timing', label: 'Page Load Time', icon: Clock, action: () => { const perf = performance.getEntriesByType('navigation')[0]; const loadTime = perf ? Math.round(perf.loadEventEnd - perf.startTime) : 'N/A'; showToast.success(`Page load: ${loadTime}ms`, { icon: '⚡' }); }, category: 'Debug', keywords: 'performance speed' },
     { id: 'scroll-top', label: 'Scroll to Top', icon: CornerDownLeft, action: () => window.scrollTo({ top: 0, behavior: 'smooth' }), category: 'Debug', keywords: 'up' },
     { id: 'scroll-bottom', label: 'Scroll to Bottom', icon: CornerDownLeft, action: () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), category: 'Debug', keywords: 'down' },
     
@@ -275,7 +280,96 @@ const DevCommandCenter = () => {
       category: 'Help', 
       keywords: 'keys' 
     },
-    { id: 'help-about', label: 'About', icon: Info, action: () => { toast('Dev Command Center v2.1', { icon: '🛠️' }); }, category: 'Help', keywords: 'info' },
+    { id: 'help-about', label: 'About', icon: Info, action: () => { showToast.info('Dev Command Center v2.1', 'About'); }, category: 'Help', keywords: 'info' },
+    
+    // Toast Demo
+    { 
+      id: 'toast-success', 
+      label: 'Toast: Success', 
+      icon: CheckCircle, 
+      action: () => showToast.success('Your link was created successfully!', 'Link Created'), 
+      category: 'Toast Demo', 
+      keywords: 'notification alert' 
+    },
+    { 
+      id: 'toast-error', 
+      label: 'Toast: Error', 
+      icon: XCircle, 
+      action: () => showToast.error('Failed to create link. Please try again.', 'Creation Failed'), 
+      category: 'Toast Demo', 
+      keywords: 'notification alert' 
+    },
+    { 
+      id: 'toast-warning', 
+      label: 'Toast: Warning', 
+      icon: AlertTriangle, 
+      action: () => showToast.warning("You're approaching your monthly limit (80/100).", 'Usage Warning'), 
+      category: 'Toast Demo', 
+      keywords: 'notification alert' 
+    },
+    { 
+      id: 'toast-info', 
+      label: 'Toast: Info', 
+      icon: Info, 
+      action: () => showToast.info('Your links will expire in 7 days.', 'Good to Know'), 
+      category: 'Toast Demo', 
+      keywords: 'notification alert' 
+    },
+    { 
+      id: 'toast-loading', 
+      label: 'Toast: Loading', 
+      icon: Loader2, 
+      action: () => { 
+        const id = showToast.loading('Creating your short link...', 'Please Wait');
+        setTimeout(() => {
+          showToast.dismiss(id);
+          showToast.success('Link created!', 'Done');
+        }, 2500);
+      }, 
+      category: 'Toast Demo', 
+      keywords: 'notification spinner' 
+    },
+    { 
+      id: 'toast-upgrade', 
+      label: 'Toast: Upgrade Prompt', 
+      icon: Sparkles, 
+      action: () => showToast.upgrade(
+        'Unlock custom aliases, advanced analytics, and more!', 
+        'Upgrade to Pro ✨',
+        [{ label: 'View Plans', icon: 'arrow', onClick: () => console.log('Navigate to pricing') }]
+      ), 
+      category: 'Toast Demo', 
+      keywords: 'notification premium' 
+    },
+    { 
+      id: 'toast-limit', 
+      label: 'Toast: Limit Reached', 
+      icon: Zap, 
+      action: () => showToast.limit(
+        'You have 25 active links. Delete some to create more.', 
+        'Active Limit Reached 📊',
+        [
+          { label: 'Manage Links', icon: 'arrow', onClick: () => console.log('Navigate to dashboard') },
+          { label: 'Upgrade', onClick: () => console.log('Navigate to pricing') }
+        ]
+      ), 
+      category: 'Toast Demo', 
+      keywords: 'notification quota' 
+    },
+    { 
+      id: 'toast-all', 
+      label: 'Toast: Show All Types', 
+      icon: Bell, 
+      action: () => {
+        showToast.success('Success notification', 'Success');
+        setTimeout(() => showToast.error('Error notification', 'Error'), 300);
+        setTimeout(() => showToast.warning('Warning notification', 'Warning'), 600);
+        setTimeout(() => showToast.info('Info notification', 'Info'), 900);
+        setTimeout(() => showToast.upgrade('Upgrade prompt', 'Upgrade'), 1200);
+      }, 
+      category: 'Toast Demo', 
+      keywords: 'notification demo all' 
+    },
   ], [navigate]);
 
   // Add recent commands to top
@@ -492,7 +586,7 @@ const DevCommandCenter = () => {
               </div>
               <div className="flex items-center gap-2">
                 <button 
-                  onClick={() => { navigator.clipboard.writeText(logResult.content); toast.success('Copied!'); }}
+                  onClick={() => { navigator.clipboard.writeText(logResult.content); showToast.success('Copied!'); }}
                   className="p-1.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white transition-colors"
                   title="Copy to clipboard"
                 >

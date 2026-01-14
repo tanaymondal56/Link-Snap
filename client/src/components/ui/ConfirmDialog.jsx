@@ -53,6 +53,7 @@ export const ConfirmDialog = ({
   isOpen, 
   onClose, 
   onConfirm, 
+  onCancel, // New prop for distinct secondary action
   // Direct props support
   title,
   message,
@@ -70,6 +71,9 @@ export const ConfirmDialog = ({
   const finalMessage = config.message || message || 'This action cannot be undone.';
   const finalConfirmText = config.confirmText || confirmText;
   const finalCancelText = config.cancelText || cancelText;
+  
+  // Use config.onCancel if provided, otherwise prop onCancel, otherwise fall back to onClose
+  const handleSecondaryAction = config.onCancel || onCancel || onClose;
 
   const activeVariant = variants[finalVariant] || variants.danger;
   const IconComponent = config.icon || activeVariant.icon;
@@ -119,7 +123,7 @@ export const ConfirmDialog = ({
           {/* Buttons */}
           <div className="flex gap-3">
             <button
-              onClick={onClose}
+              onClick={handleSecondaryAction}
               className="flex-1 px-4 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white font-medium rounded-xl transition-all duration-200 border border-gray-700"
             >
               {finalCancelText}

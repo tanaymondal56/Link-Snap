@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CreditCard, Zap, BarChart3, CheckCircle, RefreshCw, Gift, Loader2, AlertTriangle, ArrowRight, X } from 'lucide-react';
 import { formatDate } from '../../utils/dateUtils';
-import showToast from '../ui/Toast';
+import showToast from '../../utils/toastUtils';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import api from '../../api/axios';

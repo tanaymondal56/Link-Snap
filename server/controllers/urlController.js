@@ -1,5 +1,7 @@
 import Url from '../models/Url.js';
 import User from '../models/User.js';
+import { extractDomain } from '../utils/urlUtils.js';
+import { isCircularRedirect } from '../utils/urlSecurity.js';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { invalidateCache } from '../services/cacheService.js';
@@ -8,6 +10,9 @@ import { incrementLinkUsage } from '../middleware/subscriptionMiddleware.js';
 import { hasFeature } from '../services/subscriptionService.js';
 import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
 import { trackVisit } from '../services/analyticsService.js';
+import Settings from '../models/Settings.js';
+import { checkUrlsSafety } from '../services/safeBrowsingService.js';
+// Note: validateUrlSecurity available from '../utils/urlSecurity.js' for future outbound request protection
 
 // Extract domain from URL (safe - no network request)
 const extractDomain = (url) => {
@@ -131,6 +136,18 @@ const createShortUrl = async (req, res, next) => {
 
         const { originalUrl, customAlias, title, expiresIn, expiresAt, password } = result.data;
         const userId = req.user ? req.user._id : null;
+
+        // Note: SSRF protection NOT needed here because:
+        // 1. We only STORE the URL, we don't fetch it server-side
+        // 2. Redirects are 302s - the USER's browser makes the request, not our server
+        // If we ever add features that make server-side requests (link preview, validation),
+        // use validateUrlSecurity() from utils/urlSecurity.js
+        
+        // Prevent Circular Redirects (Loop Protection)
+        if (isCircularRedirect(originalUrl)) {
+             res.status(400);
+             throw new Error('You cannot shorten a URL that points to this service (Infinite Loop Prevention)');
+        }
 
         // Check Feature: Custom Alias
         if (customAlias) {
@@ -281,10 +298,45 @@ const createShortUrl = async (req, res, next) => {
         });
 
         // Return without passwordHash (already excluded by select: false)
-        // Increment usage for registered users
-        if (req.user) {
-            await incrementLinkUsage(req.user._id);
-        }
+        // Increment usage for both Anonymous and Registered users (Fire-and-forget)
+        incrementLinkUsage(req).catch(err => console.error('[Usage Tracking Error]', err));
+
+        // Safe Browsing Check (Async / Fire-and-forget)
+        (async () => {
+            try {
+                const settings = await Settings.findOne();
+                if (settings?.safeBrowsingAutoCheck) {
+                    // Collect ALL URLs to check
+                    const urlsToCheck = [originalUrl];
+                    
+                    if (deviceRedirectsData?.rules) {
+                        deviceRedirectsData.rules.forEach(r => { if(r.url) urlsToCheck.push(r.url); });
+                    }
+                    if (timeRedirectsData?.rules) {
+                        timeRedirectsData.rules.forEach(r => { if(r.destination) urlsToCheck.push(r.destination); });
+                    }
+
+                    const safetyResult = await checkUrlsSafety(urlsToCheck);
+                    
+                    if (safetyResult.status !== 'safe' && safetyResult.status !== 'pending') {
+                         await Url.findByIdAndUpdate(newUrl._id, {
+                             safetyStatus: safetyResult.status,
+                             safetyDetails: safetyResult.details,
+                             lastCheckedAt: new Date()
+                         });
+                    } else if (safetyResult.status === 'safe') {
+                         await Url.findByIdAndUpdate(newUrl._id, {
+                             safetyStatus: 'safe',
+                             lastCheckedAt: new Date()
+                         });
+                    }
+                } else {
+                    await Url.findByIdAndUpdate(newUrl._id, { safetyStatus: 'unchecked' });
+                }
+            } catch (err) {
+                 console.error('[SafeBrowsing] Async check failed:', err.message);
+            }
+        })();
 
         // Return without passwordHash (already excluded by select: false)
         res.status(201).json(newUrl);
@@ -354,6 +406,19 @@ const deleteUrl = async (req, res, next) => {
         }
 
         await url.deleteOne();
+
+        // Decrement Active Count for logged-in users
+        // Hard limit (total created) is NEVER decremented
+        if (req.user) {
+            await User.findByIdAndUpdate(req.user._id, {
+                $inc: { 'linkUsage.count': -1 }
+            });
+            // Ensure count doesn't go below zero (safety net)
+             await User.findByIdAndUpdate(req.user._id, {
+                $max: { 'linkUsage.count': 0 }
+            });
+        }
+
         res.json({ message: 'URL removed' });
     } catch (error) {
         next(error);
@@ -553,6 +618,12 @@ const updateUrl = async (req, res, next) => {
                 invalidateCache(url.customAlias);
             }
             updateFields.originalUrl = originalUrl;
+            
+            // Security: Reset safety status to trigger re-check
+            // If we don't do this, a user could swap a safe URL for a malware one 
+            // and keep the "safe" badge.
+            updateFields.safetyStatus = 'pending';
+            updateFields.safetyDetails = null;
         }
 
         if (title !== undefined) {
@@ -713,6 +784,51 @@ const updateUrl = async (req, res, next) => {
         );
 
         res.json(updatedUrl);
+
+        // Post-Update: Trigger Safety Check if URL changed
+        // We now check ALL fields (Original + Redirects) if ANY changed.
+        // Simply checking everything is safer and easier than diffing.
+        const shouldScan = originalUrl || deviceRedirects !== undefined || timeRedirects !== undefined;
+        
+        if (shouldScan) {
+             (async () => {
+                try {
+                    const settings = await Settings.findOne();
+                    if (settings?.safeBrowsingAutoCheck) {
+                        // Re-fetch updated document to get unified view
+                        const fullDoc = await Url.findById(url._id);
+                        if (!fullDoc) return;
+
+                        const urlsToCheck = [fullDoc.originalUrl];
+                         if (fullDoc.deviceRedirects?.enabled && fullDoc.deviceRedirects.rules) {
+                            fullDoc.deviceRedirects.rules.forEach(r => { if(r.url) urlsToCheck.push(r.url); });
+                        }
+                        if (fullDoc.timeRedirects?.enabled && fullDoc.timeRedirects.rules) {
+                            fullDoc.timeRedirects.rules.forEach(r => { if(r.destination) urlsToCheck.push(r.destination); });
+                        }
+
+                        const safetyResult = await checkUrlsSafety(urlsToCheck);
+                        
+                        if (safetyResult.status !== 'safe' && safetyResult.status !== 'pending') {
+                                await Url.findByIdAndUpdate(url._id, {
+                                    safetyStatus: safetyResult.status,
+                                    safetyDetails: safetyResult.details,
+                                    lastCheckedAt: new Date()
+                                });
+                        } else if (safetyResult.status === 'safe') {
+                                await Url.findByIdAndUpdate(url._id, {
+                                    safetyStatus: 'safe',
+                                    lastCheckedAt: new Date()
+                                });
+                        }
+                    } else {
+                        await Url.findByIdAndUpdate(url._id, { safetyStatus: 'unchecked' });
+                    }
+                } catch (err) {
+                        console.error('[SafeBrowsing] Update check failed:', err.message);
+                }
+            })();
+        }
     } catch (error) {
         next(error);
     }

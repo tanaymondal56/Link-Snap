@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import { Loader2, Gift, AlertTriangle, CheckCircle, ArrowRight, X, CreditCard, Calendar } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import confetti from 'canvas-confetti';
 
 const RedeemPage = () => {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, CreditCard, Save, Loader2, AlertCircle, Calendar, Clock, Crown, Trash2, AlertTriangle } from 'lucide-react';
-import showToast from '../ui/Toast';
+import showToast from '../../utils/toastUtils';
 import api from '../../api/axios';
 
 const ManageSubscriptionModal = ({ isOpen, onClose, user, onUpdate }) => {

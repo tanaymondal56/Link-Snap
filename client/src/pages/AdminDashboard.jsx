@@ -1,7 +1,7 @@
 import { useState, useEffect, Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import { useConfirm } from '../context/ConfirmContext';
 import { useDialog } from '../components/ui/DialogProvider';
 import BanUserModal from '../components/BanUserModal';

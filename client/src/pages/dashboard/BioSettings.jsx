@@ -26,7 +26,7 @@ import {
   Lock,
   Sparkles
 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import showToast from '../../utils/toastUtils';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 
@@ -167,7 +167,7 @@ export default function BioSettings() {
       setHasChanges(false);
     } catch {
       setFetchError(true);
-      toast.error('Failed to load settings');
+      showToast.error('Failed to load settings');
     } finally {
       setLoading(false);
     }
@@ -193,13 +193,13 @@ export default function BioSettings() {
         socials: filteredSocials,
         pinnedLinks
       });
-      toast.success('Bio page saved!');
+      showToast.success('Bio page saved!');
       // Update initial state and socials to mark current state as saved
       setSocials(filteredSocials);
       initialDataRef.current = { isEnabled, displayName, bio, theme, socials: filteredSocials, pinnedLinks };
       setHasChanges(false);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to save');
+      showToast.error(error.response?.data?.message || 'Failed to save');
     } finally {
       setSaving(false);
     }
@@ -214,9 +214,9 @@ export default function BioSettings() {
       if (initialDataRef.current) {
         initialDataRef.current.isEnabled = data.isEnabled;
       }
-      toast.success(data.message);
+      showToast.success(data.message);
     } catch {
-      toast.error('Failed to toggle visibility');
+      showToast.error('Failed to toggle visibility');
     } finally {
       setToggling(false);
     }
@@ -230,7 +230,7 @@ export default function BioSettings() {
         // Check tier limits
         const maxLinks = effectiveTier === 'free' ? 10 : 25;
         if (prev.length >= maxLinks) {
-          toast.error(`Maximum ${maxLinks} links allowed`);
+          showToast.error(`Maximum ${maxLinks} links allowed`);
           return prev;
         }
         return [...prev, linkId];
@@ -242,10 +242,10 @@ export default function BioSettings() {
     try {
       await navigator.clipboard.writeText(profileUrl);
       setCopied(true);
-      toast.success('Link copied!');
+      showToast.success('Link copied!');
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error('Failed to copy link');
+      showToast.error('Failed to copy link');
     }
   };
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, UserPlus, Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle, Check } from 'lucide-react';
-import showToast from '../ui/Toast';
+import showToast from '../../utils/toastUtils';
 import api from '../../api/axios';
 
 const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {

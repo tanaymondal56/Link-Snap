@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Gift, Loader2, Save, Calendar, FileText, Hash, Users, CreditCard, Clock } from 'lucide-react';
-import showToast from '../ui/Toast';
+import showToast from '../../utils/toastUtils';
 import api from '../../api/axios';
 
 const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {

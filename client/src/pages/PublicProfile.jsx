@@ -23,7 +23,7 @@ import {
   Link as LinkIcon
 } from 'lucide-react';
 import PullToRefresh from '../components/PullToRefresh';
-import toast from 'react-hot-toast';
+import showToast from '../utils/toastUtils';
 import api from '../api/axios';
 
 // Theme configurations with modern gradients
@@ -326,10 +326,10 @@ export default function PublicProfile() {
       const url = window.location.href;
       await navigator.clipboard.writeText(url);
       setCopied(true);
-      toast.success('Link copied!');
+      showToast.success('Link copied!');
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error('Failed to copy link');
+      showToast.error('Failed to copy link');
     }
   };
 
@@ -718,9 +718,9 @@ export default function PublicProfile() {
                   try {
                     const shortUrl = `${window.location.origin}/${linkQR.shortCode}`;
                     await navigator.clipboard.writeText(shortUrl);
-                    toast.success('Short URL copied!');
+                    showToast.success('Short URL copied!');
                   } catch {
-                    toast.error('Failed to copy');
+                    showToast.error('Failed to copy');
                   }
                 }}
                 className={`px-4 py-3 rounded-xl ${theme.button} ${theme.buttonText} font-medium flex items-center justify-center gap-2`}

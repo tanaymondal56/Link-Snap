@@ -4,7 +4,7 @@ import { Check, ExternalLink, Copy, Download, Sparkles, PartyPopper, Link as Lin
 
 import { QRCodeSVG } from 'qrcode.react';
 
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import { getShortUrl } from '../utils/urlHelper';
 import { useScrollLock } from '../hooks/useScrollLock';
 

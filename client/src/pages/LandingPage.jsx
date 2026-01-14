@@ -25,7 +25,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import { hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
 import { useAppVersion } from '../hooks/useAppVersion';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import { getShortUrl } from '../utils/urlHelper';
 import LinkSuccessModal from '../components/LinkSuccessModal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -98,7 +98,7 @@ const getDisplayDomain = (fullDomain) => {
 };
 
 const LandingPage = () => {
-  const { user } = useAuth();
+  const { user, openAuthModal } = useAuth();
   const appVersion = useAppVersion();
   const [url, setUrl] = useState('');
   const [customAlias, setCustomAlias] = useState('');
@@ -250,7 +250,20 @@ const LandingPage = () => {
       } else if (error.code === 'ERR_NETWORK' || !error.response) {
         showToast.error("Couldn't reach the server. Please try again in a moment.", 'Server Unavailable');
       } else {
-        showToast.error(error.response?.data?.message || 'Failed to shorten link');
+        const errData = error.response?.data;
+        const msg = errData?.message || 'Failed to shorten link';
+        
+        if (errData?.type === 'anon_limit') {
+            showToast.limit(msg, 'Free Limit Reached', [
+               { label: 'Sign Up', onClick: () => openAuthModal('register') }
+            ]);
+        } else if (errData?.type === 'hard_limit') {
+             showToast.upgrade(msg, 'Monthly Cap Hit');
+        } else if (errData?.type === 'active_limit') {
+             showToast.limit(msg, 'Maximum Links Reached');
+        } else {
+             showToast.error(msg);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -687,22 +700,30 @@ const LandingPage = () => {
         message={
             <div className="space-y-3 text-left">
                 <p>You are about to create a link as a guest. <span className="text-amber-400 font-bold">Guest links expire in 7 days and cannot be edited.</span></p>
-                <p className="text-sm text-gray-400">To create permanent links, customize with your brand, and track analytics, please sign in or create an account.</p>
+                <p className="text-sm text-gray-400">To create permanent links, customize with your brand, and track analytics, please create an account.</p>
+                <p className="text-sm text-center pt-2 border-t border-gray-700/50 mt-3">
+                    Already have an account?{' '}
+                    <button 
+                        onClick={() => { setShowGuestWarning(false); openAuthModal('login'); }}
+                        className="text-blue-400 hover:text-blue-300 font-medium hover:underline"
+                    >
+                        Login here
+                    </button>
+                </p>
             </div>
         }
-        confirmLabel="Continue as Guest"
-        cancelLabel="Sign In / Register"
-        confirmVariant="secondary"
+        confirmText="Continue as Guest"
+        cancelText="Sign Up"
+        variant="warning"
         onConfirm={() => {
             setShowGuestWarning(false);
             handleLinkCreation(true);
         }}
         onCancel={() => {
             setShowGuestWarning(false);
-            window.location.href = '/login'; 
+            openAuthModal('register');
         }}
-        isWarning={true}
-        showClose={true}
+        onClose={() => setShowGuestWarning(false)}
       />
 
       {/* Success Modal for Logged-in Users */}

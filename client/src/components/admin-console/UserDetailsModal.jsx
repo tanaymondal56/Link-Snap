@@ -3,7 +3,7 @@ import { X, History, MessageSquare, ShieldAlert, CheckCircle, Clock, User, Phone
 import api from '../../api/axios';
 import { formatDate, formatDateTime } from '../../utils/dateUtils';
 import { useDialog } from '../ui/DialogProvider';
-import showToast from '../ui/Toast';
+import showToast from '../../utils/toastUtils';
 import IdBadge from '../ui/IdBadge';
 
 const UserDetailsModal = ({ isOpen, onClose, user }) => {

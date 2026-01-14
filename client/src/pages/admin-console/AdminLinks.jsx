@@ -18,7 +18,7 @@ import {
 import GlassTable from '../../components/admin-console/ui/GlassTable';
 import api from '../../api/axios';
 import { useConfirm } from '../../context/ConfirmContext';
-import showToast from '../../components/ui/Toast';
+import showToast from '../../utils/toastUtils';
 import { Link } from 'react-router-dom';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { Loader2 } from 'lucide-react';
@@ -239,6 +239,12 @@ const AdminLinks = () => {
                 </div>
                 <div className="text-xs text-gray-500">{new Date(link.createdAt).toLocaleDateString()}</div>
               </div>
+
+               {/* Mobile Safety Badge */}
+               <div className="flex items-center gap-2 mb-2">
+                  {link.safetyStatus === 'safe' && <span className="text-[10px] bg-green-500/10 text-green-400 px-1.5 py-0.5 rounded border border-green-500/20">Safe</span>}
+                  {(link.safetyStatus === 'malware' || link.safetyStatus === 'phishing') && <span className="text-[10px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20 font-bold uppercase">{link.safetyStatus}</span>}
+               </div>
               
               <div className="text-sm text-gray-400 truncate border-l-2 border-white/10 pl-2">
                 {link.originalUrl}
@@ -301,14 +307,14 @@ const AdminLinks = () => {
 
       {/* Desktop Table View */}
       <div className="hidden md:block">
-      <GlassTable headers={['Short Link', 'Custom Alias', 'Original URL', 'Owner', 'Clicks', 'Status', 'Actions']}>
+      <GlassTable headers={['Short Link', 'Custom Alias', 'Original URL', 'Safety', 'Owner', 'Clicks', 'Status', 'Actions']}>
         {loading ? (
           <tr>
-            <td colSpan="7" className="p-8 text-center text-gray-500">Loading links...</td>
+            <td colSpan="8" className="p-8 text-center text-gray-500">Loading links...</td>
           </tr>
         ) : links.length === 0 ? (
           <tr>
-            <td colSpan="7" className="p-8 text-center text-gray-500">No links found</td>
+            <td colSpan="8" className="p-8 text-center text-gray-500">No links found</td>
           </tr>
         ) : (
           links.map((link) => {
@@ -333,6 +339,34 @@ const AdminLinks = () => {
                 <div className="truncate text-gray-300" title={link.originalUrl}>
                   {link.originalUrl}
                 </div>
+                </div>
+              </td>
+              <td className="p-4">
+                  {link.safetyStatus === 'safe' && (
+                      <span className="text-green-400 text-xs flex items-center gap-1 bg-green-500/10 px-2 py-1 rounded-full w-fit">
+                          <CheckCircle size={10} /> Safe
+                      </span>
+                  )}
+                  {link.safetyStatus === 'malware' && (
+                      <span className="text-red-400 text-xs flex items-center gap-1 bg-red-500/10 px-2 py-1 rounded-full w-fit">
+                          <ShieldCheck size={10} /> Malware
+                      </span>
+                  )}
+                  {link.safetyStatus === 'phishing' && (
+                      <span className="text-red-400 text-xs flex items-center gap-1 bg-red-500/10 px-2 py-1 rounded-full w-fit">
+                          <ShieldCheck size={10} /> Phishing
+                      </span>
+                  )}
+                  {(link.safetyStatus === 'pending' || link.safetyStatus === 'unknown' || !link.safetyStatus) && (
+                      <span className="text-gray-500 text-xs flex items-center gap-1 bg-gray-500/10 px-2 py-1 rounded-full w-fit">
+                          <Clock size={10} /> Pending
+                      </span>
+                  )}
+                  {link.safetyStatus === 'unchecked' && (
+                       <span className="text-gray-500 text-xs flex items-center gap-1 bg-gray-500/10 px-2 py-1 rounded-full w-fit">
+                          -
+                       </span>
+                  )}
               </td>
               <td className="p-4 text-xs">
                 <div className="flex flex-col gap-1">

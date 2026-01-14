@@ -15,7 +15,7 @@ import {
 import api from '../../api/axios';
 import { formatDateTime } from '../../utils/dateUtils';
 import BentoCard from '../../components/admin-console/ui/BentoCard';
-import showToast from '../../components/ui/Toast';
+import showToast from '../../utils/toastUtils';
 
 const AdminMonitoring = () => {
   const [activeTab, setActiveTab] = usePersistentTab('admin_monitoring', 'health', ['health', 'logs', 'performance']);

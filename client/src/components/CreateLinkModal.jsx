@@ -21,7 +21,7 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import api from '../api/axios';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import { getShortUrl } from '../utils/urlHelper';
 
 import { useScrollLock } from '../hooks/useScrollLock';
@@ -452,7 +452,20 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       onSuccess(data);
       onClose();
     } catch (error) {
-      showToast.error(error.response?.data?.message || 'Failed to create link');
+      const errData = error.response?.data;
+      const msg = errData?.message || 'Failed to create link';
+      
+      if (errData?.type === 'hard_limit') {
+          showToast.upgrade(msg, 'Monthly Cap Hit');
+      } else if (errData?.type === 'active_limit') {
+          showToast.limit(msg, 'Maximum Links Reached', [
+              { label: 'Manage Links', onClick: onClose }
+          ]);
+      } else if (errData?.type === 'rate_limit') {
+          showToast.error(msg, 'Slow Down');
+      } else {
+          showToast.error(msg);
+      }
       console.error('Failed to create link:', error);
     } finally {
       setIsCreating(false);

@@ -1,6 +1,8 @@
 import User from '../models/User.js';
 import { TIERS, getEffectiveTier } from '../services/subscriptionService.js';
 import logger from '../utils/logger.js';
+import AnonUsage from '../models/AnonUsage.js';
+import { getAnonFingerprint } from '../utils/fingerprint.js';
 
 /**
  * Middleware to check if user has reached their monthly link creation limit
@@ -8,23 +10,36 @@ import logger from '../utils/logger.js';
 export const checkLinkLimit = async (req, res, next) => {
   try {
     const user = req.user;
-    if (!user) return next();
+
+    // 1. Anonymous Check
+    if (!user) {
+        const fingerprint = getAnonFingerprint(req);
+        const usage = await AnonUsage.findOne({ fingerprint });
+        if (usage && usage.createdCount >= 10) {
+             return res.status(403).json({
+                 type: 'anon_limit',
+                 message: "You've used all 10 guest links! Create a free account to keep shortening.",
+                 action: 'signup'
+             });
+        }
+        return next();
+    }
     
-    // Admins bypass limits
+    // 2. Logged-in User Check (Admins bypass)
     if (user.role === 'admin') return next();
     
     const tier = getEffectiveTier(user);
     const config = TIERS[tier];
     
-    // Safety check - if config missing (shouldn't happen), assume free
-    const limit = config ? config.linksPerMonth : TIERS.free.linksPerMonth;
+    // Get Limits (Hard vs Active)
+    const hardLimit = config ? config.linksPerMonth : 100; // Monthly creation limit
+    const activeLimit = config ? config.activeLimit : 25;  // Concurrent active links
     
     const currentPeriodStart = user.subscription?.currentPeriodStart;
     const resetAt = user.linkUsage?.resetAt;
     
-    // RESET LOGIC: Check if we need to reset the counter
-    // If we have a subscription period, sync with it.
-    // Otherwise (Free tier), reset monthly from last reset.
+    // RESET LOGIC: Only reset Hard Count (total created this period)
+    // Active Count assumes concurrent links, never resets based on time
     let shouldReset = false;
     const now = new Date();
     
@@ -34,7 +49,7 @@ export const checkLinkLimit = async (req, res, next) => {
             shouldReset = true;
         }
     } else {
-        // For free tier, reset every 30 days
+        // For free tier, reset monthly
         const lastReset = resetAt ? new Date(resetAt) : new Date(0);
         const daysSinceReset = (now - lastReset) / (1000 * 60 * 60 * 24);
         if (daysSinceReset >= 30) {
@@ -43,42 +58,53 @@ export const checkLinkLimit = async (req, res, next) => {
     }
     
     if (shouldReset) {
-         // Atomic reset
          await User.findByIdAndUpdate(user._id, {
             $set: {
-                'linkUsage.count': 0,
+                'linkUsage.hardCount': 0, // Reset ONLY hard count
                 'linkUsage.resetAt': now
             }
          });
-         // Update local user object so we don't block this request
+         // Update local user object
          if (!user.linkUsage) user.linkUsage = {};
-         user.linkUsage.count = 0;
+         user.linkUsage.hardCount = 0;
          user.linkUsage.resetAt = now;
     }
     
-    // Ensure linkUsage exists before checking
-    const currentCount = user.linkUsage?.count || 0;
+    const currentHard = user.linkUsage?.hardCount || 0;
+    const currentActive = user.linkUsage?.count || 0;
     
-    // CHECK LIMIT
-    if (currentCount >= limit) {
-        // Business Tier Soft Cap Logic (120% allowance + Logging)
-        if (tier === 'business' && currentCount < limit * 1.2) {
-            logger.warn(`[Soft Cap] Business User ${user.snapId || user._id} exceeded link limit: ${currentCount}/${limit}`);
-            // Allow proceed
+    // CHECK HARD LIMIT (Total created)
+    if (currentHard >= hardLimit) {
+        if (tier === 'business' && currentHard < hardLimit * 1.2) {
+            logger.warn(`[Soft Cap] Business User ${user.snapId || user._id} exceeded hard limit: ${currentHard}/${hardLimit}`);
             return next();
         }
         
         return res.status(403).json({ 
-            message: `Monthly link limit reached (${limit}). Upgrade to increase limits.`,
-            limit: limit,
+            type: 'hard_limit',
+            message: `You've hit your monthly cap of ${hardLimit} links. Upgrade to Pro for more capacity!`,
+            limit: hardLimit,
+            current: currentHard,
+            resetsAt: currentPeriodStart || new Date(now.getTime() + 30*24*60*60*1000), // Approx
             tier: tier
+        });
+    }
+
+    // CHECK ACTIVE LIMIT (Concurrent)
+    if (activeLimit !== Infinity && currentActive >= activeLimit) {
+        return res.status(403).json({ 
+            type: 'active_limit',
+            message: `Your account is full (${activeLimit} active links). Delete some old links to make space.`,
+            limit: activeLimit,
+            current: currentActive,
+            tier: tier,
+            action: 'manage'
         });
     }
     
     next();
   } catch (error) {
     logger.error(`[Limit Check Error] ${error.message}`);
-    // Fail open or closed? Closed is safer to prevent abuse.
     next(error); 
   }
 };
@@ -116,10 +142,38 @@ export const checkFeature = (featureKeys) => {
 };
 
 // Helper to increment usage (call this AFTER successful creation)
-export const incrementLinkUsage = async (userId) => {
-    await User.findByIdAndUpdate(userId, { 
-        $inc: { 'linkUsage.count': 1 } 
-    });
+// Helper to increment usage (call this AFTER successful creation)
+// Accepts whole req object to handle Anon users, or just userId for legacy calls (conditional)
+export const incrementLinkUsage = async (reqOrUserId) => {
+    // Check if it's a request object (has .user or .ip)
+    if (typeof reqOrUserId === 'object' && (reqOrUserId.user || reqOrUserId.ip || reqOrUserId.headers)) {
+        const req = reqOrUserId;
+        if (!req.user) {
+            // Anon Increment
+            const fingerprint = getAnonFingerprint(req);
+            await AnonUsage.findOneAndUpdate(
+                { fingerprint },
+                { 
+                    $inc: { createdCount: 1 }, 
+                    $setOnInsert: { expiresAt: new Date(Date.now() + 30*24*60*60*1000) } // 30 day TTL
+                },
+                { upsert: true }
+            );
+        } else {
+            // User Increment
+            await User.findByIdAndUpdate(req.user._id, { 
+                $inc: { 
+                    'linkUsage.count': 1,      // Active count +1
+                    'linkUsage.hardCount': 1   // Hard count +1
+                } 
+            });
+        }
+    } else {
+        // Legacy: Just userId passed (assume logged in user)
+        await User.findByIdAndUpdate(reqOrUserId, { 
+            $inc: { 'linkUsage.count': 1, 'linkUsage.hardCount': 1 } 
+        });
+    }
 };
 
 /**

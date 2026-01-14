@@ -16,7 +16,7 @@ import {
   CalendarClock,
 } from 'lucide-react';
 import api from '../api/axios';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import PullToRefresh from '../components/PullToRefresh';
 
 // Read ban info from session storage (called once during module init)

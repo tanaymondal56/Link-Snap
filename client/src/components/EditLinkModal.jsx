@@ -22,7 +22,7 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import api from '../api/axios';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import { getShortUrl } from '../utils/urlHelper';
 import { useScrollLock } from '../hooks/useScrollLock';
 import { Link } from 'react-router-dom';

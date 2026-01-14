@@ -1,7 +1,8 @@
 import { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
-import { Toaster } from 'react-hot-toast';
+import { ToastProvider, useToast } from './components/ui/Toast';
+import { registerToastHandler } from './utils/toastUtils';
 import PublicLayout from './layouts/PublicLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 import AdminLayout from './components/AdminLayout';
@@ -112,23 +113,28 @@ const AuthRedirect = ({ tab }) => {
   return null;
 };
 
+// Component to register global toast handlers
+const ToastRegistrar = () => {
+  const { addToast, removeToast } = useToast();
+  
+  useEffect(() => {
+    registerToastHandler(addToast, removeToast);
+  }, [addToast, removeToast]);
+  
+  return null;
+};
+
 function AppContent() {
   return (
     <>
+      {/* Register global toast handlers */}
+      <ToastRegistrar />
       {/* Dev Command Center - only in development */}
       <DevCommandCenter />
       {/* Easter Eggs - keyboard triggers and effects */}
       <EasterEggs />
       {/* Handle post-update choice modal */}
       <PostUpdateChoiceModal />
-      <Toaster
-        position="top-right"
-        containerStyle={{
-          top: 20,
-          right: 20,
-        }}
-        gutter={12}
-      />
       <AuthModalWrapper />
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
@@ -252,19 +258,21 @@ function App() {
   return (
     <HelmetProvider>
       <AuthProvider>
-        <ConfirmDialogProvider>
-          <DialogProvider>
-            <OfflineIndicator>
-              <AppContent />
-            </OfflineIndicator>
-            {/* PWA Update Prompt - shows when new version is available */}
-            <PWAUpdatePrompt />
-            {/* Add to Home Screen Prompt - shows for mobile users */}
-            <InstallPrompt />
-            {/* Mobile Back Button - shows in PWA mode for navigation */}
-            <MobileBackButton />
-          </DialogProvider>
-        </ConfirmDialogProvider>
+        <ToastProvider position="top-right" maxToasts={5}>
+          <ConfirmDialogProvider>
+            <DialogProvider>
+              <OfflineIndicator>
+                <AppContent />
+              </OfflineIndicator>
+              {/* PWA Update Prompt - shows when new version is available */}
+              <PWAUpdatePrompt />
+              {/* Add to Home Screen Prompt - shows for mobile users */}
+              <InstallPrompt />
+              {/* Mobile Back Button - shows in PWA mode for navigation */}
+              <MobileBackButton />
+            </DialogProvider>
+          </ConfirmDialogProvider>
+        </ToastProvider>
       </AuthProvider>
     </HelmetProvider>
   );

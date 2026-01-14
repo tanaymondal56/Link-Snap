@@ -15,7 +15,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import showToast from './ui/Toast';
+import showToast from '../utils/toastUtils';
 import api from '../api/axios';
 
 const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {

@@ -16,7 +16,7 @@ import {
   Loader2
 } from 'lucide-react';
 import BentoCard from '../../components/admin-console/ui/BentoCard';
-import showToast from '../../components/ui/Toast';
+import showToast from '../../utils/toastUtils';
 import {
   getDevices,
   registerDevice,

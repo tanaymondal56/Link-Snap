@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import api from '../api/axios';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
 import { Loader, Lock, Eye, EyeOff, ArrowRight, ArrowLeft, ShieldCheck, Check, X } from 'lucide-react';
 

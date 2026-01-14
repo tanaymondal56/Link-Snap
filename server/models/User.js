@@ -159,7 +159,8 @@ const userSchema = new mongoose.Schema({
   
   // Usage Tracking
   linkUsage: {
-    count: { type: Number, default: 0 },
+    count: { type: Number, default: 0 },      // Active links (decreases on delete)
+    hardCount: { type: Number, default: 0 },  // Total created this period (never decreases)
     resetAt: { type: Date, default: Date.now }
   },
   clickUsage: {

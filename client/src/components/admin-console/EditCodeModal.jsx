@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Loader2, AlertTriangle } from 'lucide-react';
 import api from '../../api/axios';
-import showToast from '../ui/Toast';
+import showToast from '../../utils/toastUtils';
 
 const EditCodeModal = ({ isOpen, onClose, onSuccess, code }) => {
   const [formData, setFormData] = useState({

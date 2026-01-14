@@ -41,7 +41,7 @@ import {
 
 import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
 import IdBadge from '../components/ui/IdBadge';
 import SubscriptionCard from '../components/subscription/SubscriptionCard';

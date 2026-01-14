@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getTierConfig } from '../config/subscriptionTiers';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useConfirm } from '../context/ConfirmContext';
@@ -29,7 +30,7 @@ import {
 } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
 import { QRCodeSVG } from 'qrcode.react';
 import { getShortUrl } from '../utils/urlHelper';
@@ -227,22 +228,48 @@ const UserDashboard = () => {
         <div className="glass-dark p-4 rounded-xl border border-gray-700/50">
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Links Usage */}
-            <div className="flex-1">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-gray-400 text-xs">Links</span>
-                <span className="text-white text-xs font-medium">
-                  {user?.linkUsage?.count || 0}/{user?.subscription?.tier === 'pro' ? 500 : user?.subscription?.tier === 'business' ? '10k' : 25}
-                </span>
+            {/* Links Usage Stats - Active & Monthly */}
+            <div className="flex-1 space-y-3">
+              {/* Active Links (Concurrent) */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-gray-400 text-xs">Active Links</span>
+                  <span className="text-white text-xs font-medium">
+                    {user?.linkUsage?.count || 0}/{getTierConfig(user?.subscription?.tier).activeLimit === Infinity ? '∞' : getTierConfig(user?.subscription?.tier).activeLimit}
+                  </span>
+                </div>
+                <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all ${
+                      ((user?.linkUsage?.count || 0) / (getTierConfig(user?.subscription?.tier).activeLimit === Infinity ? 10000 : getTierConfig(user?.subscription?.tier).activeLimit)) >= 0.9 
+                        ? 'bg-red-500' 
+                        : 'bg-blue-500'
+                    }`}
+                    style={{ width: `${getTierConfig(user?.subscription?.tier).activeLimit === Infinity ? 5 : Math.min(100, ((user?.linkUsage?.count || 0) / getTierConfig(user?.subscription?.tier).activeLimit) * 100)}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full rounded-full transition-all ${
-                    ((user?.linkUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 500 : 25)) >= 0.8 
-                      ? 'bg-gradient-to-r from-orange-500 to-red-500' 
-                      : 'bg-gradient-to-r from-blue-500 to-purple-500'
-                  }`}
-                  style={{ width: `${Math.min(100, ((user?.linkUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 500 : 25)) * 100)}%` }}
-                />
+
+              {/* Monthly Created (Hard Limit) */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <BadgeTooltip content="Total links created this month (resets monthly)">
+                     <span className="text-gray-400 text-xs border-b border-gray-700 hover:border-gray-500 cursor-help transition-colors">Monthly Created</span>
+                  </BadgeTooltip>
+                  <span className="text-white text-xs font-medium">
+                    {user?.linkUsage?.hardCount || 0}/{getTierConfig(user?.subscription?.tier).monthlyLimit.toLocaleString()}
+                  </span>
+                </div>
+                <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all ${
+                      ((user?.linkUsage?.hardCount || 0) / getTierConfig(user?.subscription?.tier).monthlyLimit) >= 0.9 
+                        ? 'bg-amber-500' 
+                        : 'bg-indigo-500'
+                    }`}
+                    style={{ width: `${Math.min(100, ((user?.linkUsage?.hardCount || 0) / getTierConfig(user?.subscription?.tier).monthlyLimit) * 100)}%` }}
+                  />
+                </div>
               </div>
             </div>
             
@@ -251,17 +278,17 @@ const UserDashboard = () => {
               <div className="flex justify-between items-center mb-1">
                 <span className="text-gray-400 text-xs">Clicks</span>
                 <span className="text-white text-xs font-medium">
-                  {(user?.clickUsage?.count || 0).toLocaleString()}/{user?.subscription?.tier === 'pro' ? '50k' : user?.subscription?.tier === 'business' ? '250k' : '1k'}
+                  {(user?.clickUsage?.count || 0).toLocaleString()}/{getTierConfig(user?.subscription?.tier).clicksLimit.toLocaleString()}
                 </span>
               </div>
               <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
                 <div 
                   className={`h-full rounded-full transition-all ${
-                    ((user?.clickUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 50000 : 1000)) >= 0.8 
+                    ((user?.clickUsage?.count || 0) / getTierConfig(user?.subscription?.tier).clicksLimit) >= 0.8 
                       ? 'bg-gradient-to-r from-orange-500 to-red-500' 
                       : 'bg-gradient-to-r from-purple-500 to-pink-500'
                   }`}
-                  style={{ width: `${Math.min(100, ((user?.clickUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 50000 : 1000)) * 100)}%` }}
+                  style={{ width: `${Math.min(100, ((user?.clickUsage?.count || 0) / getTierConfig(user?.subscription?.tier).clicksLimit) * 100)}%` }}
                 />
               </div>
             </div>

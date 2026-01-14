@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, MessageSquare, Bug, Lightbulb, HelpCircle, Send, Loader2, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
-import showToast from './ui/Toast';
+import showToast from '../utils/toastUtils';
 import { useScrollLock } from '../hooks/useScrollLock';
 
 const feedbackTypes = [
