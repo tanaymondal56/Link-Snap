@@ -48,6 +48,11 @@ const urlSchema = new mongoose.Schema({
     lastCheckedAt: {
         type: Date,
     },
+    // Manual Override Flag - prevents background scans from overwriting admin decisions
+    manualSafetyOverride: {
+        type: Boolean,
+        default: false,
+    },
     // Link Expiration
     expiresAt: {
         type: Date,

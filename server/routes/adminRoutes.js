@@ -25,7 +25,7 @@ import {
     getUsernameHistory,
     triggerSafetyScan
 } from '../controllers/adminController.js';
-import { getAllLinks, updateLinkStatus, deleteLinkAdmin } from '../controllers/adminLinkController.js';
+import { getAllLinks, updateLinkStatus, deleteLinkAdmin, overrideLinkSafety, rescanLinkSafety } from '../controllers/adminLinkController.js';
 import { 
     generateRedeemCode, 
     listRedeemCodes, 
@@ -62,6 +62,8 @@ router.get('/users/:userId/username-history', getUsernameHistory);
 // Link Management
 router.get('/links', getAllLinks);
 router.patch('/links/:linkId/status', updateLinkStatus);
+router.patch('/links/:linkId/safety', overrideLinkSafety);  // Safety override
+router.post('/links/:linkId/rescan', rescanLinkSafety);     // Re-scan single link
 router.delete('/links/:linkId', deleteLinkAdmin);
 
 // Settings

@@ -1,7 +1,5 @@
 import Url from '../models/Url.js';
 import User from '../models/User.js';
-import { extractDomain } from '../utils/urlUtils.js';
-import { isCircularRedirect } from '../utils/urlSecurity.js';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { invalidateCache } from '../services/cacheService.js';
@@ -714,6 +712,10 @@ const updateUrl = async (req, res, next) => {
             // Invalidate cache when device rules change
             invalidateCache(url.shortId);
             if (url.customAlias) invalidateCache(url.customAlias);
+            
+            // Security: Reset safety status (new URLs might be malicious)
+            updateFields.safetyStatus = 'pending';
+            updateFields.safetyDetails = null;
         }
 
         // Handle activeStartTime (Schedule Activation - Free feature)
@@ -765,6 +767,10 @@ const updateUrl = async (req, res, next) => {
             // Invalidate cache when time rules change
             invalidateCache(url.shortId);
             if (url.customAlias) invalidateCache(url.customAlias);
+
+            // Security: Reset safety status (new URLs might be malicious)
+            updateFields.safetyStatus = 'pending';
+            updateFields.safetyDetails = null;
         }
 
         // Build update operation

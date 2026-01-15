@@ -432,7 +432,10 @@ export const updateSettings = async (req, res, next) => {
             smtpPort,
             smtpSecure,
             safeBrowsingEnabled,
-            safeBrowsingAutoCheck
+            safeBrowsingAutoCheck,
+            emailProvider,
+            emailUsername,
+            requireEmailVerification
         } = req.body;
 
         if (requireEmailVerification !== undefined) {
@@ -1137,6 +1140,8 @@ export const getUsernameHistory = async (req, res, next) => {
 
         res.json({
             currentUsername: user.username,
+            history
+        });
     } catch (error) {
         next(error);
     }

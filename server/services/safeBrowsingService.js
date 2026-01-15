@@ -113,7 +113,7 @@ const runBatchScan = async (query, maxLimit = 500) => {
 
             // Collect ALL URLs from these docs (Original + Redirects)
             const allThreatEntries = [];
-            const docMap = new Map(); // Map<URL_String, [DocID]> to trace back threats
+            // docMap removed (unused)
 
             urlsToCheck.forEach(doc => {
                  // 1. Original
@@ -190,17 +190,32 @@ const runBatchScan = async (query, maxLimit = 500) => {
 };
 
 /**
- * Retries any 'pending' links
+ * Retries any 'pending' links (excludes manually overridden)
  */
 export const scanPendingLinks = async () => {
     // Retry up to 200 pending links per cron run
-    return runBatchScan({ safetyStatus: 'pending' }, 200);
+    // Exclude manually overridden links - admin decisions are final
+    return runBatchScan({ 
+        safetyStatus: 'pending',
+        manualSafetyOverride: { $ne: true }
+    }, 200);
 };
 
 /**
- * Scans 'unchecked' links (Retroactive)
+ * Scans 'unchecked' links (Retroactive, excludes manually overridden)
  */
 export const scanUncheckedLinks = async () => {
     // Process up to 500 links per manual trigger
-    return runBatchScan({ safetyStatus: { $in: ['unchecked', 'unknown'] } }, 500);
+    // Includes: explicit 'unchecked', 'unknown', or missing/null field
+    // Exclude manually overridden links - admin decisions are final
+    return runBatchScan({ 
+        $and: [
+            { manualSafetyOverride: { $ne: true } },
+            { $or: [
+                { safetyStatus: { $in: ['unchecked', 'unknown'] } },
+                { safetyStatus: { $exists: false } },
+                { safetyStatus: null }
+            ]}
+        ]
+    }, 500);
 };

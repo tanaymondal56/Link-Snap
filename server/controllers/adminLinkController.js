@@ -1,7 +1,9 @@
+import mongoose from 'mongoose';
 import Url from '../models/Url.js';
 import Analytics from '../models/Analytics.js';
 import User from '../models/User.js';
 import { invalidateCache } from '../services/cacheService.js';
+import { checkUrlsSafety } from '../services/safeBrowsingService.js';
 
 // @desc    Get all links (paginated, searchable)
 // @route   GET /api/admin/links
@@ -12,6 +14,7 @@ export const getAllLinks = async (req, res) => {
         const limit = parseInt(req.query.limit) || 20;
         const search = req.query.search || '';
         const status = req.query.status || 'all'; // 'all', 'active', 'disabled', 'expired'
+        const safety = req.query.safety || 'all'; // 'all', 'safe', 'malware', 'phishing', 'pending', 'unchecked'
         const skip = (page - 1) * limit;
 
         let query = {};
@@ -43,13 +46,18 @@ export const getAllLinks = async (req, res) => {
         if (status === 'active') {
             query.isActive = true;
             // Active means not expired
-            query.$and = [
-                { $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] }
-            ];
+            query.$and = query.$and || [];
+            query.$and.push({ $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] });
         } else if (status === 'disabled') {
             query.isActive = false;
         } else if (status === 'expired') {
             query.expiresAt = { $lte: now };
+        }
+
+        // Safety Status Filtering
+        const allowedSafetyStatuses = ['safe', 'malware', 'phishing', 'pending', 'unchecked', 'unwanted'];
+        if (safety !== 'all' && allowedSafetyStatuses.includes(safety)) {
+            query.safetyStatus = safety;
         }
 
         const urls = await Url.find(query)
@@ -134,6 +142,129 @@ export const deleteLinkAdmin = async (req, res) => {
         await url.deleteOne();
 
         res.json({ message: 'Link and associated data removed' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Override link safety status (Admin Manual Override)
+// @route   PATCH /api/admin/links/:linkId/safety
+// @access  Admin
+export const overrideLinkSafety = async (req, res) => {
+    try {
+        // Security: Validate ObjectId format to prevent injection
+        if (!mongoose.Types.ObjectId.isValid(req.params.linkId)) {
+            return res.status(400).json({ message: 'Invalid link ID format' });
+        }
+
+        const { safetyStatus } = req.body;
+        const allowedStatuses = ['safe', 'malware', 'phishing', 'pending', 'unwanted'];
+        
+        if (!safetyStatus || !allowedStatuses.includes(safetyStatus)) {
+            return res.status(400).json({ 
+                message: `Invalid safety status. Allowed: ${allowedStatuses.join(', ')}` 
+            });
+        }
+
+        const url = await Url.findById(req.params.linkId);
+        if (!url) {
+            return res.status(404).json({ message: 'URL not found' });
+        }
+
+        const previousStatus = url.safetyStatus;
+
+        // Update with manual override flag to prevent background scan from overwriting
+        const updatedUrl = await Url.findByIdAndUpdate(
+            req.params.linkId,
+            { 
+                $set: { 
+                    safetyStatus,
+                    safetyDetails: `Manual override by admin (was: ${previousStatus})`,
+                    lastCheckedAt: new Date(),
+                    manualSafetyOverride: true  // Flag to prevent auto-scan from changing
+                } 
+            },
+            { new: true }
+        );
+
+        // CRITICAL: Invalidate cache immediately so blocking takes effect
+        invalidateCache(url.shortId);
+        if (url.customAlias) {
+            invalidateCache(url.customAlias);
+        }
+
+        console.log(`[Admin Safety Override] Link ${url.shortId}: ${previousStatus} -> ${safetyStatus} by Admin ${req.user?.email}`);
+
+        res.json({ 
+            message: `Safety status updated to ${safetyStatus}`, 
+            url: updatedUrl,
+            previousStatus 
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Re-scan single link for safety
+// @route   POST /api/admin/links/:linkId/rescan
+// @access  Admin
+export const rescanLinkSafety = async (req, res) => {
+    try {
+        // Security: Validate ObjectId format to prevent injection
+        if (!mongoose.Types.ObjectId.isValid(req.params.linkId)) {
+            return res.status(400).json({ message: 'Invalid link ID format' });
+        }
+
+        const url = await Url.findById(req.params.linkId);
+        if (!url) {
+            return res.status(404).json({ message: 'URL not found' });
+        }
+
+        // Collect all URLs to check (original + device redirects + time redirects)
+        const urlsToCheck = [url.originalUrl];
+        
+        if (url.deviceRedirects?.enabled && url.deviceRedirects.rules) {
+            url.deviceRedirects.rules.forEach(r => {
+                if (r.url) urlsToCheck.push(r.url);
+            });
+        }
+        
+        if (url.timeRedirects?.enabled && url.timeRedirects.rules) {
+            url.timeRedirects.rules.forEach(r => {
+                if (r.destination) urlsToCheck.push(r.destination);
+            });
+        }
+
+        // Call Safe Browsing API
+        const safetyResult = await checkUrlsSafety(urlsToCheck);
+
+        // Update the URL with the result
+        const updatedUrl = await Url.findByIdAndUpdate(
+            req.params.linkId,
+            { 
+                $set: { 
+                    safetyStatus: safetyResult.status,
+                    safetyDetails: safetyResult.details,
+                    lastCheckedAt: new Date(),
+                    manualSafetyOverride: false  // Clear override flag since this is a fresh scan
+                } 
+            },
+            { new: true }
+        );
+
+        // Invalidate cache
+        invalidateCache(url.shortId);
+        if (url.customAlias) {
+            invalidateCache(url.customAlias);
+        }
+
+        console.log(`[Admin Re-Scan] Link ${url.shortId}: Now ${safetyResult.status}`);
+
+        res.json({ 
+            message: `Scan complete: ${safetyResult.status}`, 
+            url: updatedUrl,
+            scanResult: safetyResult
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

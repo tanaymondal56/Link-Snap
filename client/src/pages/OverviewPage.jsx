@@ -227,37 +227,36 @@ const OverviewPage = () => {
             </div>
           </div>
           
-          {/* Clicks Usage */}
+          {/* Monthly Created (Hard Limit) */}
           <div>
             <div className="flex justify-between items-center mb-2">
               <span className="text-gray-400 text-sm flex items-center gap-2">
-                <MousePointerClick size={14} />
-                Clicks Tracked
+                <Calendar size={14} />
+                Monthly Created
               </span>
               <span className="text-white text-sm font-medium">
-                {user?.clickUsage?.count?.toLocaleString() || 0} / {user?.subscription?.tier === 'pro' ? '50,000' : user?.subscription?.tier === 'business' ? '250,000' : '1,000'}
+                {user?.linkUsage?.hardCount || 0} / {user?.subscription?.tier === 'pro' ? '2,000' : user?.subscription?.tier === 'business' ? '10,000' : 100}
               </span>
             </div>
             <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
               <div 
                 className={`h-full rounded-full transition-all ${
-                  (user?.clickUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 50000 : 1000) >= 0.8 
-                    ? 'bg-gradient-to-r from-orange-500 to-red-500' 
-                    : 'bg-gradient-to-r from-purple-500 to-pink-500'
+                  (user?.linkUsage?.hardCount || 0) / (user?.subscription?.tier === 'pro' ? 2000 : user?.subscription?.tier === 'business' ? 10000 : 100) >= 0.8 
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500' 
+                    : 'bg-gradient-to-r from-indigo-500 to-purple-500'
                 }`}
-                style={{ width: `${Math.min(100, ((user?.clickUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 50000 : 1000)) * 100)}%` }}
+                style={{ width: `${Math.min(100, ((user?.linkUsage?.hardCount || 0) / (user?.subscription?.tier === 'pro' ? 2000 : user?.subscription?.tier === 'business' ? 10000 : 100)) * 100)}%` }}
               />
             </div>
           </div>
         </div>
         
         {/* Warning for high usage */}
-        {((user?.linkUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 500 : 25) >= 0.8 ||
-          (user?.clickUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 50000 : 1000) >= 0.8) && (
+        {(user?.linkUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 500 : user?.subscription?.tier === 'business' ? 10000 : 25) >= 0.8 && (
           <div className="mt-4 p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
             <p className="text-amber-300 text-sm flex items-center gap-2">
               <AlertTriangle size={14} />
-              You're approaching your usage limits. Consider upgrading for more capacity.
+              You're approaching your link limit. Consider upgrading for more capacity.
             </p>
           </div>
         )}

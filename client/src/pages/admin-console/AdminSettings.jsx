@@ -238,11 +238,15 @@ const AdminSettings = () => {
                 <div className="grid grid-cols-2 gap-3">
                      <button
                         onClick={async () => {
+                            let toastId;
                             try {
-                                showToast.loading('Scanning unchecked links...');
+                                toastId = showToast.loading('Scanning unchecked links...');
                                 const { data } = await api.post('/admin/settings/scan', { type: 'unchecked' });
+                                showToast.dismiss(toastId);
                                 showToast.success(`Scan complete: Processed ${data.details?.processed || 0} links`);
                             } catch (err) {
+                                showToast.dismiss(toastId);
+                                console.error(err);
                                 showToast.error('Scan failed');
                             }
                         }}
@@ -252,11 +256,15 @@ const AdminSettings = () => {
                      </button>
                      <button
                         onClick={async () => {
+                            let toastId;
                             try {
-                                showToast.loading('Retrying failed scans...');
+                                toastId = showToast.loading('Retrying failed scans...');
                                 const { data } = await api.post('/admin/settings/scan', { type: 'pending' });
+                                showToast.dismiss(toastId);
                                 showToast.success(`Retry complete: Processed ${data.details?.processed || 0} links`);
                             } catch (err) {
+                                showToast.dismiss(toastId);
+                                console.error(err);
                                 showToast.error('Retry failed');
                             }
                         }}

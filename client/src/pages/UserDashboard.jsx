@@ -273,26 +273,6 @@ const UserDashboard = () => {
               </div>
             </div>
             
-            {/* Clicks Usage */}
-            <div className="flex-1">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-gray-400 text-xs">Clicks</span>
-                <span className="text-white text-xs font-medium">
-                  {(user?.clickUsage?.count || 0).toLocaleString()}/{getTierConfig(user?.subscription?.tier).clicksLimit.toLocaleString()}
-                </span>
-              </div>
-              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full rounded-full transition-all ${
-                    ((user?.clickUsage?.count || 0) / getTierConfig(user?.subscription?.tier).clicksLimit) >= 0.8 
-                      ? 'bg-gradient-to-r from-orange-500 to-red-500' 
-                      : 'bg-gradient-to-r from-purple-500 to-pink-500'
-                  }`}
-                  style={{ width: `${Math.min(100, ((user?.clickUsage?.count || 0) / getTierConfig(user?.subscription?.tier).clicksLimit) * 100)}%` }}
-                />
-              </div>
-            </div>
-            
             {/* Upgrade Button for Free Users */}
             {(!user?.subscription?.tier || user?.subscription?.tier === 'free') && (
               <a 

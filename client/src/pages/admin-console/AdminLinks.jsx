@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Search, 
   ExternalLink,
@@ -12,8 +12,19 @@ import {
   MousePointerClick,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Clock,
-  Filter
+  Filter,
+  ShieldCheck,
+  ShieldAlert,
+  RefreshCw,
+  ShieldOff,
+  Lock,
+  Smartphone,
+  Calendar,
+  Globe,
+  Timer
 } from 'lucide-react';
 import GlassTable from '../../components/admin-console/ui/GlassTable';
 import api from '../../api/axios';
@@ -30,6 +41,9 @@ const AdminLinks = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [safetyFilter, setSafetyFilter] = useState('all');
+  const [rescanningId, setRescanningId] = useState(null);
+  const [expandedLinkId, setExpandedLinkId] = useState(null);
   
   // Pagination State
   const [page, setPage] = useState(1);
@@ -47,7 +61,8 @@ const AdminLinks = () => {
                 page,
                 limit: 20,
                 search: debouncedSearch,
-                status: statusFilter
+                status: statusFilter,
+                safety: safetyFilter
             }
         });
         setLinks(data.urls);
@@ -59,7 +74,7 @@ const AdminLinks = () => {
       } finally {
         setLoading(false);
       }
-  }, [debouncedSearch, page, statusFilter]);
+  }, [debouncedSearch, page, statusFilter, safetyFilter]);
 
   const isRefreshing = usePullToRefresh(async () => {
     // Silent refresh
@@ -120,6 +135,33 @@ const AdminLinks = () => {
       showToast.success('Link deleted');
     } catch {
       showToast.error('Failed to delete link');
+    }
+  };
+
+  // Handle Re-scan single link
+  const handleRescan = async (link) => {
+    setOpenActionId(null);
+    setRescanningId(link._id);
+    try {
+      const { data } = await api.post(`/admin/links/${link._id}/rescan`);
+      setLinks(links.map(l => l._id === link._id ? { ...l, safetyStatus: data.url.safetyStatus, safetyDetails: data.url.safetyDetails } : l));
+      showToast.success(`Scan complete: ${data.url.safetyStatus}`);
+    } catch {
+      showToast.error('Failed to re-scan link');
+    } finally {
+      setRescanningId(null);
+    }
+  };
+
+  // Handle Safety Override
+  const handleSafetyOverride = async (link, newStatus) => {
+    setOpenActionId(null);
+    try {
+      const { data } = await api.patch(`/admin/links/${link._id}/safety`, { safetyStatus: newStatus });
+      setLinks(links.map(l => l._id === link._id ? { ...l, safetyStatus: newStatus, safetyDetails: data.url.safetyDetails } : l));
+      showToast.success(`Safety status set to ${newStatus}`);
+    } catch {
+      showToast.error('Failed to override safety status');
     }
   };
 
@@ -216,6 +258,29 @@ const AdminLinks = () => {
                  <option value="active">Active</option>
                  <option value="disabled">Disabled</option>
                  <option value="expired">Expired</option>
+             </select>
+             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                 <ChevronLeft size={14} className="rotate-[-90deg] text-gray-500" />
+             </div>
+        </div>
+
+        {/* Safety Filter */}
+        <div className="relative">
+             <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+             <select
+                value={safetyFilter}
+                onChange={(e) => {
+                    setSafetyFilter(e.target.value);
+                    setPage(1);
+                }}
+                className="pl-10 pr-8 py-2.5 bg-gray-900/40 backdrop-blur-md border border-white/5 rounded-xl text-sm focus:outline-none focus:border-blue-500/50 transition-all text-gray-300 appearance-none cursor-pointer hover:bg-white/5"
+             >
+                 <option value="all">All Safety</option>
+                 <option value="safe">✅ Safe</option>
+                 <option value="malware">🔴 Malware</option>
+                 <option value="phishing">🔴 Phishing</option>
+                 <option value="pending">⏳ Pending</option>
+                 <option value="unchecked">❓ Unchecked</option>
              </select>
              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                  <ChevronLeft size={14} className="rotate-[-90deg] text-gray-500" />
@@ -321,12 +386,21 @@ const AdminLinks = () => {
             const isOwnerBanned = link.ownerBanned;
             const isExpired = link.expiresAt && new Date(link.expiresAt) < new Date();
             return (
-            <tr key={link._id} className={`hover:bg-white/5 transition-colors group ${isOwnerBanned ? 'bg-orange-500/5' : ''}`}>
+            <React.Fragment key={link._id}>
+            <tr className={`hover:bg-white/5 transition-colors group ${isOwnerBanned ? 'bg-orange-500/5' : ''} ${expandedLinkId === link._id ? 'bg-white/[0.03]' : ''}`}>
               <td className="p-4 whitespace-nowrap">
-                <div className="flex flex-col">
-                  <span className="font-mono text-blue-400">/{link.shortId}</span>
-                  <span className="text-xs text-gray-500">{new Date(link.createdAt).toLocaleDateString()}</span>
-                </div>
+                <button 
+                  onClick={() => setExpandedLinkId(expandedLinkId === link._id ? null : link._id)}
+                  className="flex items-center gap-2 text-left hover:text-blue-300 transition-colors"
+                >
+                  <span className={`transition-transform duration-200 ${expandedLinkId === link._id ? 'rotate-180' : ''}`}>
+                    <ChevronDown size={14} className="text-gray-500" />
+                  </span>
+                  <div className="flex flex-col">
+                    <span className="font-mono text-blue-400">/{link.shortId}</span>
+                    <span className="text-xs text-gray-500">{new Date(link.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </button>
               </td>
               <td className="p-4 whitespace-nowrap">
                 {link.customAlias ? (
@@ -338,7 +412,6 @@ const AdminLinks = () => {
               <td className="p-4 max-w-[200px]">
                 <div className="truncate text-gray-300" title={link.originalUrl}>
                   {link.originalUrl}
-                </div>
                 </div>
               </td>
               <td className="p-4">
@@ -445,12 +518,14 @@ const AdminLinks = () => {
                         >
                           <ExternalLink size={16} /> Visit Original
                         </a>
-                        <Link 
-                           to={`/dashboard/analytics/${link.customAlias || link.shortId}`}
+                        <a 
+                           href={`/dashboard/analytics/${link.customAlias || link.shortId}`}
+                           target="_blank"
+                           rel="noreferrer"
                            className="w-full text-left px-4 py-3 text-sm hover:bg-white/5 flex items-center gap-2 text-gray-300 hover:text-white"
                         >
                           <BarChart2 size={16} /> View Analytics
-                        </Link>
+                        </a>
                         <button 
                           onClick={() => handleToggleStatus(link)}
                           className={`w-full text-left px-4 py-3 text-sm hover:bg-white/5 flex items-center gap-2 ${link.isActive ? 'text-orange-400' : 'text-green-400'}`}
@@ -458,6 +533,39 @@ const AdminLinks = () => {
                           {link.isActive ? <Ban size={16} /> : <CheckCircle size={16} />} 
                           {link.isActive ? 'Disable Link' : 'Enable Link'}
                         </button>
+                        {/* Re-Scan Button */}
+                        <button 
+                          onClick={() => handleRescan(link)}
+                          disabled={rescanningId === link._id}
+                          className="w-full text-left px-4 py-3 text-sm hover:bg-white/5 flex items-center gap-2 text-blue-400 disabled:opacity-50"
+                        >
+                          <RefreshCw size={16} className={rescanningId === link._id ? 'animate-spin' : ''} /> 
+                          {rescanningId === link._id ? 'Scanning...' : 'Re-Scan Safety'}
+                        </button>
+
+                        {/* Safety Override Submenu */}
+                        <div className="border-t border-white/5">
+                          <div className="px-4 py-2 text-xs text-gray-500 uppercase tracking-wider">Override Safety</div>
+                          <button 
+                            onClick={() => handleSafetyOverride(link, 'safe')}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-white/5 flex items-center gap-2 text-green-400"
+                          >
+                            <CheckCircle size={14} /> Mark Safe
+                          </button>
+                          <button 
+                            onClick={() => handleSafetyOverride(link, 'malware')}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-white/5 flex items-center gap-2 text-red-400"
+                          >
+                            <ShieldAlert size={14} /> Flag Malware
+                          </button>
+                          <button 
+                            onClick={() => handleSafetyOverride(link, 'phishing')}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-white/5 flex items-center gap-2 text-orange-400"
+                          >
+                            <ShieldOff size={14} /> Flag Phishing
+                          </button>
+                        </div>
+
                         <button 
                           onClick={() => handleDelete(link._id)}
                           className="w-full text-left px-4 py-3 text-sm hover:bg-red-500/10 text-red-400 flex items-center gap-2 border-t border-white/5"
@@ -470,6 +578,121 @@ const AdminLinks = () => {
                 </div>
               </td>
             </tr>
+
+            {/* Expandable Details Row */}
+            {expandedLinkId === link._id && (
+              <tr className="bg-white/[0.02] border-t border-white/5">
+                <td colSpan="8" className="p-0">
+                  <div className="p-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                    {/* Compact Details Grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-xs">
+                      
+                      {/* Password Status */}
+                      <div className="bg-black/20 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 text-gray-500 mb-1">
+                          <Lock size={12} /> Password
+                        </div>
+                        <div className={link.password ? 'text-purple-400 font-medium' : 'text-gray-600'}>
+                          {link.password ? '🔒 Protected' : link.isPasswordProtected ? '🔒 Protected' : 'None'}
+                        </div>
+                      </div>
+
+                      {/* Expiration */}
+                      <div className="bg-black/20 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 text-gray-500 mb-1">
+                          <Timer size={12} /> Expires
+                        </div>
+                        <div className={link.expiresAt ? (new Date(link.expiresAt) < new Date() ? 'text-red-400' : 'text-amber-400') : 'text-gray-600'}>
+                          {link.expiresAt ? new Date(link.expiresAt).toLocaleDateString() : 'Never'}
+                        </div>
+                      </div>
+
+                      {/* Scheduled Start */}
+                      <div className="bg-black/20 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 text-gray-500 mb-1">
+                          <Calendar size={12} /> Scheduled
+                        </div>
+                        <div className={link.scheduledAt ? 'text-blue-400' : 'text-gray-600'}>
+                          {link.scheduledAt ? new Date(link.scheduledAt).toLocaleDateString() : 'None'}
+                        </div>
+                      </div>
+
+                      {/* Device Redirects */}
+                      <div className="bg-black/20 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 text-gray-500 mb-1">
+                          <Smartphone size={12} /> Device Rules
+                        </div>
+                        <div className={link.deviceRedirects?.enabled ? 'text-cyan-400 font-medium' : 'text-gray-600'}>
+                          {link.deviceRedirects?.enabled ? `${link.deviceRedirects.rules?.length || 0} Rules` : 'None'}
+                        </div>
+                      </div>
+
+                      {/* Time Redirects */}
+                      <div className="bg-black/20 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 text-gray-500 mb-1">
+                          <Clock size={12} /> Time Rules
+                        </div>
+                        <div className={link.timeRedirects?.enabled ? 'text-indigo-400 font-medium' : 'text-gray-600'}>
+                          {link.timeRedirects?.enabled ? `${link.timeRedirects.rules?.length || 0} Rules` : 'None'}
+                        </div>
+                      </div>
+
+                      {/* Safety Last Checked */}
+                      <div className="bg-black/20 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 text-gray-500 mb-1">
+                          <ShieldCheck size={12} /> Last Scan
+                        </div>
+                        <div className="text-gray-400">
+                          {link.lastCheckedAt ? new Date(link.lastCheckedAt).toLocaleDateString() : 'Never'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Device Redirect URLs (if any) */}
+                    {link.deviceRedirects?.enabled && link.deviceRedirects.rules?.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-white/5">
+                        <div className="text-xs text-gray-500 mb-2 flex items-center gap-1">
+                          <Smartphone size={12} /> Device Redirect URLs:
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {link.deviceRedirects.rules.map((rule, i) => (
+                            <span key={i} className="text-xs bg-cyan-500/10 text-cyan-400 px-2 py-1 rounded border border-cyan-500/20">
+                              {rule.device}: {rule.url?.length > 35 ? `${rule.url?.substring(0, 35)}...` : rule.url}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Time Redirect URLs (if any) */}
+                    {link.timeRedirects?.enabled && link.timeRedirects.rules?.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-white/5">
+                        <div className="text-xs text-gray-500 mb-2 flex items-center gap-1">
+                          <Clock size={12} /> Time Redirect URLs:
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {link.timeRedirects.rules.map((rule, i) => (
+                            <span key={i} className="text-xs bg-indigo-500/10 text-indigo-400 px-2 py-1 rounded border border-indigo-500/20">
+                              {rule.startTime}-{rule.endTime}: {rule.destination?.length > 35 ? `${rule.destination?.substring(0, 35)}...` : rule.destination}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Manual Override Badge */}
+                    {link.manualSafetyOverride && (
+                      <div className="mt-3 pt-3 border-t border-white/5">
+                        <span className="text-xs bg-amber-500/10 text-amber-400 px-2 py-1 rounded border border-amber-500/20">
+                          ⚠️ Manually Overridden - Background scans will not change safety status
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            )}
+          </React.Fragment>
           );
           })
         )}

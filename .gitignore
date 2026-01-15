@@ -89,6 +89,7 @@ plans/
 fix-needed/
 My-VM-Automation/
 Notes/
+testing/
 
 # Utility scripts (may contain local paths or dev-only utilities)
 server/scripts/
