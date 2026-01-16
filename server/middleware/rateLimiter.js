@@ -71,6 +71,7 @@ const anonCreateLimiter = rateLimit({
     }),
     standardHeaders: true,
     legacyHeaders: false,
+    validate: { keyGeneratorIpFallback: false },
 });
 
 const freeCreateLimiter = rateLimit({
@@ -82,7 +83,7 @@ const freeCreateLimiter = rateLimit({
         message: 'Free limit reached (10/hour). Upgrade for more!',
         retryAfter: 3600
     }),
-    validate: { keyGenerator: false }, // Suppress IPv6 validation - we use userId when available, IP only as fallback
+    validate: { keyGeneratorIpFallback: false }, // Suppress IPv6 validation - we use userId when available, IP only as fallback
 });
 
 const proCreateLimiter = rateLimit({

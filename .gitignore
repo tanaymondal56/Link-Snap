@@ -23,6 +23,9 @@ out/
 coverage/
 *.lcov
 
+# Normal log or Notes in Text files
+*.txt
+
 # Logs
 logs/
 *.log
