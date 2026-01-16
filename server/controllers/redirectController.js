@@ -4,6 +4,7 @@ import { trackVisit } from '../services/analyticsService.js';
 import { getFromCache, setInCache, getSubscriptionCache, setSubscriptionCache } from '../services/cacheService.js';
 import { checkAndIncrementClickUsage } from '../middleware/subscriptionMiddleware.js';
 import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
+import { queueClickIncrement } from '../services/clickStatsService.js';
 import { isLinkActive, getTimeBasedDestination } from '../services/timeService.js';
 import { hasFeature } from '../services/subscriptionService.js';
 import { sanitizeAlias } from '../utils/urlSecurity.js';
@@ -1460,8 +1461,8 @@ export const redirectUrl = async (req, res, next) => {
                 }
             }
 
-            // Async: Update clicks in DB (fire and forget)
-            Url.findByIdAndUpdate(cached._id, { $inc: { clicks: 1 } }).exec();
+            // Async: Update clicks in DB (buffered)
+            queueClickIncrement(cached._id);
 
             // Time-Based Redirect logic (Pro/Business feature)
             // Only apply if owner has time_redirects feature
@@ -1584,8 +1585,8 @@ export const redirectUrl = async (req, res, next) => {
             disableLinksOnBan
         });
 
-        // Increment clicks
-        Url.findByIdAndUpdate(url._id, { $inc: { clicks: 1 } }).exec();
+        // Increment clicks (buffered)
+        queueClickIncrement(url._id);
 
         // Time-Based Redirect logic (Pro/Business feature)
         // Only apply if owner has time_redirects feature

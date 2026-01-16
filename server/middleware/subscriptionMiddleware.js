@@ -3,6 +3,8 @@ import { TIERS, getEffectiveTier } from '../services/subscriptionService.js';
 import logger from '../utils/logger.js';
 import AnonUsage from '../models/AnonUsage.js';
 import { getAnonFingerprint } from '../utils/fingerprint.js';
+import { queueUserClickIncrement } from '../services/clickStatsService.js';
+import { LRUCache } from 'lru-cache';
 
 /**
  * Middleware to check if user has reached their monthly link creation limit
@@ -180,9 +182,38 @@ export const incrementLinkUsage = async (reqOrUserId) => {
  * Check and increment click usage (Atomic)
  * Returns { allowed: boolean, limit: number, usage: number }
  */
+// Local cache for user limits to avoid DB hits on every click
+// Stores essential user data needed for limit checks (plain objects for memory efficiency)
+const usageCache = new LRUCache({
+    max: 2000,
+    ttl: 1000 * 60, // 1 minute TTL (soft limit enforcement)
+});
+
+/**
+ * Check and increment click usage (Optimized with Cache + Buffer)
+ * Returns { allowed: boolean, limit: number, usage: number }
+ */
 export const checkAndIncrementClickUsage = async (userId) => {
-  const user = await User.findById(userId).select('subscription clickUsage role snapId');
-  if (!user) return { allowed: true }; // Should not happen, but fail open
+  const userIdStr = userId.toString();
+  
+  // 1. Try Cache
+  let user = usageCache.get(userIdStr);
+  
+  if (!user) {
+      // Cache Miss: Fetch from DB
+      const dbUser = await User.findById(userId).select('subscription clickUsage role snapId');
+      if (!dbUser) return { allowed: true }; // Fail open
+      
+      // Store plain object in cache for memory efficiency
+      user = {
+          _id: dbUser._id,
+          role: dbUser.role,
+          snapId: dbUser.snapId,
+          subscription: dbUser.subscription ? dbUser.subscription.toObject?.() || dbUser.subscription : null,
+          clickUsage: dbUser.clickUsage ? { ...dbUser.clickUsage.toObject?.() || dbUser.clickUsage } : { count: 0, resetAt: null }
+      };
+      usageCache.set(userIdStr, user);
+  }
   
   if (user.role === 'admin') return { allowed: true };
   
@@ -190,7 +221,7 @@ export const checkAndIncrementClickUsage = async (userId) => {
   const config = TIERS[tier];
   const limit = config ? config.clicksPerMonth : TIERS.free.clicksPerMonth;
   
-  // Reset Logic (Same as link usage)
+  // Reset Logic (Check against cached object)
   const currentPeriodStart = user.subscription?.currentPeriodStart;
   const resetAt = user.clickUsage?.resetAt;
   let shouldReset = false;
@@ -204,26 +235,39 @@ export const checkAndIncrementClickUsage = async (userId) => {
   }
   
   if (shouldReset) {
+       // On reset, we MUST hit the DB to ensure consistency
+       // Then update cache
        await User.findByIdAndUpdate(user._id, {
           $set: { 'clickUsage.count': 0, 'clickUsage.resetAt': now }
        });
+       // Ensure clickUsage object exists before setting properties
+       if (!user.clickUsage) {
+           user.clickUsage = { count: 0, resetAt: null };
+       }
        user.clickUsage.count = 0;
+       user.clickUsage.resetAt = now;
+       usageCache.set(userIdStr, user);
   }
   
   // Soft Cap for Business (Allow up to 120%)
   const effectiveLimit = tier === 'business' ? Math.floor(limit * 1.2) : limit;
 
-  if (user.clickUsage.count >= effectiveLimit) {
+  // Defensive check for clickUsage existence
+  const currentClickCount = user.clickUsage?.count ?? 0;
+  
+  if (currentClickCount >= effectiveLimit) {
       if (tier === 'business') logger.warn(`[Soft Cap] Business User ${user.snapId} click hard limit reached: ${effectiveLimit}`);
-      return { allowed: false, limit: effectiveLimit, usage: user.clickUsage.count };
+      return { allowed: false, limit: effectiveLimit, usage: currentClickCount };
   }
   
-  // Atomic Increment
-  // We use findOneAndUpdate to ensure we don't cross the limit in race conditions
-  // But for clicks, slight overage is fine for performance. Simple $inc is faster.
-  // Using simple findByIdAndUpdate without condition for speed, since we already checked count.
-  // (Race condition might allow a few extra clicks, which is acceptable).
-  await User.findByIdAndUpdate(user._id, { $inc: { 'clickUsage.count': 1 } });
+  // 2. Allowed: Increment Memory Cache (for strict local limiting)
+  if (!user.clickUsage) {
+      user.clickUsage = { count: 0, resetAt: null };
+  }
+  user.clickUsage.count += 1;
+  
+  // 3. Queue DB Increment (Buffered)
+  queueUserClickIncrement(user._id);
   
   return { allowed: true };
 };

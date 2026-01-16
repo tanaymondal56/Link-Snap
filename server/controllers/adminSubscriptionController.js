@@ -24,18 +24,14 @@ export const getSubscriptionStats = async (req, res) => {
       { $group: { _id: '$subscription.status', count: { $sum: 1 } } }
     ]);
     
-    // Get recent upgrades (fetch without sort, sort in JS - Cosmos DB index workaround)
-    let recentUpgrades = await User.find({
+    // Get recent upgrades - uses createdAt index for sorting
+    const recentUpgrades = await User.find({
       'subscription.tier': { $in: ['pro', 'business'] },
       'subscription.currentPeriodStart': { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
     })
-      .limit(50) // Fetch more, sort in JS
+      .sort({ createdAt: -1 })
+      .limit(10)
       .select('email snapId subscription.tier subscription.currentPeriodStart createdAt');
-    
-    // Sort in JavaScript
-    recentUpgrades = recentUpgrades
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 10);
     
     // Get total count
     const totalUsers = await User.countDocuments();
@@ -119,16 +115,11 @@ export const getAuditLogs = async (req, res) => {
     // Get total count
     const total = await SubscriptionAuditLog.countDocuments(query);
     
-    // Fetch logs with pagination, sorted by newest first
-    // Cosmos DB workaround: fetch enough to cover current page + buffer, sort in JS
-    const fetchLimit = Math.min(skip + limit + 50, total + 50); // Fetch enough for current page
-    let logs = await SubscriptionAuditLog.find(query)
-      .limit(fetchLimit);
-    
-    // Sort in JavaScript (Cosmos DB index workaround)
-    logs = logs
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(skip, skip + limit);
+    // Fetch logs with pagination - uses compound indexes { action: 1, createdAt: -1 } or { source: 1, createdAt: -1 }
+    const logs = await SubscriptionAuditLog.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
     
     res.json({
       logs,

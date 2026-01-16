@@ -118,8 +118,9 @@ settingsSchema.pre('save', async function () {
         this.emailConfigured = false;
     }
 
-    // Encrypt password if modified and not already encrypted
-    if (this.isModified('emailPassword') && this.emailPassword && !this.emailPassword.includes(':')) {
+    // Encrypt password if modified and strictly if it has a value
+    // We trust isModified to tell us if it's a new plaintext password
+    if (this.isModified('emailPassword') && this.emailPassword) {
         this.emailPassword = encrypt(this.emailPassword);
     }
 });

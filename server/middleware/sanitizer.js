@@ -4,20 +4,31 @@
  * Works alongside Zod validation for defense in depth
  */
 
+// Dangerous keys that could lead to prototype pollution
+const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+// Maximum recursion depth to prevent stack overflow on deeply nested/circular objects
+const MAX_DEPTH = 20;
+
 // Recursively sanitize an object by removing keys starting with $ or containing .
-const sanitize = (obj) => {
+const sanitize = (obj, depth = 0) => {
+    // Prevent stack overflow on deeply nested or circular objects
+    if (depth > MAX_DEPTH) {
+        return obj;
+    }
+
     if (obj === null || typeof obj !== 'object') {
         return obj;
     }
 
     if (Array.isArray(obj)) {
-        return obj.map(sanitize);
+        return obj.map(item => sanitize(item, depth + 1));
     }
 
     const sanitized = {};
     for (const key of Object.keys(obj)) {
-        // Block MongoDB operators (keys starting with $) and dot notation attacks
-        if (key.startsWith('$') || key.includes('.')) {
+        // Block MongoDB operators (keys starting with $), dot notation attacks, and prototype pollution
+        if (key.startsWith('$') || key.includes('.') || BLOCKED_KEYS.has(key)) {
             continue; // Skip malicious keys
         }
 
@@ -25,7 +36,7 @@ const sanitize = (obj) => {
 
         // Recursively sanitize nested objects
         if (typeof value === 'object' && value !== null) {
-            sanitized[key] = sanitize(value);
+            sanitized[key] = sanitize(value, depth + 1);
         } else if (typeof value === 'string') {
             // Remove any $ at the start of string values (potential injection)
             sanitized[key] = value.replace(/^\$/, '');
@@ -43,21 +54,14 @@ export const mongoSanitize = (req, res, next) => {
         req.body = sanitize(req.body);
     }
 
-    // In Express 5, req.query and req.params are read-only getters
-    // We sanitize individual values in place instead of replacing the object
+    // Sanitize req.query
     if (req.query) {
-        for (const key of Object.keys(req.query)) {
-            if (key.startsWith('$') || key.includes('.')) {
-                delete req.query[key];
-            } else if (typeof req.query[key] === 'string') {
-                req.query[key] = req.query[key].replace(/^\$/, '');
-            }
-        }
+        req.query = sanitize(req.query);
     }
 
-    // For params, we attach sanitized version to a custom property
+    // Sanitize req.params
     if (req.params) {
-        req.sanitizedParams = sanitize({ ...req.params });
+        req.params = sanitize(req.params);
     }
 
     next();

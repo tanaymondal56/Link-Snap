@@ -13,8 +13,9 @@ export const getAnonFingerprint = (req) => {
     const ip = req.ip || req.connection.remoteAddress || 'unknown';
     
     // Hash the User-Agent to keep the fingerprint short
+    // Using SHA-256 for better collision resistance than MD5
     const ua = req.headers['user-agent'] || '';
-    const uaHash = crypto.createHash('md5').update(ua).digest('hex').slice(0, 8);
+    const uaHash = crypto.createHash('sha256').update(ua).digest('hex').slice(0, 16); // 16 chars is plenty
     
     return `${ip}:${uaHash}`;
 };

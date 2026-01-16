@@ -41,17 +41,22 @@ export const devResetSelf = async (req, res) => {
     
     // 1. Clear user from any Redeem Codes they used ONLY if keepHistory is false
     if (!keepHistory) {
-        const codesUsed = await RedeemCode.find({ 'usedBy.user': user._id });
+      // Optimized: Use updateMany instead of loop + findByIdAndUpdate (N+1 fix)
+      const codesUsed = await RedeemCode.find({ 'usedBy.user': user._id }).select('_id');
+      
+      if (codesUsed.length > 0) {
+        const codeIds = codesUsed.map(c => c._id);
         
-        if (codesUsed.length > 0) {
-        for (const code of codesUsed) {
-            await RedeemCode.findByIdAndUpdate(code._id, {
+        await RedeemCode.updateMany(
+          { _id: { $in: codeIds } },
+          { 
             $pull: { usedBy: { user: user._id } },
             $inc: { usedCount: -1 }
-            });
-        }
+          }
+        );
+        
         logger.info(`[DEV] Cleared ${codesUsed.length} redeem code usages for user ${user.email}`);
-        }
+      }
     } else {
         logger.info(`[DEV] User ${user.email} reset subscription but KEPT redeem history`);
     }
@@ -88,15 +93,20 @@ export const devClearRedeemHistory = async (req, res) => {
   try {
     const user = req.user;
     
-    const codesUsed = await RedeemCode.find({ 'usedBy.user': user._id });
+    // Optimized: Use updateMany instead of loop + findByIdAndUpdate (N+1 fix)
+    const codesUsed = await RedeemCode.find({ 'usedBy.user': user._id }).select('_id');
     
     if (codesUsed.length > 0) {
-      for (const code of codesUsed) {
-        await RedeemCode.findByIdAndUpdate(code._id, {
+      const codeIds = codesUsed.map(c => c._id);
+      
+      await RedeemCode.updateMany(
+        { _id: { $in: codeIds } },
+        { 
           $pull: { usedBy: { user: user._id } },
           $inc: { usedCount: -1 }
-        });
-      }
+        }
+      );
+      
       logger.info(`[DEV] Cleared ${codesUsed.length} redeem code usages for user ${user.email} (Tier preserved)`);
       return res.json({ message: `Dev Mode: Cleared history for ${codesUsed.length} codes. You can reuse them now.`, count: codesUsed.length });
     }

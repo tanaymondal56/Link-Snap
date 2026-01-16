@@ -1,4 +1,4 @@
-import { scanPendingLinks } from './safeBrowsingService.js';
+import { scanPendingLinks, scanUncheckedLinks } from './safeBrowsingService.js';
 
 // Intervals
 const FIVE_MINUTES = 5 * 60 * 1000;
@@ -27,6 +27,18 @@ export const startCronJobs = () => {
     }, FIVE_MINUTES);
     
     console.log('[Cron] Safe Browsing retry worker started (Every 5 mins)');
+
+    // 2. Backlog Scanner (Unchecked Links)
+    // Catches links that were missed or skipped (bulk imports, system downtime)
+    const ONE_HOUR = 60 * 60 * 1000;
+    setInterval(async () => {
+        try {
+            await scanUncheckedLinks();
+        } catch (err) {
+            console.error('[Cron] Backlog scan error:', err.message);
+        }
+    }, ONE_HOUR);
+    console.log('[Cron] Safe Browsing backlog scanner started (Every 1 hour)');
 };
 
 // Stop jobs (for graceful shutdown)

@@ -70,60 +70,86 @@ const processExpiredBans = async () => {
     try {
         const now = new Date();
 
-        // Find users with expired temporary bans
-        const expiredBans = await User.find({
+        // Use cursor to stream expired bans instead of loading all into memory
+        const cursor = User.find({
             isActive: false,
             bannedUntil: { $lte: now, $ne: null }
-        });
+        }).cursor();
 
-        if (expiredBans.length === 0) {
-            return;
-        }
+        const CONCURRENCY_LIMIT = 20; // Process 20 users in parallel
+        let userBatch = [];
 
-        logger.info(`Processing ${expiredBans.length} expired temporary bans`);
+        for (let user = await cursor.next(); user != null; user = await cursor.next()) {
+            userBatch.push(user);
 
-        for (const user of expiredBans) {
-            try {
-                // Unban the user using atomic operation
-                await User.findByIdAndUpdate(
-                    user._id,
-                    {
-                        $set: { isActive: true, disableLinksOnBan: false },
-                        $unset: { bannedAt: 1, bannedReason: 1, bannedUntil: 1, bannedBy: 1 }
-                    }
-                );
-
-                // Log in ban history
-                await BanHistory.create({
-                    userId: user._id,
-                    userInternalId: user.internalId,
-                    action: 'temp_ban_expired',
-                    reason: 'Temporary ban period expired - automatically unbanned',
-                    linksAffected: true,
-                    // performedBy omitted to indicate system action
-                });
-
-                // Invalidate cache for user's links
-                const userUrls = await Url.find({ createdBy: user._id }).select('shortId customAlias');
-                if (userUrls.length > 0) {
-                    const allIds = [];
-                    userUrls.forEach(u => {
-                        allIds.push(u.shortId);
-                        if (u.customAlias) allIds.push(u.customAlias);
-                    });
-                    invalidateMultiple(allIds);
-                }
-
-                // Send reactivation email
-                sendBanExpiredEmail(user);
-
-                logger.info(`Auto-unbanned user ${user.email} after temporary ban expired`);
-            } catch (error) {
-                logger.error(`Failed to auto-unban user ${user.email}: ${error.message}`);
+            if (userBatch.length >= CONCURRENCY_LIMIT) {
+                await Promise.all(userBatch.map(processSingleUnban));
+                userBatch = [];
             }
         }
+
+        // Process remaining users
+        if (userBatch.length > 0) {
+            await Promise.all(userBatch.map(processSingleUnban));
+        }
+
     } catch (error) {
         logger.error(`Error processing expired bans: ${error.message}`);
+    }
+};
+
+// Helper function to process a single user unban
+const processSingleUnban = async (user) => {
+    try {
+        // Unban the user using atomic operation
+        await User.findByIdAndUpdate(
+            user._id,
+            {
+                $set: { isActive: true, disableLinksOnBan: false },
+                $unset: { bannedAt: 1, bannedReason: 1, bannedUntil: 1, bannedBy: 1 }
+            }
+        );
+
+        // Log in ban history
+        await BanHistory.create({
+            userId: user._id,
+            userInternalId: user.internalId,
+            action: 'temp_ban_expired',
+            reason: 'Temporary ban period expired - automatically unbanned',
+            linksAffected: true,
+            // performedBy omitted to indicate system action
+        });
+
+        // Invalidate cache for user's links - Optimized with Cursor
+        const urlCursor = Url.find({ createdBy: user._id })
+            .select('shortId customAlias')
+            .cursor();
+
+        let batchIds = [];
+        const CACHE_BATCH_SIZE = 500;
+
+        for (let doc = await urlCursor.next(); doc != null; doc = await urlCursor.next()) {
+            batchIds.push(doc.shortId);
+            if (doc.customAlias) {
+                batchIds.push(doc.customAlias);
+            }
+
+            if (batchIds.length >= CACHE_BATCH_SIZE) {
+                invalidateMultiple(batchIds);
+                batchIds = [];
+            }
+        }
+
+        if (batchIds.length > 0) {
+            invalidateMultiple(batchIds);
+        }
+
+        // Send reactivation email
+        sendBanExpiredEmail(user);
+
+        logger.info(`Auto-unbanned user ${user.email} after temporary ban expired`);
+    } catch (error) {
+        logger.error(`Failed to auto-unban user ${user.email}: ${error.message}`);
     }
 };
 
@@ -135,10 +161,22 @@ const startBanScheduler = () => {
     processExpiredBans();
     processScheduledChangelogs();
 
+    // Flag to prevent overlapping runs if processing takes > 1 minute
+    let isSchedulerRunning = false;
+
     // Then run every minute
-    setInterval(() => {
-        processExpiredBans();
-        processScheduledChangelogs();
+    setInterval(async () => {
+        if (isSchedulerRunning) return;
+        isSchedulerRunning = true;
+        
+        try {
+            await processExpiredBans();
+            await processScheduledChangelogs();
+        } catch (err) {
+            logger.error(`[BanScheduler] Error in optimized loop: ${err.message}`);
+        } finally {
+            isSchedulerRunning = false;
+        }
     }, 60 * 1000);
 };
 

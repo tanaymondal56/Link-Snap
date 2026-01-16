@@ -76,7 +76,16 @@ const urlSchema = new mongoose.Schema({
                 enum: ['ios', 'android', 'mobile', 'desktop', 'tablet'],
                 required: true
             },
-            url: { type: String, required: true },
+            url: { 
+                type: String, 
+                required: true,
+                validate: {
+                    validator: function(v) {
+                        return /^https?:\/\/.+/.test(v);
+                    },
+                    message: 'Destination must be a valid URL starting with http:// or https://'
+                }
+            },
             priority: { type: Number, default: 0 } // Higher = checked first
         }],
     },
@@ -122,6 +131,11 @@ urlSchema.index({ expiresAt: 1 }, { sparse: true });
 urlSchema.index({ activeStartTime: 1 }, { sparse: true });
 urlSchema.index({ safetyStatus: 1 }); // Optimize background scans
 urlSchema.index({ lastCheckedAt: 1 }); // Optimize retry logic
+// Compound index for admin panel filtering (safety status + sort by date)
+urlSchema.index({ safetyStatus: 1, createdAt: -1 });
+// Index for admin link search by isActive status
+urlSchema.index({ isActive: 1, createdAt: -1 });
+
 
 const Url = mongoose.model('Url', urlSchema);
 

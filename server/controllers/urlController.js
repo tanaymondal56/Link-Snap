@@ -10,6 +10,7 @@ import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
 import { trackVisit } from '../services/analyticsService.js';
 import Settings from '../models/Settings.js';
 import { checkUrlsSafety } from '../services/safeBrowsingService.js';
+import { getTimeBasedDestination } from '../services/timeService.js';
 // Note: validateUrlSecurity available from '../utils/urlSecurity.js' for future outbound request protection
 
 // Extract domain from URL (safe - no network request)
@@ -109,7 +110,6 @@ const createUrlSchema = z.object({
 // @access  Public/Private
 const createShortUrl = async (req, res, next) => {
     try {
-        // Normalize URL: Prepend https:// if missing (User Experience)
         // Normalize URL: Prepend https:// if missing (User Experience)
         if (req.body.originalUrl && typeof req.body.originalUrl === 'string' && !/^https?:\/\//i.test(req.body.originalUrl)) {
             req.body.originalUrl = `https://${req.body.originalUrl}`;
@@ -393,8 +393,8 @@ const deleteUrl = async (req, res, next) => {
         }
 
         if (url.createdBy.toString() !== req.user._id.toString()) {
-            res.status(401);
-            throw new Error('Not authorized');
+            res.status(403);
+            throw new Error('Not authorized to delete this link');
         }
 
         // Invalidate cache before deleting
@@ -405,16 +405,15 @@ const deleteUrl = async (req, res, next) => {
 
         await url.deleteOne();
 
-        // Decrement Active Count for logged-in users
+        // Decrement Active Count for logged-in users (atomic operation)
         // Hard limit (total created) is NEVER decremented
+        // Uses aggregation pipeline to ensure count never goes below 0 in a single atomic operation
         if (req.user) {
-            await User.findByIdAndUpdate(req.user._id, {
-                $inc: { 'linkUsage.count': -1 }
-            });
-            // Ensure count doesn't go below zero (safety net)
-             await User.findByIdAndUpdate(req.user._id, {
-                $max: { 'linkUsage.count': 0 }
-            });
+            await User.findByIdAndUpdate(req.user._id, [{
+                $set: {
+                    'linkUsage.count': { $max: [0, { $subtract: ['$linkUsage.count', 1] }] }
+                }
+            }]);
         }
 
         res.json({ message: 'URL removed' });
@@ -546,11 +545,10 @@ const updateUrl = async (req, res, next) => {
         }
 
         if (url.createdBy.toString() !== req.user._id.toString()) {
-            res.status(401);
-            throw new Error('Not authorized');
+            res.status(403);
+            throw new Error('Not authorized to update this link');
         }
 
-        // Normalize URL if provided
         // Normalize URL if provided
         if (req.body.originalUrl && typeof req.body.originalUrl === 'string' && !/^https?:\/\//i.test(req.body.originalUrl)) {
             req.body.originalUrl = `https://${req.body.originalUrl}`;
@@ -892,7 +890,6 @@ const verifyLinkPassword = async (req, res, next) => {
             // Check if owner has time_redirects feature
             const owner = await User.findById(url.createdBy).select('subscription role');
             if (owner && (owner.role === 'admin' || hasFeature(owner, 'time_redirects'))) {
-                const { getTimeBasedDestination } = await import('../services/timeService.js');
                 const timeDestination = getTimeBasedDestination(url.timeRedirects);
                 if (timeDestination) {
                     finalTargetUrl = timeDestination;

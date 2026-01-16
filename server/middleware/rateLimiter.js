@@ -1,4 +1,6 @@
 import rateLimit from 'express-rate-limit';
+import { getEffectiveTier } from '../services/subscriptionService.js';
+import { getAnonFingerprint } from '../utils/fingerprint.js';
 
 // IPs that bypass rate limiting
 // Add your trusted IPs to .env under RATE_LIMIT_WHITELIST_IPS
@@ -55,8 +57,7 @@ export const refreshLimiter = rateLimit({
     skip: (req) => isWhitelisted(req.ip),
 });
 
-import { getEffectiveTier } from '../services/subscriptionService.js';
-import { getAnonFingerprint } from '../utils/fingerprint.js';
+// Tiered rate limiting uses getEffectiveTier and getAnonFingerprint (imported at top)
 
 // Tiered Rate Limiters (Internal)
 const anonCreateLimiter = rateLimit({

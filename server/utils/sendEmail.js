@@ -1,9 +1,28 @@
 import nodemailer from 'nodemailer';
 import Settings from '../models/Settings.js';
 
+// Simple in-memory cache for settings
+let settingsCache = {
+    data: null,
+    expiresAt: 0
+};
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 const sendEmail = async (options) => {
-    // Fetch email settings from database
-    const settings = await Settings.findOne();
+    // Check cache
+    let settings;
+    if (settingsCache.data && settingsCache.expiresAt > Date.now()) {
+        settings = settingsCache.data;
+    } else {
+        // Fetch from DB
+        settings = await Settings.findOne();
+        if (settings) {
+            settingsCache = {
+                data: settings,
+                expiresAt: Date.now() + CACHE_TTL
+            };
+        }
+    }
 
     if (!settings || !settings.emailConfigured) {
         throw new Error('Email is not configured. Please configure email settings in the admin panel.');

@@ -28,17 +28,24 @@ export const getTimeBasedDestination = (timeRedirects) => {
     }
 
     const tz = timeRedirects.timezone || 'UTC';
-    let now;
     
+    let currentTime;
+    let currentDay;
+
     try {
-        now = toZonedTime(new Date(), tz);
+        // format handles timezone conversion internally if provided in options
+        currentTime = format(new Date(), 'HH:mm', { timeZone: tz });
+        // Getting the day in a specific timezone is tricky without shifting
+        // We can use toZonedTime for the day check, or format 'i' (ISO day) or 'e' (local day)
+        // using toZonedTime is clearer for retrieving the day index
+        const zonedDate = toZonedTime(new Date(), tz);
+        currentDay = zonedDate.getDay(); 
     } catch {
         console.warn(`[TBR] Invalid timezone "${tz}", falling back to UTC`);
-        now = toZonedTime(new Date(), 'UTC');
+        const utcDate = toZonedTime(new Date(), 'UTC');
+        currentTime = format(utcDate, 'HH:mm');
+        currentDay = utcDate.getDay();
     }
-
-    const currentTime = format(now, 'HH:mm');
-    const currentDay = now.getDay(); // 0=Sun, 6=Sat
 
     // Sort rules by priority (higher = first) for predictable matching
     const sortedRules = [...timeRedirects.rules].sort((a, b) => (b.priority || 0) - (a.priority || 0));

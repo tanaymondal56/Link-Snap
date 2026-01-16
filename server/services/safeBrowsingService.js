@@ -137,8 +137,8 @@ const runBatchScan = async (query, maxLimit = 500) => {
             // Call API
             const threatMap = await queryGoogleRef(allThreatEntries);
             
-            // Update Docs based on findings
-            const updates = urlsToCheck.map(async (doc) => {
+            // Update Docs based on findings (Bulk Write Optimization)
+            const bulkOps = urlsToCheck.map((doc) => {
                 let status = 'safe';
                 let details = null;
                 let foundThreat = null;
@@ -147,13 +147,13 @@ const runBatchScan = async (query, maxLimit = 500) => {
                 if (threatMap.has(doc.originalUrl)) foundThreat = threatMap.get(doc.originalUrl);
                 
                 // Check Device Rules
-                if (!foundThreat && doc.deviceRedirects?.enabled) {
+                if (!foundThreat && doc.deviceRedirects?.enabled && doc.deviceRedirects?.rules) {
                     const rule = doc.deviceRedirects.rules.find(r => threatMap.has(r.url));
                     if (rule) foundThreat = threatMap.get(rule.url);
                 }
 
                 // Check Time Rules
-                if (!foundThreat && doc.timeRedirects?.enabled) {
+                if (!foundThreat && doc.timeRedirects?.enabled && doc.timeRedirects?.rules) {
                     const rule = doc.timeRedirects.rules.find(r => threatMap.has(r.destination));
                     if (rule) foundThreat = threatMap.get(rule.destination);
                 }
@@ -166,14 +166,21 @@ const runBatchScan = async (query, maxLimit = 500) => {
                     threats++;
                 }
 
-                return Url.findByIdAndUpdate(doc._id, {
-                    safetyStatus: status,
-                    safetyDetails: details,
-                    lastCheckedAt: new Date()
-                });
+                return {
+                    updateOne: {
+                        filter: { _id: doc._id },
+                        update: {
+                            safetyStatus: status,
+                            safetyDetails: details,
+                            lastCheckedAt: new Date()
+                        }
+                    }
+                };
             });
 
-            await Promise.all(updates);
+            if (bulkOps.length > 0) {
+                await Url.bulkWrite(bulkOps, { ordered: false });
+            }
             processed += urlsToCheck.length;
 
             // Small delay to be nice to CPU and Rate Limits

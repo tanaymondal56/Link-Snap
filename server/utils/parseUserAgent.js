@@ -20,7 +20,9 @@ export const parseUserAgent = (userAgentString) => {
   }
 
   try {
-    const parser = new UAParser(userAgentString);
+    // Truncate excessively long UA strings to prevent ReDoS or performance issues
+    const safeUA = userAgentString.length > 500 ? userAgentString.substring(0, 500) : userAgentString;
+    const parser = new UAParser(safeUA);
     const result = parser.getResult();
 
     const browser = result.browser.name || 'Unknown';

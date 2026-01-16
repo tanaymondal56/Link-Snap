@@ -163,7 +163,7 @@ export const getRegistrationOptions = async (req, res) => {
     logAccessAttempt('REGISTER_OPTIONS', true, { userId, ip: clientIP });
     // DEBUG: Log options structure
     if (process.env.NODE_ENV === 'development') {
-        console.log('[Device Auth] Options sent to client:', JSON.stringify({ 
+        logger.debug('[Device Auth] Options sent to client:', JSON.stringify({ 
             ...options, 
             userID: '[HIDDEN]', 
             challenge: options.challenge ? (options.challenge.length + ' chars') : 'MISSING'
@@ -171,7 +171,7 @@ export const getRegistrationOptions = async (req, res) => {
     }
     res.json(options);
   } catch (error) {
-    console.error('[Device Auth] Registration options error:', error);
+    logger.error('[Device Auth] Registration options error:', error);
     res.status(500).json({ message: 'Internal error', error: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined });
   }
 };
@@ -268,7 +268,7 @@ export const verifyRegistration = async (req, res) => {
     }
 
     if (!credId || !credPublicKey) {
-       console.error('[Device Auth] CRITICAL: Missing credentialID or publicKey:', Object.keys(regInfo));
+       logger.error('[Device Auth] CRITICAL: Missing credentialID or publicKey:', Object.keys(regInfo));
        return res.status(500).json({ message: 'Server error: Invalid authenticator data' });
     }
 
@@ -310,7 +310,7 @@ export const verifyRegistration = async (req, res) => {
       message: 'Device registered successfully',
     });
   } catch (error) {
-    console.error('[Device Auth] Registration verify error:', error);
+    logger.error('[Device Auth] Registration verify error:', error);
     logAccessAttempt('REGISTER_VERIFY', false, { ip: clientIP, error: error.message });
     res.status(500).json({ message: 'Internal error' });
   }
@@ -354,7 +354,7 @@ export const getAuthenticationOptions = async (req, res) => {
       challengeId: tempId,
     });
   } catch (error) {
-    console.error('[Device Auth] Auth options error:', error);
+    logger.error('[Device Auth] Auth options error:', error);
     res.status(500).json({ message: 'Internal error' });
   }
 };
@@ -395,8 +395,8 @@ export const verifyAuthentication = async (req, res) => {
 
     if (!device) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('[Device Auth] Device not found for ID (Base64URL):', response.id);
-        console.log('[Device Auth] Converted Buffer:', credentialId);
+        logger.debug('[Device Auth] Device not found for ID (Base64URL):', response.id);
+        logger.debug('[Device Auth] Converted Buffer:', credentialId);
       }
       recordFailedAttempt(clientIP);
       logAccessAttempt('AUTH_VERIFY', false, { ip: clientIP, reason: 'device_not_found' });
@@ -404,7 +404,7 @@ export const verifyAuthentication = async (req, res) => {
     }
 
     if (process.env.NODE_ENV === 'development') {
-       console.log('[Device Auth] Verifying device:', {
+       logger.debug('[Device Auth] Verifying device:', {
          id: device._id,
          counter: device.counter,
          credentialIdLen: device.credentialId.length
@@ -431,7 +431,7 @@ export const verifyAuthentication = async (req, res) => {
 
     if (!verification.verified) {
       if (process.env.NODE_ENV === 'development') {
-         console.log('[Device Auth] Verification failed result:', JSON.stringify(verification, null, 2));
+         logger.debug('[Device Auth] Verification failed result:', JSON.stringify(verification, null, 2));
       }
       recordFailedAttempt(clientIP);
       logAccessAttempt('AUTH_VERIFY', false, { 
@@ -522,7 +522,7 @@ export const verifyAuthentication = async (req, res) => {
       message: 'Authentication successful',
     });
   } catch (error) {
-    console.error('[Device Auth] Auth verify error:', error);
+    logger.error('[Device Auth] Auth verify error:', error);
     recordFailedAttempt(clientIP);
     logAccessAttempt('AUTH_VERIFY', false, { ip: clientIP, error: error.message });
     res.status(500).json({ message: 'Internal error' });
@@ -544,7 +544,7 @@ export const getDevices = async (req, res) => {
 
     res.json(devices);
   } catch (error) {
-    console.error('[Device Auth] Get devices error:', error);
+    logger.error('[Device Auth] Get devices error:', error);
     res.status(500).json({ message: 'Internal error', error: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined });
   }
 };
@@ -569,7 +569,7 @@ export const updateDeviceName = async (req, res) => {
     logAccessAttempt('DEVICE_UPDATE', true, { userId, deviceId, newName: device.deviceName });
     res.json({ success: true, deviceName: device.deviceName });
   } catch (error) {
-    console.error('[Device Auth] Update device error:', error);
+    logger.error('[Device Auth] Update device error:', error);
     res.status(500).json({ message: 'Internal error' });
   }
 };
@@ -592,7 +592,7 @@ export const revokeDevice = async (req, res) => {
     logAccessAttempt('DEVICE_REVOKE', true, { userId, deviceId, deviceName: device.deviceName });
     res.json({ success: true, message: 'Device revoked' });
   } catch (error) {
-    console.error('[Device Auth] Revoke device error:', error);
+    logger.error('[Device Auth] Revoke device error:', error);
     res.status(500).json({ message: 'Internal error' });
   }
 };
@@ -613,7 +613,7 @@ export const revokeAllDevices = async (req, res) => {
       message: 'All devices revoked',
     });
   } catch (error) {
-    console.error('[Device Auth] Revoke all error:', error);
+    logger.error('[Device Auth] Revoke all error:', error);
     res.status(500).json({ message: 'Internal error' });
   }
 };
@@ -635,7 +635,7 @@ export const checkTrustedDevice = async (credentialId) => {
 
     return { trusted: false };
   } catch (error) {
-    console.error('[Device Auth] Check trusted device error:', error);
+    logger.error('[Device Auth] Check trusted device error:', error);
     return { trusted: false };
   }
 };

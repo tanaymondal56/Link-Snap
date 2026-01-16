@@ -4,6 +4,7 @@ import Analytics from '../models/Analytics.js';
 import User from '../models/User.js';
 import { invalidateCache } from '../services/cacheService.js';
 import { checkUrlsSafety } from '../services/safeBrowsingService.js';
+import logger from '../utils/logger.js';
 
 // @desc    Get all links (paginated, searchable)
 // @route   GET /api/admin/links
@@ -17,67 +18,113 @@ export const getAllLinks = async (req, res) => {
         const safety = req.query.safety || 'all'; // 'all', 'safe', 'malware', 'phishing', 'pending', 'unchecked'
         const skip = (page - 1) * limit;
 
-        let query = {};
+        const matchStage = {};
+        const now = new Date();
         
-        // Search Logic
+        // Search Logic - Build conditions for aggregation
+        let searchUserIds = [];
         if (search) {
             const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             
-            // Find users matching the search term to include in link search (Limit 50 to prevent massive In queries)
-            const matchingUsers = await User.find({
-                $or: [
-                    { email: { $regex: escapedSearch, $options: 'i' } },
-                    { username: { $regex: escapedSearch, $options: 'i' } }
-                ]
-            }).select('_id').limit(50);
-            const matchingUserIds = matchingUsers.map(user => user._id);
+            // Find users matching the search term (optimized with text index if available)
+            try {
+                const matchingUsers = await User.find(
+                    { $text: { $search: search } },
+                    { score: { $meta: 'textScore' } }
+                ).select('_id').limit(50).sort({ score: { $meta: 'textScore' } });
+                searchUserIds = matchingUsers.map(user => user._id);
+            } catch {
+                // Fallback to regex if text index not available
+                const matchingUsers = await User.find({
+                    $or: [
+                        { email: { $regex: escapedSearch, $options: 'i' } },
+                        { username: { $regex: escapedSearch, $options: 'i' } }
+                    ]
+                }).select('_id').limit(50);
+                searchUserIds = matchingUsers.map(user => user._id);
+            }
 
-            query.$or = [
+            matchStage.$or = [
                 { originalUrl: { $regex: escapedSearch, $options: 'i' } },
                 { shortId: { $regex: escapedSearch, $options: 'i' } },
-                { customAlias: { $regex: escapedSearch, $options: 'i' } }, // Added customAlias
+                { customAlias: { $regex: escapedSearch, $options: 'i' } },
                 { title: { $regex: escapedSearch, $options: 'i' } },
-                { createdBy: { $in: matchingUserIds } } // Added Owner Search
+                ...(searchUserIds.length > 0 ? [{ createdBy: { $in: searchUserIds } }] : [])
             ];
         }
 
-        // Status Filtering
-        const now = new Date();
+        // Status Filtering - Optimized to use compound indexes
         if (status === 'active') {
-            query.isActive = true;
-            // Active means not expired
-            query.$and = query.$and || [];
-            query.$and.push({ $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] });
+            matchStage.isActive = true;
+            matchStage.$and = matchStage.$and || [];
+            matchStage.$and.push({ $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] });
         } else if (status === 'disabled') {
-            query.isActive = false;
+            matchStage.isActive = false;
         } else if (status === 'expired') {
-            query.expiresAt = { $lte: now };
+            matchStage.expiresAt = { $lte: now };
         }
 
-        // Safety Status Filtering
+        // Safety Status Filtering - Uses compound index { safetyStatus: 1, createdAt: -1 }
         const allowedSafetyStatuses = ['safe', 'malware', 'phishing', 'pending', 'unchecked', 'unwanted'];
         if (safety !== 'all' && allowedSafetyStatuses.includes(safety)) {
-            query.safetyStatus = safety;
+            matchStage.safetyStatus = safety;
         }
 
-        const urls = await Url.find(query)
-            .populate('createdBy', 'email username isActive disableLinksOnBan')
-            .sort({ createdAt: -1 }) // TODO: Remove this when Cosmos DB has createdAt index
-            .skip(skip)
-            .limit(limit);
+        // Use aggregation with $facet for single-query pagination + count
+        const pipeline = [
+            { $match: matchStage },
+            {
+                $facet: {
+                    // Paginated results with user lookup
+                    urls: [
+                        { $sort: { createdAt: -1 } },
+                        { $skip: skip },
+                        { $limit: limit },
+                        // Efficient $lookup with pipeline for selective fields
+                        {
+                            $lookup: {
+                                from: 'users',
+                                localField: 'createdBy',
+                                foreignField: '_id',
+                                as: 'createdByData',
+                                pipeline: [
+                                    { $project: { email: 1, username: 1, isActive: 1, disableLinksOnBan: 1 } }
+                                ]
+                            }
+                        },
+                        // Flatten the lookup result
+                        {
+                            $addFields: {
+                                createdBy: { $arrayElemAt: ['$createdByData', 0] },
+                                ownerBanned: {
+                                    $cond: {
+                                        if: { $and: [
+                                            { $gt: [{ $size: '$createdByData' }, 0] },
+                                            { $eq: [{ $arrayElemAt: ['$createdByData.isActive', 0] }, false] }
+                                        ]},
+                                        then: true,
+                                        else: false
+                                    }
+                                }
+                            }
+                        },
+                        { $project: { createdByData: 0 } }
+                    ],
+                    // Total count in same query (no duplicate index traversal)
+                    totalCount: [
+                        { $count: 'count' }
+                    ]
+                }
+            }
+        ];
 
-        // Compute ownerBanned field for each URL
-        const urlsWithBanStatus = urls.map(url => {
-            const urlObj = url.toObject();
-            // ownerBanned = owner exists AND is not active (regardless of disableLinksOnBan)
-            urlObj.ownerBanned = !!(urlObj.createdBy && !urlObj.createdBy.isActive);
-            return urlObj;
-        });
-
-        const total = await Url.countDocuments(query);
+        const [result] = await Url.aggregate(pipeline);
+        
+        const urls = result.urls || [];
+        const total = result.totalCount[0]?.count || 0;
 
         res.json({
-            urls: urlsWithBanStatus,
+            urls,
             page,
             pages: Math.ceil(total / limit),
             total
@@ -86,6 +133,7 @@ export const getAllLinks = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
 
 // @desc    Toggle link status (Disable/Enable)
 // @route   PATCH /api/admin/links/:id/status
@@ -193,7 +241,7 @@ export const overrideLinkSafety = async (req, res) => {
             invalidateCache(url.customAlias);
         }
 
-        console.log(`[Admin Safety Override] Link ${url.shortId}: ${previousStatus} -> ${safetyStatus} by Admin ${req.user?.email}`);
+        logger.info(`[Admin Safety Override] Link ${url.shortId}: ${previousStatus} -> ${safetyStatus} by Admin ${req.user?.email}`);
 
         res.json({ 
             message: `Safety status updated to ${safetyStatus}`, 
@@ -258,7 +306,7 @@ export const rescanLinkSafety = async (req, res) => {
             invalidateCache(url.customAlias);
         }
 
-        console.log(`[Admin Re-Scan] Link ${url.shortId}: Now ${safetyResult.status}`);
+        logger.info(`[Admin Re-Scan] Link ${url.shortId}: Now ${safetyResult.status}`);
 
         res.json({ 
             message: `Scan complete: ${safetyResult.status}`, 

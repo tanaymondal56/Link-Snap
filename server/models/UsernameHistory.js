@@ -45,5 +45,9 @@ const usernameHistorySchema = new mongoose.Schema({
 
 // Compound index for efficient user history queries
 usernameHistorySchema.index({ userId: 1, changedAt: -1 });
+// Lookup index: Check who owned a username previously
+usernameHistorySchema.index({ previousUsername: 1, changedAt: -1 });
+// Retention: Keep history for 3 years (legal/dispute window)
+usernameHistorySchema.index({ changedAt: 1 }, { expireAfterSeconds: 3 * 365 * 24 * 60 * 60 });
 
 export default mongoose.model('UsernameHistory', usernameHistorySchema);

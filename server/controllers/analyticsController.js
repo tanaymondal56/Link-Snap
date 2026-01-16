@@ -1,6 +1,6 @@
 import Analytics from '../models/Analytics.js';
 import Url from '../models/Url.js';
-
+import logger from '../utils/logger.js';
 import { TIERS, getEffectiveTier } from '../services/subscriptionService.js';
 
 export const getUrlAnalytics = async (req, res) => {
@@ -101,7 +101,7 @@ export const getUrlAnalytics = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Get Analytics Error:', error);
+        logger.error('[Analytics] Get Analytics Error:', error);
         res.status(500).json({ message: 'Server Error' });
     }
 };

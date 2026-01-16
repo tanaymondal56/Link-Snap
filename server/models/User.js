@@ -195,22 +195,24 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-  verificationToken: String,
-  verificationTokenExpires: Date,
+  verificationToken: { type: String, select: false },
+  verificationTokenExpires: { type: Date, select: false },
   otp: {
     type: String,
-    select: true, // Include by default in queries
+    select: false, // Hide by default
   },
   otpExpires: {
     type: Date,
+    select: false,
   },
-  resetPasswordToken: String,
-  resetPasswordExpires: Date,
-  resetPasswordOtp: String,
-  resetPasswordOtpExpires: Date,
-  refreshTokens: [{
-    type: String,
-  }],
+  resetPasswordToken: { type: String, select: false },
+  resetPasswordExpires: { type: Date, select: false },
+  resetPasswordOtp: { type: String, select: false },
+  resetPasswordOtpExpires: { type: Date, select: false },
+  refreshTokens: {
+    type: [String],
+    select: false
+  },
   lastLoginAt: {
     type: Date,
   },
@@ -247,6 +249,25 @@ userSchema.pre('save', async function () {
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
+
+// Performance Indexes
+// Index for sorting by creation date (admin panel)
+userSchema.index({ createdAt: -1 });
+// Index for subscription tier filtering
+userSchema.index({ 'subscription.tier': 1, createdAt: -1 });
+// Index for role filtering  
+userSchema.index({ role: 1, createdAt: -1 });
+// Index for ban scheduler (finding expired bans)
+userSchema.index({ isActive: 1, bannedUntil: 1 });
+// Text index for admin search (weighted by relevance)
+userSchema.index(
+  { email: 'text', username: 'text', firstName: 'text', lastName: 'text' },
+  { 
+    weights: { email: 10, username: 5, firstName: 2, lastName: 2 },
+    name: 'user_search_text_index'
+  }
+);
+
 
 const User = mongoose.model('User', userSchema);
 

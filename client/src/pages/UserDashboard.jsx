@@ -27,6 +27,11 @@ import {
   Timer,
   CalendarClock,
   Target,
+  ShieldAlert,
+  List,
+  ChevronDown,
+  Info,
+  Eye,
 } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
@@ -57,23 +62,28 @@ const UserDashboard = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [showAll, setShowAll] = useState(false);
+  const [totalLinks, setTotalLinks] = useState(0);
+  const [expandedLinkId, setExpandedLinkId] = useState(null);
 
   // Scroll Lock for QR Modal
   useScrollLock(!!qrModalLink);
 
   useEffect(() => {
-    fetchLinks(page);
-  }, [page]);
+    fetchLinks(showAll ? 1 : page, showAll);
+  }, [page, showAll]);
 
-  const fetchLinks = async (pageNum = 1) => {
+  const fetchLinks = async (pageNum = 1, loadAll = false) => {
     try {
       setError(null);
-      const { data } = await api.get(`/url/my-links?page=${pageNum}&limit=10`);
+      const limit = loadAll ? 1000 : 10; // Load up to 1000 when showing all
+      const { data } = await api.get(`/url/my-links?page=${pageNum}&limit=${limit}`);
       setLinks(data.urls);
       setTotalPages(data.pages);
+      setTotalLinks(data.total || data.urls.length);
       setOwnerBanned(data.ownerBanned || false);
       // Cache the links for offline use (only cache first page for now or strategy needs update)
-      if (pageNum === 1) cacheLinks(data.urls);
+      if (pageNum === 1 && !loadAll) cacheLinks(data.urls);
     } catch (error) {
       console.error(error);
       
@@ -98,7 +108,7 @@ const UserDashboard = () => {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await fetchLinks(page);
+    await fetchLinks(showAll ? 1 : page, showAll);
     showToast.success('Links refreshed', 'Updated');
   };
 
@@ -209,19 +219,36 @@ const UserDashboard = () => {
               My Links <span className="text-purple-400 font-normal text-lg">(@{user?.username})</span>
             </h1>
             <p className="text-gray-400 text-xs sm:text-sm mt-1">
-              {links.length} link{links.length !== 1 ? 's' : ''} • {totalClicks} click
+              {links.length} link{links.length !== 1 ? 's' : ''}{showAll ? ` (showing all ${totalLinks})` : ''} • {totalClicks} click
               {totalClicks !== 1 ? 's' : ''}
             </p>
           </div>
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white p-2.5 sm:py-2.5 sm:px-4 rounded-xl font-medium transition-all disabled:opacity-50"
-            title="Refresh links"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setShowAll(!showAll);
+                setPage(1);
+              }}
+              className={`flex items-center justify-center gap-2 p-2.5 sm:py-2.5 sm:px-4 rounded-xl font-medium transition-all ${
+                showAll 
+                  ? 'bg-purple-600 hover:bg-purple-500 text-white' 
+                  : 'bg-gray-700 hover:bg-gray-600 text-white'
+              }`}
+              title={showAll ? 'Show paginated' : 'View all links'}
+            >
+              <List className="w-4 h-4" />
+              <span className="hidden sm:inline">{showAll ? 'Paginate' : 'View All'}</span>
+            </button>
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white p-2.5 sm:py-2.5 sm:px-4 rounded-xl font-medium transition-all disabled:opacity-50"
+              title="Refresh links"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+          </div>
         </div>
         
         {/* Usage Stats */}
@@ -345,17 +372,43 @@ const UserDashboard = () => {
               return 'Less than 1h';
             };
 
+            // Check if link is flagged for safety issues
+            const isFlagged = link.safetyStatus === 'malware' || link.safetyStatus === 'phishing' || link.safetyStatus === 'unwanted';
+            const getSafetyLabel = () => {
+              switch (link.safetyStatus) {
+                case 'malware': return 'Flagged: Malware Detected';
+                case 'phishing': return 'Flagged: Phishing Detected';
+                case 'unwanted': return 'Flagged: Unwanted Software';
+                default: return 'Flagged';
+              }
+            };
+
             return (
               <div key={link._id}>
               <div
                 className={`glass-dark rounded-xl border overflow-hidden transition-colors ${
-                  isLinkDisabled
-                    ? 'border-orange-500/30 bg-orange-500/5'
-                    : 'border-gray-800 hover:border-gray-700'
+                  isFlagged
+                    ? 'border-red-500/40 bg-red-500/5'
+                    : isLinkDisabled
+                      ? 'border-orange-500/30 bg-orange-500/5'
+                      : 'border-gray-800 hover:border-gray-700'
                 }`}
               >
+                {/* Flagged Link Banner */}
+                {isFlagged && (
+                  <div className="bg-red-500/10 border-b border-red-500/20 px-5 py-2 flex items-center gap-2">
+                    <ShieldAlert size={14} className="text-red-400" />
+                    <span className="text-red-300 text-xs font-medium">
+                      {getSafetyLabel()}
+                    </span>
+                    <span className="text-red-400/70 text-xs ml-auto">
+                      This link may not redirect until reviewed
+                    </span>
+                  </div>
+                )}
+
                 {/* Disabled Banner */}
-                {isLinkDisabled && (
+                {isLinkDisabled && !isFlagged && (
                   <div className="bg-orange-500/10 border-b border-orange-500/20 px-5 py-2 flex items-center gap-2">
                     <Ban size={14} className="text-orange-400" />
                     <span className="text-orange-300 text-xs font-medium">
@@ -690,6 +743,19 @@ const UserDashboard = () => {
                         <QrCode size={14} className="sm:w-4 sm:h-4" />
                         <span className="hidden sm:inline">QR</span>
                       </button>
+                      <button
+                        onClick={() => setExpandedLinkId(expandedLinkId === link._id ? null : link._id)}
+                        className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm ${
+                          expandedLinkId === link._id 
+                            ? 'text-cyan-400 bg-cyan-500/10' 
+                            : 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10'
+                        }`}
+                        title="View details"
+                      >
+                        <Eye size={14} className="sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">Details</span>
+                        <ChevronDown size={12} className={`transition-transform duration-200 ${expandedLinkId === link._id ? 'rotate-180' : ''}`} />
+                      </button>
                     </div>
                     <button
                       onClick={() => handleDelete(link._id)}
@@ -700,6 +766,189 @@ const UserDashboard = () => {
                       <span className="hidden sm:inline">Delete</span>
                     </button>
                   </div>
+
+                  {/* Expandable Details Panel */}
+                  {expandedLinkId === link._id && (
+                    <div className="mt-3 pt-3 border-t border-gray-700/50 animate-in slide-in-from-top-2 duration-200">
+                      
+                      {/* Quick Actions Row - Icon only on mobile */}
+                      <div className="flex gap-1.5 sm:gap-2 mb-3">
+                        <button
+                          onClick={() => copyToClipboard(link.customAlias || link.shortId)}
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-[10px] sm:text-xs font-medium transition-colors"
+                        >
+                          {copiedId === (link.customAlias || link.shortId) ? <Check size={12} /> : <Copy size={12} />}
+                          <span className="hidden xs:inline sm:inline">{copiedId === (link.customAlias || link.shortId) ? 'Copied!' : 'Copy'}</span>
+                        </button>
+                        <a
+                          href={getShortUrl(link.customAlias || link.shortId)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-lg text-[10px] sm:text-xs font-medium transition-colors"
+                        >
+                          <ExternalLink size={12} />
+                          <span className="hidden xs:inline sm:inline">Short</span>
+                        </a>
+                        <a
+                          href={link.originalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-gray-700/50 hover:bg-gray-700 text-gray-300 rounded-lg text-[10px] sm:text-xs font-medium transition-colors"
+                        >
+                          <ExternalLink size={12} />
+                          <span className="hidden xs:inline sm:inline">Original</span>
+                        </a>
+                      </div>
+
+                      {/* Destination URL - Compact on mobile */}
+                      <div className="bg-gray-800/50 rounded-lg p-2 sm:p-3 mb-3">
+                        <div className="flex items-center gap-1 text-gray-500 mb-1 text-[10px] sm:text-xs">
+                          <LinkIcon size={10} /> Destination
+                        </div>
+                        <p className="text-blue-400 break-all text-[10px] sm:text-xs leading-relaxed line-clamp-2 sm:line-clamp-3">
+                          {link.originalUrl}
+                        </p>
+                      </div>
+
+                      {/* Details Grid - 3 cols on mobile for compact view */}
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
+                        
+                        {/* Password */}
+                        <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                          <Lock size={12} className="mx-auto mb-0.5 text-gray-500" />
+                          <div className={`text-[10px] sm:text-xs ${link.isPasswordProtected ? 'text-purple-400' : 'text-gray-600'}`}>
+                            {link.isPasswordProtected ? '🔒' : '—'}
+                          </div>
+                        </div>
+
+                        {/* Expires */}
+                        <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                          <Timer size={12} className="mx-auto mb-0.5 text-gray-500" />
+                          <div className={`text-[10px] sm:text-xs truncate ${link.expiresAt ? (new Date(link.expiresAt) < new Date() ? 'text-red-400' : 'text-amber-400') : 'text-gray-600'}`}>
+                            {link.expiresAt ? new Date(link.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                          </div>
+                        </div>
+
+                        {/* Starts */}
+                        <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                          <CalendarClock size={12} className="mx-auto mb-0.5 text-gray-500" />
+                          <div className={`text-[10px] sm:text-xs truncate ${link.activeStartTime ? 'text-blue-400' : 'text-gray-600'}`}>
+                            {link.activeStartTime ? new Date(link.activeStartTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                          </div>
+                        </div>
+
+                        {/* Devices */}
+                        <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                          <Smartphone size={12} className="mx-auto mb-0.5 text-gray-500" />
+                          <div className={`text-[10px] sm:text-xs ${link.deviceRedirects?.enabled ? 'text-cyan-400' : 'text-gray-600'}`}>
+                            {link.deviceRedirects?.enabled ? link.deviceRedirects.rules?.length || 0 : '—'}
+                          </div>
+                        </div>
+
+                        {/* Time Rules */}
+                        <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                          <Clock size={12} className="mx-auto mb-0.5 text-gray-500" />
+                          <div className={`text-[10px] sm:text-xs ${link.timeRedirects?.enabled ? 'text-indigo-400' : 'text-gray-600'}`}>
+                            {link.timeRedirects?.enabled ? link.timeRedirects.rules?.length || 0 : '—'}
+                          </div>
+                        </div>
+
+                        {/* Safety */}
+                        <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                          <ShieldAlert size={12} className="mx-auto mb-0.5 text-gray-500" />
+                          <div className={`text-[10px] sm:text-xs ${
+                            link.safetyStatus === 'safe' ? 'text-green-400' :
+                            link.safetyStatus === 'malware' || link.safetyStatus === 'phishing' ? 'text-red-400' :
+                            'text-gray-500'
+                          }`}>
+                            {link.safetyStatus === 'safe' ? '✅' :
+                             link.safetyStatus === 'malware' || link.safetyStatus === 'phishing' || link.safetyStatus === 'unwanted' ? '⚠️' :
+                             link.safetyStatus === 'pending' ? '⏳' : '—'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Device Redirects */}
+                      {link.deviceRedirects?.enabled && link.deviceRedirects.rules?.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-700/30">
+                          <div className="text-[10px] sm:text-xs text-gray-500 mb-2 flex items-center gap-1">
+                            <Smartphone size={10} /> Device Targets
+                          </div>
+                          <div className="space-y-1.5">
+                            {link.deviceRedirects.rules.map((rule, i) => (
+                              <div key={i} className="flex items-center gap-2 bg-cyan-500/5 rounded-lg p-1.5 sm:p-2 border border-cyan-500/10">
+                                <span className="text-[9px] sm:text-[10px] font-bold uppercase text-cyan-300 bg-cyan-500/20 px-1 sm:px-1.5 py-0.5 rounded shrink-0">
+                                  {rule.device}
+                                </span>
+                                <span className="text-[9px] sm:text-[10px] text-cyan-400 truncate flex-1 min-w-0">
+                                  {rule.url}
+                                </span>
+                                <div className="flex gap-0.5 shrink-0">
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(rule.url);
+                                      showToast.success('Copied');
+                                    }}
+                                    className="p-1 sm:p-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded transition-colors"
+                                  >
+                                    <Copy size={10} className="sm:w-3 sm:h-3" />
+                                  </button>
+                                  <a
+                                    href={rule.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1 sm:p-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded transition-colors"
+                                  >
+                                    <ExternalLink size={10} className="sm:w-3 sm:h-3" />
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Time-Based Redirects */}
+                      {link.timeRedirects?.enabled && link.timeRedirects.rules?.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-700/30">
+                          <div className="text-[10px] sm:text-xs text-gray-500 mb-2 flex items-center gap-1">
+                            <Clock size={10} /> Time Targets
+                          </div>
+                          <div className="space-y-1.5">
+                            {link.timeRedirects.rules.map((rule, i) => (
+                              <div key={i} className="flex items-center gap-2 bg-indigo-500/5 rounded-lg p-1.5 sm:p-2 border border-indigo-500/10">
+                                <span className="text-[9px] sm:text-[10px] font-medium text-indigo-300 bg-indigo-500/20 px-1 sm:px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
+                                  {rule.startTime}-{rule.endTime}
+                                </span>
+                                <span className="text-[9px] sm:text-[10px] text-indigo-400 truncate flex-1 min-w-0">
+                                  {rule.destination}
+                                </span>
+                                <div className="flex gap-0.5 shrink-0">
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(rule.destination);
+                                      showToast.success('Copied');
+                                    }}
+                                    className="p-1 sm:p-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded transition-colors"
+                                  >
+                                    <Copy size={10} className="sm:w-3 sm:h-3" />
+                                  </button>
+                                  <a
+                                    href={rule.destination}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1 sm:p-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded transition-colors"
+                                  >
+                                    <ExternalLink size={10} className="sm:w-3 sm:h-3" />
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               </div>
@@ -709,7 +958,7 @@ const UserDashboard = () => {
       </div>
 
       {/* Pagination Controls */}
-      {totalPages > 1 && (
+      {totalPages > 1 && !showAll && (
         <div className="flex justify-center items-center gap-4 mt-6">
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}

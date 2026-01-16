@@ -6,7 +6,8 @@ import logger from '../utils/logger.js';
 const router = express.Router();
 
 // List of known frontend routes and paths to skip
-const SKIP_PATHS = [
+// List of known frontend routes to skip (Exact Match)
+const EXACT_SKIP_PATHS = new Set([
     'login',
     'register',
     'dashboard',
@@ -28,9 +29,13 @@ const SKIP_PATHS = [
     'manifest.json',
     'manifest.webmanifest',
     'sw.js',
+    'apple-touch-icon',
+]);
+
+// Prefixes to skip (System/Assets)
+const PREFIX_SKIP_PATHS = [
     'workbox-',
     'pwa-',
-    'apple-touch-icon',
 ];
 
 // File extensions that should never be treated as short URLs
@@ -54,9 +59,15 @@ const skipFrontendRoutes = (req, res, next) => {
         return next('route');
     }
 
-    // Skip if path starts with any known frontend route
-    if (SKIP_PATHS.some(skip => path.startsWith(skip.toLowerCase()))) {
-        return next('route'); // Skip to next route handler
+    // 1. Check Exact Matches (User Pages)
+    // Fixes bug where 'login-party' was blocked by 'login' prefix
+    if (EXACT_SKIP_PATHS.has(path)) {
+        return next('route');
+    }
+
+    // 2. Check Prefix Matches (System/Assets only)
+    if (PREFIX_SKIP_PATHS.some(prefix => path.startsWith(prefix))) {
+        return next('route'); 
     }
 
     next();
