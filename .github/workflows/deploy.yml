@@ -2,7 +2,7 @@ name: Deploy Status
 
 on:
   push:
-    branches: [master]
+    branches: [master]  # Only deploy from master branch
   workflow_dispatch:
 
 # Required permissions for deployments
