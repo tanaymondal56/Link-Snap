@@ -14,13 +14,19 @@ import api from '../../api/axios';
 import { formatDate } from '../../utils/dateUtils';
 import { Link } from 'react-router-dom';
 
+import { useAuth } from '../../context/AuthContext';
+
 const AdminOverview = () => {
+  const { isAuthChecking } = useAuth();
   const [stats, setStats] = useState({ totalUsers: 0, totalUrls: 0, totalClicks: 0 });
   const [health, setHealth] = useState({ status: 'loading', uptime: 0 });
   const [recentUsers, setRecentUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Wait for auth check to complete (ensure token is ready)
+    if (isAuthChecking) return;
+
     const fetchData = async () => {
       try {
         const [statsRes, usersRes, healthRes] = await Promise.all([
@@ -43,7 +49,7 @@ const AdminOverview = () => {
     };
 
     fetchData();
-  }, []);
+  }, [isAuthChecking]);
 
   // Helper to format uptime in seconds to readable format
   const formatUptime = (seconds) => {

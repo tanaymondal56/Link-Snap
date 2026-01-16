@@ -12,19 +12,52 @@ export const registerToastHandler = (addFn, removeFn) => {
   globalRemoveToast = removeFn;
 };
 
+// Deduplication map to track recent toasts
+const recentToasts = new Map();
+const DEDUPE_TIME = 1000; // 1 second deduplication window
+
+const isDuplicate = (message, type) => {
+  const key = `${type}:${message}`;
+  const now = Date.now();
+  const lastTime = recentToasts.get(key) || 0;
+  
+  if (now - lastTime < DEDUPE_TIME) {
+    return true;
+  }
+  
+  // Clean up old entries periodically or just set current
+  recentToasts.set(key, now);
+  // Cleanup old keys (optional, but good for long sessions)
+  if (recentToasts.size > 20) {
+    const cutoff = now - DEDUPE_TIME;
+    for (const [k, t] of recentToasts) {
+      if (t < cutoff) recentToasts.delete(k);
+    }
+  }
+  return false;
+};
+
 // Main showToast API
 const showToast = {
-  success: (message, title = 'Success') => 
-    globalAddToast?.({ type: 'success', message, title, duration: 4000 }),
+  success: (message, title = 'Success') => {
+    if (isDuplicate(message, 'success')) return;
+    return globalAddToast?.({ type: 'success', message, title, duration: 4000 });
+  },
   
-  error: (message, title = 'Error') => 
-    globalAddToast?.({ type: 'error', message, title, duration: 5000 }),
+  error: (message, title = 'Error') => {
+    if (isDuplicate(message, 'error')) return;
+    return globalAddToast?.({ type: 'error', message, title, duration: 5000 });
+  },
   
-  warning: (message, title = 'Warning') => 
-    globalAddToast?.({ type: 'warning', message, title, duration: 4500 }),
+  warning: (message, title = 'Warning') => {
+    if (isDuplicate(message, 'warning')) return;
+    return globalAddToast?.({ type: 'warning', message, title, duration: 4500 });
+  },
   
-  info: (message, title = 'Info') => 
-    globalAddToast?.({ type: 'info', message, title, duration: 4000 }),
+  info: (message, title = 'Info') => {
+    if (isDuplicate(message, 'info')) return;
+    return globalAddToast?.({ type: 'info', message, title, duration: 4000 });
+  },
   
   loading: (message, title = 'Loading') => 
     globalAddToast?.({ type: 'loading', message, title, duration: Infinity }),

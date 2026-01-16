@@ -56,12 +56,22 @@ export const mongoSanitize = (req, res, next) => {
 
     // Sanitize req.query
     if (req.query) {
-        req.query = sanitize(req.query);
+        const sanitizedQuery = sanitize(req.query);
+        // req.query is a getter in some contexts, so we must mutate the object in place
+        for (const key in req.query) {
+            delete req.query[key];
+        }
+        Object.assign(req.query, sanitizedQuery);
     }
 
     // Sanitize req.params
     if (req.params) {
-        req.params = sanitize(req.params);
+        const sanitizedParams = sanitize(req.params);
+        // Same safety for req.params
+        for (const key in req.params) {
+            delete req.params[key];
+        }
+        Object.assign(req.params, sanitizedParams);
     }
 
     next();

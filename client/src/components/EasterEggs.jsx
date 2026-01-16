@@ -9,6 +9,8 @@ const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft'
 // ========================================
 
 const EasterEggs = () => {
+  // Guard to prevent console logs from running twice (React StrictMode)
+  const hasLoggedRef = useRef(false);
   const [showCredits, setShowCredits] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const typedKeys = useRef('');
@@ -237,6 +239,10 @@ const EasterEggs = () => {
   // ========================================
 
   useEffect(() => {
+    // Prevent double-execution in React StrictMode
+    if (hasLoggedRef.current) return;
+    hasLoggedRef.current = true;
+
     // ASCII Art Logo
     console.log(`
 %c

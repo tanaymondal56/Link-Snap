@@ -47,7 +47,7 @@ import { useScrollLock } from '../hooks/useScrollLock';
 import BadgeTooltip from '../components/ui/BadgeTooltip';
 
 const UserDashboard = () => {
-  const { user } = useAuth();
+  const { user, isAuthChecking } = useAuth();
   const confirm = useConfirm();
   const [links, setLinks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,8 +70,13 @@ const UserDashboard = () => {
   useScrollLock(!!qrModalLink);
 
   useEffect(() => {
-    fetchLinks(showAll ? 1 : page, showAll);
-  }, [page, showAll]);
+    // Wait for auth check to complete (ensure token is ready)
+    // IMPORTANT: If isAuthChecking is true, we simply wait.
+    // Even in offline mode, isAuthChecking will eventually become false (after retries fail).
+    if (!isAuthChecking) {
+      fetchLinks(showAll ? 1 : page, showAll);
+    }
+  }, [page, showAll, isAuthChecking]);
 
   const fetchLinks = async (pageNum = 1, loadAll = false) => {
     try {

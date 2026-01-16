@@ -188,9 +188,11 @@ const DeviceManagement = () => {
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
             <div>
-              <p className="text-yellow-400 font-medium">Biometrics Not Supported</p>
+              <p className="text-yellow-400 font-medium">Biometrics Not Available</p>
               <p className="text-gray-400 text-sm mt-1">
-                This browser doesn't support WebAuthn. Try Chrome, Safari, or Edge.
+                {!window.isSecureContext 
+                  ? "Biometrics requires a secure connection (HTTPS). If testing locally, use localhost or set up HTTPS."
+                  : "This browser doesn't support WebAuthn. Try Chrome, Safari, or Edge."}
               </p>
             </div>
           </div>

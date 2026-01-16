@@ -15,7 +15,10 @@ import BentoCard from '../../components/admin-console/ui/BentoCard';
 import api from '../../api/axios';
 import showToast from '../../utils/toastUtils';
 
+import { useAuth } from '../../context/AuthContext';
+
 const AdminSettings = () => {
+  const { isAuthChecking } = useAuth();
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState({
     requireEmailVerification: true,
@@ -38,8 +41,11 @@ const AdminSettings = () => {
   const [togglingVerification, setTogglingVerification] = useState(false);
 
   useEffect(() => {
+    // Wait for auth check to complete (ensure token is ready)
+    if (isAuthChecking) return;
+
     fetchSettings();
-  }, []);
+  }, [isAuthChecking]);
 
   const fetchSettings = async () => {
     try {

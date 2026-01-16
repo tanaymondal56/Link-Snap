@@ -36,7 +36,10 @@ import UserDetailsModal from '../../components/admin-console/UserDetailsModal';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import IdBadge from '../../components/ui/IdBadge';
 
+import { useAuth } from '../../context/AuthContext';
+
 const AdminUsers = () => {
+  const { isAuthChecking } = useAuth();
   const confirm = useConfirm();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -98,8 +101,11 @@ const AdminUsers = () => {
   }, [page, debouncedSearch, filterRole]);
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    // Wait for auth check to complete (ensure token is ready)
+    if (!isAuthChecking) {
+      fetchUsers();
+    }
+  }, [fetchUsers, isAuthChecking]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

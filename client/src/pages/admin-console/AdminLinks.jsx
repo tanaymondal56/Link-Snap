@@ -24,7 +24,8 @@ import {
   Smartphone,
   Calendar,
   Globe,
-  Timer
+  Timer,
+  Copy
 } from 'lucide-react';
 import GlassTable from '../../components/admin-console/ui/GlassTable';
 import api from '../../api/axios';
@@ -34,7 +35,10 @@ import { Link } from 'react-router-dom';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { Loader2 } from 'lucide-react';
 
+import { useAuth } from '../../context/AuthContext';
+
 const AdminLinks = () => {
+  const { isAuthChecking } = useAuth();
   const confirm = useConfirm();
   const [links, setLinks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -97,8 +101,11 @@ const AdminLinks = () => {
   }, [searchTerm]);
 
   useEffect(() => {
-    fetchLinks();
-  }, [fetchLinks]);
+    // Wait for auth check to complete (ensure token is ready)
+    if (!isAuthChecking) {
+      fetchLinks();
+    }
+  }, [fetchLinks, isAuthChecking]);
 
   const handleToggleStatus = async (link) => {
     setOpenActionId(null);
@@ -163,6 +170,11 @@ const AdminLinks = () => {
     } catch {
       showToast.error('Failed to override safety status');
     }
+  };
+
+  const handleCopy = (text, label = 'Text') => {
+    navigator.clipboard.writeText(text);
+    showToast.success(`${label} copied to clipboard`);
   };
 
   // Compute stats
@@ -350,20 +362,144 @@ const AdminLinks = () => {
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex gap-2 pt-2">
-                 <button 
-                  onClick={() => window.open(link.originalUrl, '_blank')}
-                  className="flex-1 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-medium text-gray-300"
-                 >
-                   Open URL
-                 </button>
-                 <button
-                  onClick={() => handleDelete(link._id)}
-                   className="flex-1 py-2 bg-red-500/10 hover:bg-red-500/20 rounded-lg text-xs font-medium text-red-400"
-                 >
-                   Delete
-                 </button>
+              {/* Mobile Actions & Details */}
+              <div className="pt-2 border-t border-white/5">
+                  <div className="flex gap-2">
+                     <button 
+                      onClick={() => window.open(link.originalUrl, '_blank')}
+                      className="flex-1 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-medium text-gray-300"
+                     >
+                       Open
+                     </button>
+                     <button
+                      onClick={() => setExpandedLinkId(expandedLinkId === link._id ? null : link._id)}
+                      className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1 ${
+                          expandedLinkId === link._id ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 hover:bg-white/10 text-gray-300'
+                      }`}
+                     >
+                       {expandedLinkId === link._id ? 'Hide Details' : 'Details'} <ChevronDown size={14} className={`transition-transform duration-200 ${expandedLinkId === link._id ? 'rotate-180' : ''}`} />
+                     </button>
+                     <button
+                      onClick={() => handleDelete(link._id)}
+                       className="flex-1 py-2 bg-red-500/10 hover:bg-red-500/20 rounded-lg text-xs font-medium text-red-400"
+                     >
+                       Delete
+                     </button>
+                  </div>
+
+                  {/* Mobile Expanded Details */}
+                  {expandedLinkId === link._id && (
+                      <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-1">
+                          
+                          {/* Key Properties Grid */}
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                              {/* Password Status */}
+                              <div className="bg-black/20 p-2 rounded">
+                                  <div className="text-gray-500 mb-0.5 flex items-center gap-1"><Lock size={10} /> Password</div>
+                                  <div className={link.password ? 'text-purple-400 font-medium' : link.isPasswordProtected ? 'text-purple-400 font-medium' : 'text-gray-600'}>
+                                      {link.password ? '🔒 Protected' : link.isPasswordProtected ? '🔒 Protected' : 'None'}
+                                  </div>
+                              </div>
+                              
+                              {/* Expiration */}
+                              <div className="bg-black/20 p-2 rounded">
+                                  <div className="text-gray-500 mb-0.5 flex items-center gap-1"><Timer size={10} /> Expires</div>
+                                  <div className={link.expiresAt ? (new Date(link.expiresAt) < new Date() ? 'text-red-400' : 'text-amber-400') : 'text-gray-600'}>
+                                      {link.expiresAt ? new Date(link.expiresAt).toLocaleDateString() : 'Never'}
+                                  </div>
+                              </div>
+
+                              {/* Scheduled Start */}
+                              <div className="bg-black/20 p-2 rounded">
+                                <div className="text-gray-500 mb-0.5 flex items-center gap-1">
+                                  <Calendar size={10} /> Scheduled
+                                </div>
+                                <div className={link.scheduledAt ? 'text-blue-400' : 'text-gray-600'}>
+                                  {link.scheduledAt ? new Date(link.scheduledAt).toLocaleDateString() : 'None'}
+                                </div>
+                              </div>
+
+                              {/* Device Redirects Count */}
+                              <div className="bg-black/20 p-2 rounded">
+                                <div className="text-gray-500 mb-0.5 flex items-center gap-1">
+                                  <Smartphone size={10} /> Device Rules
+                                </div>
+                                <div className={link.deviceRedirects?.enabled ? 'text-cyan-400 font-medium' : 'text-gray-600'}>
+                                  {link.deviceRedirects?.enabled ? `${link.deviceRedirects.rules?.length || 0} Rules` : 'None'}
+                                </div>
+                              </div>
+
+                              {/* Time Redirects Count */}
+                              <div className="bg-black/20 p-2 rounded">
+                                <div className="text-gray-500 mb-0.5 flex items-center gap-1">
+                                  <Clock size={10} /> Time Rules
+                                </div>
+                                <div className={link.timeRedirects?.enabled ? 'text-indigo-400 font-medium' : 'text-gray-600'}>
+                                  {link.timeRedirects?.enabled ? `${link.timeRedirects.rules?.length || 0} Rules` : 'None'}
+                                </div>
+                              </div>
+
+                              {/* Safety Last Checked */}
+                              <div className="bg-black/20 p-2 rounded">
+                                <div className="text-gray-500 mb-0.5 flex items-center gap-1">
+                                  <ShieldCheck size={10} /> Last Scan
+                                </div>
+                                <div className="text-gray-400">
+                                  {link.lastCheckedAt ? new Date(link.lastCheckedAt).toLocaleDateString() : 'Never'}
+                                </div>
+                              </div>
+                          </div>
+
+                          {/* Device Rules Mobile */}
+                          {link.deviceRedirects?.enabled && link.deviceRedirects.rules?.length > 0 && (
+                            <div className="space-y-2">
+                                <div className="text-xs text-gray-500 flex items-center gap-1">
+                                    <Smartphone size={12} /> Device Rules ({link.deviceRedirects.rules.length})
+                                </div>
+                                {link.deviceRedirects.rules.map((rule, i) => (
+                                    <div key={i} className="bg-cyan-500/5 border border-cyan-500/10 rounded p-2 text-xs space-y-1">
+                                        <div className="flex justify-between items-center text-cyan-400 font-bold uppercase">
+                                            <span>{rule.device}</span>
+                                            <div className="flex gap-1">
+                                                <button onClick={() => handleCopy(rule.url, 'URL')} className="p-1 hover:bg-cyan-500/20 rounded"><Copy size={12} /></button>
+                                                <a href={rule.url} target="_blank" rel="noopener noreferrer" className="p-1 hover:bg-cyan-500/20 rounded"><ExternalLink size={12} /></a>
+                                            </div>
+                                        </div>
+                                        <div className="truncate text-gray-400">{rule.url}</div>
+                                    </div>
+                                ))}
+                            </div>
+                          )}
+
+                           {/* Time Rules Mobile */}
+                           {link.timeRedirects?.enabled && link.timeRedirects.rules?.length > 0 && (
+                            <div className="space-y-2">
+                                <div className="text-xs text-gray-500 flex items-center gap-1">
+                                    <Clock size={12} /> Time Rules ({link.timeRedirects.rules.length})
+                                </div>
+                                {link.timeRedirects.rules.map((rule, i) => (
+                                    <div key={i} className="bg-indigo-500/5 border border-indigo-500/10 rounded p-2 text-xs space-y-1">
+                                        <div className="flex justify-between items-center text-indigo-400 font-bold">
+                                            <span>{rule.startTime} - {rule.endTime}</span>
+                                            <div className="flex gap-1">
+                                                <button onClick={() => handleCopy(rule.destination, 'URL')} className="p-1 hover:bg-indigo-500/20 rounded"><Copy size={12} /></button>
+                                                <a href={rule.destination} target="_blank" rel="noopener noreferrer" className="p-1 hover:bg-indigo-500/20 rounded"><ExternalLink size={12} /></a>
+                                            </div>
+                                        </div>
+                                        <div className="truncate text-gray-400">{rule.destination}</div>
+                                    </div>
+                                ))}
+                            </div>
+                          )}
+                          
+                          {/* Manual Override Mobile Badge */}
+                          {link.manualSafetyOverride && (
+                             <div className="bg-amber-500/10 border border-amber-500/20 rounded p-2 text-xs text-amber-400 flex items-center gap-1">
+                                ⚠️ Manually Overridden
+                             </div>
+                          )}
+                      </div>
+                  )}
               </div>
             </div>
           ))
@@ -388,10 +524,10 @@ const AdminLinks = () => {
             return (
             <React.Fragment key={link._id}>
             <tr className={`hover:bg-white/5 transition-colors group ${isOwnerBanned ? 'bg-orange-500/5' : ''} ${expandedLinkId === link._id ? 'bg-white/[0.03]' : ''}`}>
-              <td className="p-4 whitespace-nowrap">
+              <td className="p-4 whitespace-nowrap w-[15%]">
                 <button 
                   onClick={() => setExpandedLinkId(expandedLinkId === link._id ? null : link._id)}
-                  className="flex items-center gap-2 text-left hover:text-blue-300 transition-colors"
+                  className="flex items-center gap-2 text-left hover:text-blue-300 transition-colors w-full"
                 >
                   <span className={`transition-transform duration-200 ${expandedLinkId === link._id ? 'rotate-180' : ''}`}>
                     <ChevronDown size={14} className="text-gray-500" />
@@ -402,14 +538,14 @@ const AdminLinks = () => {
                   </div>
                 </button>
               </td>
-              <td className="p-4 whitespace-nowrap">
+              <td className="p-4 whitespace-nowrap w-[10%]">
                 {link.customAlias ? (
                   <span className="font-mono text-purple-400">/{link.customAlias}</span>
                 ) : (
                   <span className="text-gray-600">—</span>
                 )}
               </td>
-              <td className="p-4 max-w-[200px]">
+              <td className="p-4 max-w-[300px] w-[30%]">
                 <div className="truncate text-gray-300" title={link.originalUrl}>
                   {link.originalUrl}
                 </div>
@@ -654,11 +790,32 @@ const AdminLinks = () => {
                         <div className="text-xs text-gray-500 mb-2 flex items-center gap-1">
                           <Smartphone size={12} /> Device Redirect URLs:
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-col gap-2">
                           {link.deviceRedirects.rules.map((rule, i) => (
-                            <span key={i} className="text-xs bg-cyan-500/10 text-cyan-400 px-2 py-1 rounded border border-cyan-500/20">
-                              {rule.device}: {rule.url?.length > 35 ? `${rule.url?.substring(0, 35)}...` : rule.url}
-                            </span>
+                            <div key={i} className="flex items-center justify-between text-xs bg-cyan-500/5 border border-cyan-500/10 rounded-lg p-2">
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                     <span className="font-bold text-cyan-400 w-16 uppercase">{rule.device}</span>
+                                     <span className="text-gray-300 truncate" title={rule.url}>{rule.url}</span>
+                                </div>
+                                <div className="flex items-center gap-1 ml-2">
+                                    <button 
+                                        onClick={() => handleCopy(rule.url, 'Target URL')}
+                                        className="p-1.5 hover:bg-cyan-500/20 rounded text-cyan-400 transition-colors"
+                                        title="Copy URL"
+                                    >
+                                        <Copy size={12} />
+                                    </button>
+                                    <a 
+                                        href={rule.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="p-1.5 hover:bg-cyan-500/20 rounded text-cyan-400 transition-colors"
+                                        title="Visit URL"
+                                    >
+                                        <ExternalLink size={12} />
+                                    </a>
+                                </div>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -670,11 +827,32 @@ const AdminLinks = () => {
                         <div className="text-xs text-gray-500 mb-2 flex items-center gap-1">
                           <Clock size={12} /> Time Redirect URLs:
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-col gap-2">
                           {link.timeRedirects.rules.map((rule, i) => (
-                            <span key={i} className="text-xs bg-indigo-500/10 text-indigo-400 px-2 py-1 rounded border border-indigo-500/20">
-                              {rule.startTime}-{rule.endTime}: {rule.destination?.length > 35 ? `${rule.destination?.substring(0, 35)}...` : rule.destination}
-                            </span>
+                             <div key={i} className="flex items-center justify-between text-xs bg-indigo-500/5 border border-indigo-500/10 rounded-lg p-2">
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                     <span className="font-bold text-indigo-400 w-24">{rule.startTime} - {rule.endTime}</span>
+                                     <span className="text-gray-300 truncate" title={rule.destination}>{rule.destination}</span>
+                                </div>
+                                <div className="flex items-center gap-1 ml-2">
+                                    <button 
+                                        onClick={() => handleCopy(rule.destination, 'Destination URL')}
+                                        className="p-1.5 hover:bg-indigo-500/20 rounded text-indigo-400 transition-colors"
+                                        title="Copy URL"
+                                    >
+                                        <Copy size={12} />
+                                    </button>
+                                    <a 
+                                        href={rule.destination}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="p-1.5 hover:bg-indigo-500/20 rounded text-indigo-400 transition-colors"
+                                        title="Visit URL"
+                                    >
+                                        <ExternalLink size={12} />
+                                    </a>
+                                </div>
+                            </div>
                           ))}
                         </div>
                       </div>

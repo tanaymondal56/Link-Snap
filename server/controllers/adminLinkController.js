@@ -14,12 +14,13 @@ export const getAllLinks = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const search = req.query.search || '';
-        const status = req.query.status || 'all'; // 'all', 'active', 'disabled', 'expired'
-        const safety = req.query.safety || 'all'; // 'all', 'safe', 'malware', 'phishing', 'pending', 'unchecked'
+        const status = req.query.status || 'all'; 
+        const safety = req.query.safety || 'all'; 
         const skip = (page - 1) * limit;
 
         const matchStage = {};
         const now = new Date();
+        
         
         // Search Logic - Build conditions for aggregation
         let searchUserIds = [];
@@ -68,60 +69,49 @@ export const getAllLinks = async (req, res) => {
         const allowedSafetyStatuses = ['safe', 'malware', 'phishing', 'pending', 'unchecked', 'unwanted'];
         if (safety !== 'all' && allowedSafetyStatuses.includes(safety)) {
             matchStage.safetyStatus = safety;
-        }
-
-        // Use aggregation with $facet for single-query pagination + count
-        const pipeline = [
-            { $match: matchStage },
-            {
-                $facet: {
-                    // Paginated results with user lookup
-                    urls: [
-                        { $sort: { createdAt: -1 } },
-                        { $skip: skip },
-                        { $limit: limit },
-                        // Efficient $lookup with pipeline for selective fields
-                        {
-                            $lookup: {
-                                from: 'users',
-                                localField: 'createdBy',
-                                foreignField: '_id',
-                                as: 'createdByData',
-                                pipeline: [
-                                    { $project: { email: 1, username: 1, isActive: 1, disableLinksOnBan: 1 } }
-                                ]
-                            }
-                        },
-                        // Flatten the lookup result
-                        {
-                            $addFields: {
-                                createdBy: { $arrayElemAt: ['$createdByData', 0] },
-                                ownerBanned: {
-                                    $cond: {
-                                        if: { $and: [
-                                            { $gt: [{ $size: '$createdByData' }, 0] },
-                                            { $eq: [{ $arrayElemAt: ['$createdByData.isActive', 0] }, false] }
-                                        ]},
-                                        then: true,
-                                        else: false
-                                    }
-                                }
-                            }
-                        },
-                        { $project: { createdByData: 0 } }
-                    ],
-                    // Total count in same query (no duplicate index traversal)
-                    totalCount: [
-                        { $count: 'count' }
-                    ]
-                }
-            }
-        ];
-
-        const [result] = await Url.aggregate(pipeline);
+        } 
         
-        const urls = result.urls || [];
-        const total = result.totalCount[0]?.count || 0;
+        // Use concurrent queries for better compatibility (avoids $lookup inside $facet limitations)
+        const [urls, total] = await Promise.all([
+            Url.aggregate([
+                { $match: matchStage },
+                { $sort: { createdAt: -1 } },
+                { $skip: skip },
+                { $limit: limit },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'createdBy',
+                        foreignField: '_id',
+                        as: 'createdByData'
+                    }
+                },
+                {
+                    $addFields: {
+                        // Extract only needed fields from the looked-up user (Direct array access, no variables)
+                        createdBy: {
+                             _id: { $arrayElemAt: ['$createdByData._id', 0] },
+                             email: { $arrayElemAt: ['$createdByData.email', 0] },
+                             username: { $arrayElemAt: ['$createdByData.username', 0] },
+                             isActive: { $arrayElemAt: ['$createdByData.isActive', 0] },
+                             disableLinksOnBan: { $arrayElemAt: ['$createdByData.disableLinksOnBan', 0] }
+                        },
+                        ownerBanned: {
+                            $cond: {
+                                if: { $and: [
+                                    { $gt: [{ $size: '$createdByData' }, 0] },
+                                    { $eq: [{ $arrayElemAt: ['$createdByData.isActive', 0] }, false] }
+                                ]},
+                                then: true,
+                                else: false
+                            }
+                        }
+                    }
+                },
+                { $project: { createdByData: 0 } }
+            ]),
+            Url.countDocuments(matchStage)
+        ]);
 
         res.json({
             urls,

@@ -137,36 +137,26 @@ export const getAllUsers = async (req, res, next) => {
         }
 
         // Use aggregation with $facet for single-query pagination (optimized)
-        const pipeline = [
-            { $match: matchStage },
-            {
-                $facet: {
-                    // Get paginated results
-                    users: [
-                        // Add text score if searching
-                        ...(search ? [{ $addFields: { searchScore: { $meta: 'textScore' } } }] : []),
-                        // Sort by text score if searching, otherwise by createdAt
-                        { $sort: search ? { searchScore: -1, createdAt: -1 } : { createdAt: -1 } },
-                        { $skip: skip },
-                        { $limit: limit },
-                        // Exclude sensitive fields
-                        { $project: { password: 0, refreshTokens: 0, searchScore: 0 } }
-                    ],
-                    // Get total count in same query
-                    totalCount: [
-                        { $count: 'count' }
-                    ]
-                }
-            }
-        ];
-
-        const [result] = await User.aggregate(pipeline);
+        // Use concurrent queries instead of $facet to avoid "pipeline not supported" errors
+        // (Consistent with adminSubscriptionController and adminLinkController fixes)
         
-        const users = result.users || [];
-        const total = result.totalCount[0]?.count || 0;
+        const [usersResult, total] = await Promise.all([
+            User.aggregate([
+                { $match: matchStage },
+                // Add text score if searching
+                ...(search ? [{ $addFields: { searchScore: { $meta: 'textScore' } } }] : []),
+                // Sort by text score if searching, otherwise by createdAt
+                { $sort: search ? { searchScore: -1, createdAt: -1 } : { createdAt: -1 } },
+                { $skip: skip },
+                { $limit: limit },
+                // Exclude sensitive fields
+                { $project: { password: 0, refreshTokens: 0, searchScore: 0 } }
+            ]),
+            User.countDocuments(matchStage)
+        ]);
 
         res.json({
-            users,
+            users: usersResult,
             total,
             page,
             pages: Math.ceil(total / limit)

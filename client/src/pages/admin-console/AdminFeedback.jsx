@@ -21,6 +21,8 @@ import showToast from '../../utils/toastUtils';
 import { useConfirm } from '../../context/ConfirmContext';
 import { formatDateTime } from '../../utils/dateUtils';
 
+import { useAuth } from '../../context/AuthContext';
+
 const typeConfig = {
   feature_request: { label: 'Feature Request', icon: Lightbulb, color: 'text-purple-400', bg: 'bg-purple-500/20' },
   bug_report: { label: 'Bug Report', icon: Bug, color: 'text-red-400', bg: 'bg-red-500/20' },
@@ -45,6 +47,7 @@ const priorityConfig = {
 };
 
 const AdminFeedback = () => {
+  const { isAuthChecking } = useAuth();
   const confirm = useConfirm();
   // Two separate lists
   const [activeFeedback, setActiveFeedback] = useState([]);
@@ -155,16 +158,22 @@ const AdminFeedback = () => {
   };
 
   useEffect(() => {
-    fetchActiveFeedback();
-  }, [fetchActiveFeedback]);
+    if (!isAuthChecking) {
+      fetchActiveFeedback();
+    }
+  }, [fetchActiveFeedback, isAuthChecking]);
 
   useEffect(() => {
-    fetchResolvedFeedback();
-  }, [fetchResolvedFeedback]);
+    if (!isAuthChecking) {
+      fetchResolvedFeedback();
+    }
+  }, [fetchResolvedFeedback, isAuthChecking]);
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    if (!isAuthChecking) {
+      fetchStats();
+    }
+  }, [isAuthChecking]);
 
   // Generic Update Handler
   const handleUpdate = async (id, payload) => {

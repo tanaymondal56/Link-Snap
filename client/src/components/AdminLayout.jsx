@@ -79,17 +79,15 @@ const AdminLayout = ({ children }) => {
     // Store in ref for checkAccess effect to read (prevents race condition)
     if (forceBiometric) {
       forceBiometricRef.current = true;
-    }
-    
-    // If has trusted device marker OR force param, and WebAuthn supported
-    if ((checkDevice || forceBiometric) && supportsWebAuthn()) {
-      // console.log('[Admin] Enabling biometric prompt via:', checkDevice ? 'device_marker' : 'url_param');
-      setShowBiometricPrompt(true);
-      // Clean up URL param
-      if (forceBiometric) {
-        window.history.replaceState({}, '', window.location.pathname);
+      // Only show prompt immediately if force param is set (explicit user intent)
+      if (supportsWebAuthn()) {
+        setShowBiometricPrompt(true);
       }
+      // Clean up URL param
+      window.history.replaceState({}, '', window.location.pathname);
     }
+    // Note: Do NOT set showBiometricPrompt here for trusted device marker alone
+    // Let checkAccess decide based on login status and IP to avoid flash
   }, []);
 
 

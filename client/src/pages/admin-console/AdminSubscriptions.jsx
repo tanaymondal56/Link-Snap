@@ -32,7 +32,10 @@ import GenerateCodeModal from '../../components/admin-console/GenerateCodeModal'
 import EditCodeModal from '../../components/admin-console/EditCodeModal';
 import ManageSubscriptionModal from '../../components/admin-console/ManageSubscriptionModal';
 
+import { useAuth } from '../../context/AuthContext';
+
 const AdminSubscriptions = () => {
+  const { isAuthChecking } = useAuth();
   const { confirm } = useDialog();
   const [stats, setStats] = useState(null);
   const [codes, setCodes] = useState([]);
@@ -135,13 +138,16 @@ const AdminSubscriptions = () => {
   }, []);
 
   useEffect(() => {
+    // Wait for auth check to complete (ensure token is ready)
+    if (isAuthChecking) return;
+
     const init = async () => {
       setLoading(true);
       await Promise.all([fetchStats(), fetchCodes(1), fetchSubscribers(1), fetchAuditLogs(1)]);
       setLoading(false);
     };
     init();
-  }, [fetchSubscribers]);
+  }, [fetchSubscribers, isAuthChecking]);
 
   // Actions
   const handleGenerateCode = () => setShowGenerateModal(true);

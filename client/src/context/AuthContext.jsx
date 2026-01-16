@@ -61,6 +61,9 @@ export const AuthProvider = ({ children }) => {
     } catch { /* ignore storage errors */ }
   }, [user]);
 
+  // Track if background auth check is in progress
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+
   // Check if user is logged in (background verification)
   const checkAuth = useCallback(async (initialRetryCount = 0) => {
     const executeCheck = async (retryCount) => {
@@ -77,12 +80,14 @@ export const AuthProvider = ({ children }) => {
         const { data: userData } = await api.get('/auth/me');
         setUser(userData);
         setLoading(false);
+        setIsAuthChecking(false);
       } catch (error) {
         // Only treat 401/403 as definitive "not logged in"
         if (error.response && (error.response.status === 401 || error.response.status === 403)) {
           setUser(null);
           setAccessToken(null);
           setLoading(false);
+          setIsAuthChecking(false);
         } else {
           // For network errors (server restarting), retry up to 5 times
           if (retryCount < 5) {
@@ -92,6 +97,7 @@ export const AuthProvider = ({ children }) => {
             // After all retries fail, keep cached user state if available
             // Only clear loading - don't clear cached user on network failure
             setLoading(false);
+            setIsAuthChecking(false);
           }
         }
       }
@@ -253,6 +259,7 @@ export const AuthProvider = ({ children }) => {
         user,
         setUser,
         loading,
+        isAuthChecking,
         login,
         register,
         logout,
