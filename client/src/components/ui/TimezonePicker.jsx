@@ -330,7 +330,6 @@ const TimezonePicker = ({ value, onChange }) => {
     <div className="relative">
       {/* Trigger Button */}
       <button
-        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full flex items-center justify-between px-3 py-3 rounded-xl border transition-all ${
