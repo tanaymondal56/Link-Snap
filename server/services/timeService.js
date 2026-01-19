@@ -34,11 +34,9 @@ export const getTimeBasedDestination = (timeRedirects) => {
 
     try {
         // format handles timezone conversion internally if provided in options
-        currentTime = format(new Date(), 'HH:mm', { timeZone: tz });
-        // Getting the day in a specific timezone is tricky without shifting
-        // We can use toZonedTime for the day check, or format 'i' (ISO day) or 'e' (local day)
-        // using toZonedTime is clearer for retrieving the day index
+        // Use toZonedTime for both time and day to ensure consistency
         const zonedDate = toZonedTime(new Date(), tz);
+        currentTime = format(zonedDate, 'HH:mm');
         currentDay = zonedDate.getDay(); 
     } catch {
         console.warn(`[TBR] Invalid timezone "${tz}", falling back to UTC`);

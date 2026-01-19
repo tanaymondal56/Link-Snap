@@ -256,7 +256,10 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
       />
 
       {/* Modal */}
-      <div className="relative w-[95%] max-w-md animate-modal-in flex flex-col max-h-[95vh] overscroll-contain">
+      <div 
+        data-modal-content
+        className="relative w-[95%] max-w-md animate-modal-in flex flex-col max-h-[95dvh] overscroll-contain"
+      >
         {/* Gradient border effect */}
         <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-2xl opacity-75 blur-sm" />
 

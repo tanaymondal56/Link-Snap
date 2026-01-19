@@ -125,7 +125,7 @@ const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
         </div>
 
         {/* Form Body */}
-        <div className="p-6 overflow-y-auto custom-scrollbar">
+        <div className="p-6 overflow-y-auto custom-scrollbar overscroll-contain">
           <form id="generate-code-form" onSubmit={handleSubmit} className="space-y-5">
             
             {/* Tier & Duration Row */}

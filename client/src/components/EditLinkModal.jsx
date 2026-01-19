@@ -387,7 +387,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-gray-900/80">
       <div 
         data-modal-content
-        className="relative w-full max-w-2xl bg-gray-900 border border-gray-800 rounded-2xl shadow-xl max-h-[90vh] flex flex-col"
+        className="relative w-full max-w-2xl bg-gray-900 border border-gray-800 rounded-2xl shadow-xl max-h-[90dvh] flex flex-col overflow-hidden overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -889,6 +889,19 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
               isLocked={deviceTargetingField.isLocked}
               upgradePath={deviceTargetingField.upgradePath}
             />
+
+            {/* Priority Conflict Warning */}
+            {deviceRedirects.enabled && timeRedirects.enabled && (
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                <Info className="text-amber-400 shrink-0 mt-0.5" size={16} />
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium text-amber-200">Time rules take priority</p>
+                  <p className="text-xs text-amber-200/70 leading-relaxed">
+                    When active, time rules override device rules. Visitors matching a time window go to that destination, regardless of device.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <TimeRoutingSection
               timeRedirects={timeRedirects}

@@ -14,6 +14,7 @@ import {
   Activity,
   Crown,
   AlertTriangle,
+  Info,
 } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
@@ -22,6 +23,7 @@ import { getShortUrl } from '../utils/urlHelper';
 import CreateLinkModal from '../components/CreateLinkModal';
 import LinkSuccessModal from '../components/LinkSuccessModal';
 import { useAuth } from '../context/AuthContext';
+import BadgeTooltip from '../components/ui/BadgeTooltip';
 
 const OverviewPage = () => {
   const { user } = useAuth();
@@ -210,6 +212,9 @@ const OverviewPage = () => {
               <span className="text-gray-400 text-sm flex items-center gap-2">
                 <LinkIcon size={14} />
                 Links Created
+                <BadgeTooltip content="Links currently active in your account. Delete links to free up space.">
+                  <Info size={18} className="text-blue-400 hover:text-blue-300 transition-colors" />
+                </BadgeTooltip>
               </span>
               <span className="text-white text-sm font-medium">
                 {user?.linkUsage?.count || 0} / {user?.subscription?.tier === 'pro' ? 500 : user?.subscription?.tier === 'business' ? '10,000' : 25}
@@ -233,6 +238,9 @@ const OverviewPage = () => {
               <span className="text-gray-400 text-sm flex items-center gap-2">
                 <Calendar size={14} />
                 Monthly Created
+                <BadgeTooltip content="Total links created this month. Resets on the 1st of each month.">
+                  <Info size={18} className="text-purple-400 hover:text-purple-300 transition-colors" />
+                </BadgeTooltip>
               </span>
               <span className="text-white text-sm font-medium">
                 {user?.linkUsage?.hardCount || 0} / {user?.subscription?.tier === 'pro' ? '2,000' : user?.subscription?.tier === 'business' ? '10,000' : 100}

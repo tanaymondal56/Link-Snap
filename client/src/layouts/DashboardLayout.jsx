@@ -252,12 +252,15 @@ const DashboardLayout = () => {
           <div className="flex-1 px-4 flex justify-end">
             {/* Placeholder for global search or notifications */}
             <div className="flex items-center gap-4">
-              <Link
-                to="/dashboard/settings"
-                className="h-8 w-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <Settings size={16} />
-              </Link>
+              {/* Hide settings button when already on settings page */}
+              {location.pathname !== '/dashboard/settings' && (
+                <Link
+                  to="/dashboard/settings"
+                  className="h-8 w-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <Settings size={16} />
+                </Link>
+              )}
             </div>
           </div>
         </header>

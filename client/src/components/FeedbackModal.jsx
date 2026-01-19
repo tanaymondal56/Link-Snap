@@ -126,7 +126,7 @@ const FeedbackModal = ({ isOpen, onClose, defaultType = 'feature_request' }) => 
         className="flex min-h-full items-start justify-center p-4 sm:items-center sm:pt-4"
         style={{ paddingTop: 'max(2.5rem, env(safe-area-inset-top))' }}
       >
-        <div data-modal-content className="relative w-full max-w-lg bg-gray-900 border border-white/10 rounded-2xl shadow-2xl animate-slide-up overflow-hidden flex flex-col my-8">
+        <div data-modal-content className="relative w-full max-w-lg bg-gray-900 border border-white/10 rounded-2xl shadow-2xl animate-slide-up overflow-hidden flex flex-col my-8 max-h-[85dvh] overscroll-contain">
         {/* Success State */}
         {success ? (
           <div className="flex flex-col items-center justify-center py-16 px-8">
@@ -141,7 +141,7 @@ const FeedbackModal = ({ isOpen, onClose, defaultType = 'feature_request' }) => 
         ) : (
           <>
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-white/5">
+            <div className="flex items-center justify-between p-6 border-b border-white/5 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-purple-500/20 rounded-xl">
                   <MessageSquare className="w-5 h-5 text-purple-400" />
@@ -161,7 +161,7 @@ const FeedbackModal = ({ isOpen, onClose, defaultType = 'feature_request' }) => 
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-5">
+            <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
               {/* Type Selector */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-3">

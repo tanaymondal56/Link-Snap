@@ -40,6 +40,13 @@ import {
     syncUserSubscription,
     deleteUserSubscription
 } from '../controllers/adminSubscriptionController.js';
+import {
+    getNotifications,
+    markAsRead,
+    markAllAsRead,
+    getUnreadCount,
+    createTestNotification
+} from '../controllers/notificationController.js';
 
 const router = express.Router();
 
@@ -100,5 +107,12 @@ router.get('/subscriptions/audit-logs', getAuditLogs);
 router.patch('/users/:userId/subscription', overrideUserSubscription);
 router.post('/users/:userId/subscription/sync', syncUserSubscription);
 router.delete('/users/:userId/subscription', deleteUserSubscription);
+
+// Notifications
+router.get('/notifications', getNotifications);
+router.get('/notifications/count', getUnreadCount);
+router.patch('/notifications/read', markAsRead);
+router.patch('/notifications/read-all', markAllAsRead);
+router.post('/notifications/test', createTestNotification);
 
 export default router;

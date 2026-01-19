@@ -6,29 +6,14 @@ import {
   ChevronDown, 
   ChevronUp, 
   Crown,
-  Globe,
   Info,
   AlertCircle,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ProBadge } from './subscription/PremiumField';
+import TimezonePicker from './ui/TimezonePicker';
 
-// Common timezones with friendly labels
-const TIMEZONE_OPTIONS = [
-  { value: 'UTC', label: 'UTC (Coordinated Universal Time)' },
-  { value: 'America/New_York', label: 'EST/EDT (New York)' },
-  { value: 'America/Chicago', label: 'CST/CDT (Chicago)' },
-  { value: 'America/Denver', label: 'MST/MDT (Denver)' },
-  { value: 'America/Los_Angeles', label: 'PST/PDT (Los Angeles)' },
-  { value: 'Europe/London', label: 'GMT/BST (London)' },
-  { value: 'Europe/Paris', label: 'CET/CEST (Paris)' },
-  { value: 'Europe/Berlin', label: 'CET/CEST (Berlin)' },
-  { value: 'Asia/Dubai', label: 'GST (Dubai)' },
-  { value: 'Asia/Kolkata', label: 'IST (India)' },
-  { value: 'Asia/Singapore', label: 'SGT (Singapore)' },
-  { value: 'Asia/Tokyo', label: 'JST (Tokyo)' },
-  { value: 'Australia/Sydney', label: 'AEST/AEDT (Sydney)' },
-];
+
 
 // Day options
 const DAY_OPTIONS = [
@@ -209,23 +194,11 @@ const TimeRoutingSection = ({
       {isExpanded && (
         <div className="mt-3 space-y-3 animate-fade-in">
           
-          {/* Timezone selector */}
-          <div className="flex items-center gap-2">
-            <Globe size={16} className="text-violet-400" />
-            <select
-              value={timeRedirects.timezone}
-              onChange={(e) => setTimeRedirects({ ...timeRedirects, timezone: e.target.value })}
-              className="flex-1 bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-violet-500 focus:outline-none"
-            >
-              {[
-                // Add user's detected timezone if not present in options
-                ...(TIMEZONE_OPTIONS.some(tz => tz.value === timeRedirects.timezone) ? [] : [{ value: timeRedirects.timezone, label: `${timeRedirects.timezone} (Detected)` }]),
-                ...TIMEZONE_OPTIONS
-              ].map((tz) => (
-                <option key={tz.value} value={tz.value}>{tz.label}</option>
-              ))}
-            </select>
-          </div>
+          {/* Timezone Picker */}
+          <TimezonePicker
+            value={timeRedirects.timezone}
+            onChange={(tz) => setTimeRedirects({ ...timeRedirects, timezone: tz })}
+          />
 
           {/* Existing rules */}
           {timeRedirects.rules.map((rule, index) => (
@@ -237,7 +210,7 @@ const TimeRoutingSection = ({
                   value={rule.label}
                   onChange={(e) => updateRule(index, 'label', e.target.value)}
                   placeholder={`Rule ${index + 1}`}
-                  className="bg-transparent text-sm text-white font-medium focus:outline-none placeholder-gray-500 w-32"
+                  className="bg-transparent text-sm text-white font-medium focus:outline-none placeholder-gray-500 flex-1 min-w-0"
                 />
                 <button
                   type="button"

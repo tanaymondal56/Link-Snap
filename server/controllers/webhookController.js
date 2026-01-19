@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import WebhookEvent from '../models/WebhookEvent.js';
 import SubscriptionAuditLog from '../models/SubscriptionAuditLog.js';
 import logger from '../utils/logger.js';
+import NotificationService from '../services/notificationService.js';
 
 // Verify the signature from Lemon Squeezy
 // Docs: https://docs.lemonsqueezy.com/guides/developer-guide/webhooks#signing-requests
@@ -241,12 +242,24 @@ export const handleWebhook = async (req, res) => {
         if (attributes.status === 'active' && user.subscription.status === 'on_trial') {
             user.hasUsedTrial = true;
         }
+
+        // Notify Admin: New Subscription
+        if (eventName === 'subscription_created') {
+            NotificationService.subscriptionCreated(user._id, user.email, tier).catch(err => {
+                 logger.error(`[Webhook] Failed to send sub created notification: ${err.message}`);
+            });
+        }
         break;
 
-      case 'subscription_cancelled':
+        case 'subscription_cancelled':
         user.subscription.status = attributes.status; // 'cancelled'
         user.subscription.cancelledAt = new Date(attributes.cancelled_at || Date.now());
         user.subscription.currentPeriodEnd = new Date(attributes.ends_at);
+
+        // Notify Admin: Subscription Cancelled
+        NotificationService.subscriptionCancelled(user._id, user.email, user.subscription.tier, 'User cancelled via portal').catch(err => {
+             logger.error(`[Webhook] Failed to send sub cancelled notification: ${err.message}`);
+        });
         break;
         
       case 'subscription_paused':
@@ -265,6 +278,11 @@ export const handleWebhook = async (req, res) => {
       case 'subscription_payment_failed':
          user.subscription.status = 'past_due';
          logger.warn(`[Webhook] Payment failed for ${user.snapId}. Grace period active.`);
+         
+         // Notify Admin: Payment Failed (Critical)
+         NotificationService.paymentFailed(user._id, user.email, 'Subscription', 'Payment declied/failed').catch(err => {
+              logger.error(`[Webhook] Failed to send payment failed notification: ${err.message}`);
+         });
          break;
 
       default:

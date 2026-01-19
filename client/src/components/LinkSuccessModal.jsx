@@ -59,11 +59,11 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
       {/* Modal */}
       <div 
         data-modal-content
-        className="relative w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl animate-modal-in overflow-hidden"
+        className="relative w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl animate-modal-in overflow-hidden flex flex-col max-h-[90dvh] overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Success Header with Confetti Effect */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500/20 via-green-500/10 to-transparent p-6 pb-4 border-b border-gray-800">
+        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500/20 via-green-500/10 to-transparent p-6 pb-4 border-b border-gray-800 shrink-0">
           {/* Background Sparkle Effect */}
           <div className="absolute inset-0 opacity-30">
             <div className="absolute top-2 left-4 text-yellow-400 animate-pulse"><Sparkles size={12} /></div>
@@ -84,7 +84,7 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-5">
+        <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
           {/* Main Link Section */}
           <div className="flex flex-col sm:flex-row items-center gap-4">
             {/* QR Code */}

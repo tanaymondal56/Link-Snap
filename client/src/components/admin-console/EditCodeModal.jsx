@@ -71,7 +71,7 @@ const EditCodeModal = ({ isOpen, onClose, onSuccess, code }) => {
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto custom-scrollbar">
+        <div className="overflow-y-auto custom-scrollbar overscroll-contain">
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
             
             {/* Code & Active Status */}

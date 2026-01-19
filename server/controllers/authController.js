@@ -15,6 +15,7 @@ import { welcomeEmail, verificationEmail, accountExistsEmail, passwordResetEmail
 import { isReservedWord } from '../config/reservedWords.js';
 import logger from '../utils/logger.js';
 import { generateUserIdentity } from '../services/idService.js';
+import NotificationService from '../services/notificationService.js';
 
 // Simple email validation - ReDoS safe
 const isValidEmail = (email) => {
@@ -213,6 +214,11 @@ const registerUser = async (req, res, next) => {
           message: emailContent.html,
         });
 
+        // Send admin notification (non-blocking)
+        NotificationService.userSignup(user._id, user.email).catch(err => {
+          logger.error(`[Auth] Failed to send signup notification: ${err.message}`);
+        });
+
         res.status(201).json({
           message: 'Registration successful! Please check your email to verify your account.',
           requireVerification: true,
@@ -248,6 +254,11 @@ const registerUser = async (req, res, next) => {
       } catch (emailError) {
         logger.error('[Auth] Failed to send welcome email:', emailError.message);
       }
+
+      // Send admin notification (non-blocking)
+      NotificationService.userSignup(user._id, user.email).catch(err => {
+        logger.error(`[Auth] Failed to send signup notification: ${err.message}`);
+      });
 
       res.cookie('jwt', refreshToken, {
         httpOnly: true,

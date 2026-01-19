@@ -32,6 +32,8 @@ import {
   ChevronDown,
   Info,
   Eye,
+  Tablet,
+  Monitor,
 } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
@@ -265,7 +267,12 @@ const UserDashboard = () => {
               {/* Active Links (Concurrent) */}
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-gray-400 text-xs">Active Links</span>
+                  <span className="text-gray-400 text-xs flex items-center gap-1">
+                    Active Links
+                    <BadgeTooltip content="Links currently active in your account. Delete links to free up space.">
+                      <Info size={16} className="text-blue-400 hover:text-blue-300 transition-colors" />
+                    </BadgeTooltip>
+                  </span>
                   <span className="text-white text-xs font-medium">
                     {user?.linkUsage?.count || 0}/{getTierConfig(user?.subscription?.tier).activeLimit === Infinity ? '∞' : getTierConfig(user?.subscription?.tier).activeLimit}
                   </span>
@@ -285,9 +292,12 @@ const UserDashboard = () => {
               {/* Monthly Created (Hard Limit) */}
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <BadgeTooltip content="Total links created this month (resets monthly)">
-                     <span className="text-gray-400 text-xs border-b border-gray-700 hover:border-gray-500 cursor-help transition-colors">Monthly Created</span>
-                  </BadgeTooltip>
+                  <span className="text-gray-400 text-xs flex items-center gap-1">
+                    Monthly Created
+                    <BadgeTooltip content="Total links created this month. Resets on the 1st of each month.">
+                      <Info size={16} className="text-purple-400 hover:text-purple-300 transition-colors" />
+                    </BadgeTooltip>
+                  </span>
                   <span className="text-white text-xs font-medium">
                     {user?.linkUsage?.hardCount || 0}/{getTierConfig(user?.subscription?.tier).monthlyLimit.toLocaleString()}
                   </span>
@@ -880,35 +890,77 @@ const UserDashboard = () => {
                             <Smartphone size={10} /> Device Targets
                           </div>
                           <div className="space-y-1.5">
-                            {link.deviceRedirects.rules.map((rule, i) => (
-                              <div key={i} className="flex items-center gap-2 bg-cyan-500/5 rounded-lg p-1.5 sm:p-2 border border-cyan-500/10">
-                                <span className="text-[9px] sm:text-[10px] font-bold uppercase text-cyan-300 bg-cyan-500/20 px-1 sm:px-1.5 py-0.5 rounded shrink-0">
-                                  {rule.device}
-                                </span>
-                                <span className="text-[9px] sm:text-[10px] text-cyan-400 truncate flex-1 min-w-0">
-                                  {rule.url}
-                                </span>
-                                <div className="flex gap-0.5 shrink-0">
-                                  <button
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(rule.url);
-                                      showToast.success('Copied');
-                                    }}
-                                    className="p-1 sm:p-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded transition-colors"
-                                  >
-                                    <Copy size={10} className="sm:w-3 sm:h-3" />
-                                  </button>
-                                  <a
-                                    href={rule.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="p-1 sm:p-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded transition-colors"
-                                  >
-                                    <ExternalLink size={10} className="sm:w-3 sm:h-3" />
-                                  </a>
+                            {link.deviceRedirects.rules.map((rule, i) => {
+                              // Helper for device styling
+                              const getDeviceStyle = (type) => {
+                                switch (type) {
+                                  case 'desktop': 
+                                    return { 
+                                      icon: <Monitor size={10} />, 
+                                      style: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400',
+                                      badge: 'bg-indigo-500/20 text-indigo-300'
+                                    };
+                                  case 'tablet': 
+                                    return { 
+                                      icon: <Tablet size={10} />, 
+                                      style: 'bg-purple-500/10 border-purple-500/20 text-purple-400',
+                                      badge: 'bg-purple-500/20 text-purple-300'
+                                    };
+                                  case 'android': 
+                                    return { 
+                                      icon: <Smartphone size={10} />, 
+                                      style: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+                                      badge: 'bg-emerald-500/20 text-emerald-300'
+                                    };
+                                  case 'ios': 
+                                    return { 
+                                      icon: <Smartphone size={10} />, 
+                                      style: 'bg-sky-500/10 border-sky-500/20 text-sky-400',
+                                      badge: 'bg-sky-500/20 text-sky-300'
+                                    };
+                                  case 'mobile':
+                                  default: 
+                                    return { 
+                                      icon: <Smartphone size={10} />, 
+                                      style: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+                                      badge: 'bg-blue-500/20 text-blue-300'
+                                    };
+                                }
+                              };
+
+                              const { icon, style, badge } = getDeviceStyle(rule.device);
+
+                              return (
+                                <div key={i} className={`flex items-center gap-2 rounded-lg p-1.5 sm:p-2 border ${style}`}>
+                                  <span className={`flex items-center gap-1 text-[9px] sm:text-[10px] font-bold uppercase ${badge} px-1.5 py-0.5 rounded shrink-0`}>
+                                    {icon}
+                                    {rule.device}
+                                  </span>
+                                  <span className="text-[9px] sm:text-[10px] truncate flex-1 min-w-0 opacity-90">
+                                    {rule.url}
+                                  </span>
+                                  <div className="flex gap-0.5 shrink-0">
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(rule.url);
+                                        showToast.success('Copied');
+                                      }}
+                                      className="p-1 sm:p-1.5 bg-black/20 hover:bg-black/30 rounded transition-colors"
+                                    >
+                                      <Copy size={10} className="sm:w-3 sm:h-3" />
+                                    </button>
+                                    <a
+                                      href={rule.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-1 sm:p-1.5 bg-black/20 hover:bg-black/30 rounded transition-colors"
+                                    >
+                                      <ExternalLink size={10} className="sm:w-3 sm:h-3" />
+                                    </a>
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -916,16 +968,69 @@ const UserDashboard = () => {
                       {/* Time-Based Redirects */}
                       {link.timeRedirects?.enabled && link.timeRedirects.rules?.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-gray-700/30">
-                          <div className="text-[10px] sm:text-xs text-gray-500 mb-2 flex items-center gap-1">
-                            <Clock size={10} /> Time Targets
+                          <div className="text-[10px] sm:text-xs text-gray-500 mb-2 flex flex-wrap items-center gap-2 justify-between">
+                            <span className="flex items-center gap-1"><Clock size={10} /> Time Targets</span>
+                            
+                            {/* Timezone Badge with Rich Tooltip */}
+                            <BadgeTooltip content={(() => {
+                              try {
+                                const targetZone = link.timeRedirects.timezone || 'UTC';
+                                const now = new Date();
+                                
+                                // 1. Get Offset (e.g., UTC-05:00)
+                                const offsetString = new Intl.DateTimeFormat('en-US', {
+                                  timeZone: targetZone,
+                                  timeZoneName: 'longOffset'
+                                }).formatToParts(now).find(p => p.type === 'timeZoneName')?.value;
+
+                                // 2. Convert User's Midnight to Target Zone
+                                const userMidnight = new Date();
+                                userMidnight.setHours(0, 0, 0, 0);
+                                
+                                const targetTimeAtMidnight = new Intl.DateTimeFormat('en-US', {
+                                  timeZone: targetZone,
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                  hour12: true
+                                }).format(userMidnight);
+
+                                return (
+                                  <div className="text-left w-full space-y-2 py-0.5">
+                                    {/* Header: UTC Offset */}
+                                    <div className="font-bold text-amber-400 border-b border-gray-600/50 pb-1.5 text-xs">
+                                      {offsetString || targetZone}
+                                    </div>
+                                    
+                                    {/* Conversion Info */}
+                                    <div className="space-y-1">
+                                      <div className="text-[10px] text-gray-400 font-medium">
+                                        Timezone Alignment:
+                                      </div>
+                                      <div className="flex items-center justify-between gap-3 text-[10px] bg-gray-900/50 p-1.5 rounded">
+                                        <span className="text-gray-400">My 12:00 AM</span>
+                                        <span className="text-gray-500">→</span>
+                                        <span className="text-white font-mono">{targetTimeAtMidnight}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              } catch {
+                                return 'Invalid Timezone Configuration';
+                              }
+                            })()}>
+                              <div className="flex items-center gap-1 text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded text-[9px] font-medium shadow-sm cursor-default hover:bg-amber-500/20 transition-colors">
+                                <span className="opacity-70">Zone:</span> {link.timeRedirects.timezone || 'UTC'}
+                                <Info size={8} className="ml-0.5 opacity-50" />
+                              </div>
+                            </BadgeTooltip>
                           </div>
                           <div className="space-y-1.5">
                             {link.timeRedirects.rules.map((rule, i) => (
-                              <div key={i} className="flex items-center gap-2 bg-indigo-500/5 rounded-lg p-1.5 sm:p-2 border border-indigo-500/10">
-                                <span className="text-[9px] sm:text-[10px] font-medium text-indigo-300 bg-indigo-500/20 px-1 sm:px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
-                                  {rule.startTime}-{rule.endTime}
+                              <div key={i} className="flex items-center gap-2 bg-violet-500/5 rounded-lg p-1.5 sm:p-2 border border-violet-500/10">
+                                <span className="text-[9px] sm:text-[10px] font-medium text-violet-200 bg-violet-600/30 border border-violet-500/30 px-1.5 sm:px-2 py-0.5 rounded shrink-0 whitespace-nowrap">
+                                  {rule.startTime} - {rule.endTime}
                                 </span>
-                                <span className="text-[9px] sm:text-[10px] text-indigo-400 truncate flex-1 min-w-0">
+                                <span className="text-[9px] sm:text-[10px] text-violet-300 truncate flex-1 min-w-0">
                                   {rule.destination}
                                 </span>
                                 <div className="flex gap-0.5 shrink-0">
@@ -934,7 +1039,7 @@ const UserDashboard = () => {
                                       navigator.clipboard.writeText(rule.destination);
                                       showToast.success('Copied');
                                     }}
-                                    className="p-1 sm:p-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded transition-colors"
+                                    className="p-1 sm:p-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded transition-colors"
                                   >
                                     <Copy size={10} className="sm:w-3 sm:h-3" />
                                   </button>
@@ -942,7 +1047,7 @@ const UserDashboard = () => {
                                     href={rule.destination}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="p-1 sm:p-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded transition-colors"
+                                    className="p-1 sm:p-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded transition-colors"
                                   >
                                     <ExternalLink size={10} className="sm:w-3 sm:h-3" />
                                   </a>

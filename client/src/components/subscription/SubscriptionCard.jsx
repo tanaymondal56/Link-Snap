@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { CreditCard, Zap, BarChart3, CheckCircle, RefreshCw, Gift, Loader2, AlertTriangle, ArrowRight, X } from 'lucide-react';
+import { CreditCard, Zap, BarChart3, CheckCircle, RefreshCw, Gift, Loader2, AlertTriangle, ArrowRight, X, HelpCircle } from 'lucide-react';
 import { formatDate } from '../../utils/dateUtils';
 import showToast from '../../utils/toastUtils';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import api from '../../api/axios';
+import BadgeTooltip from '../ui/BadgeTooltip';
 
 const SubscriptionCard = ({ profile, onRefresh }) => {
   const navigate = useNavigate();
@@ -334,6 +335,9 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                     <h4 className="font-medium text-white flex items-center gap-2">
                         <Zap size={18} className="text-blue-400" />
                         Links Created
+                        <BadgeTooltip content="Links currently active in your account. Delete links to free up space.">
+                            <HelpCircle size={18} className="text-blue-400 hover:text-blue-300 transition-colors" />
+                        </BadgeTooltip>
                     </h4>
                 </div>
                 {(() => {
@@ -365,6 +369,9 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                     <h4 className="font-medium text-white flex items-center gap-2">
                         <BarChart3 size={18} className="text-purple-400" />
                         Monthly Created
+                        <BadgeTooltip content="Total links created this month. Resets on the 1st of each month.">
+                            <HelpCircle size={18} className="text-purple-400 hover:text-purple-300 transition-colors" />
+                        </BadgeTooltip>
                     </h4>
                     <span className="text-xs text-gray-400">
                         Resets on {(() => {

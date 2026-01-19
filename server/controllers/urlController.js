@@ -11,7 +11,8 @@ import { trackVisit } from '../services/analyticsService.js';
 import Settings from '../models/Settings.js';
 import { checkUrlsSafety } from '../services/safeBrowsingService.js';
 import { getTimeBasedDestination } from '../services/timeService.js';
-// Note: validateUrlSecurity available from '../utils/urlSecurity.js' for future outbound request protection
+import NotificationService from '../services/notificationService.js';
+import logger from '../utils/logger.js';
 
 // Extract domain from URL (safe - no network request)
 const extractDomain = (url) => {
@@ -298,6 +299,13 @@ const createShortUrl = async (req, res, next) => {
         // Return without passwordHash (already excluded by select: false)
         // Increment usage for both Anonymous and Registered users (Fire-and-forget)
         incrementLinkUsage(req).catch(err => console.error('[Usage Tracking Error]', err));
+
+        // Send aggregated notification to admins
+        if (userId) {
+            NotificationService.linkCreated(userId, newUrl._id, newUrl.shortUrl).catch(err => {
+                logger.error(`[URL] Failed to send link created notification: ${err.message}`);
+            });
+        }
 
         // Safe Browsing Check (Async / Fire-and-forget)
         (async () => {
