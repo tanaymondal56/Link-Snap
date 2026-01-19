@@ -271,6 +271,33 @@ body {
   @apply bg-gray-950 text-gray-100;
 }
 
+/* Modal scroll lock - prevents background scroll while modal is open */
+body[data-modal-open="true"] {
+  overflow: hidden !important;
+  touch-action: none;
+  overscroll-behavior: none;
+  position: fixed;
+  width: 100%;
+}
+
+/* Ensure modal content can still scroll */
+body[data-modal-open="true"] [data-modal-content] {
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+
+/* Contain overscroll in all scrollable modal areas */
+body[data-modal-open="true"] [data-modal-content] * {
+  overscroll-behavior: contain;
+}
+
+/* Style for scrollable areas in modals */
+[data-modal-content] .overflow-y-auto,
+[data-modal-content] .overflow-auto {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Custom scrollbar styles */
 .scrollbar-thin {
   scrollbar-width: thin;

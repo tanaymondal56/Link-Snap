@@ -69,8 +69,7 @@ export const handleWebhook = async (req, res) => {
     
     logger.info(`[Webhook] Received ${eventName} for User ${snapId || userId}`);
 
-    // 2. Idempotency Check
-    // Sanitize webhookId to prevent NoSQL injection
+    // Extract and sanitize webhookId to prevent NoSQL injection
     const rawWebhookId = req.headers['x-event-id'] || meta.id;
     const webhookId = (typeof rawWebhookId === 'string' && rawWebhookId.length <= 100) 
       ? String(rawWebhookId).trim() 
@@ -80,16 +79,56 @@ export const handleWebhook = async (req, res) => {
       logger.warn('[Webhook] Invalid or missing webhook ID');
       return res.status(400).json({ message: 'Invalid webhook ID' });
     }
-    
-    // Only skip if we have successfully processed this event before
-    const existingEvent = await WebhookEvent.findOne({ 
-      remoteId: webhookId,
-      status: 'processed' 
-    });
-    
-    if (existingEvent) {
-      logger.info(`[Webhook] Duplicate event ${webhookId} already processed.`);
-      return res.status(200).json({ message: 'Event already processed' });
+
+    // 2. Atomic Idempotency Check (Race-condition safe for Cosmos DB & MongoDB)
+    // Uses findOneAndUpdate with upsert to atomically claim the event.
+    // If the event already exists, we get the existing doc (wasFirstClaim = false).
+    // If we created it, we get our new doc (wasFirstClaim = true).
+    try {
+      const claimResult = await WebhookEvent.findOneAndUpdate(
+        { remoteId: webhookId },
+        {
+          $setOnInsert: {
+            remoteId: webhookId,
+            eventType: eventName,
+            snapId: customData.snap_id || customData.user_id || 'PENDING',
+            payload: req.body,
+            status: 'pending', // Will be updated to 'processed' after success
+            signature: req.headers['x-signature']
+          }
+        },
+        { 
+          upsert: true,           // Create if doesn't exist
+          new: false,             // Return the OLD document (null if we created)
+          rawResult: true         // Get full result with upsertedId for Cosmos DB
+        }
+      );
+
+      // Check if this was a new insert (we claimed the event) or existing
+      const wasAlreadyProcessed = claimResult.value && claimResult.value.status === 'processed';
+      const wasCreatedByUs = claimResult.lastErrorObject?.upserted || !claimResult.value;
+      
+      if (wasAlreadyProcessed) {
+        logger.info(`[Webhook] Duplicate event ${webhookId} already processed.`);
+        return res.status(200).json({ message: 'Event already processed' });
+      }
+      
+      if (!wasCreatedByUs && claimResult.value?.status === 'pending') {
+        // Another request is currently processing this event
+        logger.info(`[Webhook] Event ${webhookId} is being processed by another request.`);
+        return res.status(200).json({ message: 'Event is being processed' });
+      }
+      
+      // We successfully claimed this event - proceed with processing
+      logger.info(`[Webhook] Claimed event ${webhookId} for processing.`);
+      
+    } catch (claimError) {
+      // On Cosmos DB, duplicate key error means another request won the race
+      if (claimError.code === 11000 || claimError.code === 16500) {
+        logger.info(`[Webhook] Race condition caught for ${webhookId} - another request is processing.`);
+        return res.status(200).json({ message: 'Event claimed by another request' });
+      }
+      throw claimError; // Re-throw unexpected errors
     }
 
     // 3. Find User (with input sanitization to prevent NoSQL injection)
@@ -135,14 +174,16 @@ export const handleWebhook = async (req, res) => {
     // If user not found, log fail-lookup but don't crash
     if (!user) {
         logger.error(`[Webhook] User not found for event ${eventName}. SnapID: ${snapId}`);
-        await WebhookEvent.create({
-            remoteId: webhookId,
-            eventType: eventName,
-            snapId: snapId || 'UNKNOWN',
-            payload: req.body,
-            status: 'failed',
-            error: 'User not found in database'
-        });
+        await WebhookEvent.updateOne(
+            { remoteId: webhookId },
+            { 
+              $set: { 
+                status: 'failed', 
+                error: 'User not found in database',
+                snapId: snapId || 'UNKNOWN'
+              } 
+            }
+        );
         return res.status(200).json({ message: 'User not found, event logged.' });
     }
 
@@ -229,13 +270,10 @@ export const handleWebhook = async (req, res) => {
       default:
         logger.info(`[Webhook] Unhandled event type: ${eventName}`);
         // Log event but don't save user as nothing was modified
-        await WebhookEvent.create({
-            remoteId: webhookId,
-            eventType: eventName,
-            snapId: user.snapId,
-            payload: req.body,
-            status: 'ignored'
-        });
+        await WebhookEvent.updateOne(
+            { remoteId: webhookId },
+            { $set: { status: 'ignored', snapId: user.snapId } }
+        );
         return res.status(200).json({ received: true, ignored: true });
     }
 
@@ -285,14 +323,11 @@ export const handleWebhook = async (req, res) => {
       logger.error(`[Webhook Audit Log Error] ${auditErr.message}`);
     }
     
-    // 5. Log Success
-    await WebhookEvent.create({
-        remoteId: webhookId,
-        eventType: eventName,
-        snapId: user.snapId,
-        payload: req.body,
-        status: 'processed'
-    });
+    // 5. Mark event as processed (update the pending claim)
+    await WebhookEvent.updateOne(
+        { remoteId: webhookId },
+        { $set: { status: 'processed', snapId: user.snapId } }
+    );
 
     res.status(200).json({ received: true });
 

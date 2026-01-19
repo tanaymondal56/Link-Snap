@@ -152,7 +152,10 @@ app.use(lusca.csrf({
     }
   },
   header: 'X-XSRF-TOKEN',
-  blacklist: ['/api/webhooks'] // Exclude webhooks if needed, though they usually use signatures
+  blacklist: [
+    { type: 'startsWith', path: '/api/webhooks' }, // Webhooks use signature verification
+    { type: 'startsWith', path: '/api/url/' } // Public redirect and password verification endpoints
+  ]
 }));
 
 // NoSQL injection protection
@@ -259,6 +262,16 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.resolve(__dirname, '../client/dist/index.html'));
   });
 } else {
+  // Development mode - catch-all for 404s
+  app.get('/{*splat}', (req, res) => {
+    // Return proper 404 response for invalid short URLs
+    res.status(404).json({ 
+      message: 'Short link not found',
+      shortId: req.path.slice(1), // Remove leading slash
+      suggestion: 'This link may have expired or been deleted'
+    });
+  });
+  
   app.get('/', (req, res) => {
     res.send('Link Snap API is running...');
   });

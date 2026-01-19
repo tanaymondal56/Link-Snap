@@ -47,7 +47,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
       {/* Sidebar */}
       <aside 
         className={`
-            fixed top-6 bottom-6 lg:left-6 z-[70] w-64 flex flex-col transition-all duration-300 ease-in-out
+            fixed top-6 bottom-6 lg:left-6 z-[70] w-64 flex flex-col will-change-transform transition-[left] duration-300 ease-out
             ${isOpen ? 'left-6' : '-left-80 lg:left-6'}
         `}
       >
@@ -70,6 +70,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={onClose}
               className={({ isActive }) => `
                 flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group
                 ${isActive 
@@ -97,6 +98,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
         <div className="mt-auto pt-6 border-t border-white/5 space-y-2">
           <NavLink
             to="/dashboard"
+            onClick={onClose}
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-all"
           >
             <ChevronLeft size={20} />

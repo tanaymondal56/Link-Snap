@@ -40,7 +40,7 @@ const AdminConsoleLayout = () => {
         <span className="font-bold text-lg">LinkSnap Admin</span>
         <button 
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 rounded-lg bg-white/10"
+          className="p-3 -m-1 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-white/10 active:scale-95 transition-transform"
         >
           <Menu size={20} />
         </button>

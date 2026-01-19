@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 /**
@@ -78,14 +79,24 @@ const BottomSheet = ({
     prevIsOpenRef.current = isOpen;
   }, [isOpen, snapPoints]);
 
-  // Prevent body scroll when open
+  // Prevent body scroll when open and disable PullToRefresh
   useEffect(() => {
     if (isOpen) {
+      document.body.setAttribute('data-modal-open', 'true');
       document.body.style.overflow = 'hidden';
     } else {
+      // Check if any other modals are still open
+      const otherModals = document.querySelectorAll('[data-modal-content]');
+      if (otherModals.length <= 1) {
+        document.body.removeAttribute('data-modal-open');
+      }
       document.body.style.overflow = '';
     }
     return () => {
+      const otherModals = document.querySelectorAll('[data-modal-content]');
+      if (otherModals.length <= 1) {
+        document.body.removeAttribute('data-modal-open');
+      }
       document.body.style.overflow = '';
     };
   }, [isOpen]);
@@ -94,7 +105,7 @@ const BottomSheet = ({
 
   const translateY = isDragging ? Math.max(0, currentY) : 0;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 md:hidden">
       {/* Backdrop */}
       <div 
@@ -107,13 +118,14 @@ const BottomSheet = ({
       {/* Sheet */}
       <div
         ref={sheetRef}
+        data-modal-content
         className={`absolute left-0 right-0 bottom-0 bg-gray-900 rounded-t-3xl shadow-2xl transition-all ${
           isDragging ? '' : 'duration-300 ease-out'
         }`}
         style={{
           height: sheetHeight,
           transform: `translateY(${translateY}px)`,
-          maxHeight: '95vh',
+          maxHeight: '90dvh', // Changed to 90dvh
         }}
       >
         {/* Drag Handle */}
@@ -145,7 +157,8 @@ const BottomSheet = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

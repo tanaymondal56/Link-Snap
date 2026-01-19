@@ -126,7 +126,7 @@ const FeedbackModal = ({ isOpen, onClose, defaultType = 'feature_request' }) => 
         className="flex min-h-full items-start justify-center p-4 sm:items-center sm:pt-4"
         style={{ paddingTop: 'max(2.5rem, env(safe-area-inset-top))' }}
       >
-        <div className="relative w-full max-w-lg bg-gray-900 border border-white/10 rounded-2xl shadow-2xl animate-slide-up overflow-hidden flex flex-col my-8">
+        <div data-modal-content className="relative w-full max-w-lg bg-gray-900 border border-white/10 rounded-2xl shadow-2xl animate-slide-up overflow-hidden flex flex-col my-8">
         {/* Success State */}
         {success ? (
           <div className="flex flex-col items-center justify-center py-16 px-8">

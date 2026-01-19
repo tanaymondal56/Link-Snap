@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { X, UserPlus, Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle, Check } from 'lucide-react';
 import showToast from '../../utils/toastUtils';
 import api from '../../api/axios';
+import useScrollLock from '../../hooks/useScrollLock';
 
 const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
   const [loading, setLoading] = useState(false);
@@ -19,6 +21,9 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
     website: ''
   });
   const [showPassword, setShowPassword] = useState(false);
+
+  // Lock background scroll
+  useScrollLock(isOpen);
 
   const handleClose = useCallback(() => {
     setForm({
@@ -132,10 +137,18 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleClose} />
-      <div className="relative w-full max-w-2xl bg-gray-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] overscroll-contain">
+  return createPortal(
+    <div 
+      data-modal-content
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+    >
+      <div 
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" 
+        onClick={handleClose} 
+      />
+      <div data-modal-content className="relative w-full max-w-2xl bg-gray-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] animate-scale-in">
         {/* Header */}
         <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -148,7 +161,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
         </div>
 
         {/* Form Body - Scrollable */}
-        <div className="p-6 overflow-y-auto custom-scrollbar">
+        <div className="p-6 overflow-y-auto custom-scrollbar overscroll-contain">
           <form id="create-user-form" onSubmit={handleSubmit} className="space-y-6">
             {/* Account Info */}
             <div>
@@ -315,7 +328,8 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

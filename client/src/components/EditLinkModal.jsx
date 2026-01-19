@@ -386,6 +386,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-gray-900/80">
       <div 
+        data-modal-content
         className="relative w-full max-w-2xl bg-gray-900 border border-gray-800 rounded-2xl shadow-xl max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCircle, X, Link as LinkIcon, AlertTriangle, RefreshCw } from 'lucide-react';
+import useScrollLock from '../hooks/useScrollLock';
 
 const UnbanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
   const [reenableLinks, setReenableLinks] = useState(true);
@@ -27,6 +29,9 @@ const UnbanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, isSubmitting, handleClose]);
 
+  // Lock background scroll
+  useScrollLock(isOpen);
+
   if (!isOpen || !user) return null;
 
   const handleSubmit = async () => {
@@ -43,7 +48,7 @@ const UnbanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
   // Check if user had links disabled when banned
   const hadLinksDisabled = user.disableLinksOnBan !== false;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
@@ -52,7 +57,7 @@ const UnbanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
       />
 
       {/* Modal */}
-      <div className="relative w-[95%] max-w-md bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl shadow-green-500/10 animate-modal-in overflow-hidden flex flex-col max-h-[95vh] overscroll-contain">
+      <div data-modal-content className="relative w-[95%] max-w-md bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl shadow-green-500/10 animate-modal-in overflow-hidden flex flex-col max-h-[90dvh] overscroll-contain">
         {/* Gradient top border */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-green-500 to-emerald-500" />
 
@@ -218,7 +223,8 @@ const UnbanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

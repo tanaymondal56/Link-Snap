@@ -58,6 +58,7 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 backdrop-blur-sm bg-gray-900/80">
       {/* Modal */}
       <div 
+        data-modal-content
         className="relative w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl animate-modal-in overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >

@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, Trash2, Ban, Shield, ShieldAlert, X, CheckCircle } from 'lucide-react';
 import { ConfirmContext } from '../../context/ConfirmContext';
+import useScrollLock from '../../hooks/useScrollLock';
 
 // Different dialog variants with their styles
 const variants = {
@@ -63,6 +65,9 @@ export const ConfirmDialog = ({
   // Config object support (for Provider)
   config = {} 
 }) => {
+  // Lock background scroll when dialog is open
+  useScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   // Merge direct props with config (config takes precedence if present for provider usage)
@@ -78,7 +83,7 @@ export const ConfirmDialog = ({
   const activeVariant = variants[finalVariant] || variants.danger;
   const IconComponent = config.icon || activeVariant.icon;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
@@ -88,7 +93,8 @@ export const ConfirmDialog = ({
 
       {/* Dialog */}
       <div
-        className={`relative w-[95%] max-w-md bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl ${activeVariant.borderGlow} animate-modal-in overflow-hidden flex flex-col max-h-[95vh] overscroll-contain`}
+        data-modal-content
+        className={`relative w-[95%] max-w-md bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl ${activeVariant.borderGlow} animate-modal-in overflow-hidden flex flex-col max-h-[90dvh] overscroll-contain`}
       >
         {/* Gradient top border */}
         <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${activeVariant.buttonBg}`} />
@@ -139,7 +145,8 @@ export const ConfirmDialog = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

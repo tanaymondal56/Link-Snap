@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../../api/axios';
 import showToast from '../../utils/toastUtils';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -680,12 +681,12 @@ const ChangelogManager = () => {
       )}
 
       {/* Form Modal */}
-      {showForm && (
+      {showForm && createPortal(
         <div 
           className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4 pt-4 sm:pt-4 overflow-y-auto overscroll-none touch-pan-y"
           onClick={(e) => e.target === e.currentTarget && (setShowForm(false), resetForm())}
         >
-          <div ref={formModalRef} className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[90vh] sm:max-h-[85vh] overflow-hidden flex flex-col shadow-2xl my-auto">
+          <div ref={formModalRef} className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[90dvh] sm:max-h-[85vh] overflow-hidden flex flex-col shadow-2xl my-auto">
             <div className="sticky top-0 bg-gray-900 border-b border-gray-700 p-4 flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">
                 {editingId ? 'Edit Release' : 'New Release'}
@@ -697,6 +698,7 @@ const ChangelogManager = () => {
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
+            {/* Content continues... */}
 
             <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 overflow-y-auto overscroll-none flex-1 min-h-0">
               {/* Version & Date */}
@@ -993,7 +995,7 @@ const ChangelogManager = () => {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Changelog List */}
       {changelogs.length === 0 ? (
@@ -1151,9 +1153,9 @@ const ChangelogManager = () => {
       )}
 
       {/* History Modal */}
-      {historyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-[95%] max-w-md max-h-[95vh] overflow-hidden flex flex-col overscroll-contain">
+      {historyModal && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-[95%] max-w-md max-h-[90dvh] overflow-hidden flex flex-col overscroll-contain">
             <div className="flex items-center justify-between p-4 border-b border-gray-700">
               <h3 className="text-lg font-bold text-white">History - v{historyModal.version}</h3>
               <button
@@ -1199,7 +1201,7 @@ const ChangelogManager = () => {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 };

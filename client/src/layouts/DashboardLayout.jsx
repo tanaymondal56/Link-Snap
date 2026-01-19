@@ -104,8 +104,11 @@ const DashboardLayout = () => {
       {/* Sidebar - Fixed */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-gray-900/95 backdrop-blur-xl border-r border-white/5 transform transition-transform duration-300 ease-in-out flex flex-col shadow-2xl lg:shadow-none',
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          'fixed inset-y-0 left-0 z-50 w-64 bg-gray-900/95 backdrop-blur-xl border-r border-white/5 flex flex-col shadow-2xl lg:shadow-none will-change-transform',
+          isSidebarOpen 
+            ? 'translate-x-0' 
+            : '-translate-x-full lg:translate-x-0',
+          'transition-transform duration-300 ease-out'
         )}
       >
         <div className="h-20 flex items-center px-6 border-b border-white/5">
@@ -145,6 +148,7 @@ const DashboardLayout = () => {
               <Link
                 key={item.name}
                 to={item.href}
+                onClick={() => setIsSidebarOpen(false)}
                 className={cn(
                   'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200',
                   isActive
@@ -239,7 +243,7 @@ const DashboardLayout = () => {
         {/* Topbar - Fixed */}
         <header className="h-16 border-b border-white/5 flex items-center justify-between px-4 lg:px-8 backdrop-blur-sm bg-gray-950/80 flex-shrink-0">
           <button
-            className="lg:hidden text-gray-400 hover:text-white p-2 hover:bg-white/5 rounded-lg transition-colors"
+            className="lg:hidden text-gray-400 hover:text-white p-3 -m-1 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-white/5 rounded-lg transition-colors active:scale-95"
             onClick={() => setIsSidebarOpen(true)}
           >
             <Menu size={24} />
