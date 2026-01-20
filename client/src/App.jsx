@@ -14,8 +14,6 @@ import DialogProvider from './components/ui/DialogProvider';
 import PWAUpdatePrompt from './components/PWAUpdatePrompt';
 import PostUpdateChoiceModal from './components/PostUpdateChoiceModal';
 import OfflineIndicator from './components/OfflineIndicator';
-import InstallPrompt from './components/InstallPrompt';
-import MobileBackButton from './components/MobileBackButton';
 import DevCommandCenter from './components/DevCommandCenter';
 import EasterEggs from './components/EasterEggs';
 import { initializeVersion } from './config/version';
@@ -28,6 +26,10 @@ const LandingPage = lazy(() => import('./pages/LandingPage'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const VerifyOTP = lazy(() => import('./pages/VerifyOTP'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+
+// Lazy load mobile-only components (don't bundle in main chunk for desktop)
+const InstallPrompt = lazy(() => import('./components/InstallPrompt'));
+const MobileBackButton = lazy(() => import('./components/MobileBackButton'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const AccountSuspended = lazy(() => import('./pages/AccountSuspended'));
 const Changelog = lazy(() => import('./pages/Changelog'));
@@ -266,10 +268,14 @@ function App() {
               </OfflineIndicator>
               {/* PWA Update Prompt - shows when new version is available */}
               <PWAUpdatePrompt />
-              {/* Add to Home Screen Prompt - shows for mobile users */}
-              <InstallPrompt />
-              {/* Mobile Back Button - shows in PWA mode for navigation */}
-              <MobileBackButton />
+              {/* Add to Home Screen Prompt - shows for mobile users (lazy loaded) */}
+              <Suspense fallback={null}>
+                <InstallPrompt />
+              </Suspense>
+              {/* Mobile Back Button - shows in PWA mode for navigation (lazy loaded) */}
+              <Suspense fallback={null}>
+                <MobileBackButton />
+              </Suspense>
             </DialogProvider>
           </ConfirmDialogProvider>
         </ToastProvider>
