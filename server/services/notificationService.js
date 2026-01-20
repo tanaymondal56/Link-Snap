@@ -1,14 +1,13 @@
 import AdminNotification from '../models/AdminNotification.js';
-import logger from '../utils/logger.js';
 
 /**
  * Admin Notification Service
  * Provides helper methods to trigger notifications with proper aggregation
  */
 class NotificationService {
-  
+
   // ==================== CRITICAL (Real-time) ====================
-  
+
   static async paymentFailed(userId, userEmail, amount, error) {
     return AdminNotification.createOrAggregate(
       'payment_failed',
@@ -50,7 +49,7 @@ class NotificationService {
   }
 
   // ==================== WARNING (Immediate) ====================
-  
+
   static async suspiciousActivity(action, userId, ipAddress, details) {
     return AdminNotification.createOrAggregate(
       'suspicious_activity',
@@ -82,7 +81,7 @@ class NotificationService {
   }
 
   // ==================== INFO (Aggregated hourly) ====================
-  
+
   static async userSignup(userId, userEmail) {
     return AdminNotification.createOrAggregate(
       'user_signup',
@@ -114,7 +113,7 @@ class NotificationService {
   }
 
   // ==================== SUMMARY (Manual/Scheduled) ====================
-  
+
   static async dailySummary(stats) {
     return AdminNotification.create({
       type: 'daily_summary',
@@ -127,7 +126,7 @@ class NotificationService {
   }
 
   // ==================== UTILITY METHODS ====================
-  
+
   static async getNotifications(options = {}) {
     const {
       severity = null,
