@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { QRCodeSVG } from 'qrcode.react';
@@ -27,7 +27,7 @@ import { hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
 import { useAppVersion } from '../hooks/useAppVersion';
 import showToast from '../utils/toastUtils';
 import { getShortUrl } from '../utils/urlHelper';
-import LinkSuccessModal from '../components/LinkSuccessModal';
+const LinkSuccessModal = lazy(() => import('../components/LinkSuccessModal'));
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { isFreeTier } from '../utils/subscriptionUtils';
 import { ProBadge } from '../components/subscription/PremiumField';
@@ -112,7 +112,7 @@ const LandingPage = () => {
   // Expiration state (for logged-in users)
   const [expiresIn, setExpiresIn] = useState('never');
   const [customExpiresAt, setCustomExpiresAt] = useState('');
-  
+
   // Password state (for logged-in users)
   const [enablePassword, setEnablePassword] = useState(false);
   const [password, setPassword] = useState('');
@@ -133,12 +133,12 @@ const LandingPage = () => {
   const aliasField = usePremiumField('custom_alias');
   const expirationField = usePremiumField('link_expiration');
   const passwordField = usePremiumField('password_protection');
-  
+
   // Hover states for premium field tooltips
   const [showAliasUpgrade, setShowAliasUpgrade] = useState(false);
   const [showExpirationUpgrade, setShowExpirationUpgrade] = useState(false);
   const [showPasswordUpgrade, setShowPasswordUpgrade] = useState(false);
-  
+
   // Guest warning state
   const [showGuestWarning, setShowGuestWarning] = useState(false);
 
@@ -210,8 +210,8 @@ const LandingPage = () => {
 
     // Check for guest user and show warning
     if (!user && !isConfirmedGuest) {
-        setShowGuestWarning(true);
-        return;
+      setShowGuestWarning(true);
+      return;
     }
 
     setIsLoading(true);
@@ -246,23 +246,29 @@ const LandingPage = () => {
     } catch (error) {
       // Check if it's a network/offline error
       if (!navigator.onLine) {
-        showToast.error("You're offline. Please check your internet connection and try again.", 'No Connection');
+        showToast.error(
+          "You're offline. Please check your internet connection and try again.",
+          'No Connection'
+        );
       } else if (error.code === 'ERR_NETWORK' || !error.response) {
-        showToast.error("Couldn't reach the server. Please try again in a moment.", 'Server Unavailable');
+        showToast.error(
+          "Couldn't reach the server. Please try again in a moment.",
+          'Server Unavailable'
+        );
       } else {
         const errData = error.response?.data;
         const msg = errData?.message || 'Failed to shorten link';
-        
+
         if (errData?.type === 'anon_limit') {
-            showToast.limit(msg, 'Free Limit Reached', [
-               { label: 'Sign Up', onClick: () => openAuthModal('register') }
-            ]);
+          showToast.limit(msg, 'Free Limit Reached', [
+            { label: 'Sign Up', onClick: () => openAuthModal('register') },
+          ]);
         } else if (errData?.type === 'hard_limit') {
-             showToast.upgrade(msg, 'Monthly Cap Hit');
+          showToast.upgrade(msg, 'Monthly Cap Hit');
         } else if (errData?.type === 'active_limit') {
-             showToast.limit(msg, 'Maximum Links Reached');
+          showToast.limit(msg, 'Maximum Links Reached');
         } else {
-             showToast.error(msg);
+          showToast.error(msg);
         }
       }
     } finally {
@@ -308,13 +314,22 @@ const LandingPage = () => {
       {/* SEO Meta Tags */}
       <Helmet>
         <title>Link Snap | Free URL Shortener with Analytics</title>
-        <meta name="description" content="Create short, memorable links with powerful analytics. Track clicks, locations, and devices. Free forever with optional Pro features." />
+        <meta
+          name="description"
+          content="Create short, memorable links with powerful analytics. Track clicks, locations, and devices. Free forever with optional Pro features."
+        />
         <meta property="og:title" content="Link Snap | Free URL Shortener" />
-        <meta property="og:description" content="Shorten URLs, track clicks, and share smarter. Free forever." />
+        <meta
+          property="og:description"
+          content="Shorten URLs, track clicks, and share smarter. Free forever."
+        />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Link Snap | Free URL Shortener" />
-        <meta name="twitter:description" content="Create short links with powerful analytics. Free forever." />
+        <meta
+          name="twitter:description"
+          content="Create short links with powerful analytics. Free forever."
+        />
       </Helmet>
 
       {/* Background Gradients */}
@@ -393,15 +408,15 @@ const LandingPage = () => {
               <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
                 {/* Mobile Only: Go to Dashboard Button (Logged In) */}
                 {user && (
-                    <div className="md:hidden w-full mb-4">
-                        <Link
-                            to="/dashboard"
-                            className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/10 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 mb-2"
-                        >
-                            <LayoutDashboard size={18} className="text-blue-400" />
-                            Go to Dashboard
-                        </Link>
-                    </div>
+                  <div className="md:hidden w-full mb-4">
+                    <Link
+                      to="/dashboard"
+                      className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/10 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 mb-2"
+                    >
+                      <LayoutDashboard size={18} className="text-blue-400" />
+                      Go to Dashboard
+                    </Link>
+                  </div>
                 )}
 
                 <div className="space-y-2">
@@ -429,7 +444,7 @@ const LandingPage = () => {
                 </div>
 
                 {/* Custom Alias Input - Disabled with hover tooltip for non-Pro users */}
-                <div 
+                <div
                   className="space-y-2 relative"
                   onMouseEnter={() => aliasField.isLocked && setShowAliasUpgrade(true)}
                   onMouseLeave={() => setShowAliasUpgrade(false)}
@@ -437,7 +452,11 @@ const LandingPage = () => {
                   <label className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
                     Custom Alias
                     <span className="text-xs text-gray-500 font-normal">(optional)</span>
-                    {aliasField.isLocked ? <ProBadge /> : <Sparkles size={14} className="text-purple-400" />}
+                    {aliasField.isLocked ? (
+                      <ProBadge />
+                    ) : (
+                      <Sparkles size={14} className="text-purple-400" />
+                    )}
                   </label>
                   <div className="relative">
                     <span
@@ -488,16 +507,18 @@ const LandingPage = () => {
                   {!aliasField.isLocked && customAlias.length > 0 && customAlias.length < 3 && (
                     <p className="text-xs text-gray-500 ml-1">Minimum 3 characters</p>
                   )}
-                  {!aliasField.isLocked && aliasStatus.reason && aliasStatus.available === false && (
-                    <p className="text-xs text-red-400 ml-1">{aliasStatus.reason}</p>
-                  )}
+                  {!aliasField.isLocked &&
+                    aliasStatus.reason &&
+                    aliasStatus.available === false && (
+                      <p className="text-xs text-red-400 ml-1">{aliasStatus.reason}</p>
+                    )}
                   {!aliasField.isLocked && aliasStatus.available === true && (
                     <p className="text-xs text-green-400 ml-1">✓ This alias is available!</p>
                   )}
                 </div>
 
                 {/* Expiration Dropdown - Disabled with hover tooltip for non-Pro users */}
-                <div 
+                <div
                   className="space-y-2 relative"
                   onMouseEnter={() => expirationField.isLocked && setShowExpirationUpgrade(true)}
                   onMouseLeave={() => setShowExpirationUpgrade(false)}
@@ -506,15 +527,26 @@ const LandingPage = () => {
                     <Clock size={14} className="text-amber-400" />
                     Link Expiration
                     <span className="text-xs text-gray-500 font-normal">(optional)</span>
-                    {expirationField.isLocked ? <ProBadge /> : <Sparkles size={14} className="text-amber-400" />}
+                    {expirationField.isLocked ? (
+                      <ProBadge />
+                    ) : (
+                      <Sparkles size={14} className="text-amber-400" />
+                    )}
                   </label>
                   <div className="relative">
                     <select
                       value={expirationField.isLocked ? 'never' : expiresIn}
-                      onChange={expirationField.isLocked ? undefined : (e) => setExpiresIn(e.target.value)}
+                      onChange={
+                        expirationField.isLocked ? undefined : (e) => setExpiresIn(e.target.value)
+                      }
                       disabled={expirationField.isLocked}
                       className={`block w-full py-4 px-4 bg-gray-900/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all appearance-none ${expirationField.isLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-                      style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 1rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 1rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                      }}
                     >
                       {EXPIRATION_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -540,14 +572,16 @@ const LandingPage = () => {
                       type="datetime-local"
                       value={customExpiresAt}
                       onChange={(e) => setCustomExpiresAt(e.target.value)}
-                      min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
+                      min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+                        .toISOString()
+                        .slice(0, 16)}
                       className="block w-full py-3 px-4 mt-2 bg-gray-900/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all"
                     />
                   )}
                 </div>
 
                 {/* Password Protection - Disabled with hover tooltip for non-Pro users */}
-                <div 
+                <div
                   className="space-y-2 relative"
                   onMouseEnter={() => passwordField.isLocked && setShowPasswordUpgrade(true)}
                   onMouseLeave={() => setShowPasswordUpgrade(false)}
@@ -556,24 +590,45 @@ const LandingPage = () => {
                     <Lock size={14} className="text-purple-400" />
                     Password Protection
                     <span className="text-xs text-gray-500 font-normal">(optional)</span>
-                    {passwordField.isLocked ? <ProBadge /> : <Sparkles size={14} className="text-purple-400" />}
+                    {passwordField.isLocked ? (
+                      <ProBadge />
+                    ) : (
+                      <Sparkles size={14} className="text-purple-400" />
+                    )}
                   </label>
                   <div className="relative">
-                    <div className={`flex items-center gap-3 ${passwordField.isLocked ? 'opacity-50' : ''}`}>
+                    <div
+                      className={`flex items-center gap-3 ${passwordField.isLocked ? 'opacity-50' : ''}`}
+                    >
                       <button
                         type="button"
                         disabled={passwordField.isLocked}
-                        onClick={passwordField.isLocked ? undefined : () => { setEnablePassword(!enablePassword); if (enablePassword) setPassword(''); }}
+                        onClick={
+                          passwordField.isLocked
+                            ? undefined
+                            : () => {
+                                setEnablePassword(!enablePassword);
+                                if (enablePassword) setPassword('');
+                              }
+                        }
                         className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          passwordField.isLocked 
-                            ? 'bg-gray-700/50 cursor-not-allowed' 
-                            : enablePassword ? 'bg-purple-600 cursor-pointer' : 'bg-gray-700 cursor-pointer'
+                          passwordField.isLocked
+                            ? 'bg-gray-700/50 cursor-not-allowed'
+                            : enablePassword
+                              ? 'bg-purple-600 cursor-pointer'
+                              : 'bg-gray-700 cursor-pointer'
                         }`}
                       >
-                        <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${enablePassword && !passwordField.isLocked ? 'translate-x-5' : 'translate-x-0'}`} />
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${enablePassword && !passwordField.isLocked ? 'translate-x-5' : 'translate-x-0'}`}
+                        />
                       </button>
                       <span className="text-sm text-gray-400">
-                        {passwordField.isLocked ? 'Locked' : enablePassword ? 'Enabled' : 'Disabled'}
+                        {passwordField.isLocked
+                          ? 'Locked'
+                          : enablePassword
+                            ? 'Enabled'
+                            : 'Disabled'}
                       </span>
                     </div>
                     {/* Hover tooltip for locked state */}
@@ -607,7 +662,9 @@ const LandingPage = () => {
                         {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                       </button>
                       {password.length > 0 && password.length < 4 && (
-                        <p className="text-xs text-red-400 ml-1 mt-1">Password must be at least 4 characters</p>
+                        <p className="text-xs text-red-400 ml-1 mt-1">
+                          Password must be at least 4 characters
+                        </p>
                       )}
                     </div>
                   )}
@@ -627,13 +684,19 @@ const LandingPage = () => {
                   {isLoading ? 'Shortening...' : 'Shorten URL'}
                   {!isLoading && <ArrowRight size={20} />}
                 </button>
-                
+
                 {/* Feature Upsell Text */}
                 {user && (
-                    <p className="text-center text-xs text-gray-400 mt-3 flex items-center justify-center gap-1.5 opacity-80">
-                        <Sparkles size={12} className="text-purple-400" />
-                        Many more features available in <Link to="/dashboard" className="text-purple-400 hover:text-purple-300 hover:underline">Dashboard</Link>
-                    </p>
+                  <p className="text-center text-xs text-gray-400 mt-3 flex items-center justify-center gap-1.5 opacity-80">
+                    <Sparkles size={12} className="text-purple-400" />
+                    Many more features available in{' '}
+                    <Link
+                      to="/dashboard"
+                      className="text-purple-400 hover:text-purple-300 hover:underline"
+                    >
+                      Dashboard
+                    </Link>
+                  </p>
                 )}
               </form>
 
@@ -698,40 +761,55 @@ const LandingPage = () => {
         isOpen={showGuestWarning}
         title="Create Temporary Link?"
         message={
-            <div className="space-y-3 text-left">
-                <p>You are about to create a link as a guest. <span className="text-amber-400 font-bold">Guest links expire in 7 days and cannot be edited.</span></p>
-                <p className="text-sm text-gray-400">To create permanent links, customize with your brand, and track analytics, please create an account.</p>
-                <p className="text-sm text-center pt-2 border-t border-gray-700/50 mt-3">
-                    Already have an account?{' '}
-                    <button 
-                        onClick={() => { setShowGuestWarning(false); openAuthModal('login'); }}
-                        className="text-blue-400 hover:text-blue-300 font-medium hover:underline"
-                    >
-                        Login here
-                    </button>
-                </p>
-            </div>
+          <div className="space-y-3 text-left">
+            <p>
+              You are about to create a link as a guest.{' '}
+              <span className="text-amber-400 font-bold">
+                Guest links expire in 7 days and cannot be edited.
+              </span>
+            </p>
+            <p className="text-sm text-gray-400">
+              To create permanent links, customize with your brand, and track analytics, please
+              create an account.
+            </p>
+            <p className="text-sm text-center pt-2 border-t border-gray-700/50 mt-3">
+              Already have an account?{' '}
+              <button
+                onClick={() => {
+                  setShowGuestWarning(false);
+                  openAuthModal('login');
+                }}
+                className="text-blue-400 hover:text-blue-300 font-medium hover:underline"
+              >
+                Login here
+              </button>
+            </p>
+          </div>
         }
         confirmText="Continue as Guest"
         cancelText="Sign Up"
         variant="warning"
         onConfirm={() => {
-            setShowGuestWarning(false);
-            handleLinkCreation(true);
+          setShowGuestWarning(false);
+          handleLinkCreation(true);
         }}
         onCancel={() => {
-            setShowGuestWarning(false);
-            openAuthModal('register');
+          setShowGuestWarning(false);
+          openAuthModal('register');
         }}
         onClose={() => setShowGuestWarning(false)}
       />
 
       {/* Success Modal for Logged-in Users */}
-      <LinkSuccessModal
-        isOpen={showSuccessModal}
-        onClose={handleSuccessModalClose}
-        linkData={createdLink}
-      />
+      {showSuccessModal && (
+        <Suspense fallback={null}>
+          <LinkSuccessModal
+            isOpen={showSuccessModal}
+            onClose={handleSuccessModalClose}
+            linkData={createdLink}
+          />
+        </Suspense>
+      )}
 
       {/* Features & Footer Section */}
       <div className="border-t border-white/5 bg-black/20 backdrop-blur-sm mt-auto">

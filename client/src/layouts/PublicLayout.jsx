@@ -5,7 +5,8 @@ import { useState, useEffect } from 'react';
 import { hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
 import { useAppVersion } from '../hooks/useAppVersion';
 import { hasTrustedDeviceMarker } from '../utils/deviceAuth';
-import PullToRefresh from '../components/PullToRefresh';
+import OfflineIndicator from '../components/OfflineIndicator';
+import LazyPullToRefresh from '../components/LazyPullToRefresh';
 
 const PublicLayout = () => {
   const { user, loading, logout, openAuthModal, isAdmin } = useAuth();
@@ -176,9 +177,9 @@ const PublicLayout = () => {
       </nav>
 
       <main className="flex-grow relative">
-        <PullToRefresh onRefresh={() => window.location.reload()}>
+        <LazyPullToRefresh onRefresh={() => window.location.reload()}>
           <Outlet />
-        </PullToRefresh>
+        </LazyPullToRefresh>
       </main>
 
       <footer className="bg-gray-950 border-t border-white/5 py-8">

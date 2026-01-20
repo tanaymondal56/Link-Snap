@@ -1,8 +1,17 @@
 import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  CheckCircle, XCircle, AlertTriangle, Info, X, Loader2, 
-  Sparkles, Zap, Bell, ArrowRight, ExternalLink 
+import {
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Info,
+  X,
+  Loader2,
+  Sparkles,
+  Zap,
+  Bell,
+  ArrowRight,
+  ExternalLink,
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -86,7 +95,7 @@ const ToastItem = ({ toast, onDismiss, position }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
   const [progress, setProgress] = useState(100);
-  
+
   const config = TOAST_CONFIG[toast.type] || TOAST_CONFIG.info;
   const Icon = config.icon;
 
@@ -104,13 +113,13 @@ const ToastItem = ({ toast, onDismiss, position }) => {
   // Progress bar countdown
   useEffect(() => {
     if (toast.type === 'loading' || !toast.duration) return;
-    
+
     const startTime = Date.now();
     const interval = setInterval(() => {
       const elapsed = Date.now() - startTime;
       const remaining = Math.max(0, 100 - (elapsed / toast.duration) * 100);
       setProgress(remaining);
-      
+
       if (remaining <= 0) {
         clearInterval(interval);
         handleDismiss();
@@ -148,11 +157,11 @@ const ToastItem = ({ toast, onDismiss, position }) => {
       `}
     >
       {/* Animated gradient background */}
-      <div 
+      <div
         className={`absolute inset-0 bg-gradient-to-br ${config.bgGradient} opacity-80`}
         style={{ animation: 'shimmer 3s ease-in-out infinite' }}
       />
-      
+
       {/* Floating particles effect for special toasts */}
       {['upgrade', 'limit', 'success'].includes(toast.type) && (
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -174,15 +183,17 @@ const ToastItem = ({ toast, onDismiss, position }) => {
       <div className="relative p-3 sm:p-4">
         <div className="flex items-start gap-2.5 sm:gap-3">
           {/* Animated icon container - smaller on mobile */}
-          <div className={`
+          <div
+            className={`
             flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl
             flex items-center justify-center
             bg-gradient-to-br ${config.gradient}
             shadow-md sm:shadow-lg ${config.glowColor}
             ${toast.type === 'loading' ? '' : 'animate-icon-pop'}
-          `}>
-            <Icon 
-              className={`w-4 h-4 sm:w-5 sm:h-5 text-white ${toast.type === 'loading' ? 'animate-spin' : ''}`} 
+          `}
+          >
+            <Icon
+              className={`w-4 h-4 sm:w-5 sm:h-5 text-white ${toast.type === 'loading' ? 'animate-spin' : ''}`}
             />
           </div>
 
@@ -198,7 +209,7 @@ const ToastItem = ({ toast, onDismiss, position }) => {
                 {toast.message}
               </p>
             )}
-            
+
             {/* Action buttons */}
             {toast.actions && toast.actions.length > 0 && (
               <div className="flex gap-2 mt-3">
@@ -214,9 +225,10 @@ const ToastItem = ({ toast, onDismiss, position }) => {
                       px-3 py-1.5 rounded-lg
                       text-xs font-medium
                       transition-all duration-200
-                      ${idx === 0 
-                        ? `bg-gradient-to-r ${config.gradient} text-white shadow-lg hover:shadow-xl hover:scale-105` 
-                        : 'bg-white/10 text-gray-300 hover:bg-white/20 hover:text-white'
+                      ${
+                        idx === 0
+                          ? `bg-gradient-to-r ${config.gradient} text-white shadow-lg hover:shadow-xl hover:scale-105`
+                          : 'bg-white/10 text-gray-300 hover:bg-white/20 hover:text-white'
                       }
                     `}
                   >
@@ -271,7 +283,8 @@ const ToastContainer = ({ toasts, removeToast, position = 'top-right' }) => {
   };
 
   // Mobile: top-center for best visibility (avoids keyboard, bottom nav, and thumb reach issues)
-  const mobileOverride = 'max-sm:left-3 max-sm:right-3 max-sm:top-[calc(env(safe-area-inset-top,0px)+12px)] max-sm:bottom-auto max-sm:translate-x-0';
+  const mobileOverride =
+    'max-sm:left-3 max-sm:right-3 max-sm:top-[calc(env(safe-area-inset-top,0px)+12px)] max-sm:bottom-auto max-sm:translate-x-0';
 
   return createPortal(
     <div
@@ -283,15 +296,13 @@ const ToastContainer = ({ toasts, removeToast, position = 'top-right' }) => {
         pointer-events-none
         max-h-[60vh] sm:max-h-[80vh] overflow-hidden
       `}
+      role="region"
       aria-label="Notifications"
+      aria-live="polite"
     >
       {toasts.map((toast) => (
         <div key={toast.id} className="pointer-events-auto">
-          <ToastItem 
-            toast={toast} 
-            onDismiss={removeToast}
-            position={position}
-          />
+          <ToastItem toast={toast} onDismiss={removeToast} position={position} />
         </div>
       ))}
     </div>,
@@ -308,27 +319,30 @@ let toastIdCounter = 0;
 export const ToastProvider = ({ children, position = 'top-right', maxToasts = 5 }) => {
   const [toasts, setToasts] = useState([]);
 
-  const addToast = useCallback((toast) => {
-    const id = ++toastIdCounter;
-    const newToast = {
-      id,
-      duration: 4000,
-      dismissible: true,
-      showProgress: true,
-      ...toast,
-    };
+  const addToast = useCallback(
+    (toast) => {
+      const id = ++toastIdCounter;
+      const newToast = {
+        id,
+        duration: 4000,
+        dismissible: true,
+        showProgress: true,
+        ...toast,
+      };
 
-    setToasts((prev) => {
-      const updated = [...prev, newToast];
-      // Limit max toasts
-      if (updated.length > maxToasts) {
-        return updated.slice(-maxToasts);
-      }
-      return updated;
-    });
+      setToasts((prev) => {
+        const updated = [...prev, newToast];
+        // Limit max toasts
+        if (updated.length > maxToasts) {
+          return updated.slice(-maxToasts);
+        }
+        return updated;
+      });
 
-    return id;
-  }, [maxToasts]);
+      return id;
+    },
+    [maxToasts]
+  );
 
   const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -339,9 +353,7 @@ export const ToastProvider = ({ children, position = 'top-right', maxToasts = 5 
   }, []);
 
   const updateToast = useCallback((id, updates) => {
-    setToasts((prev) => 
-      prev.map((t) => t.id === id ? { ...t, ...updates } : t)
-    );
+    setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
   }, []);
 
   const value = { addToast, removeToast, dismissAll, updateToast };

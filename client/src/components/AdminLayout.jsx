@@ -16,7 +16,7 @@ import {
   Fingerprint,
   RefreshCw
 } from 'lucide-react';
-import PullToRefresh from './PullToRefresh';
+import LazyPullToRefresh from './LazyPullToRefresh';
 import {
   hasTrustedDeviceMarker,
   authenticateWithBiometric,

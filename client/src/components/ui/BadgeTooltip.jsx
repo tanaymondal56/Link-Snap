@@ -16,22 +16,22 @@ const BadgeTooltip = ({ children, content, className = '' }) => {
   // Calculate tooltip position with edge detection
   const updatePosition = () => {
     if (!triggerRef.current) return;
-    
+
     const rect = triggerRef.current.getBoundingClientRect();
     const tooltipWidth = 200; // Max width
     const padding = 12; // Min distance from screen edge
     const gap = 10; // Gap between tooltip and badge
-    
+
     let left = rect.left + rect.width / 2;
     let arrowOff = 0;
-    
+
     // Check left edge
     if (left - tooltipWidth / 2 < padding) {
-      const shift = (tooltipWidth / 2) - left + padding;
+      const shift = tooltipWidth / 2 - left + padding;
       left = left + shift;
       arrowOff = -shift;
     }
-    
+
     // Check right edge
     const rightEdge = left + tooltipWidth / 2;
     if (rightEdge > window.innerWidth - padding) {
@@ -39,7 +39,7 @@ const BadgeTooltip = ({ children, content, className = '' }) => {
       left = left - shift;
       arrowOff = shift;
     }
-    
+
     // Position tooltip ABOVE the badge top edge with gap
     setPosition({
       top: rect.top - gap,
@@ -92,7 +92,7 @@ const BadgeTooltip = ({ children, content, className = '' }) => {
   // Hide tooltip when clicking outside
   useEffect(() => {
     if (!isVisible) return;
-    
+
     const handleClickOutside = (e) => {
       if (triggerRef.current && !triggerRef.current.contains(e.target)) {
         hideTooltip();
@@ -124,6 +124,7 @@ const BadgeTooltip = ({ children, content, className = '' }) => {
         ref={triggerRef}
         tabIndex={0}
         role="button"
+        aria-label="Show information tooltip"
         aria-describedby={isVisible ? 'badge-tooltip' : undefined}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -135,33 +136,35 @@ const BadgeTooltip = ({ children, content, className = '' }) => {
       >
         {children}
       </div>
-      
-      {isVisible && content && createPortal(
-        <div
-          id="badge-tooltip"
-          role="tooltip"
-          className="fixed z-[9999] px-3 py-2 text-xs text-white bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-w-[200px] text-center pointer-events-none animate-in fade-in zoom-in-95 duration-100"
-          style={{
-            top: `${position.top}px`,
-            left: `${position.left}px`,
-            transform: 'translate(-50%, -100%)',
-          }}
-        >
-          {content}
-          {/* Arrow pointing down */}
-          <div 
-            className="absolute top-full w-0 h-0"
+
+      {isVisible &&
+        content &&
+        createPortal(
+          <div
+            id="badge-tooltip"
+            role="tooltip"
+            className="fixed z-[9999] px-3 py-2 text-xs text-white bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-w-[200px] text-center pointer-events-none animate-in fade-in zoom-in-95 duration-100"
             style={{
-              left: `calc(50% + ${arrowOffset}px)`,
-              transform: 'translateX(-50%)',
-              borderLeft: '6px solid transparent',
-              borderRight: '6px solid transparent',
-              borderTop: '6px solid rgb(55, 65, 81)',
+              top: `${position.top}px`,
+              left: `${position.left}px`,
+              transform: 'translate(-50%, -100%)',
             }}
-          />
-        </div>,
-        document.body
-      )}
+          >
+            {content}
+            {/* Arrow pointing down */}
+            <div
+              className="absolute top-full w-0 h-0"
+              style={{
+                left: `calc(50% + ${arrowOffset}px)`,
+                transform: 'translateX(-50%)',
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderTop: '6px solid rgb(55, 65, 81)',
+              }}
+            />
+          </div>,
+          document.body
+        )}
     </>
   );
 };

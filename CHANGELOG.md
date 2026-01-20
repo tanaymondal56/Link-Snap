@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.6] - 2026-01-07
 
 ### Update for Session & Security Stability
+
 Updated the codebase to fix critical security flaws and implement robust session management.
 
 - ⬆️ **Improvement:** Session Management now handles with a more robust secure system (cookie-session).
@@ -20,9 +21,10 @@ Updated the codebase to fix critical security flaws and implement robust session
 ## [0.5.5] - 2025-01-07
 
 ### Security
+
 - **Fixed 27 security vulnerabilities** identified by CodeQL:
   - 4 ReDoS (Regular Expression Denial of Service) vulnerabilities
-  - 3 Regex injection vulnerabilities  
+  - 3 Regex injection vulnerabilities
   - 1 Missing CSRF protection (implemented double-submit cookie pattern using `lusca`)
   - 2 Incomplete sanitization issues
   - 9 NoSQL injection vulnerabilities (added allowlist validation)
@@ -33,6 +35,7 @@ Updated the codebase to fix critical security flaws and implement robust session
   - 1 Incomplete string escaping (escaped backslashes in JS contexts)
 
 ### Added
+
 - Professional GitHub documentation suite (README, CONTRIBUTING, SECURITY)
 - Pull Request and Issue templates
 - Dependabot configuration for automated dependency updates
@@ -40,10 +43,12 @@ Updated the codebase to fix critical security flaws and implement robust session
 - Environment variable documentation (.env.example)
 
 ### Changed
+
 - Improved Settings page mobile UX with scroll indicators
 - Enhanced scroll arrows visibility for settings tabs
 
 ### Fixed
+
 - React Hook order violation in SettingsPage
 - Bio Settings page tier logic mismatch
 - Console log cleanup for production builds
@@ -53,6 +58,7 @@ Updated the codebase to fix critical security flaws and implement robust session
 ## [0.5.0] - 2025-01
 
 ### Added
+
 - **Link-in-Bio Page** - Create personalized bio pages with multiple links, custom themes, and branding
 - **Device-Based Redirects** - Route visitors to different URLs based on device (iOS/Android/Desktop)
 - **Subscription System** - Tiered access (Free/Pro) with Lemon Squeezy payment integration
@@ -60,6 +66,7 @@ Updated the codebase to fix critical security flaws and implement robust session
 - **Biometric Authentication** - WebAuthn/FIDO2 device authentication for admin access
 
 ### Changed
+
 - Improved modal positioning for mobile devices with safe-area-inset support
 - Global Pull-to-Refresh for PWA users
 
@@ -68,6 +75,7 @@ Updated the codebase to fix critical security flaws and implement robust session
 ## [0.4.0] - 2024-12
 
 ### Added
+
 - **Password-Protected Links** - Require password before redirecting
 - **Link Expiration** - Auto-expire links after specified duration
 - **Custom Aliases** - Memorable short URLs like `/my-brand`
@@ -76,6 +84,7 @@ Updated the codebase to fix critical security flaws and implement robust session
 - **Session Management** - Secure HttpOnly cookies with token rotation
 
 ### Fixed
+
 - Mobile modal UI glitches with scroll lock implementation
 
 ---
@@ -83,12 +92,14 @@ Updated the codebase to fix critical security flaws and implement robust session
 ## [0.3.0] - 2024-11
 
 ### Added
+
 - **PWA Support** - Progressive Web App with offline access
 - **Offline Mode Indicator** - Hybrid grayscale overlay with status pill
 - **API Error Handling** - Centralized `handleApiError` utility
 - **Audit Logs** - Login history, ban history, and appeal logs
 
 ### Changed
+
 - Link title auto-fetch from URL metadata
 
 ---
@@ -96,6 +107,7 @@ Updated the codebase to fix critical security flaws and implement robust session
 ## [0.2.0] - 2024-10
 
 ### Added
+
 - **Admin Panel** - User management with promote/demote capabilities
 - **Create Users** - Admin can create new users directly
 - **Copy Link** - One-click clipboard functionality
@@ -106,6 +118,7 @@ Updated the codebase to fix critical security flaws and implement robust session
 ## [0.1.0] - 2024-09
 
 ### Added
+
 - Initial release
 - Basic URL shortening functionality
 - User authentication (register/login)
@@ -114,4 +127,4 @@ Updated the codebase to fix critical security flaws and implement robust session
 
 ---
 
-> **Note**: For the most up-to-date changelog, visit the [Changelog page](https://linksnap.centralindia.cloudapp.azure.com/changelog) in the app.
+> **Note**: For the most up-to-date changelog, visit the [Changelog page](https://${VITE_DOMAIN}/changelog) in the app.

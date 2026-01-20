@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { getTierConfig } from '../config/subscriptionTiers';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
@@ -41,8 +41,8 @@ import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
 import { QRCodeSVG } from 'qrcode.react';
 import { getShortUrl } from '../utils/urlHelper';
-import CreateLinkModal from '../components/CreateLinkModal';
-import EditLinkModal from '../components/EditLinkModal';
+const CreateLinkModal = lazy(() => import('../components/CreateLinkModal'));
+const EditLinkModal = lazy(() => import('../components/EditLinkModal'));
 import LinkSuccessModal from '../components/LinkSuccessModal';
 import { cacheLinks, getCachedLinks, getCacheAge } from '../utils/offlineCache';
 import { useScrollLock } from '../hooks/useScrollLock';
@@ -1344,19 +1344,27 @@ const UserDashboard = () => {
       )}
 
       {/* Create Link Modal */}
-      <CreateLinkModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={handleLinkCreated}
-      />
+      {isCreateModalOpen && (
+        <Suspense fallback={null}>
+          <CreateLinkModal
+            isOpen={isCreateModalOpen}
+            onClose={() => setIsCreateModalOpen(false)}
+            onSuccess={handleLinkCreated}
+          />
+        </Suspense>
+      )}
 
       {/* Edit Link Modal */}
-      <EditLinkModal
-        isOpen={!!editingLink}
-        onClose={() => setEditingLink(null)}
-        onSuccess={handleLinkUpdated}
-        link={editingLink}
-      />
+      {editingLink && (
+        <Suspense fallback={null}>
+          <EditLinkModal
+            isOpen={!!editingLink}
+            onClose={() => setEditingLink(null)}
+            onSuccess={handleLinkUpdated}
+            link={editingLink}
+          />
+        </Suspense>
+      )}
 
       {/* Link Success Modal - Shows after creating a link */}
       <LinkSuccessModal

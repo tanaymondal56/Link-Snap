@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -10,9 +10,9 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import api from '../api/axios';
-import ClickChart from '../components/charts/ClickChart';
-import DeviceChart from '../components/charts/DeviceChart';
-import LocationChart from '../components/charts/LocationChart';
+const ClickChart = lazy(() => import('../components/charts/ClickChart'));
+const DeviceChart = lazy(() => import('../components/charts/DeviceChart'));
+const LocationChart = lazy(() => import('../components/charts/LocationChart'));
 
 const AnalyticsPage = () => {
   const { shortId } = useParams();
@@ -140,7 +140,15 @@ const AnalyticsPage = () => {
           <Calendar className="text-blue-400" size={20} />
           <h3 className="text-lg font-semibold text-white">Clicks Over Time</h3>
         </div>
-        <ClickChart data={analytics.clicksByDate} />
+        <Suspense
+          fallback={
+            <div className="h-64 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          }
+        >
+          <ClickChart data={analytics.clicksByDate} />
+        </Suspense>
       </div>
 
       {/* Secondary Charts Grid */}
@@ -154,11 +162,27 @@ const AnalyticsPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <h4 className="text-sm font-medium text-gray-400 mb-4 text-center">Device Type</h4>
-              <DeviceChart data={analytics.clicksByDevice} />
+              <Suspense
+                fallback={
+                  <div className="h-48 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+                  </div>
+                }
+              >
+                <DeviceChart data={analytics.clicksByDevice} />
+              </Suspense>
             </div>
             <div>
               <h4 className="text-sm font-medium text-gray-400 mb-4 text-center">Browser</h4>
-              <DeviceChart data={analytics.clicksByBrowser} />
+              <Suspense
+                fallback={
+                  <div className="h-48 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+                  </div>
+                }
+              >
+                <DeviceChart data={analytics.clicksByBrowser} />
+              </Suspense>
             </div>
           </div>
         </div>
@@ -169,7 +193,15 @@ const AnalyticsPage = () => {
             <Globe className="text-green-400" size={20} />
             <h3 className="text-lg font-semibold text-white">Top Locations</h3>
           </div>
-          <LocationChart data={analytics.clicksByLocation} />
+          <Suspense
+            fallback={
+              <div className="h-64 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+              </div>
+            }
+          >
+            <LocationChart data={analytics.clicksByLocation} />
+          </Suspense>
         </div>
       </div>
     </div>

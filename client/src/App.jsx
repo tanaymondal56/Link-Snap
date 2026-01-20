@@ -7,16 +7,18 @@ import PublicLayout from './layouts/PublicLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 import AdminLayout from './components/AdminLayout';
 import { AuthProvider } from './context/AuthContext';
-import AuthModal from './components/AuthModal';
 import { useAuth } from './context/AuthContext';
 import ConfirmDialogProvider from './components/ui/ConfirmDialog';
 import DialogProvider from './components/ui/DialogProvider';
-import PWAUpdatePrompt from './components/PWAUpdatePrompt';
-import PostUpdateChoiceModal from './components/PostUpdateChoiceModal';
 import OfflineIndicator from './components/OfflineIndicator';
-import DevCommandCenter from './components/DevCommandCenter';
-import EasterEggs from './components/EasterEggs';
 import { initializeVersion } from './config/version';
+
+// Lazy load components
+const AuthModal = lazy(() => import('./components/AuthModal'));
+const DevCommandCenter = lazy(() => import('./components/DevCommandCenter'));
+const EasterEggs = lazy(() => import('./components/EasterEggs'));
+const PWAUpdatePrompt = lazy(() => import('./components/PWAUpdatePrompt'));
+const PostUpdateChoiceModal = lazy(() => import('./components/PostUpdateChoiceModal'));
 
 // Initialize version cache on app load (non-blocking)
 initializeVersion();
@@ -61,19 +63,36 @@ const PrivacyPage = lazy(() => import('./pages/legal/PrivacyPage'));
 const CookiePage = lazy(() => import('./pages/legal/CookiePage'));
 
 // Easter Egg Pages
-const CreditsPage = lazy(() => import('./pages/EasterEggPages').then(m => ({ default: m.CreditsPage })));
-const TimelinePage = lazy(() => import('./pages/EasterEggPages').then(m => ({ default: m.TimelinePage })));
-const ThanksPage = lazy(() => import('./pages/EasterEggPages').then(m => ({ default: m.ThanksPage })));
-const DevNullPage = lazy(() => import('./pages/EasterEggPages').then(m => ({ default: m.DevNullPage })));
-const Funny404Page = lazy(() => import('./pages/EasterEggPages').then(m => ({ default: m.Funny404Page })));
-const TeapotPage = lazy(() => import('./pages/EasterEggPages').then(m => ({ default: m.TeapotPage })));
+const CreditsPage = lazy(() =>
+  import('./pages/EasterEggPages').then((m) => ({ default: m.CreditsPage }))
+);
+const TimelinePage = lazy(() =>
+  import('./pages/EasterEggPages').then((m) => ({ default: m.TimelinePage }))
+);
+const ThanksPage = lazy(() =>
+  import('./pages/EasterEggPages').then((m) => ({ default: m.ThanksPage }))
+);
+const DevNullPage = lazy(() =>
+  import('./pages/EasterEggPages').then((m) => ({ default: m.DevNullPage }))
+);
+const Funny404Page = lazy(() =>
+  import('./pages/EasterEggPages').then((m) => ({ default: m.Funny404Page }))
+);
+const TeapotPage = lazy(() =>
+  import('./pages/EasterEggPages').then((m) => ({ default: m.TeapotPage }))
+);
 
 // Link-in-Bio Public Profile
 const PublicProfile = lazy(() => import('./pages/PublicProfile'));
 
 const LoadingFallback = () => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-900">
+  <div
+    className="min-h-screen flex items-center justify-center bg-gray-900"
+    role="status"
+    aria-live="polite"
+  >
     <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+    <span className="sr-only">Loading...</span>
   </div>
 );
 
@@ -118,11 +137,11 @@ const AuthRedirect = ({ tab }) => {
 // Component to register global toast handlers
 const ToastRegistrar = () => {
   const { addToast, removeToast } = useToast();
-  
+
   useEffect(() => {
     registerToastHandler(addToast, removeToast);
   }, [addToast, removeToast]);
-  
+
   return null;
 };
 
@@ -131,13 +150,28 @@ function AppContent() {
     <>
       {/* Register global toast handlers */}
       <ToastRegistrar />
+
       {/* Dev Command Center - only in development */}
-      <DevCommandCenter />
+      {import.meta.env.DEV && (
+        <Suspense fallback={null}>
+          <DevCommandCenter />
+        </Suspense>
+      )}
+
       {/* Easter Eggs - keyboard triggers and effects */}
-      <EasterEggs />
+      <Suspense fallback={null}>
+        <EasterEggs />
+      </Suspense>
+
       {/* Handle post-update choice modal */}
-      <PostUpdateChoiceModal />
-      <AuthModalWrapper />
+      <Suspense fallback={null}>
+        <PostUpdateChoiceModal />
+      </Suspense>
+
+      <Suspense fallback={<LoadingFallback />}>
+        <AuthModalWrapper />
+      </Suspense>
+
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
           {/* Public Routes - Landing Page */}
@@ -151,14 +185,13 @@ function AppContent() {
             <Route path="/account-suspended" element={<AccountSuspended />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/redeem" element={<RedeemPage />} />
-            
+
             {/* Legal Pages */}
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/cookies" element={<CookiePage />} />
           </Route>
 
-          {/* Changelog Route - Standalone page */}
           {/* Changelog Route - Standalone page */}
           <Route path="/changelog" element={<Changelog />} />
           <Route path="/roadmap" element={<Roadmap />} />
@@ -217,10 +250,9 @@ function AppContent() {
           <Route
             path="*"
             element={
-              <div 
+              <div
                 className="min-h-screen flex flex-col items-center justify-center bg-gray-950 text-white cursor-pointer group"
                 onClick={() => {
-                  // Sad trombone sound on click (requires user interaction)
                   try {
                     const ctx = new (window.AudioContext || window.webkitAudioContext)();
                     const notes = [300, 280, 260, 200];
@@ -242,7 +274,9 @@ function AppContent() {
                 }}
               >
                 <div className="text-8xl mb-4 animate-bounce">😢</div>
-                <h1 className="text-6xl font-bold text-gray-600 group-hover:text-red-400 transition-colors">404</h1>
+                <h1 className="text-6xl font-bold text-gray-600 group-hover:text-red-400 transition-colors">
+                  404
+                </h1>
                 <p className="text-xl text-gray-400 mt-4">Page Not Found</p>
                 <p className="text-sm text-gray-600 mt-2 group-hover:text-gray-400 transition-colors">
                   Click for sad trombone 🎺
@@ -267,7 +301,9 @@ function App() {
                 <AppContent />
               </OfflineIndicator>
               {/* PWA Update Prompt - shows when new version is available */}
-              <PWAUpdatePrompt />
+              <Suspense fallback={null}>
+                <PWAUpdatePrompt />
+              </Suspense>
               {/* Add to Home Screen Prompt - shows for mobile users (lazy loaded) */}
               <Suspense fallback={null}>
                 <InstallPrompt />

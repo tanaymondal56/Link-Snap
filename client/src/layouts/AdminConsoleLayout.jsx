@@ -1,10 +1,22 @@
 import { Outlet, Navigate, Link } from 'react-router-dom';
 import AdminSidebar from '../components/admin-console/AdminSidebar';
-import NotificationDropdown from '../components/admin-console/NotificationDropdown';
 import { useAuth } from '../context/AuthContext';
-import { Menu, Bell, User, LogOut, AlertTriangle, X, LayoutDashboard, Settings, ChevronDown, Shield } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
-import PullToRefresh from '../components/PullToRefresh';
+import {
+  Menu,
+  Bell,
+  User,
+  LogOut,
+  AlertTriangle,
+  X,
+  LayoutDashboard,
+  Settings,
+  ChevronDown,
+  Shield,
+} from 'lucide-react';
+import { useState, useRef, useEffect, lazy, Suspense } from 'react';
+import LazyPullToRefresh from '../components/LazyPullToRefresh';
+import OfflineIndicator from '../components/OfflineIndicator';
+const NotificationDropdown = lazy(() => import('../components/admin-console/NotificationDropdown'));
 
 const AdminConsoleLayout = () => {
   const { user, logout, loading } = useAuth();
@@ -59,7 +71,9 @@ const AdminConsoleLayout = () => {
   };
 
   return (
-    <div className={`min-h-screen relative font-sans text-gray-100 overflow-x-hidden ${user.role === 'master_admin' ? 'master-theme' : ''}`}>
+    <div
+      className={`min-h-screen relative font-sans text-gray-100 overflow-x-hidden ${user.role === 'master_admin' ? 'master-theme' : ''}`}
+    >
       {/* Mesh Gradient Background Layer */}
       <div className="mesh-gradient-bg">
         <div className="mesh-orb orb-1"></div>
@@ -73,7 +87,7 @@ const AdminConsoleLayout = () => {
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-gray-950/90 backdrop-blur-xl border-b border-white/5 z-40 px-4 flex items-center justify-between">
         <span className="font-bold text-lg">LinkSnap Admin</span>
-        <button 
+        <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="p-3 -m-1 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-white/10 active:scale-95 transition-transform"
         >
@@ -83,7 +97,6 @@ const AdminConsoleLayout = () => {
 
       {/* Main Content Area */}
       <main className="lg:pl-[300px] min-h-screen pt-28 px-4 pb-20 lg:p-6 lg:pt-8 transition-all duration-300">
-        
         {/* Top Bar */}
         <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Page Title Area (left empty for page-specific content) */}
@@ -92,8 +105,10 @@ const AdminConsoleLayout = () => {
           {/* Actions */}
           <div className="flex items-center gap-3 self-end md:self-auto">
             {/* Notifications */}
-            <NotificationDropdown />
-            
+            <Suspense fallback={<div className="w-10 h-10"></div>}>
+              <NotificationDropdown />
+            </Suspense>
+
             {/* Profile Dropdown */}
             <div className="relative" ref={profileRef}>
               <button
@@ -107,7 +122,10 @@ const AdminConsoleLayout = () => {
                   <span className="text-sm font-medium text-white hidden sm:block">
                     {user.firstName || user.email.split('@')[0]}
                   </span>
-                  <ChevronDown size={14} className={`text-gray-400 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    size={14}
+                    className={`text-gray-400 transition-transform ${profileOpen ? 'rotate-180' : ''}`}
+                  />
                 </div>
               </button>
 
@@ -118,16 +136,16 @@ const AdminConsoleLayout = () => {
                   <div className="p-4 border-b border-white/5 bg-gradient-to-br from-blue-500/10 to-purple-500/10">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-lg font-bold text-white">
-                        {user.firstName ? user.firstName[0].toUpperCase() : user.email[0].toUpperCase()}
+                        {user.firstName
+                          ? user.firstName[0].toUpperCase()
+                          : user.email[0].toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-white truncate">
                           {user.firstName} {user.lastName}
                         </p>
                         <p className="text-xs text-gray-400 truncate">{user.email}</p>
-                        <div className="mt-1 flex items-center gap-2">
-                          {getRoleBadge()}
-                        </div>
+                        <div className="mt-1 flex items-center gap-2">{getRoleBadge()}</div>
                       </div>
                     </div>
                   </div>
@@ -180,25 +198,25 @@ const AdminConsoleLayout = () => {
           <div className="mb-6 relative group animate-in slide-in-from-top-4 fade-in duration-700">
             <div className="absolute -inset-0.5 bg-gradient-to-r from-red-600 to-orange-500 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
             <div className="relative flex items-center justify-between p-4 rounded-xl bg-gray-950/50 backdrop-blur-md border border-red-500/20 shadow-xl">
-               <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-gradient-to-br from-red-500/20 to-orange-500/20 border border-red-500/30 text-red-400">
-                     <AlertTriangle size={20} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-400 to-orange-400">
-                      Master Admin Active
-                    </h3>
-                    <p className="text-sm text-gray-400">
-                      System recovery mode enabled. Changes are permanent.
-                    </p>
-                  </div>
-               </div>
-               <button 
-                  onClick={() => setShowBanner(false)}
-                  className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
-                >
-                  <X size={18} />
-               </button>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-red-500/20 to-orange-500/20 border border-red-500/30 text-red-400">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-400 to-orange-400">
+                    Master Admin Active
+                  </h3>
+                  <p className="text-sm text-gray-400">
+                    System recovery mode enabled. Changes are permanent.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowBanner(false)}
+                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                <X size={18} />
+              </button>
             </div>
           </div>
         )}
@@ -209,11 +227,9 @@ const AdminConsoleLayout = () => {
             <Outlet />
           </div>
         </PullToRefresh>
-
       </main>
     </div>
   );
 };
 
 export default AdminConsoleLayout;
-

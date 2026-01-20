@@ -14,10 +14,12 @@ import {
   Loader2,
   Timer,
   CalendarClock,
+  ShieldAlert,
+  ExternalLink,
 } from 'lucide-react';
 import api from '../api/axios';
 import showToast from '../utils/toastUtils';
-import PullToRefresh from '../components/PullToRefresh';
+import LazyPullToRefresh from '../components/LazyPullToRefresh';
 
 // Read ban info from session storage (called once during module init)
 const getBanInfo = () => {
@@ -213,7 +215,7 @@ const AccountSuspended = () => {
   const bannedUntilFormatted = formatDate(banInfo.bannedUntil);
 
   return (
-    <PullToRefresh onRefresh={() => window.location.reload()}>
+    <LazyPullToRefresh onRefresh={() => window.location.reload()}>
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
       {/* Background decoration */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -580,7 +582,7 @@ const AccountSuspended = () => {
         </div>
       </div>
     </div>
-    </PullToRefresh>
+    </LazyPullToRefresh>
   );
 };
 
