@@ -368,13 +368,13 @@ const LandingPage = () => {
 
             <div className="flex flex-wrap gap-4 text-sm font-medium text-gray-500">
               <div className="flex items-center gap-2">
-                <Check size={16} className="text-green-400" /> Free Forever
+                <Check size={16} className="text-green-400" /> Real-Time Analytics
               </div>
               <div className="flex items-center gap-2">
-                <Check size={16} className="text-green-400" /> No Credit Card
+                <Check size={16} className="text-green-400" /> Custom Branded Links
               </div>
               <div className="flex items-center gap-2">
-                <Check size={16} className="text-green-400" /> Unlimited Links
+                <Check size={16} className="text-green-400" /> Smart Targeting
               </div>
             </div>
           </div>
