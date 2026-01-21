@@ -222,11 +222,11 @@ const AdminConsoleLayout = () => {
         )}
 
         {/* Page Content */}
-        <PullToRefresh onRefresh={() => window.location.reload()}>
+        <LazyPullToRefresh onRefresh={() => window.location.reload()}>
           <div className="animate-fade-in">
             <Outlet />
           </div>
-        </PullToRefresh>
+        </LazyPullToRefresh>
       </main>
     </div>
   );
