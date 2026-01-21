@@ -5,12 +5,14 @@ import geoip from 'geoip-lite';
 // Buffer configuration
 const BATCH_SIZE = 100;
 const FLUSH_INTERVAL = 5000; // 5 seconds
+let isFlushing = false;
 let analyticsBuffer = [];
 let flushTimer = null;
 
 const flushBuffer = async () => {
-    if (analyticsBuffer.length === 0) return;
+    if (analyticsBuffer.length === 0 || isFlushing) return;
 
+    isFlushing = true;
     const bufferToInsert = [...analyticsBuffer];
     analyticsBuffer = []; // Clear buffer immediately
 
@@ -20,6 +22,8 @@ const flushBuffer = async () => {
     } catch (error) {
         console.error('[Analytics] Flush Error:', error);
         // Note: Logic could be added here to retry failed inserts if critical
+    } finally {
+        isFlushing = false;
     }
 };
 
@@ -39,7 +43,11 @@ startFlushTimer();
 
 export const trackVisit = async (urlId, req, extras = {}) => {
     try {
-        const parser = new UAParser(req.headers['user-agent'] || '');
+        // Security: Truncate to prevent ReDoS
+        const rawUA = req.headers['user-agent'] || '';
+        const userAgent = rawUA.substring(0, 500);
+        
+        const parser = new UAParser(userAgent);
         const browser = parser.getBrowser();
         const os = parser.getOS();
         const device = parser.getDevice();
@@ -72,10 +80,12 @@ export const trackVisit = async (urlId, req, extras = {}) => {
 
         // Immediate flush if buffer full
         if (analyticsBuffer.length >= BATCH_SIZE) {
-            // Reset timer to avoid double flush
-            clearInterval(flushTimer);
-            await flushBuffer();
-            flushTimer = setInterval(flushBuffer, FLUSH_INTERVAL);
+            if (!isFlushing) {
+                // Reset timer only if we actually trigger the flush
+                clearInterval(flushTimer);
+                await flushBuffer();
+                flushTimer = setInterval(flushBuffer, FLUSH_INTERVAL);
+            }
         }
 
     } catch (error) {

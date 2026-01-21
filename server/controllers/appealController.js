@@ -1,6 +1,7 @@
 import Appeal from '../models/Appeal.js';
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
+import logger from '../utils/logger.js';
 
 // @desc    Submit an appeal (for banned users - requires appeal token)
 // @route   POST /api/appeals
@@ -94,7 +95,7 @@ export const submitAppeal = async (req, res) => {
                 message: 'You already have a pending appeal. Please wait for admin review.'
             });
         }
-        console.error('Submit appeal error:', error);
+        logger.error('[Appeal] Submit appeal error:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -104,15 +105,9 @@ export const submitAppeal = async (req, res) => {
 // @access  Public
 export const checkAppealStatus = async (req, res) => {
     try {
-        const { email } = req.query;
         const authHeader = req.headers.authorization;
         let userId;
-
-        // Try to use token if available, otherwise fall back to email (for backward compatibility or if token expired but user remembers email)
-        // However, for strict security, we might want to enforce token here too.
-        // But the user might refresh the page after an hour and still want to see status.
-        // Let's prioritize token if present.
-
+        
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const token = authHeader.split(' ')[1];
             try {
@@ -121,21 +116,16 @@ export const checkAppealStatus = async (req, res) => {
                     userId = decoded.id;
                 }
             } catch {
-                // Token invalid/expired, ignore and try email
+                return res.status(401).json({ message: 'Session expired. Please sign in again to view appeal status.' });
             }
+        } else {
+            return res.status(401).json({ message: 'Unauthorized. Please sign in again to view appeal status.' });
         }
 
-        let user;
-        if (userId) {
-            user = await User.findById(userId);
-        } else if (email) {
-            user = await User.findOne({ email: email.toLowerCase() });
-        } else {
-            return res.status(400).json({ message: 'Email or valid session required' });
-        }
+        const user = await User.findById(userId);
 
         if (!user) {
-            return res.status(404).json({ message: 'No account found' });
+            return res.status(404).json({ message: 'User account not found' });
         }
 
         const appeal = await Appeal.findOne({ userId: user._id })

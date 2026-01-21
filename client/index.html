@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <!-- Security Headers (Note: For production, set these as HTTP headers on the server) -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+    <meta http-equiv="Permissions-Policy" content="geolocation=(), microphone=(), camera=()" />
+
     <!-- Primary Meta Tags -->
     <title>Link Snap - Free URL Shortener with Analytics & QR Codes</title>
     <meta name="title" content="Link Snap - Free URL Shortener with Analytics & QR Codes" />
@@ -25,18 +30,18 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/manifest.webmanifest" />
+
+
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://linksnap.centralindia.cloudapp.azure.com/" />
+    <meta property="og:url" content="%VITE_BASE_URL%/" />
     <meta property="og:title" content="Link Snap - Free URL Shortener with Analytics & QR Codes" />
     <meta
       property="og:description"
       content="Shorten URLs, track clicks with detailed analytics, generate QR codes, and manage all your links in one place. Free, fast, and open-source."
     />
-    <meta property="og:image" content="https://linksnap.centralindia.cloudapp.azure.com/og-image.png" />
+    <meta property="og:image" content="%VITE_BASE_URL%/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:site_name" content="Link Snap" />
@@ -44,13 +49,13 @@
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://linksnap.centralindia.cloudapp.azure.com/" />
+    <meta name="twitter:url" content="%VITE_BASE_URL%/" />
     <meta name="twitter:title" content="Link Snap - Free URL Shortener with Analytics & QR Codes" />
     <meta
       name="twitter:description"
       content="Shorten URLs, track clicks with detailed analytics, generate QR codes, and manage all your links in one place. Free, fast, and open-source."
     />
-    <meta name="twitter:image" content="https://linksnap.centralindia.cloudapp.azure.com/og-image.png" />
+    <meta name="twitter:image" content="%VITE_BASE_URL%/og-image.png" />
 
     <!-- PWA / Mobile Support -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -65,14 +70,115 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 
     <!-- Canonical URL -->
-    <link rel="canonical" href="https://linksnap.centralindia.cloudapp.azure.com/" />
+    <link rel="canonical" href="%VITE_BASE_URL%/" />
 
-    <!-- Preconnect for Performance -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Preconnect to API server for faster first requests -->
+    <!-- Establishes DNS + TCP + TLS connection before any API call -->
+    <link rel="preconnect" href="%VITE_BASE_URL%" crossorigin />
+    <link rel="dns-prefetch" href="%VITE_BASE_URL%" />
+
+    <!-- Prefetch critical assets for instant navigation -->
+    <!-- Favicon is small and frequently accessed -->
+    <link rel="prefetch" href="/favicon.svg" as="image" />
+
+    <!-- Preload critical scripts and styles for faster FCP/LCP -->
+
+    <link rel="preload" href="/src/index.css" as="style" />
+
+    <!-- Inline Critical CSS for faster initial render -->
+    <style>
+      /* Critical above-the-fold styles */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #030712;
+        color: #fff;
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          'Helvetica Neue',
+          Arial,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      #root {
+        min-height: 100vh;
+        isolation: isolate;
+      }
+      .loading-screen {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: #030712;
+      }
+      .spinner {
+        width: 3rem;
+        height: 3rem;
+        border: 0.25rem solid rgba(139, 92, 246, 0.2);
+        border-top-color: #8b5cf6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        will-change: transform;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      /* Prevent FOUC */
+      html {
+        background: #030712;
+      }
+      /* Optimize text rendering */
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6 {
+        text-rendering: optimizeLegibility;
+      }
+      /* Prevent layout shifts from scrollbar */
+      html {
+        overflow-y: scroll;
+      }
+      /* Loading skeleton for better perceived performance */
+      .skeleton {
+        background: linear-gradient(
+          90deg,
+          rgba(255, 255, 255, 0.05) 25%,
+          rgba(255, 255, 255, 0.1) 50%,
+          rgba(255, 255, 255, 0.05) 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+      }
+      @keyframes shimmer {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Initial loading skeleton to prevent blank screen -->
+      <div class="loading-screen">
+        <div class="spinner"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

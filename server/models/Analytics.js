@@ -34,7 +34,7 @@ const analyticsSchema = new mongoose.Schema({
     // Device-based redirect tracking (null if not using device targeting)
     deviceMatchType: {
         type: String,
-        enum: ['ios', 'android', 'mobile', 'tablet', 'desktop', 'mobile_fallback', 'fallback', null],
+        enum: ['ios', 'android', 'mobile', 'tablet', 'desktop', 'mobile_fallback', 'fallback', 'time_redirect', null],
         default: null,
     },
 });

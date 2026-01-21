@@ -1,9 +1,13 @@
 import User from '../models/User.js';
 import Url from '../models/Url.js';
 import { trackVisit } from '../services/analyticsService.js';
-import { getFromCache, setInCache } from '../services/cacheService.js';
+import { getFromCache, setInCache, getSubscriptionCache, setSubscriptionCache } from '../services/cacheService.js';
 import { checkAndIncrementClickUsage } from '../middleware/subscriptionMiddleware.js';
 import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
+import { queueClickIncrement } from '../services/clickStatsService.js';
+import { isLinkActive, getTimeBasedDestination } from '../services/timeService.js';
+import { hasFeature } from '../services/subscriptionService.js';
+import { sanitizeAlias } from '../utils/urlSecurity.js';
 
 // Helper to escape HTML to prevent XSS
 const escapeHtml = (unsafe) => {
@@ -1008,6 +1012,167 @@ const getExpiredLinkPage = (shortId, expiresAt) => {
 `;
 };
 
+// HTML page for scheduled/pending links (not yet active)
+const getScheduledLinkPage = (shortId, activeStartTime) => {
+    const safeShortId = escapeHtml(shortId);
+    const activateDate = new Date(activeStartTime);
+    const isoDate = activateDate.toISOString();
+    // Get base URL for display (short link only, no real destination exposed)
+    const baseUrl = (process.env.BASE_URL || process.env.CLIENT_URL || 'https://linksnap.io').replace(/\/$/, '');
+    const shortLink = `${baseUrl}/${safeShortId}`;
+    
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link Activates Soon - Link Snap</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #fff;
+            padding: 20px;
+        }
+        .orb { position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.5; animation: float 8s ease-in-out infinite; }
+        .orb-1 { width: 400px; height: 400px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); top: -100px; left: -100px; }
+        .orb-2 { width: 300px; height: 300px; background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); bottom: -50px; right: -50px; animation-delay: -4s; }
+        @keyframes float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-30px) scale(1.05); } }
+        .container { position: relative; z-index: 10; max-width: 500px; width: 100%; text-align: center; }
+        .card { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px; padding: 48px 32px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .icon-container { width: 80px; height: 80px; margin: 0 auto 24px; background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(22, 163, 74, 0.2) 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid rgba(34, 197, 94, 0.3); }
+        .icon { width: 40px; height: 40px; stroke: #22c55e; stroke-width: 2; fill: none; }
+        h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 12px; background: linear-gradient(135deg, #fff 0%, #86efac 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .subtitle { color: #94a3b8; font-size: 1rem; line-height: 1.6; margin-bottom: 24px; }
+        .countdown-box { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 16px; padding: 24px; margin-bottom: 24px; }
+        .countdown-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: #22c55e; margin-bottom: 12px; }
+        .countdown { display: flex; justify-content: center; gap: 12px; margin-bottom: 16px; }
+        .countdown-item { background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px 16px; min-width: 60px; }
+        .countdown-value { font-size: 1.75rem; font-weight: 700; color: #fff; }
+        .countdown-unit { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; }
+        .activate-date { font-size: 0.9rem; color: #86efac; font-weight: 500; }
+        .short-link { display: inline-block; background: rgba(255, 255, 255, 0.1); padding: 8px 16px; border-radius: 8px; font-family: monospace; font-size: 0.9rem; color: #a78bfa; margin-top: 12px; word-break: break-all; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 16px 28px; border-radius: 14px; font-size: 1rem; font-weight: 600; text-decoration: none; transition: all 0.3s ease; cursor: pointer; border: none; width: 100%; margin-top: 8px; }
+        .btn-primary { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: #fff; box-shadow: 0 4px 20px rgba(34, 197, 94, 0.4); }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(34, 197, 94, 0.5); }
+        .btn-secondary { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #e2e8f0; margin-top: 12px; }
+        .footer-text { color: #475569; font-size: 0.8rem; margin-top: 24px; }
+        .footer-text a { color: #818cf8; text-decoration: none; }
+        .ready { display: none; }
+        .ready.show { display: block; }
+        .pending.hide { display: none; }
+    </style>
+</head>
+<body>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="container">
+        <div class="card">
+            <div class="icon-container">
+                <svg class="icon" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+            </div>
+            
+            <div class="pending">
+                <h1>Link Activates Soon</h1>
+                <p class="subtitle">This link is scheduled to go live shortly. The countdown below shows when it will become available.</p>
+                
+                <div class="countdown-box">
+                    <div class="countdown-label">Activates in</div>
+                    <div class="countdown" id="countdown">
+                        <div class="countdown-item">
+                            <div class="countdown-value" id="days">--</div>
+                            <div class="countdown-unit">Days</div>
+                        </div>
+                        <div class="countdown-item">
+                            <div class="countdown-value" id="hours">--</div>
+                            <div class="countdown-unit">Hours</div>
+                        </div>
+                        <div class="countdown-item">
+                            <div class="countdown-value" id="mins">--</div>
+                            <div class="countdown-unit">Mins</div>
+                        </div>
+                        <div class="countdown-item">
+                            <div class="countdown-value" id="secs">--</div>
+                            <div class="countdown-unit">Secs</div>
+                        </div>
+                    </div>
+                    <div class="activate-date" id="localDate">Loading...</div>
+                </div>
+                
+                <div class="short-link">${shortLink}</div>
+            </div>
+            
+            <div class="ready" id="readySection">
+                <h1>Link is Now Live!</h1>
+                <p class="subtitle">The link is ready to use. Click below to continue.</p>
+                <a href="/${safeShortId}" class="btn btn-primary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14"/>
+                        <path d="m12 5 7 7-7 7"/>
+                    </svg>
+                    Go to ${shortLink}
+                </a>
+            </div>
+            
+            <a href="/" class="btn btn-secondary">Go to Homepage</a>
+            
+            <p class="footer-text">Powered by <a href="/">Link Snap</a> — Fast, secure URL shortening</p>
+        </div>
+    </div>
+    
+    <script>
+        const targetDate = new Date('${isoDate}');
+        
+        // Display date in user's local timezone
+        document.getElementById('localDate').textContent = targetDate.toLocaleString(undefined, {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            timeZoneName: 'short'
+        });
+        
+        function updateCountdown() {
+            const now = new Date();
+            const diff = targetDate - now;
+            
+            if (diff <= 0) {
+                // Link is now active - show ready section
+                document.querySelector('.pending').classList.add('hide');
+                document.getElementById('readySection').classList.add('show');
+                return;
+            }
+            
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const secs = Math.floor((diff % (1000 * 60)) / 1000);
+            
+            document.getElementById('days').textContent = days.toString().padStart(2, '0');
+            document.getElementById('hours').textContent = hours.toString().padStart(2, '0');
+            document.getElementById('mins').textContent = mins.toString().padStart(2, '0');
+            document.getElementById('secs').textContent = secs.toString().padStart(2, '0');
+        }
+        
+        updateCountdown();
+        setInterval(updateCountdown, 1000);
+    </script>
+</body>
+</html>
+`;
+};
+
 // HTML page for password-protected links
 const getPasswordEntryPage = (shortId, title) => {
     const safeTitle = escapeHtml(title || shortId);
@@ -1231,6 +1396,13 @@ const getLimitReachedPage = () => `
 export const redirectUrl = async (req, res, next) => {
     const { shortId } = req.params;
 
+    // Security: NoSQL Injection Prevention - Validate shortId contains only safe characters
+    const aliasCheck = sanitizeAlias(shortId);
+    if (!aliasCheck.valid) {
+        // Invalid alias format - treat as not found
+        return next();
+    }
+
     try {
         // 1. Check cache first (fast path)
         const cached = getFromCache(shortId);
@@ -1265,6 +1437,12 @@ export const redirectUrl = async (req, res, next) => {
                  }
             }
 
+            // Check if link is ready to go live (activeStartTime)
+            if (cached.activeStartTime && !isLinkActive(cached.activeStartTime)) {
+                // Show countdown page until link activates
+                return res.status(200).send(getScheduledLinkPage(shortId, cached.activeStartTime));
+            }
+
             // Check if link has expired
             if (cached.expiresAt && new Date() > new Date(cached.expiresAt)) {
                 return res.status(410).send(getExpiredLinkPage(shortId, cached.expiresAt));
@@ -1283,8 +1461,31 @@ export const redirectUrl = async (req, res, next) => {
                 }
             }
 
-            // Async: Update clicks in DB (fire and forget)
-            Url.findByIdAndUpdate(cached._id, { $inc: { clicks: 1 } }).exec();
+            // Async: Update clicks in DB (buffered)
+            queueClickIncrement(cached._id);
+
+            // Time-Based Redirect logic (Pro/Business feature)
+            // Only apply if owner has time_redirects feature
+            if (cached.timeRedirects?.enabled && cached.ownerId) {
+                // Check subscription cache first (24h TTL)
+                let ownerSub = getSubscriptionCache(cached.ownerId.toString());
+                if (!ownerSub) {
+                    // Cache miss - fetch from DB and cache
+                    const owner = await User.findById(cached.ownerId).select('subscription role');
+                    if (owner) {
+                        ownerSub = { subscription: owner.subscription, role: owner.role };
+                        setSubscriptionCache(cached.ownerId.toString(), ownerSub);
+                    }
+                }
+                
+                if (ownerSub && (ownerSub.role === 'admin' || hasFeature(ownerSub, 'time_redirects'))) {
+                    const timeDestination = getTimeBasedDestination(cached.timeRedirects);
+                    if (timeDestination) {
+                        trackVisit(cached._id, req, { deviceMatchType: 'time_redirect' });
+                        return res.redirect(timeDestination);
+                    }
+                }
+            }
 
             // Device-based redirect logic
             const { targetUrl, deviceMatchType } = getDeviceRedirectUrl(cached, req.headers['user-agent']);
@@ -1352,6 +1553,12 @@ export const redirectUrl = async (req, res, next) => {
             return res.status(410).send(getInactiveLinkPage(shortId));
         }
 
+        // Check if link is ready to go live (activeStartTime)
+        if (url.activeStartTime && !isLinkActive(url.activeStartTime)) {
+            // Show countdown page until link activates
+            return res.status(200).send(getScheduledLinkPage(shortId, url.activeStartTime));
+        }
+
         // Check if link has expired
         if (url.expiresAt && new Date() > new Date(url.expiresAt)) {
             return res.status(410).send(getExpiredLinkPage(shortId, url.expiresAt));
@@ -1378,8 +1585,30 @@ export const redirectUrl = async (req, res, next) => {
             disableLinksOnBan
         });
 
-        // Increment clicks
-        Url.findByIdAndUpdate(url._id, { $inc: { clicks: 1 } }).exec();
+        // Increment clicks (buffered)
+        queueClickIncrement(url._id);
+
+        // Time-Based Redirect logic (Pro/Business feature)
+        // Only apply if owner has time_redirects feature
+        if (url.timeRedirects?.enabled && url.createdBy) {
+            // Fetch owner subscription and cache it (24h TTL)
+            const ownerFull = await User.findById(url.createdBy).select('subscription role');
+            if (ownerFull) {
+                // Cache for future requests
+                setSubscriptionCache(url.createdBy.toString(), { 
+                    subscription: ownerFull.subscription, 
+                    role: ownerFull.role 
+                });
+                
+                if (ownerFull.role === 'admin' || hasFeature(ownerFull, 'time_redirects')) {
+                    const timeDestination = getTimeBasedDestination(url.timeRedirects);
+                    if (timeDestination) {
+                        trackVisit(url._id, req, { deviceMatchType: 'time_redirect' });
+                        return res.redirect(timeDestination);
+                    }
+                }
+            }
+        }
 
         // Device-based redirect logic
         const { targetUrl, deviceMatchType } = getDeviceRedirectUrl(url, req.headers['user-agent']);

@@ -104,7 +104,8 @@ const DialogComponent = ({ isOpen, onClose, onSubmit, config }) => {
 
       {/* Dialog */}
       <div
-        className={`relative w-[95%] max-w-md bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl ${variant.borderGlow} animate-modal-in overflow-hidden flex flex-col max-h-[95vh] overscroll-contain`}
+        data-modal-content
+        className={`relative w-[95%] max-w-md bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl ${variant.borderGlow} animate-modal-in overflow-hidden flex flex-col max-h-[95dvh] overscroll-contain`}
       >
         {/* Gradient top border */}
         <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${variant.buttonBg}`} />

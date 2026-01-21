@@ -15,9 +15,11 @@ import {
 import api from '../../api/axios';
 import { formatDateTime } from '../../utils/dateUtils';
 import BentoCard from '../../components/admin-console/ui/BentoCard';
-import showToast from '../../components/ui/Toast';
+import showToast from '../../utils/toastUtils';
+import { useAuth } from '../../context/AuthContext';
 
 const AdminMonitoring = () => {
+  const { isAuthChecking } = useAuth();
   const [activeTab, setActiveTab] = usePersistentTab('admin_monitoring', 'health', ['health', 'logs', 'performance']);
   const [health, setHealth] = useState(null);
   const [deepHealth, setDeepHealth] = useState(null);
@@ -58,11 +60,11 @@ const AdminMonitoring = () => {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'health' && !hasFetched.current) {
+    if (activeTab === 'health' && !hasFetched.current && !isAuthChecking) {
       hasFetched.current = true;
       checkHealth(false); // Don't show toast on initial mount
     }
-  }, [activeTab, checkHealth]);
+  }, [activeTab, checkHealth, isAuthChecking]);
 
   const getStatusColor = (status) => {
     switch (status) {

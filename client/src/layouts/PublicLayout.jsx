@@ -5,10 +5,11 @@ import { useState, useEffect } from 'react';
 import { hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
 import { useAppVersion } from '../hooks/useAppVersion';
 import { hasTrustedDeviceMarker } from '../utils/deviceAuth';
-import PullToRefresh from '../components/PullToRefresh';
+import OfflineIndicator from '../components/OfflineIndicator';
+import LazyPullToRefresh from '../components/LazyPullToRefresh';
 
 const PublicLayout = () => {
-  const { user, logout, openAuthModal, isAdmin } = useAuth();
+  const { user, loading, logout, openAuthModal, isAdmin } = useAuth();
   const appVersion = useAppVersion();
   const [isWhitelistedIP, setIsWhitelistedIP] = useState(false);
   const [showNewBadge, setShowNewBadge] = useState(hasUnseenChangelog());
@@ -23,26 +24,38 @@ const PublicLayout = () => {
     // Check the HTTP status for whitelisted but not authenticated
     const checkWithStatus = async () => {
       try {
-        // Use native fetch to avoid axios interceptor interference
+        // Use native fetch with minimal footprint - only checking IP whitelist status
         const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-        const response = await fetch(`${baseUrl}/admin/stats`, {
-          method: 'GET',
+        const response = await fetch(`${baseUrl}/admin/ip-check`, {
+          method: 'HEAD', // Use HEAD to minimize response size
           credentials: 'include',
         });
         
         if (!isMounted) return;
         
-        // 200 = authenticated + whitelisted
-        // 401 = IP allowed but not authenticated
-        // 403 = IP allowed but not admin role
-        // 404 = IP blocked (route hidden)
-        if (response.ok || response.status === 401 || response.status === 403) {
+        // 200 = IP is whitelisted
+        // 404 = endpoint not found (fallback to old method)
+        // Other = IP not whitelisted
+        if (response.ok) {
           setIsWhitelistedIP(true);
+        } else if (response.status === 404) {
+          // Fallback: try old endpoint but suppress 401 logging
+          const fallbackResponse = await fetch(`${baseUrl}/admin/stats`, {
+            method: 'GET',
+            credentials: 'include',
+          });
+          if (!isMounted) return;
+          // 200, 401, 403 all mean IP is allowed to see the route
+          if (fallbackResponse.ok || fallbackResponse.status === 401 || fallbackResponse.status === 403) {
+            setIsWhitelistedIP(true);
+          } else {
+            setIsWhitelistedIP(false);
+          }
         } else {
           setIsWhitelistedIP(false);
         }
       } catch {
-        // Network error
+        // Network error - silently fail
         if (isMounted) setIsWhitelistedIP(false);
       }
     };
@@ -112,7 +125,13 @@ const PublicLayout = () => {
                 <Crown className="w-4 h-4" />
                 <span className="hidden sm:inline">Pricing</span>
               </Link>
-              {user ? (
+              {loading ? (
+                // Skeleton loading state - prevents flash of logged-out UI
+                <div className="flex items-center gap-2 sm:gap-3 animate-pulse">
+                  <div className="w-20 h-9 bg-gray-800 rounded-lg hidden sm:block"></div>
+                  <div className="w-24 h-9 bg-gradient-to-r from-blue-600/50 to-purple-600/50 rounded-lg"></div>
+                </div>
+              ) : user ? (
                 <>
                   {isAdmin && (
                     <Link
@@ -170,9 +189,9 @@ const PublicLayout = () => {
       </nav>
 
       <main className="flex-grow relative">
-        <PullToRefresh onRefresh={() => window.location.reload()}>
+        <LazyPullToRefresh onRefresh={() => window.location.reload()}>
           <Outlet />
-        </PullToRefresh>
+        </LazyPullToRefresh>
       </main>
 
       <footer className="bg-gray-950 border-t border-white/5 py-8">

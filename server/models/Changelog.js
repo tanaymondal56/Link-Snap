@@ -22,7 +22,8 @@ const changelogSchema = new mongoose.Schema({
         trim: true,
         validate: {
             validator: function(v) {
-                return /^\d+\.\d+\.\d+(-[a-z0-9]+)?$/i.test(v);
+                // Allow standard semantic versioning (1.0.0, 1.0.0-beta, 1.0.0-beta.1)
+                return /^\d+\.\d+\.\d+(-[a-z0-9.]+)?$/i.test(v);
             },
             message: 'Version must be in semantic format (e.g., 1.0.0 or 1.0.0-beta)'
         }
@@ -112,7 +113,8 @@ const changelogSchema = new mongoose.Schema({
 // Index for efficient queries
 changelogSchema.index({ isPublished: 1, order: -1 });
 changelogSchema.index({ scheduledFor: 1, isPublished: 1 }); // For scheduled publishing cron
-changelogSchema.index({ showOnRoadmap: 1, roadmapStatus: 1, roadmapPriority: -1 }); // For roadmap queries
+// Optimized index for roadmap queries: filters by showOnRoadmap + isPublished, sorts by roadmapPriority
+changelogSchema.index({ showOnRoadmap: 1, isPublished: 1, roadmapPriority: -1 }); 
 // Note: version unique index is created automatically by unique: true on the field
 
 const Changelog = mongoose.model('Changelog', changelogSchema);

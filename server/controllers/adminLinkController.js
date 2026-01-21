@@ -1,7 +1,10 @@
+import mongoose from 'mongoose';
 import Url from '../models/Url.js';
 import Analytics from '../models/Analytics.js';
 import User from '../models/User.js';
 import { invalidateCache } from '../services/cacheService.js';
+import { checkUrlsSafety } from '../services/safeBrowsingService.js';
+import logger from '../utils/logger.js';
 
 // @desc    Get all links (paginated, searchable)
 // @route   GET /api/admin/links
@@ -11,65 +14,107 @@ export const getAllLinks = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const search = req.query.search || '';
-        const status = req.query.status || 'all'; // 'all', 'active', 'disabled', 'expired'
+        const status = req.query.status || 'all'; 
+        const safety = req.query.safety || 'all'; 
         const skip = (page - 1) * limit;
 
-        let query = {};
+        const matchStage = {};
+        const now = new Date();
         
-        // Search Logic
+        
+        // Search Logic - Build conditions for aggregation
+        let searchUserIds = [];
         if (search) {
             const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             
-            // Find users matching the search term to include in link search (Limit 50 to prevent massive In queries)
-            const matchingUsers = await User.find({
-                $or: [
-                    { email: { $regex: escapedSearch, $options: 'i' } },
-                    { username: { $regex: escapedSearch, $options: 'i' } }
-                ]
-            }).select('_id').limit(50);
-            const matchingUserIds = matchingUsers.map(user => user._id);
+            // Find users matching the search term (optimized with text index if available)
+            try {
+                const matchingUsers = await User.find(
+                    { $text: { $search: search } },
+                    { score: { $meta: 'textScore' } }
+                ).select('_id').limit(50).sort({ score: { $meta: 'textScore' } });
+                searchUserIds = matchingUsers.map(user => user._id);
+            } catch {
+                // Fallback to regex if text index not available
+                const matchingUsers = await User.find({
+                    $or: [
+                        { email: { $regex: escapedSearch, $options: 'i' } },
+                        { username: { $regex: escapedSearch, $options: 'i' } }
+                    ]
+                }).select('_id').limit(50);
+                searchUserIds = matchingUsers.map(user => user._id);
+            }
 
-            query.$or = [
+            matchStage.$or = [
                 { originalUrl: { $regex: escapedSearch, $options: 'i' } },
                 { shortId: { $regex: escapedSearch, $options: 'i' } },
-                { customAlias: { $regex: escapedSearch, $options: 'i' } }, // Added customAlias
+                { customAlias: { $regex: escapedSearch, $options: 'i' } },
                 { title: { $regex: escapedSearch, $options: 'i' } },
-                { createdBy: { $in: matchingUserIds } } // Added Owner Search
+                ...(searchUserIds.length > 0 ? [{ createdBy: { $in: searchUserIds } }] : [])
             ];
         }
 
-        // Status Filtering
-        const now = new Date();
+        // Status Filtering - Optimized to use compound indexes
         if (status === 'active') {
-            query.isActive = true;
-            // Active means not expired
-            query.$and = [
-                { $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] }
-            ];
+            matchStage.isActive = true;
+            matchStage.$and = matchStage.$and || [];
+            matchStage.$and.push({ $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] });
         } else if (status === 'disabled') {
-            query.isActive = false;
+            matchStage.isActive = false;
         } else if (status === 'expired') {
-            query.expiresAt = { $lte: now };
+            matchStage.expiresAt = { $lte: now };
         }
 
-        const urls = await Url.find(query)
-            .populate('createdBy', 'email username isActive disableLinksOnBan')
-            .sort({ createdAt: -1 }) // TODO: Remove this when Cosmos DB has createdAt index
-            .skip(skip)
-            .limit(limit);
-
-        // Compute ownerBanned field for each URL
-        const urlsWithBanStatus = urls.map(url => {
-            const urlObj = url.toObject();
-            // ownerBanned = owner exists AND is not active (regardless of disableLinksOnBan)
-            urlObj.ownerBanned = !!(urlObj.createdBy && !urlObj.createdBy.isActive);
-            return urlObj;
-        });
-
-        const total = await Url.countDocuments(query);
+        // Safety Status Filtering - Uses compound index { safetyStatus: 1, createdAt: -1 }
+        const allowedSafetyStatuses = ['safe', 'malware', 'phishing', 'pending', 'unchecked', 'unwanted'];
+        if (safety !== 'all' && allowedSafetyStatuses.includes(safety)) {
+            matchStage.safetyStatus = safety;
+        } 
+        
+        // Use concurrent queries for better compatibility (avoids $lookup inside $facet limitations)
+        const [urls, total] = await Promise.all([
+            Url.aggregate([
+                { $match: matchStage },
+                { $sort: { createdAt: -1 } },
+                { $skip: skip },
+                { $limit: limit },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'createdBy',
+                        foreignField: '_id',
+                        as: 'createdByData'
+                    }
+                },
+                {
+                    $addFields: {
+                        // Extract only needed fields from the looked-up user (Direct array access, no variables)
+                        createdBy: {
+                             _id: { $arrayElemAt: ['$createdByData._id', 0] },
+                             email: { $arrayElemAt: ['$createdByData.email', 0] },
+                             username: { $arrayElemAt: ['$createdByData.username', 0] },
+                             isActive: { $arrayElemAt: ['$createdByData.isActive', 0] },
+                             disableLinksOnBan: { $arrayElemAt: ['$createdByData.disableLinksOnBan', 0] }
+                        },
+                        ownerBanned: {
+                            $cond: {
+                                if: { $and: [
+                                    { $gt: [{ $size: '$createdByData' }, 0] },
+                                    { $eq: [{ $arrayElemAt: ['$createdByData.isActive', 0] }, false] }
+                                ]},
+                                then: true,
+                                else: false
+                            }
+                        }
+                    }
+                },
+                { $project: { createdByData: 0 } }
+            ]),
+            Url.countDocuments(matchStage)
+        ]);
 
         res.json({
-            urls: urlsWithBanStatus,
+            urls,
             page,
             pages: Math.ceil(total / limit),
             total
@@ -78,6 +123,7 @@ export const getAllLinks = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
 
 // @desc    Toggle link status (Disable/Enable)
 // @route   PATCH /api/admin/links/:id/status
@@ -134,6 +180,129 @@ export const deleteLinkAdmin = async (req, res) => {
         await url.deleteOne();
 
         res.json({ message: 'Link and associated data removed' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Override link safety status (Admin Manual Override)
+// @route   PATCH /api/admin/links/:linkId/safety
+// @access  Admin
+export const overrideLinkSafety = async (req, res) => {
+    try {
+        // Security: Validate ObjectId format to prevent injection
+        if (!mongoose.Types.ObjectId.isValid(req.params.linkId)) {
+            return res.status(400).json({ message: 'Invalid link ID format' });
+        }
+
+        const { safetyStatus } = req.body;
+        const allowedStatuses = ['safe', 'malware', 'phishing', 'pending', 'unwanted'];
+        
+        if (!safetyStatus || !allowedStatuses.includes(safetyStatus)) {
+            return res.status(400).json({ 
+                message: `Invalid safety status. Allowed: ${allowedStatuses.join(', ')}` 
+            });
+        }
+
+        const url = await Url.findById(req.params.linkId);
+        if (!url) {
+            return res.status(404).json({ message: 'URL not found' });
+        }
+
+        const previousStatus = url.safetyStatus;
+
+        // Update with manual override flag to prevent background scan from overwriting
+        const updatedUrl = await Url.findByIdAndUpdate(
+            req.params.linkId,
+            { 
+                $set: { 
+                    safetyStatus,
+                    safetyDetails: `Manual override by admin (was: ${previousStatus})`,
+                    lastCheckedAt: new Date(),
+                    manualSafetyOverride: true  // Flag to prevent auto-scan from changing
+                } 
+            },
+            { new: true }
+        );
+
+        // CRITICAL: Invalidate cache immediately so blocking takes effect
+        invalidateCache(url.shortId);
+        if (url.customAlias) {
+            invalidateCache(url.customAlias);
+        }
+
+        logger.info(`[Admin Safety Override] Link ${url.shortId}: ${previousStatus} -> ${safetyStatus} by Admin ${req.user?.email}`);
+
+        res.json({ 
+            message: `Safety status updated to ${safetyStatus}`, 
+            url: updatedUrl,
+            previousStatus 
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Re-scan single link for safety
+// @route   POST /api/admin/links/:linkId/rescan
+// @access  Admin
+export const rescanLinkSafety = async (req, res) => {
+    try {
+        // Security: Validate ObjectId format to prevent injection
+        if (!mongoose.Types.ObjectId.isValid(req.params.linkId)) {
+            return res.status(400).json({ message: 'Invalid link ID format' });
+        }
+
+        const url = await Url.findById(req.params.linkId);
+        if (!url) {
+            return res.status(404).json({ message: 'URL not found' });
+        }
+
+        // Collect all URLs to check (original + device redirects + time redirects)
+        const urlsToCheck = [url.originalUrl];
+        
+        if (url.deviceRedirects?.enabled && url.deviceRedirects.rules) {
+            url.deviceRedirects.rules.forEach(r => {
+                if (r.url) urlsToCheck.push(r.url);
+            });
+        }
+        
+        if (url.timeRedirects?.enabled && url.timeRedirects.rules) {
+            url.timeRedirects.rules.forEach(r => {
+                if (r.destination) urlsToCheck.push(r.destination);
+            });
+        }
+
+        // Call Safe Browsing API
+        const safetyResult = await checkUrlsSafety(urlsToCheck);
+
+        // Update the URL with the result
+        const updatedUrl = await Url.findByIdAndUpdate(
+            req.params.linkId,
+            { 
+                $set: { 
+                    safetyStatus: safetyResult.status,
+                    safetyDetails: safetyResult.details,
+                    lastCheckedAt: new Date(),
+                    manualSafetyOverride: false  // Clear override flag since this is a fresh scan
+                } 
+            },
+            { new: true }
+        );
+
+        // Invalidate cache
+        invalidateCache(url.shortId);
+        if (url.customAlias) {
+            invalidateCache(url.customAlias);
+        }
+
+        logger.info(`[Admin Re-Scan] Link ${url.shortId}: Now ${safetyResult.status}`);
+
+        res.json({ 
+            message: `Scan complete: ${safetyResult.status}`, 
+            url: updatedUrl,
+            scanResult: safetyResult
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

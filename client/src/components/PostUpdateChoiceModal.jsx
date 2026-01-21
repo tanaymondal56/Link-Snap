@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, Home, FileText, PartyPopper } from 'lucide-react';
+import useScrollLock from '../hooks/useScrollLock';
 import {
   shouldShowChangelog,
   setShowChangelogAfterUpdate,
@@ -32,16 +34,19 @@ const PostUpdateChoiceModal = () => {
     navigate('/changelog');
   };
 
+  // Lock background scroll
+  useScrollLock(show);
+
   if (!show) return null;
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop overlay */}
       <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9998]" />
 
       {/* Choice modal */}
       <div className="fixed inset-0 flex items-center justify-center p-4 z-[9999]">
-        <div className="w-full max-w-sm bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 rounded-2xl shadow-2xl shadow-emerald-500/30 border border-emerald-400/20 overflow-hidden animate-in zoom-in-95 duration-300">
+        <div data-modal-content className="w-full max-w-sm bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 rounded-2xl shadow-2xl shadow-emerald-500/30 border border-emerald-400/20 overflow-hidden animate-in zoom-in-95 duration-300">
           {/* Confetti decoration */}
           <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
             <div
@@ -106,8 +111,10 @@ const PostUpdateChoiceModal = () => {
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
+
 };
 
 export default PostUpdateChoiceModal;

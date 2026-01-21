@@ -211,7 +211,7 @@ export const updateSessionName = async (req, res) => {
       return res.status(404).json({ message: 'Session not found' });
     }
     
-    logger.info(`[Session] User ${userId} renamed session ${sessionId} to "${name}"`);
+    logger.info(`[Session] User ${userId} renamed session ${sessionId} to "${sanitizedName}"`);
     
     res.json({ 
       message: 'Session name updated',

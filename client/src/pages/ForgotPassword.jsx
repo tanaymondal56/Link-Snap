@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
 import { Loader, Mail, ArrowRight, ArrowLeft, KeyRound } from 'lucide-react';
 

@@ -1,6 +1,13 @@
 import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
-import { devUpgradeSelf, devResetSelf, devClearRedeemHistory } from '../controllers/devController.js';
+import { 
+  devUpgradeSelf, 
+  devResetSelf, 
+  devClearRedeemHistory,
+  devCreateTestLinks,
+  devGetTestLinks,
+  devDeleteTestLinks
+} from '../controllers/devController.js';
 
 const router = express.Router();
 
@@ -16,8 +23,14 @@ router.use((req, res, next) => {
   next();
 });
 
+// Subscription overrides
 router.post('/subscription/upgrade', devUpgradeSelf);
 router.post('/subscription/reset', devResetSelf);
 router.post('/subscription/clear-history', devClearRedeemHistory);
+
+// Bulk test link management
+router.post('/links', devCreateTestLinks);
+router.get('/links', devGetTestLinks);
+router.delete('/links', devDeleteTestLinks);
 
 export default router;

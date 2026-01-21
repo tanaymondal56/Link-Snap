@@ -8,7 +8,16 @@ export const usePullToRefresh = (onRefresh) => {
     let currentY = 0;
     let pulling = false;
 
+    // Check if modal is open
+    const isModalOpen = () => document.body.hasAttribute('data-modal-open');
+
     const handleTouchStart = (e) => {
+      // Don't start pull if modal is open
+      if (isModalOpen()) return;
+      
+      // Don't start pull if touch is inside a modal
+      if (e.target.closest('[data-modal-content]')) return;
+      
       if (window.scrollY === 0) {
         startY = e.touches[0].clientY;
         pulling = true;
@@ -17,6 +26,13 @@ export const usePullToRefresh = (onRefresh) => {
 
     const handleTouchMove = (e) => {
       if (!pulling) return;
+      
+      // Cancel if modal opened during gesture
+      if (isModalOpen()) {
+        pulling = false;
+        return;
+      }
+      
       currentY = e.touches[0].clientY;
       const diff = currentY - startY;
 
@@ -29,6 +45,13 @@ export const usePullToRefresh = (onRefresh) => {
     const handleTouchEnd = async () => {
       if (!pulling) return;
       pulling = false;
+      
+      // Don't refresh if modal is open
+      if (isModalOpen()) {
+        startY = 0;
+        currentY = 0;
+        return;
+      }
       
       const diff = currentY - startY;
       if (diff > 80 && window.scrollY === 0) { // Threshold for refresh

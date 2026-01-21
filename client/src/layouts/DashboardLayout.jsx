@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -17,9 +17,10 @@ import { cn } from '../utils/cn';
 
 import { Loader2 } from 'lucide-react';
 
-import PullToRefresh from '../components/PullToRefresh';
-import CreateLinkModal from '../components/CreateLinkModal';
-import LinkSuccessModal from '../components/LinkSuccessModal';
+import LazyPullToRefresh from '../components/LazyPullToRefresh';
+import OfflineIndicator from '../components/OfflineIndicator';
+const CreateLinkModal = lazy(() => import('../components/CreateLinkModal'));
+const LinkSuccessModal = lazy(() => import('../components/LinkSuccessModal'));
 
 const DashboardLayout = () => {
   const { user, logout, loading, isAdmin } = useAuth();
@@ -31,36 +32,52 @@ const DashboardLayout = () => {
   const [createdLink, setCreatedLink] = useState(null);
   const adminTriggerTimer = useRef(null); // For hidden admin recovery trigger
 
+  // Set meta robots to noindex for dashboard pages (SEO)
+  useEffect(() => {
+    let metaRobots = document.querySelector('meta[name="robots"]');
+    if (!metaRobots) {
+      metaRobots = document.createElement('meta');
+      metaRobots.name = 'robots';
+      document.head.appendChild(metaRobots);
+    }
+    metaRobots.content = 'noindex, nofollow';
+
+    return () => {
+      // Reset to default when leaving dashboard
+      metaRobots.content = 'index, follow';
+    };
+  }, []);
+
   const handleLinkCreated = (newLink) => {
     setCreatedLink(newLink);
-     // Success modal logic is handled by the CreateLinkModal's parent usually, 
-     // but here we need to manage it since we are the parent.
-     // Wait, CreateLinkModal doesn't open success modal itself?
-     // Let's check UserDashboard usage. 
-     // UserDashboard: setCreatedLink(newLink). And renders LinkSuccessModal independently.
-     // So we need to set createdLink and open SuccessModal.
-     // Actually checking UserDashboard again... 
-     //   const handleLinkCreated = (newLink) => {
-     //     setLinks([newLink, ...links]);
-     //     setCreatedLink(newLink);
-     //   };
-     // And: <LinkSuccessModal isOpen={!!createdLink} onClose={() => setCreatedLink(null)} linkData={createdLink} />
-     // So setting createdLink is enough if we use that pattern.
+    // Success modal logic is handled by the CreateLinkModal's parent usually,
+    // but here we need to manage it since we are the parent.
+    // Wait, CreateLinkModal doesn't open success modal itself?
+    // Let's check UserDashboard usage.
+    // UserDashboard: setCreatedLink(newLink). And renders LinkSuccessModal independently.
+    // So we need to set createdLink and open SuccessModal.
+    // Actually checking UserDashboard again...
+    //   const handleLinkCreated = (newLink) => {
+    //     setLinks([newLink, ...links]);
+    //     setCreatedLink(newLink);
+    //   };
+    // And: <LinkSuccessModal isOpen={!!createdLink} onClose={() => setCreatedLink(null)} linkData={createdLink} />
+    // So setting createdLink is enough if we use that pattern.
   };
 
   // Redirect to home if not logged in (don't force auth modal)
-  // Don't redirect if there's a token being validated
+  // Don't redirect if there's a cached user being validated
   useEffect(() => {
-    const hasToken = localStorage.getItem('accessToken');
-    if (!loading && !user && !hasToken) {
+    const hasCachedUser = localStorage.getItem('ls_auth_user');
+    if (!loading && !user && !hasCachedUser) {
       navigate('/', { replace: true });
     }
   }, [loading, user, navigate]);
 
-  // Check if there's a token but user isn't set yet (still loading)
+  // Check if there's a cached user but user isn't set yet (still loading)
   // This prevents redirect to home when refreshing while logged in
-  const hasToken = typeof window !== 'undefined' && localStorage.getItem('accessToken');
-  const isStillLoading = loading || (hasToken && !user);
+  const hasCachedUser = typeof window !== 'undefined' && localStorage.getItem('ls_auth_user');
+  const isStillLoading = loading || (hasCachedUser && !user);
 
   if (isStillLoading)
     return (
@@ -80,7 +97,12 @@ const DashboardLayout = () => {
 
   // Only add Bio Page for normal users
   if (user?.role !== 'master_admin') {
-      navigation.splice(3, 0, { name: 'Bio Page', href: '/dashboard/bio', icon: Globe, isProFeature: true });
+    navigation.splice(3, 0, {
+      name: 'Bio Page',
+      href: '/dashboard/bio',
+      icon: Globe,
+      isProFeature: true,
+    });
   }
 
   // Check if user has Pro/Business tier
@@ -104,8 +126,9 @@ const DashboardLayout = () => {
       {/* Sidebar - Fixed */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-gray-900/95 backdrop-blur-xl border-r border-white/5 transform transition-transform duration-300 ease-in-out flex flex-col shadow-2xl lg:shadow-none',
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          'fixed inset-y-0 left-0 z-50 w-64 bg-gray-900/95 backdrop-blur-xl border-r border-white/5 flex flex-col shadow-2xl lg:shadow-none will-change-transform',
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+          'transition-transform duration-300 ease-out'
         )}
       >
         <div className="h-20 flex items-center px-6 border-b border-white/5">
@@ -145,6 +168,7 @@ const DashboardLayout = () => {
               <Link
                 key={item.name}
                 to={item.href}
+                onClick={() => setIsSidebarOpen(false)}
                 className={cn(
                   'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200',
                   isActive
@@ -195,7 +219,7 @@ const DashboardLayout = () => {
               >
                 {user.email}
               </p>
-              <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+              <p className="text-xs text-gray-400 capitalize">{user.role}</p>
             </div>
           </div>
           <button
@@ -206,8 +230,8 @@ const DashboardLayout = () => {
             Sign Out
           </button>
           {/* Hidden Admin Recovery Trigger - Long press for 3s */}
-          <p 
-            className="text-[10px] text-gray-600 text-center mt-4 select-none cursor-default"
+          <p
+            className="text-[10px] text-gray-400 text-center mt-4 select-none cursor-default"
             onTouchStart={() => {
               adminTriggerTimer.current = setTimeout(() => {
                 if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
@@ -239,7 +263,7 @@ const DashboardLayout = () => {
         {/* Topbar - Fixed */}
         <header className="h-16 border-b border-white/5 flex items-center justify-between px-4 lg:px-8 backdrop-blur-sm bg-gray-950/80 flex-shrink-0">
           <button
-            className="lg:hidden text-gray-400 hover:text-white p-2 hover:bg-white/5 rounded-lg transition-colors"
+            className="lg:hidden text-gray-400 hover:text-white p-3 -m-1 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-white/5 rounded-lg transition-colors active:scale-95"
             onClick={() => setIsSidebarOpen(true)}
           >
             <Menu size={24} />
@@ -248,39 +272,50 @@ const DashboardLayout = () => {
           <div className="flex-1 px-4 flex justify-end">
             {/* Placeholder for global search or notifications */}
             <div className="flex items-center gap-4">
-              <Link
-                to="/dashboard/settings"
-                className="h-8 w-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <Settings size={16} />
-              </Link>
+              {/* Hide settings button when already on settings page */}
+              {location.pathname !== '/dashboard/settings' && (
+                <Link
+                  to="/dashboard/settings"
+                  aria-label="Settings"
+                  className="h-8 w-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <Settings size={16} aria-hidden="true" />
+                </Link>
+              )}
             </div>
           </div>
         </header>
 
         {/* Scrollable Content Area */}
         <main id="main-content" className="flex-1 overflow-y-auto p-4 lg:p-8">
-          <PullToRefresh onRefresh={() => window.location.reload()}>
-            <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
+          <LazyPullToRefresh onRefresh={() => window.location.reload()}>
+            <div className="max-w-6xl mx-auto min-h-[calc(100vh-8rem)] animate-fade-in">
               <Outlet />
             </div>
-          </PullToRefresh>
+          </LazyPullToRefresh>
         </main>
       </div>
 
-
       {/* Global Modals */}
-      <CreateLinkModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={handleLinkCreated}
-      />
+      {isCreateModalOpen && (
+        <Suspense fallback={null}>
+          <CreateLinkModal
+            isOpen={isCreateModalOpen}
+            onClose={() => setIsCreateModalOpen(false)}
+            onSuccess={handleLinkCreated}
+          />
+        </Suspense>
+      )}
 
-      <LinkSuccessModal
-        isOpen={!!createdLink}
-        onClose={() => setCreatedLink(null)}
-        linkData={createdLink}
-      />
+      {createdLink && (
+        <Suspense fallback={null}>
+          <LinkSuccessModal
+            isOpen={!!createdLink}
+            onClose={() => setCreatedLink(null)}
+            linkData={createdLink}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

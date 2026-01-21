@@ -1,7 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, UserPlus, Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle, Check } from 'lucide-react';
-import showToast from '../ui/Toast';
+import { createPortal } from 'react-dom';
+import {
+  X,
+  UserPlus,
+  Loader2,
+  Save,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  CheckCircle,
+  Check,
+} from 'lucide-react';
+import showToast from '../../utils/toastUtils';
 import api from '../../api/axios';
+import useScrollLock from '../../hooks/useScrollLock';
 
 const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
   const [loading, setLoading] = useState(false);
@@ -16,9 +28,12 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
     lastName: '',
     phone: '',
     company: '',
-    website: ''
+    website: '',
   });
   const [showPassword, setShowPassword] = useState(false);
+
+  // Lock background scroll
+  useScrollLock(isOpen);
 
   const handleClose = useCallback(() => {
     setForm({
@@ -31,13 +46,12 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
       lastName: '',
       phone: '',
       company: '',
-      website: ''
+      website: '',
     });
     setShowPassword(false);
     setUsernameStatus('idle');
     onClose();
   }, [onClose]);
-
 
   // Debounced username availability check
   useEffect(() => {
@@ -57,7 +71,9 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
     const timeoutId = setTimeout(async () => {
       try {
         const { data } = await api.get(`/auth/check-username/${form.username}`);
-        setUsernameStatus(data.available ? 'available' : (data.reason === 'reserved' ? 'reserved' : 'taken'));
+        setUsernameStatus(
+          data.available ? 'available' : data.reason === 'reserved' ? 'reserved' : 'taken'
+        );
       } catch {
         setUsernameStatus('idle');
       }
@@ -93,22 +109,22 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
       return;
     }
     if (form.username && (form.username.length < 3 || form.username.length > 30)) {
-       showToast.warning('Username must be 3-30 characters');
-       return;
+      showToast.warning('Username must be 3-30 characters');
+      return;
     }
     if (form.username && (usernameStatus === 'taken' || usernameStatus === 'reserved')) {
-       showToast.warning('This username is not available');
-       return;
+      showToast.warning('This username is not available');
+      return;
     }
 
     setLoading(true);
     try {
       // Clean payload: replace empty strings with undefined
       const payload = { ...form };
-      Object.keys(payload).forEach(key => {
+      Object.keys(payload).forEach((key) => {
         if (payload[key] === '') payload[key] = undefined;
       });
-      
+
       await api.post('/admin/users', payload);
       showToast.success('User created successfully');
       onUserCreated();
@@ -123,7 +139,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
         lastName: '',
         phone: '',
         company: '',
-        website: ''
+        website: '',
       });
     } catch {
       showToast.error('Failed to create user');
@@ -132,36 +148,55 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleClose} />
-      <div className="relative w-full max-w-2xl bg-gray-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] overscroll-contain">
+  return createPortal(
+    <div
+      data-modal-content
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+    >
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
+        onClick={handleClose}
+      />
+      <div
+        data-modal-content
+        className="relative w-full max-w-2xl bg-gray-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] animate-scale-in"
+      >
         {/* Header */}
         <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <UserPlus className="text-blue-400" size={24} />
             Create New User
           </h2>
-          <button onClick={handleClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-white">
-            <X size={20} />
+          <button
+            onClick={handleClose}
+            aria-label="Close modal"
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-white"
+          >
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
 
         {/* Form Body - Scrollable */}
-        <div className="p-6 overflow-y-auto custom-scrollbar">
+        <div className="p-6 overflow-y-auto custom-scrollbar overscroll-contain">
           <form id="create-user-form" onSubmit={handleSubmit} className="space-y-6">
             {/* Account Info */}
             <div>
-              <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">Account Information</h3>
+              <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
+                Account Information
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Email Address *</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Email Address *
+                  </label>
                   <input
                     type="email"
                     required
                     className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500/50 focus:outline-none"
                     value={form.email}
-                    onChange={e => setForm({ ...form, email: e.target.value })}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
                   />
                 </div>
                 <div>
@@ -171,28 +206,52 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                       type="text"
                       placeholder="Auto-generated if empty"
                       className={`w-full bg-gray-800 border rounded-xl px-4 py-2.5 pr-10 text-white placeholder-gray-500 focus:border-blue-500/50 focus:outline-none ${
-                        usernameStatus === 'available' ? 'border-green-500/50' :
-                        usernameStatus === 'taken' || usernameStatus === 'reserved' || usernameStatus === 'invalid' ? 'border-red-500/50' :
-                        'border-white/10'
+                        usernameStatus === 'available'
+                          ? 'border-green-500/50'
+                          : usernameStatus === 'taken' ||
+                              usernameStatus === 'reserved' ||
+                              usernameStatus === 'invalid'
+                            ? 'border-red-500/50'
+                            : 'border-white/10'
                       }`}
                       value={form.username}
-                      onChange={e => setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          username: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''),
+                        })
+                      }
                     />
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                      {usernameStatus === 'checking' && <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />}
-                      {usernameStatus === 'available' && <Check className="w-4 h-4 text-green-500" />}
-                      {(usernameStatus === 'taken' || usernameStatus === 'reserved' || usernameStatus === 'invalid') && <X className="w-4 h-4 text-red-500" />}
+                      {usernameStatus === 'checking' && (
+                        <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                      )}
+                      {usernameStatus === 'available' && (
+                        <Check className="w-4 h-4 text-green-500" />
+                      )}
+                      {(usernameStatus === 'taken' ||
+                        usernameStatus === 'reserved' ||
+                        usernameStatus === 'invalid') && <X className="w-4 h-4 text-red-500" />}
                     </div>
                   </div>
-                  <p className={`mt-1 text-xs ${
-                    usernameStatus === 'available' ? 'text-green-500' :
-                    usernameStatus === 'taken' || usernameStatus === 'reserved' ? 'text-red-500' : 'text-gray-500'
-                  }`}>
-                    {usernameStatus === 'available' ? 'Available!' :
-                     usernameStatus === 'taken' ? 'Already taken' :
-                     usernameStatus === 'reserved' ? 'Not available' :
-                     usernameStatus === 'invalid' ? 'Invalid format' :
-                     'Lowercase letters, numbers, underscores, dashes. Auto-generated if empty.'}
+                  <p
+                    className={`mt-1 text-xs ${
+                      usernameStatus === 'available'
+                        ? 'text-green-500'
+                        : usernameStatus === 'taken' || usernameStatus === 'reserved'
+                          ? 'text-red-500'
+                          : 'text-gray-500'
+                    }`}
+                  >
+                    {usernameStatus === 'available'
+                      ? 'Available!'
+                      : usernameStatus === 'taken'
+                        ? 'Already taken'
+                        : usernameStatus === 'reserved'
+                          ? 'Not available'
+                          : usernameStatus === 'invalid'
+                            ? 'Invalid format'
+                            : 'Lowercase letters, numbers, underscores, dashes. Auto-generated if empty.'}
                   </p>
                 </div>
                 <div>
@@ -200,7 +259,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                   <select
                     className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500/50 focus:outline-none"
                     value={form.role}
-                    onChange={e => setForm({ ...form, role: e.target.value })}
+                    onChange={(e) => setForm({ ...form, role: e.target.value })}
                   >
                     <option value="user">User</option>
                     <option value="admin">Admin</option>
@@ -219,7 +278,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                       required
                       className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 pr-10 text-white focus:border-blue-500/50 focus:outline-none"
                       value={form.password}
-                      onChange={e => setForm({ ...form, password: e.target.value })}
+                      onChange={(e) => setForm({ ...form, password: e.target.value })}
                     />
                     <button
                       type="button"
@@ -231,13 +290,15 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Confirm Password *</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Confirm Password *
+                  </label>
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
                     className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500/50 focus:outline-none"
                     value={form.confirmPassword}
-                    onChange={e => setForm({ ...form, confirmPassword: e.target.value })}
+                    onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
                   />
                 </div>
               </div>
@@ -245,7 +306,9 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
 
             {/* Personal Info */}
             <div>
-              <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4 border-t border-white/5 pt-6">Personal Details</h3>
+              <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4 border-t border-white/5 pt-6">
+                Personal Details
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">First Name</label>
@@ -253,7 +316,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                     type="text"
                     className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500/50 focus:outline-none"
                     value={form.firstName}
-                    onChange={e => setForm({ ...form, firstName: e.target.value })}
+                    onChange={(e) => setForm({ ...form, firstName: e.target.value })}
                   />
                 </div>
                 <div>
@@ -262,7 +325,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                     type="text"
                     className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500/50 focus:outline-none"
                     value={form.lastName}
-                    onChange={e => setForm({ ...form, lastName: e.target.value })}
+                    onChange={(e) => setForm({ ...form, lastName: e.target.value })}
                   />
                 </div>
                 <div>
@@ -271,7 +334,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                     type="text"
                     className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500/50 focus:outline-none"
                     value={form.phone}
-                    onChange={e => setForm({ ...form, phone: e.target.value })}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
                   />
                 </div>
                 <div>
@@ -280,7 +343,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                     type="text"
                     className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500/50 focus:outline-none"
                     value={form.company}
-                    onChange={e => setForm({ ...form, company: e.target.value })}
+                    onChange={(e) => setForm({ ...form, company: e.target.value })}
                   />
                 </div>
               </div>
@@ -315,7 +378,8 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

@@ -23,6 +23,9 @@ out/
 coverage/
 *.lcov
 
+# Normal log or Notes in Text files
+*.txt
+
 # Logs
 logs/
 *.log
@@ -84,9 +87,13 @@ pnpm-lock.yaml
 # Uncomment if you want to track these in git
 DOCs/
 feature-list/
+feature-docs/
 plans/
 fix-needed/
 My-VM-Automation/
+Notes/
+testing/
+study/
 
 # Utility scripts (may contain local paths or dev-only utilities)
 server/scripts/

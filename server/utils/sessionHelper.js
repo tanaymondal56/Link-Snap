@@ -84,12 +84,19 @@ export const createSession = async (userId, req) => {
   const ipAddress = getClientIP(req);
   
   // Check session limit
-  const sessionCount = await Session.countUserSessions(userId);
+  // Check session limit
+  const sessionCount = await Session.countDocuments({ userId }); // Use fast count
   if (sessionCount >= MAX_SESSIONS_PER_USER) {
-    // Remove oldest session
-    const oldestSession = await Session.getOldestSession(userId);
+    // Efficiently find and delete the oldest session in one go if possible, 
+    // or minimally find specific ID then delete.
+    // Mongoose doesn't have a direct "delete oldest" one-liner that is standard across versions without loaded doc,
+    // so we'll fetch the ID of the oldest and delete it.
+    const oldestSession = await Session.findOne({ userId })
+      .sort({ lastActiveAt: 1 })
+      .select('_id');
+      
     if (oldestSession) {
-      await oldestSession.deleteOne();
+      await Session.deleteOne({ _id: oldestSession._id });
       logger.info(`[Session] Removed oldest session for user ${userId} (limit reached)`);
     }
   }

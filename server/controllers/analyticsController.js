@@ -1,25 +1,35 @@
 import Analytics from '../models/Analytics.js';
 import Url from '../models/Url.js';
-
+import logger from '../utils/logger.js';
 import { TIERS, getEffectiveTier } from '../services/subscriptionService.js';
 
 export const getUrlAnalytics = async (req, res) => {
     const { shortId } = req.params;
     const userId = req.user._id;
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'master_admin';
 
     try {
-        // 1. Verify ownership of the URL
-        const url = await Url.findOne({
-            $or: [{ shortId }, { customAlias: shortId }],
-            createdBy: userId
-        });
+        // 1. Find the URL - Admins can view any link, regular users only their own
+        let url;
+        if (isAdmin) {
+            // Admins can view any link's analytics
+            url = await Url.findOne({
+                $or: [{ shortId }, { customAlias: shortId }]
+            }).populate('createdBy', 'email username');
+        } else {
+            // Regular users can only view their own links
+            url = await Url.findOne({
+                $or: [{ shortId }, { customAlias: shortId }],
+                createdBy: userId
+            });
+        }
 
         if (!url) {
             return res.status(404).json({ message: 'URL not found or unauthorized' });
         }
 
-        // 2. Determine Retention Period based on Tier
-        const tier = getEffectiveTier(req.user);
+        // 2. Determine Retention Period based on Tier (for admins, show all history)
+        const tier = isAdmin ? 'business' : getEffectiveTier(req.user);
         const retentionDays = TIERS[tier]?.analyticsRetention || TIERS.free.analyticsRetention;
         
         const retentionDate = new Date();
@@ -91,7 +101,7 @@ export const getUrlAnalytics = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Get Analytics Error:', error);
+        logger.error('[Analytics] Get Analytics Error:', error);
         res.status(500).json({ message: 'Server Error' });
     }
 };

@@ -115,9 +115,7 @@ export const getPublicProfile = async (req, res) => {
     // This covers: cancelled, expired, past_due, paused, manual downgrade (tier=free), etc.
     const isExpired = hadSubscription && !isPro;
 
-    console.log(`[Bio Debug] User: ${username} | Tier: ${subTier} | Status: ${subStatus} | isPro: ${isPro} | isExpired: ${isExpired} | LinksURL: ${pinnedLinks[0]?.originalUrl ? 'Visible' : 'Hidden'}`);
-    
-
+    logger.debug(`[Bio] User: ${username} | Tier: ${subTier} | Status: ${subStatus} | isPro: ${isPro} | isExpired: ${isExpired}`);
     
     // Build response with only public fields
     res.json({

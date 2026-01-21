@@ -31,17 +31,17 @@ const escapeHtml = (unsafe) => {
 // Get app URL - uses CLIENT_URL env var (required in production)
 // In development, falls back to localhost:3000 (Vite proxy) or localhost:5000 (direct API)
 const getAppUrl = () => {
+    let url = 'http://localhost:3000';
+    
     if (process.env.CLIENT_URL) {
-        return process.env.CLIENT_URL;
-    }
-    // Development fallback - port 3000 is Vite dev server with proxy
-    // Port 5000 is when running production build locally
-    if (process.env.NODE_ENV === 'production') {
-        // In production without CLIENT_URL, warn and use relative path
+        url = process.env.CLIENT_URL;
+    } else if (process.env.NODE_ENV === 'production') {
         console.warn('WARNING: CLIENT_URL not set in production. Email links may not work correctly.');
-        return '';  // Will produce relative URLs
+        url = '';
     }
-    return 'http://localhost:3000';
+    
+    // Ensure no trailing slash
+    return url.endsWith('/') ? url.slice(0, -1) : url;
 };
 
 // Base template wrapper

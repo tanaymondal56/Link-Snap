@@ -102,5 +102,7 @@ subscriptionAuditLogSchema.index({ userId: 1, createdAt: -1 });
 subscriptionAuditLogSchema.index({ 'performedBy.adminId': 1, createdAt: -1 });
 subscriptionAuditLogSchema.index({ action: 1, createdAt: -1 });
 subscriptionAuditLogSchema.index({ source: 1, createdAt: -1 });
+subscriptionAuditLogSchema.index({ createdAt: -1 }); // General sorting index
+subscriptionAuditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 730 * 24 * 60 * 60 }); // Retention: 2 years
 
 export default mongoose.model('SubscriptionAuditLog', subscriptionAuditLogSchema);

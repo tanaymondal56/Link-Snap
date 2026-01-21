@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { 
   Search, 
   Filter, 
@@ -24,19 +24,22 @@ import {
 import GlassTable from '../../components/admin-console/ui/GlassTable';
 import api from '../../api/axios';
 import { formatDate } from '../../utils/dateUtils';
-import BanUserModal from '../../components/BanUserModal';
-import UnbanUserModal from '../../components/UnbanUserModal';
+const BanUserModal = lazy(() => import('../../components/BanUserModal'));
+const UnbanUserModal = lazy(() => import('../../components/UnbanUserModal'));
 import { useConfirm } from '../../context/ConfirmContext';
-import showToast from '../../components/ui/Toast';
+import showToast from '../../utils/toastUtils';
 
-import CreateUserModal from '../../components/admin-console/CreateUserModal';
-import ManageSubscriptionModal from '../../components/admin-console/ManageSubscriptionModal';
-import UserDetailsModal from '../../components/admin-console/UserDetailsModal';
+const CreateUserModal = lazy(() => import('../../components/admin-console/CreateUserModal'));
+const ManageSubscriptionModal = lazy(() => import('../../components/admin-console/ManageSubscriptionModal'));
+const UserDetailsModal = lazy(() => import('../../components/admin-console/UserDetailsModal'));
 
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import IdBadge from '../../components/ui/IdBadge';
 
+import { useAuth } from '../../context/AuthContext';
+
 const AdminUsers = () => {
+  const { isAuthChecking } = useAuth();
   const confirm = useConfirm();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -98,8 +101,11 @@ const AdminUsers = () => {
   }, [page, debouncedSearch, filterRole]);
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    // Wait for auth check to complete (ensure token is ready)
+    if (!isAuthChecking) {
+      fetchUsers();
+    }
+  }, [fetchUsers, isAuthChecking]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -652,34 +658,54 @@ const AdminUsers = () => {
       )}
 
       {/* Modals */}
-      <BanUserModal 
-        isOpen={!!banModalUser}
-        onClose={() => setBanModalUser(null)}
-        onConfirm={handleBanUser}
-        user={banModalUser}
-      />
-      <UnbanUserModal 
-        isOpen={!!unbanModalUser}
-        onClose={() => setUnbanModalUser(null)}
-        onConfirm={handleUnbanUser}
-        user={unbanModalUser}
-      />
-      <CreateUserModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onUserCreated={fetchUsers}
-      />
-      <UserDetailsModal
-        isOpen={!!detailsUser}
-        onClose={() => setDetailsUser(null)}
-        user={detailsUser}
-      />
-      <ManageSubscriptionModal 
-        isOpen={!!manageSubUser}
-        onClose={() => setManageSubUser(null)}
-        user={manageSubUser}
-        onUpdate={handleUserUpdate}
-      />
+      {banModalUser && (
+        <Suspense fallback={null}>
+          <BanUserModal 
+            isOpen={!!banModalUser}
+            onClose={() => setBanModalUser(null)}
+            onConfirm={handleBanUser}
+            user={banModalUser}
+          />
+        </Suspense>
+      )}
+      {unbanModalUser && (
+        <Suspense fallback={null}>
+          <UnbanUserModal 
+            isOpen={!!unbanModalUser}
+            onClose={() => setUnbanModalUser(null)}
+            onConfirm={handleUnbanUser}
+            user={unbanModalUser}
+          />
+        </Suspense>
+      )}
+      {showCreateModal && (
+        <Suspense fallback={null}>
+          <CreateUserModal
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            onUserCreated={fetchUsers}
+          />
+        </Suspense>
+      )}
+      {detailsUser && (
+        <Suspense fallback={null}>
+          <UserDetailsModal
+            isOpen={!!detailsUser}
+            onClose={() => setDetailsUser(null)}
+            user={detailsUser}
+          />
+        </Suspense>
+      )}
+      {manageSubUser && (
+        <Suspense fallback={null}>
+          <ManageSubscriptionModal 
+            isOpen={!!manageSubUser}
+            onClose={() => setManageSubUser(null)}
+            user={manageSubUser}
+            onUpdate={handleUserUpdate}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

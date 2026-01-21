@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { z } from 'zod';
 import validator from 'validator';
 import { syncVersionOnPublish } from '../utils/versionSync.js';
+import logger from '../utils/logger.js';
 
 // Helper to validate ObjectId
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
@@ -231,7 +232,7 @@ export const createChangelog = async (req, res, next) => {
         // Auto-sync version if created as published
         if (changelog.isPublished) {
             syncVersionOnPublish(changelog.version).catch(err => {
-                console.error('[Changelog] Version sync failed:', err.message);
+            logger.error('[Changelog] Version sync failed:', err.message);
             });
         }
 
@@ -323,7 +324,7 @@ export const updateChangelog = async (req, res, next) => {
         const becamePublished = changedFields.includes('isPublished') && changelog.isPublished;
         if (changelog.isPublished && (versionChanged || becamePublished)) {
             syncVersionOnPublish(changelog.version).catch(err => {
-                console.error('[Changelog] Version sync failed:', err.message);
+            logger.error('[Changelog] Version sync failed:', err.message);
             });
         }
 
@@ -449,7 +450,7 @@ export const togglePublish = async (req, res, next) => {
         // Auto-sync version across all config files when publishing
         if (changelog.isPublished) {
             syncVersionOnPublish(changelog.version).catch(err => {
-                console.error('[Changelog] Version sync failed:', err.message);
+            logger.error('[Changelog] Version sync failed:', err.message);
             });
         }
 
@@ -493,7 +494,7 @@ export const getPublicLatestVersion = async (req, res) => {
         });
     } catch (error) {
         // Don't expose internal errors - return a safe fallback
-        console.error('Error fetching public version:', error.message);
+        logger.error('[Changelog] Error fetching public version:', error.message);
         res.status(500).json({ 
             version: null,
             error: 'Unable to fetch version',

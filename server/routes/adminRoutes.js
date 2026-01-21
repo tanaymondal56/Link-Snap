@@ -22,9 +22,10 @@ import {
     updateFeedback,
     deleteFeedback,
     exportFeedbackCSV,
-    getUsernameHistory
+    getUsernameHistory,
+    triggerSafetyScan
 } from '../controllers/adminController.js';
-import { getAllLinks, updateLinkStatus, deleteLinkAdmin } from '../controllers/adminLinkController.js';
+import { getAllLinks, updateLinkStatus, deleteLinkAdmin, overrideLinkSafety, rescanLinkSafety } from '../controllers/adminLinkController.js';
 import { 
     generateRedeemCode, 
     listRedeemCodes, 
@@ -39,10 +40,25 @@ import {
     syncUserSubscription,
     deleteUserSubscription
 } from '../controllers/adminSubscriptionController.js';
+import {
+    getNotifications,
+    markAsRead,
+    markAllAsRead,
+    getUnreadCount,
+    createTestNotification
+} from '../controllers/notificationController.js';
 
 const router = express.Router();
 
-// Security: IP Whitelist -> Auth -> Admin Role
+// ===== LIGHTWEIGHT IP CHECK ENDPOINT (No Auth Required) =====
+// This endpoint ONLY checks IP whitelist status for frontend detection
+// Used by PublicLayout to show/hide admin link without causing 401 errors
+router.head('/ip-check', ipWhitelist, (req, res) => {
+  // If we reach here, IP is whitelisted (ipWhitelist would have returned 404 otherwise)
+  res.status(200).end();
+});
+
+// Security: IP Whitelist -> Auth -> Admin Role (for all other routes)
 router.use(ipWhitelist, verifyToken, verifyAdmin);
 
 // Stats
@@ -61,6 +77,8 @@ router.get('/users/:userId/username-history', getUsernameHistory);
 // Link Management
 router.get('/links', getAllLinks);
 router.patch('/links/:linkId/status', updateLinkStatus);
+router.patch('/links/:linkId/safety', overrideLinkSafety);  // Safety override
+router.post('/links/:linkId/rescan', rescanLinkSafety);     // Re-scan single link
 router.delete('/links/:linkId', deleteLinkAdmin);
 
 // Settings
@@ -68,6 +86,7 @@ router.get('/settings', getSettings);
 router.put('/settings', updateSettings);
 router.patch('/settings', updateSettings);  // Support partial updates
 router.post('/settings/test-email', testEmailConfiguration);
+router.post('/settings/scan', triggerSafetyScan);
 
 // Cache
 router.post('/cache/clear', clearUrlCache);
@@ -96,5 +115,12 @@ router.get('/subscriptions/audit-logs', getAuditLogs);
 router.patch('/users/:userId/subscription', overrideUserSubscription);
 router.post('/users/:userId/subscription/sync', syncUserSubscription);
 router.delete('/users/:userId/subscription', deleteUserSubscription);
+
+// Notifications
+router.get('/notifications', getNotifications);
+router.get('/notifications/count', getUnreadCount);
+router.patch('/notifications/read', markAsRead);
+router.patch('/notifications/read-all', markAllAsRead);
+router.post('/notifications/test', createTestNotification);
 
 export default router;

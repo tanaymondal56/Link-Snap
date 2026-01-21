@@ -1,4 +1,6 @@
 import rateLimit from 'express-rate-limit';
+import { getEffectiveTier } from '../services/subscriptionService.js';
+import { getAnonFingerprint } from '../utils/fingerprint.js';
 
 // IPs that bypass rate limiting
 // Add your trusted IPs to .env under RATE_LIMIT_WHITELIST_IPS
@@ -55,14 +57,71 @@ export const refreshLimiter = rateLimit({
     skip: (req) => isWhitelisted(req.ip),
 });
 
-export const createLinkLimiter = rateLimit({
+// Tiered rate limiting uses getEffectiveTier and getAnonFingerprint (imported at top)
+
+// Tiered Rate Limiters (Internal)
+const anonCreateLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
-    max: 50, // Limit each IP to 50 link creations per hour
-    handler: (req, res) => {
-        res.status(429).json({ message: 'You have created too many links recently. Please try again later.' });
-    },
-    skip: (req) => isWhitelisted(req.ip),
+    max: 5,
+    keyGenerator: (req) => `anon:${getAnonFingerprint(req)}`,
+    handler: (req, res) => res.status(429).json({
+        type: 'rate_limit',
+        message: 'Anonymous limit reached. Sign up for more!',
+        retryAfter: 3600
+    }),
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: { keyGeneratorIpFallback: false },
 });
+
+const freeCreateLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 10,
+    keyGenerator: (req) => `user:${req.user?._id || req.ip}`,
+    handler: (req, res) => res.status(429).json({
+        type: 'rate_limit',
+        message: 'Free limit reached (10/hour). Upgrade for more!',
+        retryAfter: 3600
+    }),
+    validate: { keyGeneratorIpFallback: false }, // Suppress IPv6 validation - we use userId when available, IP only as fallback
+});
+
+const proCreateLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 50,
+    keyGenerator: (req) => `user:${req.user?._id}`,
+    handler: (req, res) => res.status(429).json({
+        type: 'rate_limit',
+        message: 'Hourly creation limit reached (50/hour).',
+        retryAfter: 3600
+    }),
+});
+
+const businessCreateLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5000, // Increased to 5000/hour (approx 1.4/sec sustained) for bulk operations
+    keyGenerator: (req) => `user:${req.user?._id}`,
+    handler: (req, res) => res.status(429).json({ message: 'Hourly API limit reached (5000/hour).' }),
+});
+
+// Smart Limiter Wrapper
+export const createLinkLimiter = (req, res, next) => {
+    // If not logged in, use Anon limiter
+    if (!req.user) {
+        return anonCreateLimiter(req, res, next);
+    }
+
+    // Dispatch based on Tier
+    const tier = getEffectiveTier(req.user);
+    switch (tier) {
+        case 'business':
+            return businessCreateLimiter(req, res, next);
+        case 'pro':
+            return proCreateLimiter(req, res, next);
+        default:
+            return freeCreateLimiter(req, res, next);
+    }
+};
 
 // Redirect rate limiter - generous but protects against abuse
 export const redirectLimiter = rateLimit({

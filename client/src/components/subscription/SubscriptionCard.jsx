@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { CreditCard, Zap, BarChart3, CheckCircle, RefreshCw, Gift, Loader2, AlertTriangle, ArrowRight, X } from 'lucide-react';
+import { CreditCard, Zap, BarChart3, CheckCircle, RefreshCw, Gift, Loader2, AlertTriangle, ArrowRight, X, HelpCircle } from 'lucide-react';
 import { formatDate } from '../../utils/dateUtils';
-import showToast from '../ui/Toast';
+import showToast from '../../utils/toastUtils';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import api from '../../api/axios';
+import BadgeTooltip from '../ui/BadgeTooltip';
 
 const SubscriptionCard = ({ profile, onRefresh }) => {
   const navigate = useNavigate();
@@ -326,71 +327,82 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
             </div>
         </div>
         
-        {/* Usage Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Link Usage */}
-                <div className="glass-dark rounded-2xl border border-gray-700/50 p-6">
+        {/* Usage Stats - Matches Overview Page */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {/* Links Created */}
+            <div className="glass-dark rounded-2xl border border-gray-700/50 p-6">
                 <div className="flex justify-between items-center mb-4">
                     <h4 className="font-medium text-white flex items-center gap-2">
                         <Zap size={18} className="text-blue-400" />
                         Links Created
+                        <BadgeTooltip content="Links currently active in your account. Delete links to free up space.">
+                            <HelpCircle size={18} className="text-blue-400 hover:text-blue-300 transition-colors" />
+                        </BadgeTooltip>
                     </h4>
-                    <span className="text-xs text-gray-400">Resets {profile?.linkUsage?.resetAt ? formatDate(profile.linkUsage.resetAt) : 'monthly'}</span>
                 </div>
                 {(() => {
                     const tier = profile?.subscription?.tier || 'free';
-                    const limit = tier === 'free' ? 25 : (tier === 'pro' ? 500 : 99999);
+                    const limit = tier === 'free' ? 25 : (tier === 'pro' ? 500 : 10000);
                     const count = profile?.linkUsage?.count || 0;
-                    const percent = Math.min((count / limit) * 100, 100);
+                    const percent = tier === 'business' ? 5 : Math.min((count / limit) * 100, 100);
                     
                     return (
                         <div>
                             <div className="flex justify-between text-sm mb-2">
                                 <span className="text-white font-bold">{count}</span>
-                                <span className="text-gray-400">/ {tier === 'business' ? 'Unlimited' : limit}</span>
+                                <span className="text-gray-400">/ {tier === 'business' ? '∞' : limit.toLocaleString()}</span>
                             </div>
                             <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
                                 <div 
-                                    className={`h-full rounded-full ${percent > 90 ? 'bg-red-500' : 'bg-blue-500'}`} 
+                                    className={`h-full rounded-full transition-all ${percent >= 80 ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-blue-500 to-purple-500'}`} 
                                     style={{ width: `${percent}%` }}
                                 ></div>
                             </div>
                         </div>
                     );
                 })()}
-                </div>
+            </div>
                 
-                {/* Click Usage */}
-                <div className="glass-dark rounded-2xl border border-gray-700/50 p-6">
+            {/* Monthly Created */}
+            <div className="glass-dark rounded-2xl border border-gray-700/50 p-6">
                 <div className="flex justify-between items-center mb-4">
                     <h4 className="font-medium text-white flex items-center gap-2">
-                        <BarChart3 size={18} className="text-green-400" />
-                        Monthly Clicks
+                        <BarChart3 size={18} className="text-purple-400" />
+                        Monthly Created
+                        <BadgeTooltip content="Total links created this month. Resets on the 1st of each month.">
+                            <HelpCircle size={18} className="text-purple-400 hover:text-purple-300 transition-colors" />
+                        </BadgeTooltip>
                     </h4>
-                        <span className="text-xs text-gray-400">Resets {profile?.clickUsage?.resetAt ? formatDate(profile.clickUsage.resetAt) : 'monthly'}</span>
+                    <span className="text-xs text-gray-400">
+                        Resets on {(() => {
+                            const now = new Date();
+                            const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                            return nextMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        })()}
+                    </span>
                 </div>
                 {(() => {
                     const tier = profile?.subscription?.tier || 'free';
-                    const limit = tier === 'free' ? 1000 : (tier === 'pro' ? 50000 : 250000);
-                    const count = profile?.clickUsage?.count || 0;
+                    const limit = tier === 'free' ? 100 : (tier === 'pro' ? 2000 : 10000);
+                    const count = profile?.linkUsage?.hardCount || 0;
                     const percent = Math.min((count / limit) * 100, 100);
                     
                     return (
                         <div>
                             <div className="flex justify-between text-sm mb-2">
                                 <span className="text-white font-bold">{count}</span>
-                                <span className="text-gray-400">/ {tier === 'business' ? 'Unlimited' : limit.toLocaleString()}</span>
+                                <span className="text-gray-400">/ {limit.toLocaleString()}</span>
                             </div>
                             <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                                    <div 
-                                    className={`h-full rounded-full ${percent > 90 ? 'bg-red-500' : 'bg-green-500'}`} 
+                                <div 
+                                    className={`h-full rounded-full transition-all ${percent >= 80 ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-indigo-500 to-purple-500'}`} 
                                     style={{ width: `${percent}%` }}
                                 ></div>
                             </div>
                         </div>
                     );
                 })()}
-                </div>
+            </div>
         </div>
         
         {/* Redeem Code Section */}

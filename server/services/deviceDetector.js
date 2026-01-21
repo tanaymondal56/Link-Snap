@@ -17,6 +17,9 @@ export const detectDevice = (userAgent) => {
         return { type: 'desktop', os: null, browser: null };
     }
 
+    // Security: Truncate to 500 chars to prevent ReDoS in ua-parser-js
+    userAgent = userAgent.substring(0, 500);
+
     const parser = new UAParser(userAgent);
     const device = parser.getDevice();
     const os = parser.getOS();

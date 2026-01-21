@@ -35,6 +35,7 @@ const IMPORTANT_VARS = [
   'LEMONSQUEEZY_WEBHOOK_SECRET',
   'LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID',
   'LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID',
+  'CLIENT_URL',
 ];
 
 // eslint-disable-next-line no-unused-vars -- Kept for reference/documentation
