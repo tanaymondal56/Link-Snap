@@ -11,18 +11,20 @@ import logger from '../utils/logger.js';
 // @access  Admin
 export const getAllLinks = async (req, res) => {
     try {
+        // Input validation - Whitelist approach (most secure)
+        const ALLOWED_STATUSES = ['all', 'active', 'disabled', 'expired'];
+        const ALLOWED_SAFETY_STATUSES = ['all', 'safe', 'malware', 'phishing', 'pending', 'unchecked', 'unwanted'];
+
         // Validate and sanitize input parameters
         const page = Math.max(1, parseInt(req.query.page) || 1);
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
         const search = String(req.query.search || '').trim().substring(0, 100); // Limit length
 
-        // Whitelist allowed status values
-        const ALLOWED_STATUSES = ['all', 'active', 'disabled', 'expired'];
-        const status = ALLOWED_STATUSES.includes(req.query.status) ? req.query.status : 'all';
+        // Validate status: only allow whitelisted values, default to 'all'
+        const status = ALLOWED_STATUSES.includes(String(req.query.status || '')) ? String(req.query.status) : 'all';
 
-        // Whitelist allowed safety values
-        const ALLOWED_SAFETY_STATUSES = ['all', 'safe', 'malware', 'phishing', 'pending', 'unchecked', 'unwanted'];
-        const safety = ALLOWED_SAFETY_STATUSES.includes(req.query.safety) ? req.query.safety : 'all';
+        // Validate safety: only allow whitelisted values, default to 'all'
+        const safety = ALLOWED_SAFETY_STATUSES.includes(String(req.query.safety || '')) ? String(req.query.safety) : 'all';
 
         const skip = (page - 1) * limit;
 
