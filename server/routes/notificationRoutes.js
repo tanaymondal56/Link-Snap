@@ -11,6 +11,9 @@ import {
 
 const router = express.Router();
 
+// Rate limiting must be applied before other middleware to protect all routes
+router.use(adminNotificationLimiter);
+
 // All routes require admin authentication
 router.use(protect);
 router.use(adminOnly);
