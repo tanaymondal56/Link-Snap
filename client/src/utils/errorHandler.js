@@ -1,4 +1,4 @@
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 
 /**
  * Smart error handler that provides clear messages for different error types

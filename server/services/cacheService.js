@@ -20,6 +20,16 @@ const urlCache = new LRUCache({
     updateAgeOnHas: false,
 });
 
+/**
+ * Subscription cache for owner feature checks (TBR, etc.)
+ * Renews daily to reflect subscription changes
+ */
+const subscriptionCache = new LRUCache({
+    max: 5000,                       // Max 5,000 users
+    ttl: 1000 * 60 * 60 * 24,        // 24 hour TTL (daily renewal)
+    updateAgeOnGet: false,           // Don't extend - force daily refresh
+});
+
 // Cache statistics for monitoring
 let stats = {
     hits: 0,
@@ -60,6 +70,11 @@ export const setInCache = (shortId, urlData) => {
         expiresAt: urlData.expiresAt || null,
         // Password protection (redirect controller needs this)
         isPasswordProtected: urlData.isPasswordProtected || false,
+        // Title for password page
+        title: urlData.title || null,
+        // Time-Based Redirects (Pro/Business feature)
+        activeStartTime: urlData.activeStartTime || null,
+        timeRedirects: urlData.timeRedirects || null,
     });
 };
 
@@ -111,7 +126,39 @@ export const getCacheStats = () => {
         hitRate: total > 0 ? ((stats.hits / total) * 100).toFixed(2) + '%' : '0%',
         size: urlCache.size,
         maxSize: urlCache.max,
+        subscriptionCacheSize: subscriptionCache.size,
     };
+};
+
+// ============= Subscription Cache Functions =============
+
+/**
+ * Get cached subscription data for a user
+ * @param {string} userId - User ID
+ * @returns {object|null} - Cached subscription data or null
+ */
+export const getSubscriptionCache = (userId) => {
+    return subscriptionCache.get(userId) || null;
+};
+
+/**
+ * Cache subscription data for a user (24h TTL)
+ * @param {string} userId - User ID
+ * @param {object} subData - Subscription and role data
+ */
+export const setSubscriptionCache = (userId, subData) => {
+    subscriptionCache.set(userId, {
+        subscription: subData.subscription || null,
+        role: subData.role || 'user',
+    });
+};
+
+/**
+ * Invalidate subscription cache (call on subscription change)
+ * @param {string} userId - User ID
+ */
+export const invalidateSubscriptionCache = (userId) => {
+    subscriptionCache.delete(userId);
 };
 
 export default {
@@ -121,4 +168,7 @@ export default {
     invalidateMultiple,
     clear: clearCache,
     stats: getCacheStats,
+    getSubscription: getSubscriptionCache,
+    setSubscription: setSubscriptionCache,
+    invalidateSubscription: invalidateSubscriptionCache,
 };

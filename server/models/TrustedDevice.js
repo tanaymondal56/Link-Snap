@@ -12,8 +12,7 @@ const trustedDeviceSchema = new mongoose.Schema({
   // WebAuthn credentials
   credentialId: {
     type: Buffer,
-    required: true,
-    unique: true
+    required: true
   },
   publicKey: {
     type: Buffer,
@@ -90,6 +89,14 @@ const trustedDeviceSchema = new mongoose.Schema({
 // Indexes
 trustedDeviceSchema.index({ userId: 1, isActive: 1 });
 trustedDeviceSchema.index({ credentialId: 1 }, { unique: true });
+// Retention: Delete revoked devices 90 days after revocation
+trustedDeviceSchema.index(
+    { revokedAt: 1 }, 
+    { 
+        expireAfterSeconds: 90 * 24 * 60 * 60, 
+        partialFilterExpression: { revokedAt: { $type: "date" } } 
+    }
+);
 
 // Instance method to update last access
 trustedDeviceSchema.methods.updateLastAccess = async function(ip, geo = {}) {

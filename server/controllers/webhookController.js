@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import WebhookEvent from '../models/WebhookEvent.js';
 import SubscriptionAuditLog from '../models/SubscriptionAuditLog.js';
 import logger from '../utils/logger.js';
+import NotificationService from '../services/notificationService.js';
 
 // Verify the signature from Lemon Squeezy
 // Docs: https://docs.lemonsqueezy.com/guides/developer-guide/webhooks#signing-requests
@@ -69,50 +70,121 @@ export const handleWebhook = async (req, res) => {
     
     logger.info(`[Webhook] Received ${eventName} for User ${snapId || userId}`);
 
-    // 2. Idempotency Check
-    const webhookId = req.headers['x-event-id'] || meta.id;
+    // Extract and sanitize webhookId to prevent NoSQL injection
+    const rawWebhookId = req.headers['x-event-id'] || meta.id;
+    const webhookId = (typeof rawWebhookId === 'string' && rawWebhookId.length <= 100) 
+      ? String(rawWebhookId).trim() 
+      : null;
     
-    // Only skip if we have successfully processed this event before
-    const existingEvent = await WebhookEvent.findOne({ 
-      remoteId: webhookId,
-      status: 'processed' 
-    });
-    
-    if (existingEvent) {
-      logger.info(`[Webhook] Duplicate event ${webhookId} already processed.`);
-      return res.status(200).json({ message: 'Event already processed' });
+    if (!webhookId) {
+      logger.warn('[Webhook] Invalid or missing webhook ID');
+      return res.status(400).json({ message: 'Invalid webhook ID' });
     }
 
-    // 3. Find User
-    let user = null;
-    const isSnapId = (id) => typeof id === 'string' && id.startsWith('SP-');
+    // 2. Atomic Idempotency Check (Race-condition safe for Cosmos DB & MongoDB)
+    // Uses findOneAndUpdate with upsert to atomically claim the event.
+    // If the event already exists, we get the existing doc (wasFirstClaim = false).
+    // If we created it, we get our new doc (wasFirstClaim = true).
+    try {
+      const claimResult = await WebhookEvent.findOneAndUpdate(
+        { remoteId: webhookId },
+        {
+          $setOnInsert: {
+            remoteId: webhookId,
+            eventType: eventName,
+            snapId: customData.snap_id || customData.user_id || 'PENDING',
+            payload: req.body,
+            status: 'pending', // Will be updated to 'processed' after success
+            signature: req.headers['x-signature']
+          }
+        },
+        { 
+          upsert: true,           // Create if doesn't exist
+          new: false,             // Return the OLD document (null if we created)
+          rawResult: true         // Get full result with upsertedId for Cosmos DB
+        }
+      );
 
-    if (snapId) {
-       user = await User.findOne({ snapId });
+      // Check if this was a new insert (we claimed the event) or existing
+      const wasAlreadyProcessed = claimResult.value && claimResult.value.status === 'processed';
+      const wasCreatedByUs = claimResult.lastErrorObject?.upserted || !claimResult.value;
+      
+      if (wasAlreadyProcessed) {
+        logger.info(`[Webhook] Duplicate event ${webhookId} already processed.`);
+        return res.status(200).json({ message: 'Event already processed' });
+      }
+      
+      if (!wasCreatedByUs && claimResult.value?.status === 'pending') {
+        // Another request is currently processing this event
+        logger.info(`[Webhook] Event ${webhookId} is being processed by another request.`);
+        return res.status(200).json({ message: 'Event is being processed' });
+      }
+      
+      // We successfully claimed this event - proceed with processing
+      logger.info(`[Webhook] Claimed event ${webhookId} for processing.`);
+      
+    } catch (claimError) {
+      // On Cosmos DB, duplicate key error means another request won the race
+      if (claimError.code === 11000 || claimError.code === 16500) {
+        logger.info(`[Webhook] Race condition caught for ${webhookId} - another request is processing.`);
+        return res.status(200).json({ message: 'Event claimed by another request' });
+      }
+      throw claimError; // Re-throw unexpected errors
+    }
+
+    // 3. Find User (with input sanitization to prevent NoSQL injection)
+    let user = null;
+    
+    // Validate SnapID format: must be string starting with 'SP-' and alphanumeric
+    const isValidSnapId = (id) => {
+      if (typeof id !== 'string') return false;
+      if (!id.startsWith('SP-')) return false;
+      // Only allow alphanumeric and hyphens, max 50 chars
+      return /^SP-[A-Za-z0-9-]{1,47}$/.test(id);
+    };
+
+    if (snapId && isValidSnapId(snapId)) {
+       user = await User.findOne({ snapId: String(snapId) });
     } else if (userId) {
-       if (isSnapId(userId)) {
+       if (typeof userId === 'string' && isValidSnapId(userId)) {
           logger.info(`[Webhook] userId looks like SnapID: ${userId}. Searching by snapId.`);
-          user = await User.findOne({ snapId: userId });
-       } else if (mongoose.isValidObjectId(userId)) {
-          user = await User.findById(userId);
+          user = await User.findOne({ snapId: String(userId) });
+       } else if (typeof userId === 'string' && mongoose.isValidObjectId(userId)) {
+          // findById with explicit string conversion
+          user = await User.findById(String(userId));
        } else {
           logger.warn(`[Webhook] Invalid userId format: ${userId}. Skipping lookup to prevent crash.`);
        }
     } else if (data.attributes.user_email) {
-       user = await User.findOne({ email: data.attributes.user_email });
+       // Sanitize email to prevent NoSQL injection
+       // Only allow string values, strip any operators or objects
+       const rawEmail = data.attributes.user_email;
+       if (typeof rawEmail === 'string' && rawEmail.length <= 254) {
+         // Normalize email and ensure it's a plain string (no $ operators)
+         const sanitizedEmail = rawEmail.toLowerCase().trim();
+         if (/^[^\s@$]+@[^\s@$]+\.[^\s@$]+$/.test(sanitizedEmail)) {
+           user = await User.findOne({ email: sanitizedEmail });
+         } else {
+           logger.warn(`[Webhook] Invalid email format: ${rawEmail}. Skipping lookup.`);
+         }
+       } else {
+         logger.warn(`[Webhook] Invalid email type or length. Skipping lookup.`);
+       }
     }
 
     // If user not found, log fail-lookup but don't crash
     if (!user) {
         logger.error(`[Webhook] User not found for event ${eventName}. SnapID: ${snapId}`);
-        await WebhookEvent.create({
-            remoteId: webhookId,
-            eventType: eventName,
-            snapId: snapId || 'UNKNOWN',
-            payload: req.body,
-            status: 'failed',
-            error: 'User not found in database'
-        });
+        await WebhookEvent.updateOne(
+            { remoteId: webhookId },
+            { 
+              $set: { 
+                status: 'failed', 
+                error: 'User not found in database',
+                snapId: snapId || 'UNKNOWN'
+              } 
+            }
+        );
         return res.status(200).json({ message: 'User not found, event logged.' });
     }
 
@@ -170,12 +242,24 @@ export const handleWebhook = async (req, res) => {
         if (attributes.status === 'active' && user.subscription.status === 'on_trial') {
             user.hasUsedTrial = true;
         }
+
+        // Notify Admin: New Subscription
+        if (eventName === 'subscription_created') {
+            NotificationService.subscriptionCreated(user._id, user.email, tier).catch(err => {
+                 logger.error(`[Webhook] Failed to send sub created notification: ${err.message}`);
+            });
+        }
         break;
 
-      case 'subscription_cancelled':
+        case 'subscription_cancelled':
         user.subscription.status = attributes.status; // 'cancelled'
         user.subscription.cancelledAt = new Date(attributes.cancelled_at || Date.now());
         user.subscription.currentPeriodEnd = new Date(attributes.ends_at);
+
+        // Notify Admin: Subscription Cancelled
+        NotificationService.subscriptionCancelled(user._id, user.email, user.subscription.tier, 'User cancelled via portal').catch(err => {
+             logger.error(`[Webhook] Failed to send sub cancelled notification: ${err.message}`);
+        });
         break;
         
       case 'subscription_paused':
@@ -194,18 +278,20 @@ export const handleWebhook = async (req, res) => {
       case 'subscription_payment_failed':
          user.subscription.status = 'past_due';
          logger.warn(`[Webhook] Payment failed for ${user.snapId}. Grace period active.`);
+         
+         // Notify Admin: Payment Failed (Critical)
+         NotificationService.paymentFailed(user._id, user.email, 'Subscription', 'Payment declied/failed').catch(err => {
+              logger.error(`[Webhook] Failed to send payment failed notification: ${err.message}`);
+         });
          break;
 
       default:
         logger.info(`[Webhook] Unhandled event type: ${eventName}`);
         // Log event but don't save user as nothing was modified
-        await WebhookEvent.create({
-            remoteId: webhookId,
-            eventType: eventName,
-            snapId: user.snapId,
-            payload: req.body,
-            status: 'ignored'
-        });
+        await WebhookEvent.updateOne(
+            { remoteId: webhookId },
+            { $set: { status: 'ignored', snapId: user.snapId } }
+        );
         return res.status(200).json({ received: true, ignored: true });
     }
 
@@ -255,14 +341,11 @@ export const handleWebhook = async (req, res) => {
       logger.error(`[Webhook Audit Log Error] ${auditErr.message}`);
     }
     
-    // 5. Log Success
-    await WebhookEvent.create({
-        remoteId: webhookId,
-        eventType: eventName,
-        snapId: user.snapId,
-        payload: req.body,
-        status: 'processed'
-    });
+    // 5. Mark event as processed (update the pending claim)
+    await WebhookEvent.updateOne(
+        { remoteId: webhookId },
+        { $set: { status: 'processed', snapId: user.snapId } }
+    );
 
     res.status(200).json({ received: true });
 

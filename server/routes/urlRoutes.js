@@ -8,24 +8,9 @@ const router = express.Router();
 
 // Public/Private route (Controller handles user check)
 // We need a middleware that optionally attaches user but doesn't block
-import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
-
 // Public/Private route (Controller handles user check)
-// We need a middleware that optionally attaches user but doesn't block
-const optionalAuth = async (req, res, next) => {
-    // Reuse protect logic but don't error if no token
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-        try {
-            const token = req.headers.authorization.split(' ')[1];
-            const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-            req.user = await User.findById(decoded.id).select('-password');
-        } catch {
-            // Invalid token, treat as anonymous
-        }
-    }
-    next();
-};
+// Using shared middleware to check for token without blocking
+import { optionalAuth } from '../middleware/optionalAuth.js';
 
 router.post('/shorten', optionalAuth, createLinkLimiter, checkLinkLimit, createShortUrl);
 router.get('/my-links', protect, getMyLinks);

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { getTierConfig } from '../config/subscriptionTiers';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useConfirm } from '../context/ConfirmContext';
@@ -22,21 +23,33 @@ import {
   RefreshCw,
   Clock,
   Lock,
+  Smartphone,
+  Timer,
+  CalendarClock,
+  Target,
+  ShieldAlert,
+  List,
+  ChevronDown,
+  Info,
+  Eye,
+  Tablet,
+  Monitor,
 } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
 import { QRCodeSVG } from 'qrcode.react';
 import { getShortUrl } from '../utils/urlHelper';
-import CreateLinkModal from '../components/CreateLinkModal';
-import EditLinkModal from '../components/EditLinkModal';
+const CreateLinkModal = lazy(() => import('../components/CreateLinkModal'));
+const EditLinkModal = lazy(() => import('../components/EditLinkModal'));
 import LinkSuccessModal from '../components/LinkSuccessModal';
 import { cacheLinks, getCachedLinks, getCacheAge } from '../utils/offlineCache';
 import { useScrollLock } from '../hooks/useScrollLock';
+import BadgeTooltip from '../components/ui/BadgeTooltip';
 
 const UserDashboard = () => {
-  const { user } = useAuth();
+  const { user, isAuthChecking } = useAuth();
   const confirm = useConfirm();
   const [links, setLinks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,23 +64,33 @@ const UserDashboard = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [showAll, setShowAll] = useState(false);
+  const [totalLinks, setTotalLinks] = useState(0);
+  const [expandedLinkId, setExpandedLinkId] = useState(null);
 
   // Scroll Lock for QR Modal
   useScrollLock(!!qrModalLink);
 
   useEffect(() => {
-    fetchLinks(page);
-  }, [page]);
+    // Wait for auth check to complete (ensure token is ready)
+    // IMPORTANT: If isAuthChecking is true, we simply wait.
+    // Even in offline mode, isAuthChecking will eventually become false (after retries fail).
+    if (!isAuthChecking) {
+      fetchLinks(showAll ? 1 : page, showAll);
+    }
+  }, [page, showAll, isAuthChecking]);
 
-  const fetchLinks = async (pageNum = 1) => {
+  const fetchLinks = async (pageNum = 1, loadAll = false) => {
     try {
       setError(null);
-      const { data } = await api.get(`/url/my-links?page=${pageNum}&limit=10`);
+      const limit = loadAll ? 1000 : 10; // Load up to 1000 when showing all
+      const { data } = await api.get(`/url/my-links?page=${pageNum}&limit=${limit}`);
       setLinks(data.urls);
       setTotalPages(data.pages);
+      setTotalLinks(data.total || data.urls.length);
       setOwnerBanned(data.ownerBanned || false);
       // Cache the links for offline use (only cache first page for now or strategy needs update)
-      if (pageNum === 1) cacheLinks(data.urls);
+      if (pageNum === 1 && !loadAll) cacheLinks(data.urls);
     } catch (error) {
       console.error(error);
       
@@ -92,7 +115,7 @@ const UserDashboard = () => {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await fetchLinks(page);
+    await fetchLinks(showAll ? 1 : page, showAll);
     showToast.success('Links refreshed', 'Updated');
   };
 
@@ -203,61 +226,92 @@ const UserDashboard = () => {
               My Links <span className="text-purple-400 font-normal text-lg">(@{user?.username})</span>
             </h1>
             <p className="text-gray-400 text-xs sm:text-sm mt-1">
-              {links.length} link{links.length !== 1 ? 's' : ''} • {totalClicks} click
+              {links.length} link{links.length !== 1 ? 's' : ''}{showAll ? ` (showing all ${totalLinks})` : ''} • {totalClicks} click
               {totalClicks !== 1 ? 's' : ''}
             </p>
           </div>
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white p-2.5 sm:py-2.5 sm:px-4 rounded-xl font-medium transition-all disabled:opacity-50"
-            title="Refresh links"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setShowAll(!showAll);
+                setPage(1);
+              }}
+              className={`flex items-center justify-center gap-2 p-2.5 sm:py-2.5 sm:px-4 rounded-xl font-medium transition-all ${
+                showAll 
+                  ? 'bg-purple-600 hover:bg-purple-500 text-white' 
+                  : 'bg-gray-700 hover:bg-gray-600 text-white'
+              }`}
+              title={showAll ? 'Show paginated' : 'View all links'}
+            >
+              <List className="w-4 h-4" />
+              <span className="hidden sm:inline">{showAll ? 'Paginate' : 'View All'}</span>
+            </button>
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white p-2.5 sm:py-2.5 sm:px-4 rounded-xl font-medium transition-all disabled:opacity-50"
+              title="Refresh links"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+          </div>
         </div>
         
         {/* Usage Stats */}
         <div className="glass-dark p-4 rounded-xl border border-gray-700/50">
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Links Usage */}
-            <div className="flex-1">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-gray-400 text-xs">Links</span>
-                <span className="text-white text-xs font-medium">
-                  {user?.linkUsage?.count || 0}/{user?.subscription?.tier === 'pro' ? 500 : user?.subscription?.tier === 'business' ? '10k' : 25}
-                </span>
+            {/* Links Usage Stats - Active & Monthly */}
+            <div className="flex-1 space-y-3">
+              {/* Active Links (Concurrent) */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-gray-400 text-xs flex items-center gap-1">
+                    Active Links
+                    <BadgeTooltip content="Links currently active in your account. Delete links to free up space.">
+                      <Info size={16} className="text-blue-400 hover:text-blue-300 transition-colors" />
+                    </BadgeTooltip>
+                  </span>
+                  <span className="text-white text-xs font-medium">
+                    {user?.linkUsage?.count || 0}/{getTierConfig(user?.subscription?.tier).activeLimit === Infinity ? '∞' : getTierConfig(user?.subscription?.tier).activeLimit}
+                  </span>
+                </div>
+                <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all ${
+                      ((user?.linkUsage?.count || 0) / (getTierConfig(user?.subscription?.tier).activeLimit === Infinity ? 10000 : getTierConfig(user?.subscription?.tier).activeLimit)) >= 0.9 
+                        ? 'bg-red-500' 
+                        : 'bg-blue-500'
+                    }`}
+                    style={{ width: `${getTierConfig(user?.subscription?.tier).activeLimit === Infinity ? 5 : Math.min(100, ((user?.linkUsage?.count || 0) / getTierConfig(user?.subscription?.tier).activeLimit) * 100)}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full rounded-full transition-all ${
-                    ((user?.linkUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 500 : 25)) >= 0.8 
-                      ? 'bg-gradient-to-r from-orange-500 to-red-500' 
-                      : 'bg-gradient-to-r from-blue-500 to-purple-500'
-                  }`}
-                  style={{ width: `${Math.min(100, ((user?.linkUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 500 : 25)) * 100)}%` }}
-                />
-              </div>
-            </div>
-            
-            {/* Clicks Usage */}
-            <div className="flex-1">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-gray-400 text-xs">Clicks</span>
-                <span className="text-white text-xs font-medium">
-                  {(user?.clickUsage?.count || 0).toLocaleString()}/{user?.subscription?.tier === 'pro' ? '50k' : user?.subscription?.tier === 'business' ? '250k' : '1k'}
-                </span>
-              </div>
-              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full rounded-full transition-all ${
-                    ((user?.clickUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 50000 : 1000)) >= 0.8 
-                      ? 'bg-gradient-to-r from-orange-500 to-red-500' 
-                      : 'bg-gradient-to-r from-purple-500 to-pink-500'
-                  }`}
-                  style={{ width: `${Math.min(100, ((user?.clickUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 50000 : 1000)) * 100)}%` }}
-                />
+
+              {/* Monthly Created (Hard Limit) */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-gray-400 text-xs flex items-center gap-1">
+                    Monthly Created
+                    <BadgeTooltip content="Total links created this month. Resets on the 1st of each month.">
+                      <Info size={16} className="text-purple-400 hover:text-purple-300 transition-colors" />
+                    </BadgeTooltip>
+                  </span>
+                  <span className="text-white text-xs font-medium">
+                    {user?.linkUsage?.hardCount || 0}/{getTierConfig(user?.subscription?.tier).monthlyLimit.toLocaleString()}
+                  </span>
+                </div>
+                <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all ${
+                      ((user?.linkUsage?.hardCount || 0) / getTierConfig(user?.subscription?.tier).monthlyLimit) >= 0.9 
+                        ? 'bg-amber-500' 
+                        : 'bg-indigo-500'
+                    }`}
+                    style={{ width: `${Math.min(100, ((user?.linkUsage?.hardCount || 0) / getTierConfig(user?.subscription?.tier).monthlyLimit) * 100)}%` }}
+                  />
+                </div>
               </div>
             </div>
             
@@ -333,17 +387,43 @@ const UserDashboard = () => {
               return 'Less than 1h';
             };
 
+            // Check if link is flagged for safety issues
+            const isFlagged = link.safetyStatus === 'malware' || link.safetyStatus === 'phishing' || link.safetyStatus === 'unwanted';
+            const getSafetyLabel = () => {
+              switch (link.safetyStatus) {
+                case 'malware': return 'Flagged: Malware Detected';
+                case 'phishing': return 'Flagged: Phishing Detected';
+                case 'unwanted': return 'Flagged: Unwanted Software';
+                default: return 'Flagged';
+              }
+            };
+
             return (
               <div key={link._id}>
               <div
                 className={`glass-dark rounded-xl border overflow-hidden transition-colors ${
-                  isLinkDisabled
-                    ? 'border-orange-500/30 bg-orange-500/5'
-                    : 'border-gray-800 hover:border-gray-700'
+                  isFlagged
+                    ? 'border-red-500/40 bg-red-500/5'
+                    : isLinkDisabled
+                      ? 'border-orange-500/30 bg-orange-500/5'
+                      : 'border-gray-800 hover:border-gray-700'
                 }`}
               >
+                {/* Flagged Link Banner */}
+                {isFlagged && (
+                  <div className="bg-red-500/10 border-b border-red-500/20 px-5 py-2 flex items-center gap-2">
+                    <ShieldAlert size={14} className="text-red-400" />
+                    <span className="text-red-300 text-xs font-medium">
+                      {getSafetyLabel()}
+                    </span>
+                    <span className="text-red-400/70 text-xs ml-auto">
+                      This link may not redirect until reviewed
+                    </span>
+                  </div>
+                )}
+
                 {/* Disabled Banner */}
-                {isLinkDisabled && (
+                {isLinkDisabled && !isFlagged && (
                   <div className="bg-orange-500/10 border-b border-orange-500/20 px-5 py-2 flex items-center gap-2">
                     <Ban size={14} className="text-orange-400" />
                     <span className="text-orange-300 text-xs font-medium">
@@ -519,77 +599,133 @@ const UserDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Stats & Actions */}
-                    <div className="flex flex-row lg:flex-col items-center lg:items-end justify-center gap-2 sm:gap-3 shrink-0">
+                    {/* Feature Badges - Horizontal wrap layout */}
+                    <div className="flex flex-wrap items-center justify-center lg:justify-end gap-2 mt-2 sm:mt-0">
                       {/* Click Count */}
-                      <div
-                        className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1 sm:py-1.5 ${
-                          isLinkDisabled
-                            ? 'bg-gray-800/30 border border-gray-700/30'
-                            : 'bg-purple-500/10 border border-purple-500/20'
-                        }`}
-                      >
-                        <BarChart2
-                          size={12}
-                          className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-500' : 'text-purple-400'}`}
-                        />
-                        <span
-                          className={`font-medium text-xs sm:text-sm ${isLinkDisabled ? 'text-gray-500' : 'text-purple-400'}`}
+                      <BadgeTooltip content={`${link.clicks} total clicks on this link`}>
+                        <div
+                          className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${
+                            isLinkDisabled
+                              ? 'bg-gray-800/30 border border-gray-700/30'
+                              : 'bg-purple-500/10 border border-purple-500/20'
+                          }`}
                         >
-                          {link.clicks}
-                        </span>
-                        <span className="text-gray-500 text-[10px] sm:text-xs">clicks</span>
-                      </div>
+                          <BarChart2
+                            size={14}
+                            className={isLinkDisabled ? 'text-gray-500' : 'text-purple-400'}
+                          />
+                          <span
+                            className={`font-medium text-xs ${isLinkDisabled ? 'text-gray-500' : 'text-purple-400'}`}
+                          >
+                            {link.clicks}
+                          </span>
+                        </div>
+                      </BadgeTooltip>
 
                       {/* Expiration Badge */}
                       {link.expiresAt && (
-                        <div
-                          className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1 sm:py-1.5 ${
-                            isExpired
-                              ? 'bg-red-500/10 border border-red-500/20'
-                              : isExpiringSoon
-                                ? 'bg-amber-500/10 border border-amber-500/20'
-                                : 'bg-gray-800/30 border border-gray-700/30'
-                          }`}
-                          title={isExpired 
+                        <BadgeTooltip 
+                          content={isExpired 
                             ? `Expired on ${new Date(link.expiresAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`
                             : `Expires ${new Date(link.expiresAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`
                           }
                         >
-                          <Clock
-                            size={12}
-                            className={`sm:w-[14px] sm:h-[14px] ${
-                              isExpired ? 'text-red-400' : isExpiringSoon ? 'text-amber-400' : 'text-gray-400'
-                            }`}
-                          />
-                          <span
-                            className={`font-medium text-[10px] sm:text-xs ${
-                              isExpired ? 'text-red-400' : isExpiringSoon ? 'text-amber-400' : 'text-gray-400'
+                          <div
+                            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${
+                              isExpired
+                                ? 'bg-red-500/10 border border-red-500/20'
+                                : isExpiringSoon
+                                  ? 'bg-amber-500/10 border border-amber-500/20'
+                                  : 'bg-gray-800/30 border border-gray-700/30'
                             }`}
                           >
-                            {getExpirationText()}
-                          </span>
-                        </div>
+                            <Clock
+                              size={14}
+                              className={isExpired ? 'text-red-400' : isExpiringSoon ? 'text-amber-400' : 'text-gray-400'}
+                            />
+                            <span
+                              className={`font-medium text-xs hidden sm:inline ${
+                                isExpired ? 'text-red-400' : isExpiringSoon ? 'text-amber-400' : 'text-gray-400'
+                              }`}
+                            >
+                              {getExpirationText()}
+                            </span>
+                          </div>
+                        </BadgeTooltip>
                       )}
 
                       {/* Password Protection Badge */}
                       {link.isPasswordProtected && (
-                        <div
-                          className="flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1 sm:py-1.5 bg-purple-500/10 border border-purple-500/20"
-                          title="Password protected"
+                        <BadgeTooltip content="This link requires a password to access">
+                          <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 bg-purple-500/10 border border-purple-500/20 cursor-default">
+                            <Lock size={14} className="text-purple-400" />
+                            <span className="font-medium text-xs text-purple-400 hidden sm:inline">
+                              Protected
+                            </span>
+                          </div>
+                        </BadgeTooltip>
+                      )}
+
+                      {/* Device Targeting Badge */}
+                      {link.deviceRedirects?.enabled && link.deviceRedirects?.rules?.length > 0 && (
+                        <BadgeTooltip content={`${link.deviceRedirects.rules.length} device rule${link.deviceRedirects.rules.length > 1 ? 's' : ''} configured`}>
+                          <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 bg-cyan-500/10 border border-cyan-500/20 cursor-default">
+                            <Target size={14} className="text-cyan-400" />
+                            <span className="font-medium text-xs text-cyan-400 hidden sm:inline">
+                              {link.deviceRedirects.rules.length}
+                            </span>
+                          </div>
+                        </BadgeTooltip>
+                      )}
+
+                      {/* Time Routing Badge */}
+                      {link.timeRedirects?.enabled && link.timeRedirects?.rules?.length > 0 && (
+                        <BadgeTooltip content={`${link.timeRedirects.rules.length} time schedule${link.timeRedirects.rules.length > 1 ? 's' : ''} configured`}>
+                          <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 bg-violet-500/10 border border-violet-500/20 cursor-default">
+                            <Timer size={14} className="text-violet-400" />
+                            <span className="font-medium text-xs text-violet-400 hidden sm:inline">
+                              {link.timeRedirects.rules.length}
+                            </span>
+                          </div>
+                        </BadgeTooltip>
+                      )}
+
+                      {/* Schedule Activation Badge */}
+                      {link.activeStartTime && (
+                        <BadgeTooltip 
+                          content={new Date(link.activeStartTime) > new Date() 
+                            ? `Link will activate on ${new Date(link.activeStartTime).toLocaleString()}` 
+                            : `Link became active on ${new Date(link.activeStartTime).toLocaleString()}`
+                          }
                         >
-                          <Lock
-                            size={12}
-                            className="sm:w-[14px] sm:h-[14px] text-purple-400"
-                          />
-                          <span className="font-medium text-[10px] sm:text-xs text-purple-400">
-                            Protected
-                          </span>
-                        </div>
+                          <div
+                            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${
+                              new Date(link.activeStartTime) > new Date()
+                                ? 'bg-amber-500/10 border border-amber-500/20'
+                                : 'bg-emerald-500/10 border border-emerald-500/20'
+                            }`}
+                          >
+                            <CalendarClock
+                              size={14}
+                              className={new Date(link.activeStartTime) > new Date() ? 'text-amber-400' : 'text-emerald-400'}
+                            />
+                            {/* Desktop: Show "Until date" or "Since date" */}
+                            <span className={`hidden sm:inline text-xs font-medium ${
+                              new Date(link.activeStartTime) > new Date()
+                                ? 'text-amber-400'
+                                : 'text-emerald-400'
+                            }`}>
+                              {new Date(link.activeStartTime) > new Date() ? 'Until ' : 'Since '}
+                              {new Date(link.activeStartTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              {', '}
+                              {new Date(link.activeStartTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </BadgeTooltip>
                       )}
 
                       {/* Date */}
-                      <span className="text-gray-500 text-[10px] sm:text-xs">
+                      <span className="text-gray-500 text-xs ml-1">
                         {formatDate(link.createdAt)}
                       </span>
                     </div>
@@ -622,6 +758,19 @@ const UserDashboard = () => {
                         <QrCode size={14} className="sm:w-4 sm:h-4" />
                         <span className="hidden sm:inline">QR</span>
                       </button>
+                      <button
+                        onClick={() => setExpandedLinkId(expandedLinkId === link._id ? null : link._id)}
+                        className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm ${
+                          expandedLinkId === link._id 
+                            ? 'text-cyan-400 bg-cyan-500/10' 
+                            : 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10'
+                        }`}
+                        title="View details"
+                      >
+                        <Eye size={14} className="sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">Details</span>
+                        <ChevronDown size={12} className={`transition-transform duration-200 ${expandedLinkId === link._id ? 'rotate-180' : ''}`} />
+                      </button>
                     </div>
                     <button
                       onClick={() => handleDelete(link._id)}
@@ -632,6 +781,284 @@ const UserDashboard = () => {
                       <span className="hidden sm:inline">Delete</span>
                     </button>
                   </div>
+
+                  {/* Expandable Details Panel */}
+                  {expandedLinkId === link._id && (
+                    <div className="mt-3 pt-3 border-t border-gray-700/50 animate-in slide-in-from-top-2 duration-200">
+                      
+                      {/* Quick Actions Row - Icon only on mobile */}
+                      <div className="flex gap-1.5 sm:gap-2 mb-3">
+                        <button
+                          onClick={() => copyToClipboard(link.customAlias || link.shortId)}
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-[10px] sm:text-xs font-medium transition-colors"
+                        >
+                          {copiedId === (link.customAlias || link.shortId) ? <Check size={12} /> : <Copy size={12} />}
+                          <span className="hidden xs:inline sm:inline">{copiedId === (link.customAlias || link.shortId) ? 'Copied!' : 'Copy'}</span>
+                        </button>
+                        <a
+                          href={getShortUrl(link.customAlias || link.shortId)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-lg text-[10px] sm:text-xs font-medium transition-colors"
+                        >
+                          <ExternalLink size={12} />
+                          <span className="hidden xs:inline sm:inline">Short</span>
+                        </a>
+                        <a
+                          href={link.originalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-gray-700/50 hover:bg-gray-700 text-gray-300 rounded-lg text-[10px] sm:text-xs font-medium transition-colors"
+                        >
+                          <ExternalLink size={12} />
+                          <span className="hidden xs:inline sm:inline">Original</span>
+                        </a>
+                      </div>
+
+                      {/* Destination URL - Compact on mobile */}
+                      <div className="bg-gray-800/50 rounded-lg p-2 sm:p-3 mb-3">
+                        <div className="flex items-center gap-1 text-gray-500 mb-1 text-[10px] sm:text-xs">
+                          <LinkIcon size={10} /> Destination
+                        </div>
+                        <p className="text-blue-400 break-all text-[10px] sm:text-xs leading-relaxed line-clamp-2 sm:line-clamp-3">
+                          {link.originalUrl}
+                        </p>
+                      </div>
+
+                      {/* Details Grid - 3 cols on mobile for compact view */}
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
+                        
+                        {/* Password */}
+                        <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                          <Lock size={12} className="mx-auto mb-0.5 text-gray-500" />
+                          <div className={`text-[10px] sm:text-xs ${link.isPasswordProtected ? 'text-purple-400' : 'text-gray-600'}`}>
+                            {link.isPasswordProtected ? '🔒' : '—'}
+                          </div>
+                        </div>
+
+                        {/* Expires */}
+                        <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                          <Timer size={12} className="mx-auto mb-0.5 text-gray-500" />
+                          <div className={`text-[10px] sm:text-xs truncate ${link.expiresAt ? (new Date(link.expiresAt) < new Date() ? 'text-red-400' : 'text-amber-400') : 'text-gray-600'}`}>
+                            {link.expiresAt ? new Date(link.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                          </div>
+                        </div>
+
+                        {/* Starts */}
+                        <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                          <CalendarClock size={12} className="mx-auto mb-0.5 text-gray-500" />
+                          <div className={`text-[10px] sm:text-xs truncate ${link.activeStartTime ? 'text-blue-400' : 'text-gray-600'}`}>
+                            {link.activeStartTime ? new Date(link.activeStartTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                          </div>
+                        </div>
+
+                        {/* Devices */}
+                        <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                          <Smartphone size={12} className="mx-auto mb-0.5 text-gray-500" />
+                          <div className={`text-[10px] sm:text-xs ${link.deviceRedirects?.enabled ? 'text-cyan-400' : 'text-gray-600'}`}>
+                            {link.deviceRedirects?.enabled ? link.deviceRedirects.rules?.length || 0 : '—'}
+                          </div>
+                        </div>
+
+                        {/* Time Rules */}
+                        <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                          <Clock size={12} className="mx-auto mb-0.5 text-gray-500" />
+                          <div className={`text-[10px] sm:text-xs ${link.timeRedirects?.enabled ? 'text-indigo-400' : 'text-gray-600'}`}>
+                            {link.timeRedirects?.enabled ? link.timeRedirects.rules?.length || 0 : '—'}
+                          </div>
+                        </div>
+
+                        {/* Safety */}
+                        <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                          <ShieldAlert size={12} className="mx-auto mb-0.5 text-gray-500" />
+                          <div className={`text-[10px] sm:text-xs ${
+                            link.safetyStatus === 'safe' ? 'text-green-400' :
+                            link.safetyStatus === 'malware' || link.safetyStatus === 'phishing' ? 'text-red-400' :
+                            'text-gray-500'
+                          }`}>
+                            {link.safetyStatus === 'safe' ? '✅' :
+                             link.safetyStatus === 'malware' || link.safetyStatus === 'phishing' || link.safetyStatus === 'unwanted' ? '⚠️' :
+                             link.safetyStatus === 'pending' ? '⏳' : '—'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Device Redirects */}
+                      {link.deviceRedirects?.enabled && link.deviceRedirects.rules?.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-700/30">
+                          <div className="text-[10px] sm:text-xs text-gray-500 mb-2 flex items-center gap-1">
+                            <Smartphone size={10} /> Device Targets
+                          </div>
+                          <div className="space-y-1.5">
+                            {link.deviceRedirects.rules.map((rule, i) => {
+                              // Helper for device styling
+                              const getDeviceStyle = (type) => {
+                                switch (type) {
+                                  case 'desktop': 
+                                    return { 
+                                      icon: <Monitor size={10} />, 
+                                      style: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400',
+                                      badge: 'bg-indigo-500/20 text-indigo-300'
+                                    };
+                                  case 'tablet': 
+                                    return { 
+                                      icon: <Tablet size={10} />, 
+                                      style: 'bg-purple-500/10 border-purple-500/20 text-purple-400',
+                                      badge: 'bg-purple-500/20 text-purple-300'
+                                    };
+                                  case 'android': 
+                                    return { 
+                                      icon: <Smartphone size={10} />, 
+                                      style: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+                                      badge: 'bg-emerald-500/20 text-emerald-300'
+                                    };
+                                  case 'ios': 
+                                    return { 
+                                      icon: <Smartphone size={10} />, 
+                                      style: 'bg-sky-500/10 border-sky-500/20 text-sky-400',
+                                      badge: 'bg-sky-500/20 text-sky-300'
+                                    };
+                                  case 'mobile':
+                                  default: 
+                                    return { 
+                                      icon: <Smartphone size={10} />, 
+                                      style: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+                                      badge: 'bg-blue-500/20 text-blue-300'
+                                    };
+                                }
+                              };
+
+                              const { icon, style, badge } = getDeviceStyle(rule.device);
+
+                              return (
+                                <div key={i} className={`flex items-center gap-2 rounded-lg p-1.5 sm:p-2 border ${style}`}>
+                                  <span className={`flex items-center gap-1 text-[9px] sm:text-[10px] font-bold uppercase ${badge} px-1.5 py-0.5 rounded shrink-0`}>
+                                    {icon}
+                                    {rule.device}
+                                  </span>
+                                  <span className="text-[9px] sm:text-[10px] truncate flex-1 min-w-0 opacity-90">
+                                    {rule.url}
+                                  </span>
+                                  <div className="flex gap-0.5 shrink-0">
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(rule.url);
+                                        showToast.success('Copied');
+                                      }}
+                                      className="p-1 sm:p-1.5 bg-black/20 hover:bg-black/30 rounded transition-colors"
+                                    >
+                                      <Copy size={10} className="sm:w-3 sm:h-3" />
+                                    </button>
+                                    <a
+                                      href={rule.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-1 sm:p-1.5 bg-black/20 hover:bg-black/30 rounded transition-colors"
+                                    >
+                                      <ExternalLink size={10} className="sm:w-3 sm:h-3" />
+                                    </a>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Time-Based Redirects */}
+                      {link.timeRedirects?.enabled && link.timeRedirects.rules?.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-700/30">
+                          <div className="text-[10px] sm:text-xs text-gray-500 mb-2 flex flex-wrap items-center gap-2 justify-between">
+                            <span className="flex items-center gap-1"><Clock size={10} /> Time Targets</span>
+                            
+                            {/* Timezone Badge with Rich Tooltip */}
+                            <BadgeTooltip content={(() => {
+                              try {
+                                const targetZone = link.timeRedirects.timezone || 'UTC';
+                                const now = new Date();
+                                
+                                // 1. Get Offset (e.g., UTC-05:00)
+                                const offsetString = new Intl.DateTimeFormat('en-US', {
+                                  timeZone: targetZone,
+                                  timeZoneName: 'longOffset'
+                                }).formatToParts(now).find(p => p.type === 'timeZoneName')?.value;
+
+                                // 2. Convert User's Midnight to Target Zone
+                                const userMidnight = new Date();
+                                userMidnight.setHours(0, 0, 0, 0);
+                                
+                                const targetTimeAtMidnight = new Intl.DateTimeFormat('en-US', {
+                                  timeZone: targetZone,
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                  hour12: true
+                                }).format(userMidnight);
+
+                                return (
+                                  <div className="text-left w-full space-y-2 py-0.5">
+                                    {/* Header: UTC Offset */}
+                                    <div className="font-bold text-amber-400 border-b border-gray-600/50 pb-1.5 text-xs">
+                                      {offsetString || targetZone}
+                                    </div>
+                                    
+                                    {/* Conversion Info */}
+                                    <div className="space-y-1">
+                                      <div className="text-[10px] text-gray-400 font-medium">
+                                        Timezone Alignment:
+                                      </div>
+                                      <div className="flex items-center justify-between gap-3 text-[10px] bg-gray-900/50 p-1.5 rounded">
+                                        <span className="text-gray-400">My 12:00 AM</span>
+                                        <span className="text-gray-500">→</span>
+                                        <span className="text-white font-mono">{targetTimeAtMidnight}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              } catch {
+                                return 'Invalid Timezone Configuration';
+                              }
+                            })()}>
+                              <div className="flex items-center gap-1 text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded text-[9px] font-medium shadow-sm cursor-default hover:bg-amber-500/20 transition-colors">
+                                <span className="opacity-70">Zone:</span> {link.timeRedirects.timezone || 'UTC'}
+                                <Info size={8} className="ml-0.5 opacity-50" />
+                              </div>
+                            </BadgeTooltip>
+                          </div>
+                          <div className="space-y-1.5">
+                            {link.timeRedirects.rules.map((rule, i) => (
+                              <div key={i} className="flex items-center gap-2 bg-violet-500/5 rounded-lg p-1.5 sm:p-2 border border-violet-500/10">
+                                <span className="text-[9px] sm:text-[10px] font-medium text-violet-200 bg-violet-600/30 border border-violet-500/30 px-1.5 sm:px-2 py-0.5 rounded shrink-0 whitespace-nowrap">
+                                  {rule.startTime} - {rule.endTime}
+                                </span>
+                                <span className="text-[9px] sm:text-[10px] text-violet-300 truncate flex-1 min-w-0">
+                                  {rule.destination}
+                                </span>
+                                <div className="flex gap-0.5 shrink-0">
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(rule.destination);
+                                      showToast.success('Copied');
+                                    }}
+                                    className="p-1 sm:p-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded transition-colors"
+                                  >
+                                    <Copy size={10} className="sm:w-3 sm:h-3" />
+                                  </button>
+                                  <a
+                                    href={rule.destination}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1 sm:p-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded transition-colors"
+                                  >
+                                    <ExternalLink size={10} className="sm:w-3 sm:h-3" />
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               </div>
@@ -641,7 +1068,7 @@ const UserDashboard = () => {
       </div>
 
       {/* Pagination Controls */}
-      {totalPages > 1 && (
+      {totalPages > 1 && !showAll && (
         <div className="flex justify-center items-center gap-4 mt-6">
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -663,140 +1090,109 @@ const UserDashboard = () => {
         </div>
       )}
 
-      {/* QR Code Modal - Enhanced for both links */}
+      {/* QR Code Modal - Branded with Link Info */}
       {qrModalLink && createPortal(
-        <div className="fixed inset-0 z-[1000] overflow-y-auto">
-          <div className="flex min-h-full items-start justify-center p-4 pt-10 sm:items-center sm:pt-4">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={() => setQrModalLink(null)}
-          />
-
-          {/* Modal - Allowed to grow */}
-          <div className="relative w-full max-w-lg bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl animate-modal-in my-8">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-700/50 sticky top-0 bg-gray-900/95 z-10">
-              <div className="flex flex-col">
-                <h3 className="text-lg font-semibold text-white">QR Codes</h3>
-                <p className="text-sm text-gray-400">Download for your marketing materials</p>
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 backdrop-blur-sm bg-gray-900/80">
+          {/* Modal */}
+          <div 
+            className="relative w-full max-w-lg bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl animate-modal-in overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Branded Header */}
+            <div className="relative overflow-hidden bg-gradient-to-br from-green-500/20 via-emerald-500/10 to-transparent p-5 border-b border-gray-800">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-500/20">
+                    <QrCode size={22} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-white truncate max-w-[200px] sm:max-w-[280px]">
+                      {qrModalLink.title || 'QR Codes'}
+                    </h2>
+                    <p className="text-sm text-emerald-300/80">Download for your marketing</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setQrModalLink(null)}
+                  className="p-2 text-gray-400 hover:text-white bg-gray-800/50 hover:bg-gray-800 rounded-full transition-colors"
+                >
+                  <X size={18} />
+                </button>
               </div>
-              <button
-                onClick={() => setQrModalLink(null)}
-                className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors"
-              >
-                <X size={20} />
-              </button>
             </div>
 
             {/* Content */}
-            <div className="p-6 space-y-6">
-              {/* Short Link QR */}
-              <div>
+            <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              
+              {/* Primary QR - Custom Alias or Short ID */}
+              <div className="bg-gradient-to-br from-purple-500/5 to-blue-500/5 rounded-xl p-4 border border-purple-500/20">
                 <div className="flex items-center justify-between mb-3">
-                  <label className="text-sm font-medium text-white flex items-center gap-2">
-                    <LinkIcon size={14} className="text-green-400" />
-                    Short Link QR
-                  </label>
+                  <div className="flex items-center gap-2">
+                    {qrModalLink.customAlias ? (
+                      <>
+                        <Sparkles size={14} className="text-purple-400" />
+                        <span className="text-sm font-medium text-white">Custom Link</span>
+                      </>
+                    ) : (
+                      <>
+                        <LinkIcon size={14} className="text-blue-400" />
+                        <span className="text-sm font-medium text-white">Short Link</span>
+                      </>
+                    )}
+                  </div>
                   <span className="text-xs px-2 py-0.5 bg-green-500/10 text-green-400 rounded-full border border-green-500/20">
                     Recommended
                   </span>
                 </div>
-                <div className="flex gap-4 p-4 bg-gray-800/30 rounded-xl border border-gray-700/30 hover:border-green-500/30 transition-colors group">
-                  <div className="bg-white p-2 rounded-lg shrink-0">
+                
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div id="primary-qr" className="bg-white p-3 rounded-xl shadow-lg shrink-0">
                     <QRCodeSVG
-                      id="short-qr"
-                      value={qrModalLink.shortUrl}
-                      size={100}
-                      level="M"
-                      includeMargin={false}
+                      value={getShortUrl(qrModalLink.customAlias || qrModalLink.shortId)}
+                      size={120}
+                      level="H"
                     />
                   </div>
-                  <div className="flex flex-col justify-between flex-1 min-w-0">
-                    <div>
-                      <p className="text-white font-medium truncate mb-1">/{qrModalLink.shortId}</p>
-                      <p className="text-xs text-gray-400">
-                        Tracks clicks and analytics. Best for printing on flyers or business cards.
-                      </p>
-                    </div>
-                    <div className="flex gap-2 mt-3">
+                  
+                  <div className="flex-1 w-full text-center sm:text-left">
+                    <p className={`font-mono text-lg font-semibold bg-gradient-to-r ${qrModalLink.customAlias ? 'from-purple-400 to-pink-400' : 'from-blue-400 to-cyan-400'} bg-clip-text text-transparent break-all`}>
+                      /{qrModalLink.customAlias || qrModalLink.shortId}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {getShortUrl(qrModalLink.customAlias || qrModalLink.shortId)}
+                    </p>
+                    
+                    <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
                       <button
                         onClick={() => {
-                          const svg = document.getElementById('short-qr');
-                          const canvas = document.createElement('canvas');
-                          const ctx = canvas.getContext('2d');
-                          const img = new Image();
-                          const xml = new XMLSerializer().serializeToString(svg);
-                          const svg64 = btoa(xml);
-                          const b64Start = 'data:image/svg+xml;base64,';
-                          const image64 = b64Start + svg64;
-
-                          img.onload = () => {
-                            canvas.width = img.width;
-                            canvas.height = img.height;
-                            ctx.fillStyle = 'white';
-                            ctx.fillRect(0, 0, canvas.width, canvas.height);
-                            // URL is not defined here, it should be revoked after use.
-                            // For this specific case, img.src is a data URL, so no URL.revokeObjectURL needed.
-                            const pngUrl = canvas.toDataURL('image/png');
-                            const downloadLink = document.createElement('a');
-                            downloadLink.href = pngUrl;
-                            downloadLink.download = `qr-${qrModalLink.shortId}.png`;
-                            downloadLink.click();
-                          };
-                          img.src = image64;
+                          navigator.clipboard.writeText(getShortUrl(qrModalLink.customAlias || qrModalLink.shortId));
+                          setCopiedId('primary-url');
+                          showToast.success('Link copied!', 'Copied');
+                          setTimeout(() => setCopiedId(null), 2000);
                         }}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white text-gray-900 hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium"
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                          copiedId === 'primary-url' 
+                            ? 'bg-green-500 text-white' 
+                            : 'bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white'
+                        }`}
                       >
-                        <Download size={14} />
-                        Download PNG
+                        {copiedId === 'primary-url' ? <Check size={14} /> : <Copy size={14} />}
+                        {copiedId === 'primary-url' ? 'Copied!' : 'Copy Link'}
                       </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Original Link QR */}
-              <div>
-                <label className="text-sm font-medium text-white flex items-center gap-2 mb-3">
-                  <ExternalLink size={14} className="text-blue-400" />
-                  Direct Link QR
-                </label>
-                <div className="flex gap-4 p-4 bg-gray-800/30 rounded-xl border border-gray-700/30 group">
-                  <div className="bg-white p-2 rounded-lg opacity-80 group-hover:opacity-100 transition-opacity shrink-0">
-                    <QRCodeSVG
-                      id="original-qr"
-                      value={qrModalLink.originalUrl}
-                      size={100}
-                      level="M"
-                      includeMargin={false}
-                    />
-                  </div>
-                  <div className="flex flex-col justify-between flex-1 min-w-0">
-                    <div>
-                      <p className="text-gray-300 font-medium truncate mb-1">{qrModalLink.originalUrl}</p>
-                      <p className="text-xs text-gray-500">
-                        Direct connection. Bypasses Link Snap tracking and features.
-                      </p>
-                    </div>
-                    <div className="flex gap-2 mt-3">
                       <button
                         onClick={() => {
-                          const svg = document.getElementById('original-qr');
+                          const svg = document.querySelector('#primary-qr svg');
+                          if (!svg) return;
                           const canvas = document.createElement('canvas');
                           const ctx = canvas.getContext('2d');
+                          const data = new XMLSerializer().serializeToString(svg);
                           const img = new Image();
-                          const xml = new XMLSerializer().serializeToString(svg);
-
-
-                          
-                          // Creating a URL directly from SVG data
-                          const blob = new Blob([xml], {type: 'image/svg+xml'});
-                          const url = URL.createObjectURL(blob);
-
+                          const svgBlob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
+                          const url = URL.createObjectURL(svgBlob);
                           img.onload = () => {
-                            canvas.width = img.width;
-                            canvas.height = img.height;
+                            canvas.width = img.width * 3;
+                            canvas.height = img.height * 3;
+                            ctx.scale(3, 3);
                             ctx.fillStyle = 'white';
                             ctx.fillRect(0, 0, canvas.width, canvas.height);
                             ctx.drawImage(img, 0, 0);
@@ -804,47 +1200,171 @@ const UserDashboard = () => {
                             const pngUrl = canvas.toDataURL('image/png');
                             const downloadLink = document.createElement('a');
                             downloadLink.href = pngUrl;
-                            downloadLink.download = `qr-${qrModalLink.shortId}-original.png`;
+                            downloadLink.download = `qr-${qrModalLink.customAlias || qrModalLink.shortId}.png`;
                             downloadLink.click();
                           };
                           img.src = url;
                         }}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors text-sm"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-gray-900 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors"
                       >
                         <Download size={14} />
-                        Download PNG
+                        Download
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Original URL */}
-              <div className="bg-gray-800/30 rounded-xl p-3 border border-gray-700/30">
-                <p className="text-xs text-gray-500 mb-1">Redirects to</p>
-                <p className="text-gray-300 text-sm break-all">{qrModalLink.originalUrl}</p>
+              {/* Secondary QR - Show original shortId if custom alias exists */}
+              {qrModalLink.customAlias && (
+                <div className="bg-gray-800/30 rounded-xl p-4 border border-gray-700/30">
+                  <div className="flex items-center gap-2 mb-3">
+                    <LinkIcon size={14} className="text-blue-400" />
+                    <span className="text-sm font-medium text-gray-300">Original Short ID</span>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <div id="secondary-qr" className="bg-white p-2 rounded-lg shadow opacity-80 shrink-0">
+                      <QRCodeSVG
+                        value={getShortUrl(qrModalLink.shortId)}
+                        size={80}
+                        level="M"
+                      />
+                    </div>
+                    
+                    <div className="flex-1 w-full text-center sm:text-left">
+                      <p className="font-mono text-sm text-blue-400">/{qrModalLink.shortId}</p>
+                      <p className="text-xs text-gray-500 mt-1">Permanent link ID</p>
+                      
+                      <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-2">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(getShortUrl(qrModalLink.shortId));
+                            setCopiedId('secondary-url');
+                            showToast.success('Link copied!', 'Copied');
+                            setTimeout(() => setCopiedId(null), 2000);
+                          }}
+                          className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-all ${
+                            copiedId === 'secondary-url' 
+                              ? 'bg-green-500/20 text-green-400' 
+                              : 'bg-gray-700/50 text-gray-400 hover:text-white hover:bg-gray-700'
+                          }`}
+                        >
+                          {copiedId === 'secondary-url' ? <Check size={12} /> : <Copy size={12} />}
+                          Copy
+                        </button>
+                        <button
+                          onClick={() => {
+                            const svg = document.querySelector('#secondary-qr svg');
+                            if (!svg) return;
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            const data = new XMLSerializer().serializeToString(svg);
+                            const img = new Image();
+                            const svgBlob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
+                            const url = URL.createObjectURL(svgBlob);
+                            img.onload = () => {
+                              canvas.width = img.width * 3;
+                              canvas.height = img.height * 3;
+                              ctx.scale(3, 3);
+                              ctx.fillStyle = 'white';
+                              ctx.fillRect(0, 0, canvas.width, canvas.height);
+                              ctx.drawImage(img, 0, 0);
+                              URL.revokeObjectURL(url);
+                              const pngUrl = canvas.toDataURL('image/png');
+                              const downloadLink = document.createElement('a');
+                              downloadLink.href = pngUrl;
+                              downloadLink.download = `qr-${qrModalLink.shortId}.png`;
+                              downloadLink.click();
+                            };
+                            img.src = url;
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 bg-gray-700/50 text-gray-400 hover:text-white hover:bg-gray-700 rounded text-xs transition-colors"
+                        >
+                          <Download size={12} />
+                          Download
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Link Info Section */}
+              <div className="bg-gray-800/20 rounded-xl p-4 border border-gray-700/30 space-y-3">
+                <div className="flex items-center gap-2">
+                  <LinkIcon size={14} className="text-gray-500" />
+                  <span className="text-xs text-gray-500 uppercase tracking-wider">Link Info</span>
+                </div>
+                
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Redirects to:</span>
+                    <span className="text-gray-300 truncate max-w-[200px] sm:max-w-[280px]" title={qrModalLink.originalUrl}>
+                      {qrModalLink.originalUrl}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Clicks:</span>
+                    <span className="text-purple-400 font-medium">{qrModalLink.clicks}</span>
+                  </div>
+                  {qrModalLink.isPasswordProtected && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Protection:</span>
+                      <span className="text-purple-400 flex items-center gap-1">
+                        <Lock size={12} />
+                        Password
+                      </span>
+                    </div>
+                  )}
+                  {qrModalLink.expiresAt && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Expires:</span>
+                      <span className={`${new Date(qrModalLink.expiresAt) < new Date() ? 'text-red-400' : 'text-amber-400'}`}>
+                        {new Date(qrModalLink.expiresAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Footer */}
+            <div className="p-5 pt-0 flex justify-end">
+              <button
+                onClick={() => setQrModalLink(null)}
+                className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white rounded-xl transition-all font-medium shadow-lg shadow-emerald-500/20"
+              >
+                Done
+              </button>
+            </div>
           </div>
-        </div>
         </div>,
         document.body
       )}
 
       {/* Create Link Modal */}
-      <CreateLinkModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={handleLinkCreated}
-      />
+      {isCreateModalOpen && (
+        <Suspense fallback={null}>
+          <CreateLinkModal
+            isOpen={isCreateModalOpen}
+            onClose={() => setIsCreateModalOpen(false)}
+            onSuccess={handleLinkCreated}
+          />
+        </Suspense>
+      )}
 
       {/* Edit Link Modal */}
-      <EditLinkModal
-        isOpen={!!editingLink}
-        onClose={() => setEditingLink(null)}
-        onSuccess={handleLinkUpdated}
-        link={editingLink}
-      />
+      {editingLink && (
+        <Suspense fallback={null}>
+          <EditLinkModal
+            isOpen={!!editingLink}
+            onClose={() => setEditingLink(null)}
+            onSuccess={handleLinkUpdated}
+            link={editingLink}
+          />
+        </Suspense>
+      )}
 
       {/* Link Success Modal - Shows after creating a link */}
       <LinkSuccessModal

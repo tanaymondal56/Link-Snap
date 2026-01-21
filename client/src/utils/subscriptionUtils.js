@@ -1,7 +1,7 @@
 export const TIERS = {
   free: { features: ['basic_links', 'basic_analytics'] },
-  pro: { features: ['custom_alias', 'link_expiration', 'password_protection', 'custom_datetime', 'custom_qr', 'api_access', 'geo_analytics', 'utm_builder', 'bio_page', 'device_targeting', 'advanced_analytics'] },
-  business: { features: ['custom_alias', 'link_expiration', 'password_protection', 'custom_datetime', 'custom_qr', 'api_access', 'geo_analytics', 'utm_builder', 'bio_page', 'ab_testing', 'device_redirects', 'device_targeting', 'team', 'webhooks', 'custom_domains', 'advanced_analytics'] }
+  pro: { features: ['custom_alias', 'link_expiration', 'password_protection', 'custom_datetime', 'custom_qr', 'api_access', 'geo_analytics', 'utm_builder', 'bio_page', 'device_targeting', 'time_redirects', 'advanced_analytics'] },
+  business: { features: ['custom_alias', 'link_expiration', 'password_protection', 'custom_datetime', 'custom_qr', 'api_access', 'geo_analytics', 'utm_builder', 'bio_page', 'ab_testing', 'device_redirects', 'device_targeting', 'time_redirects', 'team', 'webhooks', 'custom_domains', 'advanced_analytics'] }
 };
 
 export const GRACE_PERIOD_DAYS = 7; // Sync with backend SUBSCRIPTION_GRACE_PERIOD_DAYS

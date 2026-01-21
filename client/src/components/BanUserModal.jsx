@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Ban,
   X,
@@ -8,6 +9,7 @@ import {
   Clock,
   ChevronDown,
 } from 'lucide-react';
+import useScrollLock from '../hooks/useScrollLock';
 
 // Ban reason templates
 const REASON_TEMPLATES = [
@@ -79,6 +81,9 @@ const BanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
     }
   };
 
+  // Lock background scroll
+  useScrollLock(isOpen);
+
   if (!isOpen || !user) return null;
 
   const handleSubmit = async () => {
@@ -99,7 +104,7 @@ const BanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
 
   const selectedDuration = DURATION_OPTIONS.find((d) => d.value === duration);
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
@@ -108,7 +113,7 @@ const BanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
       />
 
       {/* Modal */}
-      <div className="relative w-[95%] max-w-md bg-gray-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] overscroll-contain">
+      <div data-modal-content className="relative w-[95%] max-w-md bg-gray-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] overscroll-contain">
         {/* Gradient top border */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 to-red-500" />
 
@@ -317,7 +322,8 @@ const BanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

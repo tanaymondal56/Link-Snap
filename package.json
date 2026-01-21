@@ -1,6 +1,6 @@
 {
   "name": "link-snap",
-  "version": "0.5.5",
+  "version": "0.6.0",
   "private": true,
   "description": "Advanced URL Shortening, Analytics, & Bio-Link Platform with Stealth Security.",
   "repository": {
@@ -16,6 +16,7 @@
   },
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "preview": "concurrently \"npm run server\" \"wait-on tcp:5000 && npm run preview --prefix client\"",
     "server": "npm run dev --prefix server",
     "client": "npm run dev --prefix client",
     "install:all": "npm install && npm install --prefix server && npm install --prefix client",
@@ -29,6 +30,7 @@
     "bump:major": "node scripts/sync-version.js major"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "wait-on": "^9.0.3"
   }
 }

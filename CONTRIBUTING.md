@@ -14,16 +14,54 @@ First of all, thank you for considering contributing to Link-Snap! It's people l
     ```bash
     npm run install:all
     ```
-4.  **Create a branch** for your feature or fix:
-    ```bash
-    git checkout -b feature/amazing-feature
-    ```
+## 🛠 Professional Workflow (Required)
 
-## 🧪 Development Workflow
+Since `master` is a **Protected Branch**, you cannot push code directly to it. Follow this cycle for every change:
 
-*   **Run Dev Server**: `npm run dev` starts both client and server.
-*   **Linting**: Run `npm run lint` in the `client/` directory to ensure code quality.
-*   **Code Style**: We use **Prettier** and **ESLint**. Please ensure your code is formatted before committing.
+### 1. Start a New Feature
+Always create a branch for your work.
+```bash
+# 1. Update master to ensure you have the latest code
+git checkout master
+git pull origin master
+
+# 2. Create your feature branch
+git checkout -b feature/my-new-feature
+```
+
+### 2. Work & Commit
+Make your changes, then verify them locally:
+```bash
+# Run linting to catch errors early
+npm run lint
+
+# Commit your changes
+git add .
+git commit -m "feat: add amazing new dashboard"
+```
+
+### 3. Push & Pull Request
+Push your branch to GitHub (not master).
+```bash
+git push origin feature/my-new-feature
+```
+1.  Go to the repository on GitHub.
+2.  Click **"Compare & pull request"**.
+3.  **Wait for Checks**: GitHub will run **Lint** and **CodeQL**.
+4.  **Merge**: Once checks pass (Green), click **Squash and merge**.
+
+### 4. Sync & Cleanup
+After merging on GitHub, update your local machine:
+```bash
+# 1. Switch back to master
+git checkout master
+
+# 2. Download the new merge
+git pull origin master
+
+# 3. Delete the old feature branch
+git branch -d feature/my-new-feature
+```
 
 ## 🐛 Reporting Bugs
 

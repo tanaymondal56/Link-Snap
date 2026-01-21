@@ -70,7 +70,7 @@ export const listRedeemCodes = async (req, res) => {
     
     const codes = await RedeemCode.find(query)
       .populate('createdBy', 'email snapId')
-      // .sort({ createdAt: -1 }) // Disabled for Cosmos DB
+      .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
     
@@ -392,26 +392,38 @@ export const validateRedeemCode = async (req, res) => {
  */
 export const getRedeemCodeStats = async (req, res) => {
   try {
-    // Get all codes and calculate stats in JS (Cosmos DB has limited $expr support)
-    const allCodes = await RedeemCode.find().select('isActive usedCount maxUses tier');
-    
-    const totalCodes = allCodes.length;
-    const activeCodes = allCodes.filter(c => c.isActive && c.usedCount < c.maxUses).length;
-    const totalRedemptions = allCodes.reduce((sum, c) => sum + (c.usedCount || 0), 0);
-    
-    // Calculate tier breakdown
-    const tierMap = {};
-    allCodes.forEach(c => {
-      if (!tierMap[c.tier]) tierMap[c.tier] = { _id: c.tier, count: 0, used: 0 };
-      tierMap[c.tier].count++;
-      tierMap[c.tier].used += c.usedCount || 0;
-    });
-    
+    // Optimized Stats (DB-level counting)
+    const [totalCodes, activeCodesResult, totalRedemptionsResult, tierMetadata] = await Promise.all([
+        RedeemCode.countDocuments(),
+        RedeemCode.countDocuments({ 
+            isActive: true, 
+            $expr: { $lt: ["$usedCount", "$maxUses"] } 
+        }),
+        RedeemCode.aggregate([
+            { $group: { _id: null, total: { $sum: "$usedCount" } } }
+        ]),
+        RedeemCode.aggregate([
+            { $group: { 
+                _id: "$tier", 
+                count: { $sum: 1 },
+                used: { $sum: "$usedCount" }
+            }}
+        ])
+    ]);
+
+    const activeCodes = activeCodesResult;
+    const totalRedemptions = totalRedemptionsResult[0]?.total || 0;
+    const byTier = tierMetadata.map(t => ({
+        _id: t._id,
+        count: t.count,
+        used: t.used
+    }));
+
     res.json({
       totalCodes,
       activeCodes,
       totalRedemptions,
-      byTier: Object.values(tierMap)
+      byTier
     });
     
   } catch (error) {

@@ -11,8 +11,23 @@ const VALID_BUTTON_STYLES = ['rounded', 'pill', 'square'];
 // Hex color pattern for custom theme validation
 const HEX_COLOR_PATTERN = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
 
-// Safe image URL pattern (allows common image hosts and formats)
-const SAFE_IMAGE_URL_PATTERN = /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i;
+// Safe image URL validation (ReDoS-safe, no vulnerable regex)
+const isValidImageUrl = (url) => {
+  if (!url || typeof url !== 'string' || url.length > 2048) return false;
+  const lower = url.toLowerCase();
+  if (!lower.startsWith('http://') && !lower.startsWith('https://')) return false;
+  
+  // Find the path part (before any query string)
+  const queryIndex = url.indexOf('?');
+  const path = queryIndex > 0 ? lower.slice(0, queryIndex) : lower;
+  
+  // Check for valid image extension
+  const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+  return validExtensions.some(ext => path.endsWith(ext));
+};
+
+// Keep SAFE_IMAGE_URL_PATTERN for backwards compatibility but use function instead
+const SAFE_IMAGE_URL_PATTERN = { test: isValidImageUrl };
 
 // Basic HTML/script sanitization
 const sanitizeText = (text) => {
@@ -100,9 +115,7 @@ export const getPublicProfile = async (req, res) => {
     // This covers: cancelled, expired, past_due, paused, manual downgrade (tier=free), etc.
     const isExpired = hadSubscription && !isPro;
 
-    console.log(`[Bio Debug] User: ${username} | Tier: ${subTier} | Status: ${subStatus} | isPro: ${isPro} | isExpired: ${isExpired} | LinksURL: ${pinnedLinks[0]?.originalUrl ? 'Visible' : 'Hidden'}`);
-    
-
+    logger.debug(`[Bio] User: ${username} | Tier: ${subTier} | Status: ${subStatus} | isPro: ${isPro} | isExpired: ${isExpired}`);
     
     // Build response with only public fields
     res.json({

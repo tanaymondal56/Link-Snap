@@ -5,7 +5,7 @@ import { Check, X, Shield, Zap, Globe, Lock, Hammer, Star } from 'lucide-react';
 import ComingSoonFeature from '../components/subscription/ComingSoonFeature';
 import api from '../api/axios';
 import { useNavigate } from 'react-router-dom';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 
 const PricingPage = () => {
   const { user } = useAuth();

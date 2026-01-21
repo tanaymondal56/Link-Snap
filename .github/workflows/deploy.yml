@@ -1,8 +1,8 @@
-name: Deploy Status
+name: Build and Deploy to Production
 
 on:
   push:
-    branches: [master]
+    branches: [master] # Only deploy from master branch
   workflow_dispatch:
 
 # Required permissions for deployments
@@ -11,17 +11,79 @@ permissions:
   deployments: write
 
 jobs:
-  deploy:
-    name: Register Deployment
+  build-and-deploy:
+    name: Build and Deploy
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://linksnap.centralindia.cloudapp.azure.com
-    
+      url: https://${{ secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com' }}
+
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deployment Success
-        run: echo "✅ Deployed to production at https://linksnap.centralindia.cloudapp.azure.com"
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
 
+      - name: Install client dependencies
+        run: cd client && npm ci --legacy-peer-deps
+
+      - name: Install server dependencies
+        run: cd server && npm ci
+
+      - name: Build client with production environment variables
+        env:
+          VITE_BASE_URL: ${{ secrets.VITE_BASE_URL != '' && secrets.VITE_BASE_URL || format('https://{0}', secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com') }}
+          VITE_DOMAIN: ${{ secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com' }}
+          VITE_API_URL: /api
+        run: cd client && npm run build
+
+      - name: Verify build output
+        run: |
+          echo "✅ Checking build artifacts..."
+          if [ -d "client/dist" ]; then
+            echo "✅ client/dist directory exists"
+            echo "📊 Build output size: $(du -sh client/dist | cut -f1)"
+            echo "📄 Files in dist:"
+            find client/dist -type f -name "*.html" -o -name "*.xml" | head -20
+          else
+            echo "❌ Build failed - dist directory not found"
+            exit 1
+          fi
+
+      - name: Verify environment variables in build
+        run: |
+          echo "🔍 Checking for hardcoded URLs in built HTML..."
+          PROD_DOMAIN="${{ secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com' }}"
+          if grep -q "https://$PROD_DOMAIN" client/dist/index.html; then
+            echo "✅ Production domain found in built HTML"
+          else
+            echo "⚠️ Warning: Domain not found in built HTML"
+          fi
+
+          echo "🔍 Checking for placeholders..."
+          if grep -q "%VITE_" client/dist/index.html; then
+            echo "❌ ERROR: Placeholders still in build!"
+            exit 1
+          else
+            echo "✅ No placeholders in build output"
+          fi
+
+      - name: Deployment Success
+        run: |
+          PROD_DOMAIN="${{ secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com' }}"
+          echo "📦 Production URL: https://$PROD_DOMAIN"
+          echo "🌍 Domain: $PROD_DOMAINpp.azure.com' }}"
+          echo "🌍 Domain: ${{ secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com' }}"
+          echo ""
+          echo "📝 Next steps:"
+          echo "1. Deploy 'client/dist' to your web server"
+          echo "2. Deploy 'server' directory to your backend server"
+          echo "3. Verify all URLs are using production domain"
+          echo ""
+          echo "For Azure App Service deployment, add these steps:"
+          echo "- Azure/webapps-deploy@v2"
+          echo "  with app-name and package parameters"

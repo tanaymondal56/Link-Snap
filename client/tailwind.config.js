@@ -8,5 +8,12 @@ export default {
     extend: {},
   },
   plugins: [],
+  // Aggressive CSS purging for production
+  safelist: [],
+  // Remove unused utilities more aggressively
+  future: {
+    removeDeprecatedGapUtilities: true,
+    purgeLayersByDefault: true,
+  },
 }
 

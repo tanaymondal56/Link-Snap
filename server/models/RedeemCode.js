@@ -55,6 +55,52 @@ const redeemCodeSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Index for sorting by creation date
+redeemCodeSchema.index({ createdAt: -1 });
+// Index for looking up codes used by a specific user (nested array)
+redeemCodeSchema.index({ 'usedBy.user': 1 });
+
+// Static method to legally redeem a code (Atomic)
+redeemCodeSchema.statics.redeem = async function(code, userId, snapId) {
+  const updatedCode = await this.findOneAndUpdate(
+    {
+      code: code,
+      isActive: true,
+      // Atomic check: usedCount must be less than maxUses
+      $expr: { $lt: ["$usedCount", "$maxUses"] },
+      // Atomic check: not expired (if expiresAt is set)
+      $or: [
+        { expiresAt: null },
+        { expiresAt: { $gt: new Date() } }
+      ]
+    },
+    {
+      $inc: { usedCount: 1 },
+      $push: { 
+        usedBy: { 
+          user: userId, 
+          snapId: snapId, 
+          usedAt: new Date() 
+        } 
+      }
+    },
+    { new: true }
+  );
+
+  if (!updatedCode) {
+    // Determine why it failed (for better error messages)
+    const codeDoc = await this.findOne({ code });
+    if (!codeDoc) throw new Error('Invalid code');
+    if (!codeDoc.isActive) throw new Error('Code is inactive');
+    if (codeDoc.expiresAt && new Date(codeDoc.expiresAt) < new Date()) throw new Error('Code has expired');
+    if (codeDoc.usedCount >= codeDoc.maxUses) throw new Error('Code fully redeemed');
+    
+    throw new Error('Redemption failed');
+  }
+
+  return updatedCode;
+};
+
 // Virtual to check if code is still valid
 redeemCodeSchema.virtual('isValid').get(function() {
   if (!this.isActive) return false;

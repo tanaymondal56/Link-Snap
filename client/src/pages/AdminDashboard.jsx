@@ -1,13 +1,13 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, Fragment, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import { useConfirm } from '../context/ConfirmContext';
 import { useDialog } from '../components/ui/DialogProvider';
-import BanUserModal from '../components/BanUserModal';
-import UnbanUserModal from '../components/UnbanUserModal';
-import SystemHealthCard from '../components/admin/SystemHealthCard';
-import ChangelogManager from '../components/admin/ChangelogManager';
+const BanUserModal = lazy(() => import('../components/BanUserModal'));
+const UnbanUserModal = lazy(() => import('../components/UnbanUserModal'));
+const SystemHealthCard = lazy(() => import('../components/admin/SystemHealthCard'));
+const ChangelogManager = lazy(() => import('../components/admin/ChangelogManager'));
 import {
   Trash2,
   Users,
@@ -73,10 +73,10 @@ const AdminDashboard = () => {
     if (!userSearch) return true;
     const term = userSearch.toLowerCase();
     return (
-      (user.email?.toLowerCase().includes(term)) ||
-      (user.firstName?.toLowerCase().includes(term)) ||
-      (user.lastName?.toLowerCase().includes(term)) ||
-      (user.username?.toLowerCase().includes(term))
+      user.email?.toLowerCase().includes(term) ||
+      user.firstName?.toLowerCase().includes(term) ||
+      user.lastName?.toLowerCase().includes(term) ||
+      user.username?.toLowerCase().includes(term)
     );
   });
 
@@ -348,13 +348,7 @@ const AdminDashboard = () => {
         'User Activated'
       );
       // Use the response data from API to ensure all ban fields are properly cleared
-      setUsers(
-        users.map((u) =>
-          u._id === unbanModalUser._id
-            ? { ...u, ...data.user }
-            : u
-        )
-      );
+      setUsers(users.map((u) => (u._id === unbanModalUser._id ? { ...u, ...data.user } : u)));
       setUnbanModalUser(null);
       // Refresh links if on links tab to show updated status
       if (activeTab === 'links') {
@@ -382,13 +376,7 @@ const AdminDashboard = () => {
         'User Banned'
       );
       // Use the response data from API which includes bannedUntil, bannedAt, etc.
-      setUsers(
-        users.map((u) =>
-          u._id === banModalUser._id
-            ? { ...u, ...data.user }
-            : u
-        )
-      );
+      setUsers(users.map((u) => (u._id === banModalUser._id ? { ...u, ...data.user } : u)));
       setBanModalUser(null);
       // Refresh links if on links tab to show updated status
       if (activeTab === 'links') {
@@ -658,7 +646,7 @@ const AdminDashboard = () => {
   return (
     <div className="space-y-4 sm:space-y-6 lg:space-y-8">
       {/* Switch to New Admin Console Banner */}
-      <Link 
+      <Link
         to="/admin-console"
         className="group flex items-center justify-between p-4 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-xl hover:border-purple-500/40 transition-all"
       >
@@ -668,7 +656,9 @@ const AdminDashboard = () => {
           </div>
           <div>
             <p className="text-white font-medium">New Admin Console Available</p>
-            <p className="text-gray-400 text-sm">Try the redesigned admin experience with modern UI</p>
+            <p className="text-gray-400 text-sm">
+              Try the redesigned admin experience with modern UI
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2 text-purple-400 group-hover:text-purple-300 transition-colors">
@@ -707,49 +697,49 @@ const AdminDashboard = () => {
 
       {/* Stats Cards */}
       {mainSection === 'admin' && (
-      <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6">
-        <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 p-3 sm:p-4 lg:p-6 rounded-xl sm:rounded-2xl">
-          <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-2">
-            <div className="text-center sm:text-left">
-              <p className="text-gray-400 text-xs sm:text-sm font-medium">Users</p>
-              <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mt-0.5 sm:mt-1">
-                {stats.totalUsers}
-              </h3>
-            </div>
-            <div className="p-2 sm:p-3 bg-purple-500/20 rounded-lg sm:rounded-xl hidden sm:block">
-              <Users className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" />
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6">
+          <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 p-3 sm:p-4 lg:p-6 rounded-xl sm:rounded-2xl">
+            <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-2">
+              <div className="text-center sm:text-left">
+                <p className="text-gray-400 text-xs sm:text-sm font-medium">Users</p>
+                <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mt-0.5 sm:mt-1">
+                  {stats.totalUsers}
+                </h3>
+              </div>
+              <div className="p-2 sm:p-3 bg-purple-500/20 rounded-lg sm:rounded-xl hidden sm:block">
+                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 p-3 sm:p-4 lg:p-6 rounded-xl sm:rounded-2xl">
-          <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-2">
-            <div className="text-center sm:text-left">
-              <p className="text-gray-400 text-xs sm:text-sm font-medium">Links</p>
-              <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mt-0.5 sm:mt-1">
-                {stats.totalUrls}
-              </h3>
-            </div>
-            <div className="p-2 sm:p-3 bg-pink-500/20 rounded-lg sm:rounded-xl hidden sm:block">
-              <LinkIcon className="w-5 h-5 sm:w-6 sm:h-6 text-pink-400" />
+          <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 p-3 sm:p-4 lg:p-6 rounded-xl sm:rounded-2xl">
+            <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-2">
+              <div className="text-center sm:text-left">
+                <p className="text-gray-400 text-xs sm:text-sm font-medium">Links</p>
+                <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mt-0.5 sm:mt-1">
+                  {stats.totalUrls}
+                </h3>
+              </div>
+              <div className="p-2 sm:p-3 bg-pink-500/20 rounded-lg sm:rounded-xl hidden sm:block">
+                <LinkIcon className="w-5 h-5 sm:w-6 sm:h-6 text-pink-400" />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 p-3 sm:p-4 lg:p-6 rounded-xl sm:rounded-2xl">
-          <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-2">
-            <div className="text-center sm:text-left">
-              <p className="text-gray-400 text-xs sm:text-sm font-medium">Clicks</p>
-              <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mt-0.5 sm:mt-1">
-                {stats.totalClicks}
-              </h3>
-            </div>
-            <div className="p-2 sm:p-3 bg-blue-500/20 rounded-lg sm:rounded-xl hidden sm:block">
-              <BarChart2 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />
+          <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 p-3 sm:p-4 lg:p-6 rounded-xl sm:rounded-2xl">
+            <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-2">
+              <div className="text-center sm:text-left">
+                <p className="text-gray-400 text-xs sm:text-sm font-medium">Clicks</p>
+                <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mt-0.5 sm:mt-1">
+                  {stats.totalClicks}
+                </h3>
+              </div>
+              <div className="p-2 sm:p-3 bg-blue-500/20 rounded-lg sm:rounded-xl hidden sm:block">
+                <BarChart2 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />
+              </div>
             </div>
           </div>
         </div>
-      </div>
       )}
 
       {/* Tabs */}
@@ -853,7 +843,15 @@ const AdminDashboard = () => {
           <div className="p-6">
             {monitoringTab === 'health' && (
               <div className="space-y-6">
-                <SystemHealthCard />
+                <Suspense
+                  fallback={
+                    <div className="glass-dark p-6 rounded-2xl border border-white/5 h-64 flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                    </div>
+                  }
+                >
+                  <SystemHealthCard />
+                </Suspense>
               </div>
             )}
             {monitoringTab === 'logs' && (
@@ -952,11 +950,18 @@ const AdminDashboard = () => {
                           )}
                         </div>
                       </div>
-                      <button className="p-1.5 hover:bg-gray-700/50 rounded-lg">
+                      <button
+                        aria-label={
+                          expandedUserId === user._id
+                            ? 'Collapse user details'
+                            : 'Expand user details'
+                        }
+                        className="p-1.5 hover:bg-gray-700/50 rounded-lg"
+                      >
                         {expandedUserId === user._id ? (
-                          <ChevronUp size={16} className="text-gray-400" />
+                          <ChevronUp size={16} className="text-gray-400" aria-hidden="true" />
                         ) : (
-                          <ChevronDown size={16} className="text-gray-400" />
+                          <ChevronDown size={16} className="text-gray-400" aria-hidden="true" />
                         )}
                       </button>
                     </div>
@@ -1232,9 +1237,7 @@ const AdminDashboard = () => {
                         <div className="flex flex-col items-center gap-3">
                           <Users className="w-12 h-12 text-gray-600" />
                           <p className="text-gray-400 font-medium">No users found</p>
-                          <p className="text-gray-500 text-sm">
-                            Try adjusting your search
-                          </p>
+                          <p className="text-gray-500 text-sm">Try adjusting your search</p>
                         </div>
                       </td>
                     </tr>
@@ -1267,7 +1270,9 @@ const AdminDashboard = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-gray-300">{user.username ? `@${user.username}` : '—'}</span>
+                          <span className="text-gray-300">
+                            {user.username ? `@${user.username}` : '—'}
+                          </span>
                         </td>
                         <td className="px-6 py-4">
                           {user.firstName || user.lastName ? (
@@ -1292,30 +1297,31 @@ const AdminDashboard = () => {
                         <td className="px-6 py-4">
                           {user.isActive === false ? (
                             user.bannedReason && user.bannedReason.includes('Unban Pending') ? (
-                            <span
-                              className="px-2 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30 cursor-help"
-                              title={user.bannedReason}
-                            >
-                              Unban Pending
-                            </span>
-                          ) : (
-                            <div className="flex flex-col gap-1">
-                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-300 border border-red-500/30 w-fit">
-                                Banned
+                              <span
+                                className="px-2 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30 cursor-help"
+                                title={user.bannedReason}
+                              >
+                                Unban Pending
                               </span>
-                              {user.bannedUntil ? (
-                                <div
-                                  className="flex items-center gap-1 text-[10px] text-orange-400"
-                                  title={`Unbans: ${formatDateTime(user.bannedUntil)}`}
-                                >
-                                  <Timer size={10} />
-                                  <span>{formatDate(user.bannedUntil)}</span>
-                                </div>
-                              ) : (
-                                <span className="text-[10px] text-red-400">Permanent</span>
-                              )}
-                            </div>
-                          )) : user.isVerified === false ? (
+                            ) : (
+                              <div className="flex flex-col gap-1">
+                                <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-300 border border-red-500/30 w-fit">
+                                  Banned
+                                </span>
+                                {user.bannedUntil ? (
+                                  <div
+                                    className="flex items-center gap-1 text-[10px] text-orange-400"
+                                    title={`Unbans: ${formatDateTime(user.bannedUntil)}`}
+                                  >
+                                    <Timer size={10} />
+                                    <span>{formatDate(user.bannedUntil)}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-red-400">Permanent</span>
+                                )}
+                              </div>
+                            )
+                          ) : user.isVerified === false ? (
                             <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
                               Unverified
                             </span>
@@ -2295,7 +2301,15 @@ const AdminDashboard = () => {
         {/* CHANGELOG TAB */}
         {mainSection === 'admin' && activeTab === 'changelog' && (
           <div className="p-4 sm:p-6">
-            <ChangelogManager />
+            <Suspense
+              fallback={
+                <div className="glass-dark p-6 rounded-2xl border border-white/5 h-96 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+                </div>
+              }
+            >
+              <ChangelogManager />
+            </Suspense>
           </div>
         )}
       </div>
@@ -2557,20 +2571,28 @@ const AdminDashboard = () => {
       )}
 
       {/* Ban User Modal */}
-      <BanUserModal
-        isOpen={!!banModalUser}
-        onClose={() => setBanModalUser(null)}
-        onConfirm={handleBanUser}
-        user={banModalUser}
-      />
+      {banModalUser && (
+        <Suspense fallback={null}>
+          <BanUserModal
+            isOpen={!!banModalUser}
+            onClose={() => setBanModalUser(null)}
+            onConfirm={handleBanUser}
+            user={banModalUser}
+          />
+        </Suspense>
+      )}
 
       {/* Unban User Modal */}
-      <UnbanUserModal
-        isOpen={!!unbanModalUser}
-        onClose={() => setUnbanModalUser(null)}
-        onConfirm={handleUnbanUser}
-        user={unbanModalUser}
-      />
+      {unbanModalUser && (
+        <Suspense fallback={null}>
+          <UnbanUserModal
+            isOpen={!!unbanModalUser}
+            onClose={() => setUnbanModalUser(null)}
+            onConfirm={handleUnbanUser}
+            user={unbanModalUser}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

@@ -13,6 +13,8 @@ import errorHandler from './middleware/errorHandler.js';
 import mongoSanitize from './middleware/sanitizer.js';
 import logger from './utils/logger.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
+import lusca from 'lusca';
+import cookieSession from 'cookie-session';
 
 import authRoutes from './routes/authRoutes.js';
 import urlRoutes from './routes/urlRoutes.js';
@@ -21,7 +23,7 @@ import analyticsRoutes from './routes/analyticsRoutes.js';
 // Ghost Mode: Admin routes are ONLY loaded if explicitly enabled
 let adminRoutes = null;
 if (process.env.ADMIN_ENABLED === 'true') {
-   adminRoutes = (await import('./routes/adminRoutes.js')).default;
+  adminRoutes = (await import('./routes/adminRoutes.js')).default;
 }
 import appealRoutes from './routes/appealRoutes.js';
 import changelogRoutes from './routes/changelogRoutes.js';
@@ -31,11 +33,25 @@ import redirectRoutes from './routes/redirectRoutes.js';
 import bioRoutes from './routes/bioRoutes.js';
 import deviceAuthRoutes from './routes/deviceAuthRoutes.js';
 import { startBanScheduler } from './services/banScheduler.js';
+import { startCronJobs } from './services/cronService.js';
+import compression from 'compression';
 
 const app = express();
 
 // Trust proxy (required for correct IP detection behind Nginx/Load Balancers)
 app.set('trust proxy', 1);
+
+// Enable compression for all responses (Gzip/Brotli)
+app.use(compression({
+  level: 6, // Balance between speed and compression ratio
+  threshold: 1024, // Only compress responses > 1KB
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
+}));
 
 // Middleware
 if (process.env.NODE_ENV === 'development') {
@@ -124,6 +140,37 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// ... imports
+
+// CSRF Protection (using lusca as recommended by CodeQL)
+// Lusca requires a session to store the CSRF secret.
+// We use cookie-session to provide a client-side session.
+app.use(cookieSession({
+  name: 'session',
+  keys: [process.env.SESSION_SECRET || 'default-secret-key'],
+  maxAge: 24 * 60 * 60 * 1000, // 24 hours
+  secure: process.env.NODE_ENV === 'production',
+  httpOnly: true,
+  sameSite: 'strict',
+}));
+
+// Configure CSRF with double-submit cookie pattern
+app.use(lusca.csrf({
+  cookie: {
+    name: 'XSRF-TOKEN',
+    options: {
+      httpOnly: false, // Allow client to read for header inclusion
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    }
+  },
+  header: 'X-XSRF-TOKEN',
+  blacklist: [
+    { type: 'startsWith', path: '/api/webhooks' }, // Webhooks use signature verification
+    { type: 'startsWith', path: '/api/url/' } // Public redirect and password verification endpoints
+  ]
+}));
+
 // NoSQL injection protection
 app.use(mongoSanitize);
 
@@ -192,12 +239,24 @@ if (process.env.NODE_ENV === 'production') {
     etag: true,
     lastModified: true,
     setHeaders: (res, filePath) => {
-      // For HTML files, don't cache to ensure fresh content
-      // For HTML files and Service Worker, don't cache to ensure fresh content
-      if (filePath.endsWith('.html') || filePath.includes('sw.js') || filePath.includes('workbox-')) {
+      // Set explicit Content-Type for JS/CSS files to prevent MIME type errors
+      if (filePath.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      } else if (filePath.endsWith('.mjs')) {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      } else if (filePath.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css; charset=utf-8');
+      }
+
+      // For Service Worker, never cache (must always check for updates)
+      if (filePath.includes('sw.js') || filePath.includes('workbox-')) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
+      }
+      // For HTML files, allow caching with revalidation (enables bfcache)
+      else if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, max-age=0, must-revalidate');
       }
       // For JS/CSS with hash in filename, cache forever (immutable)
       else if (filePath.match(/\.[a-f0-9]{8}\.(js|css)$/)) {
@@ -221,13 +280,22 @@ if (process.env.NODE_ENV === 'production') {
   // This handles all routes not matched by API or redirect routes
   app.get('/{*splat}', (req, res) => {
     console.log(`[SPA Catch-all] Serving index.html for: ${req.path}`);
-    // Set no-cache headers for SPA routes to ensure fresh content after builds
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+    // Allow browser caching with revalidation (enables bfcache for back/forward navigation)
+    // Changed from 'no-store' to allow bfcache while still checking for updates
+    res.setHeader('Cache-Control', 'no-cache, max-age=0, must-revalidate');
     res.sendFile(path.resolve(__dirname, '../client/dist/index.html'));
   });
 } else {
+  // Development mode - catch-all for 404s
+  app.get('/{*splat}', (req, res) => {
+    // Return proper 404 response for invalid short URLs
+    res.status(404).json({
+      message: 'Short link not found',
+      shortId: req.path.slice(1), // Remove leading slash
+      suggestion: 'This link may have expired or been deleted'
+    });
+  });
+
   app.get('/', (req, res) => {
     res.send('Link Snap API is running...');
   });
@@ -248,6 +316,9 @@ const startServer = async () => {
 
       // Start the temporary ban scheduler
       startBanScheduler();
+
+      // Start background cron jobs (Safe Browsing, etc.)
+      startCronJobs();
     });
   } catch (error) {
     logger.error(`Failed to start server: ${error.message}`);

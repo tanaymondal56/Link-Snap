@@ -36,6 +36,9 @@ loginHistorySchema.index({ userId: 1, createdAt: -1 });
 loginHistorySchema.index({ ip: 1, createdAt: -1 });
 loginHistorySchema.index({ email: 1, createdAt: -1 });
 
+// Data Retention: expire logs after 1 year (365 days)
+loginHistorySchema.index({ createdAt: 1 }, { expireAfterSeconds: 365 * 24 * 60 * 60 });
+
 const LoginHistory = mongoose.model('LoginHistory', loginHistorySchema);
 
 export default LoginHistory;

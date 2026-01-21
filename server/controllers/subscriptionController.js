@@ -4,18 +4,6 @@ import User from '../models/User.js';
 import axios from 'axios';
 import logger from '../utils/logger.js';
 
-// Cache for pricing data (simple in-memory cache)
-// In production, use Redis.
-// eslint-disable-next-line no-unused-vars -- Cache implementation placeholder
-let priceCache = {
-  data: null,
-  timestamp: 0,
-  currency: 'USD'
-};
-
-// eslint-disable-next-line no-unused-vars -- TTL for future cache implementation
-const CACHE_TTL = 3600 * 1000; // 1 hour
-
 /**
  * Get localized pricing for the pricing page.
  * Ideally, we should use Lemon Squeezy's API to get the visitor's currency.

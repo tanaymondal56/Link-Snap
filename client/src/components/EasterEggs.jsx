@@ -9,6 +9,8 @@ const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft'
 // ========================================
 
 const EasterEggs = () => {
+  // Guard to prevent console logs from running twice (React StrictMode)
+  const hasLoggedRef = useRef(false);
   const [showCredits, setShowCredits] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const typedKeys = useRef('');
@@ -237,6 +239,10 @@ const EasterEggs = () => {
   // ========================================
 
   useEffect(() => {
+    // Prevent double-execution in React StrictMode
+    if (hasLoggedRef.current) return;
+    hasLoggedRef.current = true;
+
     // ASCII Art Logo
     console.log(`
 %c
@@ -252,12 +258,8 @@ const EasterEggs = () => {
     console.log('%c⚠️ Warning: This app is highly addictive!', 'color: #f59e0b; font-size: 12px;');
     console.log('%c☕ Built with love and lots of coffee', 'color: #6b7280; font-size: 11px;');
     console.log('%c💼 We\'re NOT hiring! But if you insist... apply at /dev/null', 'color: #10b981; font-size: 11px;');
-    console.log('%c   📧 Send your resume to /dev/null', 'color: #6b7280; font-size: 10px;');
-    console.log('%c   📝 Include a 500-word essay on why tabs > spaces', 'color: #6b7280; font-size: 10px;');
-    console.log('%c   🧪 Solve P=NP and attach proof', 'color: #6b7280; font-size: 10px;');
-    console.log('%c   🎯 Recite π to 1000 digits in the interview', 'color: #6b7280; font-size: 10px;');
-    console.log('%c   💰 Salary: Exposure and high-fives', 'color: #6b7280; font-size: 10px;');
-    console.log('%c🎮 Try typing: matrix, disco, party, beep, 42, 404, 500, clippy', 'color: #ec4899; font-size: 11px;');
+
+    console.log('%c🎮 Try typing at page: matrix, disco, party, beep, 42, 404, 500, clippy', 'color: #ec4899; font-size: 11px;');
     console.log('%c🎯 Or try the Konami Code: ↑↑↓↓←→←→BA', 'color: #8b5cf6; font-size: 11px;');
 
     // Hidden window functions

@@ -1,22 +1,23 @@
 // eslint-disable-next-line no-unused-vars -- Kept for potential future use in role lookup
 import User from '../models/User.js';
+import logger from '../utils/logger.js';
 
 export const verifyAdmin = async (req, res, next) => {
     try {
-        // req.user is already populated by verifyToken middleware (which handles both User and MasterAdmin)
-        const user = req.user;
-
-        console.log(`[VerifyAdmin] User: ${user?.email}, Role: ${user?.role}, WhitelistedIP: ${req.isWhitelistedIP}`);
-
-        // Allow if user is admin or master_admin
-        if (user && (user.role === 'admin' || user.role === 'master_admin')) {
-            next();
-        } else {
-            // Return 404 to hide the existence of admin routes
-            res.status(404).json({ message: 'Not Found' });
+        // Separate authentication check from authorization check
+        if (!req.user) {
+            logger.warn('Admin access attempt without authentication');
+            return res.status(401).json({ message: 'Authentication required.' });
         }
-    } catch {
-        // Return 404 to hide the existence of admin routes
-        res.status(404).json({ message: 'Not Found' });
+        
+        if (req.user.role !== 'admin') {
+            logger.warn(`Unauthorized admin access attempt by user: ${req.user._id}`);
+            return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+        }
+        
+        next();
+    } catch (error) {
+        logger.error(`Error in verifyAdmin middleware: ${error.message}`);
+        res.status(500).json({ message: 'Server error' });
     }
 };

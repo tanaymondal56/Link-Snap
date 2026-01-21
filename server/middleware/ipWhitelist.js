@@ -1,16 +1,23 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import logger from '../utils/logger.js';
 
 // IP Whitelist Middleware for Admin Panel Protection
 // Only localhost is allowed by default. Add trusted IPs to .env
 const envAllowedIPs = process.env.ADMIN_WHITELIST_IPS ? process.env.ADMIN_WHITELIST_IPS.split(',').map(ip => ip.trim()) : [];
+const envTrustedProxies = process.env.TRUSTED_PROXIES ? process.env.TRUSTED_PROXIES.split(',').map(ip => ip.trim()) : [];
 
 const allowedIPs = [
   ...envAllowedIPs
 ];
 
-// Debug: Print allowed IPs on startup (only once)
-console.log('🛡️ [Security Config] Admin Whitelist:', allowedIPs);
+// Security: Only log count of configured IPs, not the actual sensitive IP values
+if (allowedIPs.length > 0) {
+  logger.info(`🛡️ [Security Config] Admin Whitelist configured with ${allowedIPs.length} custom IP(s)`);
+}
+if (envTrustedProxies.length > 0) {
+  logger.info(`🛡️ [Security Config] Trusted Proxies configured with ${envTrustedProxies.length} proxy(ies)`);
+}
 
 // Localhost IP patterns (these are always allowed)
 const localhostPatterns = [
@@ -25,11 +32,12 @@ const checkIpAccess = (req) => {
   const socketIP = req.socket?.remoteAddress || req.connection?.remoteAddress || '';
   const normalizedSocketIP = socketIP.replace(/^::ffff:/, '');
 
-  // Check if request is coming from a trusted proxy (localhost)
+  // Check if request is coming from a trusted proxy (localhost OR explicitly trusted proxy)
   const isFromTrustedProxy = localhostPatterns.includes(socketIP) ||
     localhostPatterns.includes(normalizedSocketIP) ||
     normalizedSocketIP === '127.0.0.1' ||
-    normalizedSocketIP.startsWith('127.');
+    normalizedSocketIP.startsWith('127.') ||
+    envTrustedProxies.includes(normalizedSocketIP);
 
   // Get client IP from headers (only trust if from a proxy)
   let clientIP;
@@ -74,7 +82,7 @@ export const ipWhitelist = async (req, res, next) => {
     req.isWhitelistedIP = isAllowed;
 
     if (isAllowed) {
-      console.log(`[IP Whitelist] ✅ Allowed: ${clientIP} (socket: ${socketIP}, normalized: ${normalizedIP})`);
+      logger.debug(`[IP Whitelist] ✅ Allowed: ${clientIP} (socket: ${socketIP}, normalized: ${normalizedIP})`);
       return next();
     }
 
@@ -82,24 +90,24 @@ export const ipWhitelist = async (req, res, next) => {
     if (req.headers.authorization?.startsWith('Bearer')) {
       const token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-      
+
       const user = await User.findById(decoded.id).select('role isActive');
-      
+
       if (user && user.role === 'admin' && user.isActive) {
-        console.log(`[IP Whitelist] 🔓 Bypass by Admin Token: ${user._id} (${clientIP})`);
+        logger.info(`[IP Whitelist] 🔓 Bypass by Admin Token: ${user._id} (${clientIP})`);
         return next();
       }
     }
 
     // Return 404 to hide the existence of admin routes
-    console.warn(`[IP Whitelist] 🚫 BLOCKED admin access from: ${clientIP} (socket: ${socketIP}, normalized: ${normalizedIP}).`);
+    logger.warn(`[IP Whitelist] 🚫 BLOCKED admin access from: ${clientIP} (socket: ${socketIP}, normalized: ${normalizedIP}).`);
     return res.status(404).json({ message: 'Not Found' });
   } catch (error) {
-    console.error('[IP Whitelist] ERROR:', error);
+    logger.error(`[IP Whitelist] ERROR: ${error.message}`);
     // On crash, fail closed (404/500)
     // Return explicit error in dev for debugging
     if (process.env.NODE_ENV === 'development') {
-       return res.status(500).json({ message: 'Middleware Error', error: error.message, stack: error.stack });
+      return res.status(500).json({ message: 'Middleware Error', error: error.message, stack: error.stack });
     }
     return res.status(404).json({ message: 'Not Found' });
   }
@@ -113,16 +121,16 @@ export const strictIpWhitelist = (req, res, next) => {
     req.isWhitelistedIP = isAllowed;
 
     if (isAllowed) {
-      console.log(`[Strict IP] ✅ Allowed: ${clientIP} (socket: ${socketIP}, normalized: ${normalizedIP})`);
+      logger.debug(`[Strict IP] ✅ Allowed: ${clientIP} (socket: ${socketIP}, normalized: ${normalizedIP})`);
       return next();
     }
 
-    console.warn(`[Strict IP] 🚫 BLOCKED critical action from: ${clientIP} (socket: ${socketIP}, normalized: ${normalizedIP})`);
+    logger.warn(`[Strict IP] 🚫 BLOCKED critical action from: ${clientIP} (socket: ${socketIP}, normalized: ${normalizedIP})`);
     return res.status(404).json({ message: 'Not Found' });
   } catch (error) {
-    console.error('[Strict IP] ERROR:', error);
+    logger.error(`[Strict IP] ERROR: ${error.message}`);
     if (process.env.NODE_ENV === 'development') {
-       return res.status(500).json({ message: 'Middleware Error', error: error.message, stack: error.stack });
+      return res.status(500).json({ message: 'Middleware Error', error: error.message, stack: error.stack });
     }
     return res.status(404).json({ message: 'Not Found' });
   }

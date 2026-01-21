@@ -126,25 +126,52 @@ feedbackSchema.methods.hasUserVoted = function(userId) {
   return this.votes.some(v => v.user.toString() === userId.toString());
 };
 
-// Method to add vote
+// Method to add vote (Atomic)
 feedbackSchema.methods.addVote = async function(userId) {
-  if (this.hasUserVoted(userId)) {
-    throw new Error('You have already voted for this feedback');
+  // Atomic update: Only update if user hasn't voted yet
+  const updated = await this.constructor.findOneAndUpdate(
+    { 
+      _id: this._id, 
+      'votes.user': { $ne: userId } 
+    },
+    { 
+      $addToSet: { votes: { user: userId } },
+      $inc: { voteCount: 1 }
+    },
+    { new: true }
+  );
+
+  if (!updated) {
+    // If update failed, check if it was because of double-voting
+    const exists = await this.constructor.findOne({ _id: this._id, 'votes.user': userId });
+    if (exists) {
+        throw new Error('You have already voted for this feedback');
+    }
+    throw new Error('Failed to add vote');
   }
-  this.votes.push({ user: userId });
-  this.voteCount = this.votes.length;
-  return this.save();
+  
+  return updated;
 };
 
-// Method to remove vote
+// Method to remove vote (Atomic)
 feedbackSchema.methods.removeVote = async function(userId) {
-  const initialLength = this.votes.length;
-  this.votes = this.votes.filter(v => v.user.toString() !== userId.toString());
-  if (this.votes.length === initialLength) {
-    throw new Error('You have not voted for this feedback');
+  const updated = await this.constructor.findOneAndUpdate(
+    { 
+      _id: this._id, 
+      'votes.user': userId 
+    },
+    { 
+      $pull: { votes: { user: userId } },
+      $inc: { voteCount: -1 }
+    },
+    { new: true }
+  );
+
+  if (!updated) {
+     throw new Error('You have not voted for this feedback');
   }
-  this.voteCount = this.votes.length;
-  return this.save();
+
+  return updated;
 };
 
 const Feedback = mongoose.model('Feedback', feedbackSchema);

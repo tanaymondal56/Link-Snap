@@ -15,6 +15,16 @@ import { welcomeEmail, verificationEmail, accountExistsEmail, passwordResetEmail
 import { isReservedWord } from '../config/reservedWords.js';
 import logger from '../utils/logger.js';
 import { generateUserIdentity } from '../services/idService.js';
+import NotificationService from '../services/notificationService.js';
+
+// Simple email validation - ReDoS safe
+const isValidEmail = (email) => {
+  if (!email || typeof email !== 'string') return false;
+  // Basic checks without complex regex
+  const atIndex = email.indexOf('@');
+  const dotIndex = email.lastIndexOf('.');
+  return atIndex > 0 && dotIndex > atIndex + 1 && dotIndex < email.length - 1 && email.length <= 254;
+};
 
 // Cookie settings - use 'strict' for permanent domains, 'lax' for tunnels/dev
 // Set COOKIE_SAMESITE=lax in .env if using temporary tunnels
@@ -53,12 +63,6 @@ const registerUser = async (req, res, next) => {
         throw new Error('This username is not available');
     }
 
-    // Check format (double check in controller)
-    if (!/^[a-z0-9_-]+$/.test(username)) {
-        res.status(400);
-        throw new Error('Username must be alphanumeric (letters, numbers, _, -)');
-    }
-
     // Check for existing user by email
     const userExists = await User.findOne({ email });
 
@@ -75,7 +79,7 @@ const registerUser = async (req, res, next) => {
     if (userExists) {
       if (userExists.isVerified) {
         // Option 1: User is already verified - Send "Account Exists" email
-        console.log(`Registration attempt for existing verified user: ${email}`);
+        logger.debug(`[Auth] Registration attempt for existing verified user: ${email}`);
         
         try {
           const emailContent = accountExistsEmail(userExists);
@@ -85,12 +89,12 @@ const registerUser = async (req, res, next) => {
             message: emailContent.html,
           });
         } catch (error) {
-          console.error('Failed to send account exists email:', error);
+          logger.error('[Auth] Failed to send account exists email:', error);
           // Don't error out, just continue to return the generic message
         }
       } else {
         // Option 2: User exists but is unverified - Update their info and Resend Verification Email
-        console.log(`Registration attempt for existing unverified user: ${email}`);
+        logger.debug(`[Auth] Registration attempt for existing unverified user: ${email}`);
         
         // Update user profile with new form data (in case they changed password/name)
         userExists.password = password; // Will be hashed by pre-save hook
@@ -115,14 +119,11 @@ const registerUser = async (req, res, next) => {
         userExists.verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
         
         // Debug: Log before save
-        console.log('[DEBUG] Before save - OTP:', otp, 'Expires:', new Date(otpExpiresTime).toISOString());
+        logger.debug(`[Auth] Before save - OTP for ${email}, expires: ${new Date(otpExpiresTime).toISOString()}`);
         
         await userExists.save();
         
-        // Debug: Verify saved data by re-fetching
-        const savedUser = await User.findOne({ email });
-        console.log('[DEBUG] After save - OTP:', savedUser.otp, 'Expires:', savedUser.otpExpires, 'Now:', Date.now());
-        console.log('[DEBUG] OTP Match:', savedUser.otp === otp, 'Expires Valid:', savedUser.otpExpires > Date.now());
+        // Debug logging removed for production - OTP details should not be logged
 
         try {
           const emailContent = verificationEmail(userExists, verificationToken, otp);
@@ -131,10 +132,10 @@ const registerUser = async (req, res, next) => {
             subject: emailContent.subject,
             message: emailContent.html,
           });
-          console.log('[DEBUG] Email sent successfully with OTP:', otp);
-        } catch (error) {
-          console.error('Failed to resend verification email:', error);
-        }
+            logger.debug(`[Auth] Verification email sent for ${email}`);
+          } catch (error) {
+            logger.error('[Auth] Failed to resend verification email:', error);
+          }
       }
 
       // Return appropriate response based on verification status
@@ -213,6 +214,11 @@ const registerUser = async (req, res, next) => {
           message: emailContent.html,
         });
 
+        // Send admin notification (non-blocking)
+        NotificationService.userSignup(user._id, user.email).catch(err => {
+          logger.error(`[Auth] Failed to send signup notification: ${err.message}`);
+        });
+
         res.status(201).json({
           message: 'Registration successful! Please check your email to verify your account.',
           requireVerification: true,
@@ -246,8 +252,13 @@ const registerUser = async (req, res, next) => {
           });
         }
       } catch (emailError) {
-        console.error('Failed to send welcome email:', emailError.message);
+        logger.error('[Auth] Failed to send welcome email:', emailError.message);
       }
+
+      // Send admin notification (non-blocking)
+      NotificationService.userSignup(user._id, user.email).catch(err => {
+        logger.error(`[Auth] Failed to send signup notification: ${err.message}`);
+      });
 
       res.cookie('jwt', refreshToken, {
         httpOnly: true,
@@ -304,17 +315,12 @@ const verifyOTP = async (req, res, next) => {
       throw new Error('Your account has been suspended. Please contact support.');
     }
 
-    // Debug: Log OTP verification attempt
-    console.log('[DEBUG verifyOTP] Email:', email);
-    console.log('[DEBUG verifyOTP] Stored OTP:', user.otp);
-    console.log('[DEBUG verifyOTP] OTP Expires:', user.otpExpires);
-    console.log('[DEBUG verifyOTP] Current Time:', Date.now());
-    console.log('[DEBUG verifyOTP] Is Expired:', !user.otp || user.otpExpires < Date.now());
-    console.log('[DEBUG verifyOTP] Time Diff (ms):', user.otpExpires ? user.otpExpires - Date.now() : 'N/A');
+    // Debug: Log OTP verification attempt (exclude actual OTP for security)
+    logger.debug(`[Auth] OTP verification attempt for: ${email}`);
 
     // Check OTP expiry first
     if (!user.otp || user.otpExpires < Date.now()) {
-      console.log('[DEBUG verifyOTP] FAILED - OTP expired or missing');
+      logger.debug(`[Auth] OTP expired for ${email}`);
       return res.status(400).json({
         message: 'Your verification code has expired. Please request a new one.',
         expired: true
@@ -456,15 +462,15 @@ const loginUser = async (req, res, next) => {
     const { identifier, password } = result.data;
 
     // Find user by email OR username (case-insensitive)
-    const identifierLower = identifier.toLowerCase();
+    // identifier is already lowercased and trimmed by schema
     
     // --- MASTER ADMIN ROUTING ---
     let user = null;
     let role = 'user';
 
-    if (identifierLower.endsWith('-ma')) {
+    if (identifier.endsWith('-ma')) {
         // Master Admin Detected
-        const realEmail = identifierLower.slice(0, -3); // Strip '-ma'
+        const realEmail = identifier.slice(0, -3); // Strip '-ma'
         user = await MasterAdmin.findOne({ email: realEmail });
         role = 'master_admin';
         console.log(`[Auth] Attempting Master Admin Login: ${realEmail}`);
@@ -472,8 +478,8 @@ const loginUser = async (req, res, next) => {
         // Standard User
         user = await User.findOne({
           $or: [
-            { email: identifierLower },
-            { username: identifierLower }
+            { email: identifier },
+            { username: identifier }
           ]
         });
     }
@@ -636,7 +642,7 @@ const logoutUser = async (req, res, next) => {
     const terminated = await terminateSession(refreshToken);
     
     if (!terminated) {
-      console.log('[Logout] Session not found, clearing cookie anyway');
+      logger.debug('[Logout] Session not found, clearing cookie anyway');
     }
 
     res.clearCookie('jwt', {
@@ -739,16 +745,61 @@ const refreshAccessToken = async (req, res, next) => {
 
     // Generate new access token (NOT a new refresh token - prevents race conditions)
     const accessToken = generateAccessToken(user._id, role);
-    res.json({ accessToken });
+
+    // Prepare user data (unified with getMe response)
+    let userDataResponse;
+
+    if (role === 'master_admin') {
+      userDataResponse = {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: 'master_admin',
+        avatar: user.avatar,
+        createdAt: user.createdAt,
+        lastLoginAt: user.lastLoginAt,
+        subscription: { tier: 'pro', status: 'active' }, 
+        linkUsage: { count: 0, resetAt: new Date() },
+        clickUsage: { count: 0, resetAt: new Date() },
+      };
+    } else {
+      userDataResponse = {
+        _id: user._id,
+        eliteId: user.eliteId,
+        snapId: user.snapId,
+        idTier: user.idTier,
+        idNumber: user.idNumber,
+        username: user.username,
+        usernameChangedAt: user.usernameChangedAt,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        company: user.company,
+        website: user.website,
+        bio: user.bio,
+        avatar: user.avatar,
+        role: user.role,
+        createdAt: user.createdAt,
+        lastLoginAt: user.lastLoginAt,
+        subscription: user.subscription || { tier: 'free', status: 'active' },
+        linkUsage: user.linkUsage || { count: 0, resetAt: new Date() },
+        clickUsage: user.clickUsage || { count: 0, resetAt: new Date() },
+      };
+    }
+
+    res.json({ 
+      accessToken,
+      user: userDataResponse
+    });
     
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Get current user profile
-// @route   GET /api/auth/me
-// @access  Private
 // @desc    Get current user profile
 // @route   GET /api/auth/me
 // @access  Private
@@ -954,13 +1005,24 @@ const resendOTP = async (req, res, next) => {
   try {
     const { email } = req.body;
 
-    // Validate email format
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    // Validate email format using simple checks (ReDoS-safe)
+    // Avoid vulnerable regex /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    // Validate email using Zod schema (reusing registerSchema's email part or similar)
+    // Here we just check minimal validity since we look up by exact match anyway
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      res.status(400);
+      throw new Error('Please provide a valid email address');
+    }
+    
+    if (!email || !isValidEmail(email)) {
       res.status(400);
       throw new Error('Please provide a valid email address');
     }
 
-    const user = await User.findOne({ email });
+    // Normalize and sanitize email for database query
+    const sanitizedEmail = String(email).toLowerCase().trim();
+
+    const user = await User.findOne({ email: sanitizedEmail });
 
     // Security: Don't reveal if user exists, is verified, or is banned
     if (!user || user.isVerified || !user.isActive) {
@@ -1192,7 +1254,7 @@ const checkUsernameAvailability = async (req, res) => {
       reason: exists ? 'taken' : null 
     });
   } catch (error) {
-    console.error('Username check error:', error);
+    logger.error('[Auth] Username check error:', error);
     res.status(500).json({ available: false, reason: 'error' });
   }
 };

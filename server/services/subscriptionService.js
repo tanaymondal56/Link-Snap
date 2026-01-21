@@ -4,30 +4,33 @@ import User from '../models/User.js';
 export const TIERS = {
   free: {
     name: 'Free',
-    linksPerMonth: 25,
+    linksPerMonth: 100,      // Hard Limit (Total created)
+    activeLimit: 25,         // Active Limit (Live links)
     clicksPerMonth: 1000,
     analyticsRetention: 30, // days
     features: ['basic_links', 'basic_analytics']
   },
   pro: {
     name: 'Pro',
-    linksPerMonth: 500,
+    linksPerMonth: 2000,     // Hard Limit
+    activeLimit: 500,        // Active Limit
     clicksPerMonth: 50000,
     analyticsRetention: 365,
     features: ['custom_alias', 'link_expiration', 'password_protection', 
                'custom_datetime', 'custom_qr', 'api_access', 'geo_analytics', 
-               'utm_builder', 'bio_page', 'device_targeting', 'advanced_analytics']
+               'utm_builder', 'bio_page', 'device_targeting', 'advanced_analytics', 'time_redirects']
   },
   business: {
     name: 'Business',
     ui: { hidden: true, badge: 'Coming Soon' }, // Not ready for public yet
-    linksPerMonth: 10000, // Soft cap
+    linksPerMonth: 10000,    // Soft cap (Hard Limit)
+    activeLimit: Infinity,   // Unlimited active links
     clicksPerMonth: 250000,
     analyticsRetention: Infinity,
     features: ['custom_alias', 'link_expiration', 'password_protection',
                'custom_datetime', 'custom_qr', 'api_access', 'geo_analytics',
                'utm_builder', 'bio_page', 'ab_testing', 'device_redirects',
-               'device_targeting', 'team', 'webhooks', 'custom_domains', 'advanced_analytics']
+               'device_targeting', 'team', 'webhooks', 'custom_domains', 'advanced_analytics', 'time_redirects']
   }
 };
 

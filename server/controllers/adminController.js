@@ -12,6 +12,8 @@ import sendEmail from '../utils/sendEmail.js';
 import { suspensionEmail, reactivationEmail, appealDecisionEmail, testEmail } from '../utils/emailTemplates.js';
 import { escapeRegex } from '../utils/regexUtils.js';
 import { generateUserIdentity } from '../services/idService.js';
+import { scanPendingLinks, scanUncheckedLinks } from '../services/safeBrowsingService.js';
+import logger from '../utils/logger.js';
 
 // Helper function to calculate ban expiry date
 const calculateBanExpiry = (duration) => {
@@ -37,7 +39,7 @@ const sendBanNotificationEmail = async (user, isBanned, reason, bannedUntil) => 
     try {
         const settings = await Settings.findOne();
         if (!settings?.emailConfigured) {
-            console.log('Email not configured, skipping ban notification');
+            logger.debug('[Admin] Email not configured, skipping ban notification');
             return;
         }
 
@@ -54,7 +56,7 @@ const sendBanNotificationEmail = async (user, isBanned, reason, bannedUntil) => 
             message: emailContent.html
         });
     } catch (error) {
-        console.error('Failed to send ban notification email:', error.message);
+        logger.error('[Admin] Failed to send ban notification email:', error.message);
     }
 };
 
@@ -67,15 +69,11 @@ export const getSystemStats = async (req, res, next) => {
         const totalUrls = await Url.estimatedDocumentCount(); // Fast estimate for large collection
         const totalClicks = await Analytics.estimatedDocumentCount(); // Fast estimate for very large collection
 
-        // Get recent users (last 5) - fetch without sort, sort in JS (Cosmos DB index workaround)
-        let recentUsers = await User.find()
-            .limit(50) // Fetch more, then sort and slice in JS
+        // Get recent users (last 5) - now uses createdAt index for efficient sorting
+        const recentUsers = await User.find()
+            .sort({ createdAt: -1 })
+            .limit(5)
             .select('-password -refreshTokens');
-        
-        // Sort in JavaScript (Cosmos DB doesn't have createdAt index)
-        recentUsers = recentUsers
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(0, 5);
 
         // Get cache stats
         const cacheStats = getCacheStats();
@@ -100,13 +98,101 @@ export const getAllUsers = async (req, res, next) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const search = req.query.search || '';
-        const role = req.query.role || '';
+        const skip = (page - 1) * limit;
+
+        const matchStage = {};
+        
+        // Validate role and tier to prevent NoSQL injection
+        const allowedRoles = ['user', 'admin', 'moderator'];
+        const allowedTiers = ['free', 'pro', 'business', 'paid'];
+        
+        const rawRole = req.query.role;
+        const rawTier = req.query.tier;
+        
+        const role = (typeof rawRole === 'string' && allowedRoles.includes(rawRole.toLowerCase().trim())) 
+            ? rawRole.toLowerCase().trim() 
+            : null;
+        const tier = (typeof rawTier === 'string' && allowedTiers.includes(rawTier.toLowerCase().trim())) 
+            ? rawTier.toLowerCase().trim() 
+            : null;
+
+        // Search logic - Use $text for indexed search, fallback to $regex
+        if (search && search.trim().length > 0) {
+            // Use text index for efficient search
+            matchStage.$text = { $search: search.trim() };
+        }
+
+        // Role filtering (validated)
+        if (role && role !== 'all') {
+            matchStage.role = role;
+        }
+
+        // Tier filtering (validated)
+        if (tier && tier !== 'all') {
+            if (tier === 'paid') {
+                matchStage['subscription.tier'] = { $in: ['pro', 'business'] };
+            } else {
+                matchStage['subscription.tier'] = tier;
+            }
+        }
+
+        // Use aggregation with $facet for single-query pagination (optimized)
+        // Use concurrent queries instead of $facet to avoid "pipeline not supported" errors
+        // (Consistent with adminSubscriptionController and adminLinkController fixes)
+        
+        const [usersResult, total] = await Promise.all([
+            User.aggregate([
+                { $match: matchStage },
+                // Add text score if searching
+                ...(search ? [{ $addFields: { searchScore: { $meta: 'textScore' } } }] : []),
+                // Sort by text score if searching, otherwise by createdAt
+                { $sort: search ? { searchScore: -1, createdAt: -1 } : { createdAt: -1 } },
+                { $skip: skip },
+                { $limit: limit },
+                // Exclude sensitive fields
+                { $project: { password: 0, refreshTokens: 0, searchScore: 0 } }
+            ]),
+            User.countDocuments(matchStage)
+        ]);
+
+        res.json({
+            users: usersResult,
+            total,
+            page,
+            pages: Math.ceil(total / limit)
+        });
+    } catch (error) {
+        // Fallback to regex search if text index doesn't exist
+        if (error.code === 27 || error.message?.includes('text index')) {
+            return getAllUsersFallback(req, res, next);
+        }
+        next(error);
+    }
+};
+
+// Fallback function if text index is not available
+const getAllUsersFallback = async (req, res, next) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const search = req.query.search || '';
         const skip = (page - 1) * limit;
 
         const query = {};
-        const tier = req.query.tier || '';
+        
+        const allowedRoles = ['user', 'admin', 'moderator'];
+        const allowedTiers = ['free', 'pro', 'business', 'paid'];
+        
+        const rawRole = req.query.role;
+        const rawTier = req.query.tier;
+        
+        const role = (typeof rawRole === 'string' && allowedRoles.includes(rawRole.toLowerCase().trim())) 
+            ? rawRole.toLowerCase().trim() 
+            : null;
+        const tier = (typeof rawTier === 'string' && allowedTiers.includes(rawTier.toLowerCase().trim())) 
+            ? rawTier.toLowerCase().trim() 
+            : null;
 
-        // Search logic
         if (search) {
             const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             query.$or = [
@@ -117,12 +203,10 @@ export const getAllUsers = async (req, res, next) => {
             ];
         }
 
-        // Role filtering
         if (role && role !== 'all') {
             query.role = role;
         }
 
-        // Tier filtering
         if (tier && tier !== 'all') {
             if (tier === 'paid') {
                 query['subscription.tier'] = { $in: ['pro', 'business'] };
@@ -131,15 +215,12 @@ export const getAllUsers = async (req, res, next) => {
             }
         }
 
-        // Execute query without sort (Cosmos DB index workaround)
-        let users = await User.find(query)
+        // Use proper DB sort with new index
+        const users = await User.find(query)
             .select('-password -refreshTokens')
-            .limit(limit + skip); // Fetch enough for pagination
-        
-        // Sort in JavaScript
-        users = users
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(skip, skip + limit);
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
 
         const total = await User.countDocuments(query);
 
@@ -153,6 +234,7 @@ export const getAllUsers = async (req, res, next) => {
         next(error);
     }
 };
+
 
 // @desc    Update user status (Ban/Unban)
 // @route   PATCH /api/admin/users/:id/status
@@ -172,8 +254,8 @@ export const updateUserStatus = async (req, res, next) => {
             return res.status(400).json({ message: 'Cannot ban your own admin account' });
         }
 
-        // Prevent admin-to-admin bans
-        if (user.role === 'admin' && !user.isActive === false) {
+        // Prevent admin-to-admin bans (admin must be active to be protected)
+        if (user.role === 'admin' && user.isActive) {
             // User is active and is an admin, we're trying to ban them
             return res.status(400).json({ message: 'Cannot ban another admin. Demote them first.' });
         }
@@ -254,16 +336,29 @@ export const updateUserStatus = async (req, res, next) => {
         // Invalidate cache for all user's links when ban status changes
         // This ensures redirects reflect the new ban status immediately
         // Include both shortId and customAlias for complete cache invalidation
-        const userUrls = await Url.find({ createdBy: user._id }).select('shortId customAlias');
-        if (userUrls.length > 0) {
-            const allIds = [];
-            userUrls.forEach(u => {
-                allIds.push(u.shortId);
-                if (u.customAlias) {
-                    allIds.push(u.customAlias);
-                }
-            });
-            invalidateMultiple(allIds);
+        // Invalidate cache for all user's links when ban status changes
+        // Use cursor to batch invalidations and prevent memory overflow
+        const cursor = Url.find({ createdBy: user._id })
+            .select('shortId customAlias')
+            .cursor();
+
+        let batchIds = [];
+        const BATCH_SIZE = 500;
+
+        for (let doc = await cursor.next(); doc != null; doc = await cursor.next()) {
+            batchIds.push(doc.shortId);
+            if (doc.customAlias) {
+                batchIds.push(doc.customAlias);
+            }
+
+            if (batchIds.length >= BATCH_SIZE) {
+                invalidateMultiple(batchIds);
+                batchIds = [];
+            }
+        }
+
+        if (batchIds.length > 0) {
+            invalidateMultiple(batchIds);
         }
 
         res.json({
@@ -355,21 +450,34 @@ export const deleteUser = async (req, res, next) => {
                         }
                     }
                 );
-                console.log(`[Delete User] Cancelled LS subscription for ${user.snapId}`);
+                logger.info(`[Delete User] Cancelled LS subscription for ${user.snapId}`);
             } catch (lsError) {
                 // Log but don't block deletion - subscription may already be cancelled
-                console.warn(`[Delete User] Failed to cancel LS subscription: ${lsError.message}`);
+                logger.warn(`[Delete User] Failed to cancel LS subscription: ${lsError.message}`);
             }
         }
 
-        // Find all URLs by this user
-        const userUrls = await Url.find({ createdBy: user._id });
-        const userIds = userUrls.map(url => url._id);
+        // Efficiently delete analytics using cursor batching
+        // This prevents loading all 100k+ URL IDs into memory at once
+        const urlCursor = Url.find({ createdBy: user._id }).select('_id').cursor();
+        let urlIdsBatch = [];
+        const BATCH_SIZE = 500;
 
-        // Delete all analytics for these URLs
-        await Analytics.deleteMany({ urlId: { $in: userIds } });
+        for (let doc = await urlCursor.next(); doc != null; doc = await urlCursor.next()) {
+            urlIdsBatch.push(doc._id);
 
-        // Delete all URLs
+            if (urlIdsBatch.length >= BATCH_SIZE) {
+                await Analytics.deleteMany({ urlId: { $in: urlIdsBatch } });
+                urlIdsBatch = [];
+            }
+        }
+
+        // Delete remaining batch
+        if (urlIdsBatch.length > 0) {
+            await Analytics.deleteMany({ urlId: { $in: urlIdsBatch } });
+        }
+
+        // Delete all URLs (efficient single query)
         await Url.deleteMany({ createdBy: user._id });
 
         // Delete the user
@@ -406,7 +514,7 @@ export const getSettings = async (req, res, next) => {
 // @access  Admin
 export const updateSettings = async (req, res, next) => {
     try {
-        console.log('[updateSettings] Request received:', JSON.stringify(req.body, null, 2));
+        logger.debug('[updateSettings] Request received:', JSON.stringify(req.body, null, 2));
 
         let settings = await Settings.findOne();
         if (!settings) {
@@ -414,17 +522,27 @@ export const updateSettings = async (req, res, next) => {
         }
 
         const {
-            requireEmailVerification,
-            emailProvider,
-            emailUsername,
             emailPassword,
             smtpHost,
             smtpPort,
-            smtpSecure
+            smtpSecure,
+            safeBrowsingEnabled,
+            safeBrowsingAutoCheck,
+            emailProvider,
+            emailUsername,
+            requireEmailVerification
         } = req.body;
 
         if (requireEmailVerification !== undefined) {
             settings.requireEmailVerification = requireEmailVerification;
+        }
+
+        if (safeBrowsingEnabled !== undefined) {
+            settings.safeBrowsingEnabled = safeBrowsingEnabled;
+        }
+
+        if (safeBrowsingAutoCheck !== undefined) {
+             settings.safeBrowsingAutoCheck = safeBrowsingAutoCheck;
         }
 
         if (emailProvider !== undefined) {
@@ -453,9 +571,9 @@ export const updateSettings = async (req, res, next) => {
             settings.smtpSecure = smtpSecure;
         }
 
-        console.log('[updateSettings] Saving settings...');
+        logger.debug('[updateSettings] Saving settings...');
         await settings.save();
-        console.log('[updateSettings] Settings saved successfully!');
+        logger.debug('[updateSettings] Settings saved successfully!');
 
         // Return settings with masked password
         const settingsObj = settings.toObject();
@@ -635,14 +753,11 @@ export const getUserBanHistory = async (req, res, next) => {
     try {
         const userId = req.params.userId;
 
-        let history = await BanHistory.find({ userId })
+        // Uses compound index { userId: 1, createdAt: -1 } for efficient sorting
+        const history = await BanHistory.find({ userId })
             .populate('performedBy', 'email firstName lastName')
-            .limit(100); // Fetch more, sort in JS
-        
-        // Sort in JavaScript (Cosmos DB index workaround)
-        history = history
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(0, 50);
+            .sort({ createdAt: -1 })
+            .limit(50);
 
         res.json(history);
     } catch (error) {
@@ -657,11 +772,10 @@ export const getUserAppeals = async (req, res, next) => {
     try {
         const userId = req.params.userId;
 
-        let appeals = await Appeal.find({ userId })
-            .populate('reviewedBy', 'email firstName lastName');
-        
-        // Sort in JavaScript (Cosmos DB index workaround)
-        appeals = appeals.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        // Uses compound index { userId: 1, createdAt: -1 } for efficient sorting
+        const appeals = await Appeal.find({ userId })
+            .populate('reviewedBy', 'email firstName lastName')
+            .sort({ createdAt: -1 });
 
         res.json(appeals);
     } catch (error) {
@@ -674,15 +788,19 @@ export const getUserAppeals = async (req, res, next) => {
 // @access  Admin
 export const getAllAppeals = async (req, res, next) => {
     try {
-        const { status } = req.query;
+        // Validate status to prevent NoSQL injection
+        const allowedStatuses = ['pending', 'approved', 'rejected'];
+        const rawStatus = req.query.status;
+        const status = (typeof rawStatus === 'string' && allowedStatuses.includes(rawStatus.toLowerCase().trim())) 
+            ? rawStatus.toLowerCase().trim() 
+            : null;
         const filter = status ? { status } : {};
 
-        let appeals = await Appeal.find(filter)
+        // Uses compound index { status: 1, createdAt: -1 } for efficient sorting
+        const appeals = await Appeal.find(filter)
             .populate('userId', 'email firstName lastName bannedAt bannedReason')
-            .populate('reviewedBy', 'email firstName lastName');
-        
-        // Sort in JavaScript (Cosmos DB index workaround)
-        appeals = appeals.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            .populate('reviewedBy', 'email firstName lastName')
+            .sort({ createdAt: -1 });
 
         res.json(appeals);
     } catch (error) {
@@ -798,7 +916,7 @@ export const respondToAppeal = async (req, res, next) => {
                 }
             }
         } catch (emailError) {
-            console.error('Failed to send appeal decision email:', emailError.message);
+            logger.error('[Admin] Failed to send appeal decision email:', emailError.message);
         }
 
         const populatedAppeal = await Appeal.findById(appeal._id)
@@ -826,12 +944,11 @@ export const respondToAppeal = async (req, res, next) => {
 // @access  Admin
 export const exportFeedbackCSV = async (req, res, next) => {
     try {
-        let feedback = await Feedback.find({ isDeleted: false })
+        // Uses createdAt index for efficient sorting
+        const feedback = await Feedback.find({ isDeleted: false })
             .populate('user', 'email username firstName lastName')
+            .sort({ createdAt: -1 })
             .lean();
-        
-        // Sort in JavaScript (Cosmos DB index workaround)
-        feedback = feedback.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
         // CSV Header
         const headers = ['ID', 'Type', 'Status', 'Priority', 'Title', 'Message', 'Votes', 'User Email', 'Category', 'Created At'];
@@ -879,23 +996,32 @@ export const getAllFeedback = async (req, res, next) => {
         const limit = Math.min(parseInt(req.query.limit) || 20, 100);
         const skip = (page - 1) * limit;
         
-        // Build filter
+        // Build filter (with input validation to prevent NoSQL injection)
         const filter = { isDeleted: false };
         
-        if (req.query.type && req.query.type !== 'all') {
-            filter.type = req.query.type;
+        // Validate and sanitize filter inputs - only allow known string values
+        const allowedTypes = ['bug', 'feature', 'improvement', 'question', 'other'];
+        const allowedStatuses = ['pending', 'reviewing', 'planned', 'in_progress', 'completed', 'declined', 'active', 'resolved'];
+        const allowedPriorities = ['low', 'medium', 'high', 'critical'];
+        
+        const queryType = typeof req.query.type === 'string' ? req.query.type.toLowerCase().trim() : null;
+        const queryStatus = typeof req.query.status === 'string' ? req.query.status.toLowerCase().trim() : null;
+        const queryPriority = typeof req.query.priority === 'string' ? req.query.priority.toLowerCase().trim() : null;
+        
+        if (queryType && queryType !== 'all' && allowedTypes.includes(queryType)) {
+            filter.type = queryType;
         }
-        if (req.query.status && req.query.status !== 'all') {
-            if (req.query.status === 'active') {
+        if (queryStatus && queryStatus !== 'all') {
+            if (queryStatus === 'active') {
                 filter.status = { $nin: ['completed', 'declined'] };
-            } else if (req.query.status === 'resolved') {
+            } else if (queryStatus === 'resolved') {
                 filter.status = { $in: ['completed', 'declined'] };
-            } else {
-                filter.status = req.query.status;
+            } else if (allowedStatuses.includes(queryStatus)) {
+                filter.status = queryStatus;
             }
         }
-        if (req.query.priority && req.query.priority !== 'all') {
-            filter.priority = req.query.priority;
+        if (queryPriority && queryPriority !== 'all' && allowedPriorities.includes(queryPriority)) {
+            filter.priority = queryPriority;
         }
         if (req.query.search) {
             // Escape special regex characters to prevent ReDoS
@@ -960,15 +1086,15 @@ export const getFeedbackStats = async (req, res, next) => {
                 { $match: { isDeleted: false } },
                 { $group: { _id: '$status', count: { $sum: 1 } } }
             ]),
+            // Uses voteCount index for efficient sorting
             Feedback.find({ isDeleted: false })
-                .limit(50) // Fetch more, sort in JS
+                .sort({ voteCount: -1 })
+                .limit(5)
                 .select('title type voteCount status')
         ]);
         
-        // Sort topVoted in JavaScript (Cosmos DB index workaround)
-        const topVoted = topVotedRaw
-            .sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0))
-            .slice(0, 5);
+        // topVotedRaw is now already sorted, just assign
+        const topVoted = topVotedRaw;
         
         // Convert aggregation results to objects
         const typeStats = {};
@@ -1083,20 +1209,41 @@ export const getUsernameHistory = async (req, res, next) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        let history = await UsernameHistory.find({ userId })
+        // Uses compound index { userId: 1, changedAt: -1 } for efficient sorting
+        const history = await UsernameHistory.find({ userId })
             .populate('changedBy', 'email firstName lastName')
-            .limit(100)
+            .sort({ changedAt: -1 })
+            .limit(50)
             .lean();
-        
-        // Sort in JavaScript (Cosmos DB index workaround)
-        history = history
-            .sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt))
-            .slice(0, 50);
 
         res.json({
             currentUsername: user.username,
-            usernameChangedAt: user.usernameChangedAt,
             history
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Trigger Manual Safety Scan
+// @route   POST /api/admin/safety/scan
+// @access  Admin
+export const triggerSafetyScan = async (req, res, next) => {
+    try {
+        const { type } = req.body; // 'pending' or 'unchecked'
+
+        let result;
+        if (type === 'pending') {
+            result = await scanPendingLinks();
+        } else if (type === 'unchecked') {
+            result = await scanUncheckedLinks();
+        } else {
+             return res.status(400).json({ message: 'Invalid scan type. Use "pending" or "unchecked".' });
+        }
+
+        res.json({ 
+            message: 'Scan completed', 
+            details: result 
         });
     } catch (error) {
         next(error);

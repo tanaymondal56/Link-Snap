@@ -93,7 +93,7 @@ const createMasterAdmin = async (data = null) => {
         });
         console.log(`\n✅ Success! Master Admin created.`);
         console.log(`LOGIN: ${email}-ma`);
-        console.log(`PASS:  ${password}`);
+        console.log(`PASS:  [The password you entered - not logged for security]`);
     } catch (err) {
         console.error('❌ Failed to create:', err.message);
     }

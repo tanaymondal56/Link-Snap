@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const registerSchema = z.object({
   email: z.string()
+    .trim()
+    .toLowerCase()
     .email({ message: "Invalid email address" })
     .max(255, { message: "Email is too long" }),
   password: z.string()
@@ -11,29 +13,36 @@ export const registerSchema = z.object({
     .regex(/[A-Z]/, { message: "Password must contain at least one uppercase letter" })
     .regex(/[0-9]/, { message: "Password must contain at least one number" }),
   firstName: z.string()
+    .trim()
     .min(1, { message: "First name is required" })
     .max(50, { message: "First name is too long" })
     .regex(/^[a-zA-Z\s'-]+$/, { message: "First name can only contain letters, spaces, hyphens, and apostrophes" }),
   lastName: z.string()
+    .trim()
     .max(50, { message: "Last name is too long" })
     .regex(/^[a-zA-Z\s'-]*$/, { message: "Last name can only contain letters, spaces, hyphens, and apostrophes" })
     .optional()
     .or(z.literal('')),
   phone: z.string()
+    .trim()
     .max(20, { message: "Phone number is too long" })
-    .regex(/^[\d\s\-+()]*$/, { message: "Invalid phone number format" })
+    .regex(/^[\d\s\-+()]{7,}$/, { message: "Phone number must be valid and at least 7 digits" })
     .optional()
     .or(z.literal('')),
   company: z.string()
+    .trim()
     .max(100, { message: "Company name is too long" })
     .optional()
     .or(z.literal('')),
   website: z.string()
+    .trim()
     .max(200, { message: "Website URL is too long" })
     .url({ message: "Invalid website URL" })
     .optional()
     .or(z.literal('')),
   username: z.string()
+    .trim()
+    .toLowerCase()
     .min(3, { message: "Username must be at least 3 characters" })
     .max(30, { message: "Username is too long" })
     .regex(/^[a-z0-9_-]+$/, { message: "Username can only contain lowercase letters, numbers, underscores, and dashes" }),
@@ -41,6 +50,8 @@ export const registerSchema = z.object({
 
 export const loginSchema = z.object({
   identifier: z.string()
+    .trim()
+    .toLowerCase()
     .min(1, { message: "Email or username is required" })
     .max(255, { message: "Identifier is too long" }),
   password: z.string()
@@ -50,26 +61,32 @@ export const loginSchema = z.object({
 
 export const updateProfileSchema = z.object({
   firstName: z.string()
+    .trim()
     .min(1, { message: "First name is required" })
     .max(50, { message: "First name is too long" })
     .regex(/^[a-zA-Z\s'-]+$/, { message: "First name can only contain letters, spaces, hyphens, and apostrophes" })
     .optional(),
   lastName: z.string()
+    .trim()
     .max(50, { message: "Last name is too long" })
     .regex(/^[a-zA-Z\s'-]*$/, { message: "Last name can only contain letters, spaces, hyphens, and apostrophes" })
     .optional(),
   phone: z.string()
+    .trim()
     .max(20, { message: "Phone number is too long" })
-    .regex(/^[\d\s\-+()]*$/, { message: "Invalid phone number format" })
+    .regex(/^[\d\s\-+()]{7,}$/, { message: "Phone number must be valid and at least 7 digits" })
     .optional(),
-  company: z.string().max(100).optional(),
+  company: z.string().trim().max(100).optional(),
   website: z.string()
+    .trim()
     .max(200, { message: "Website URL is too long" })
     .url({ message: "Invalid website URL" })
     .optional()
     .or(z.literal('')),
-  bio: z.string().max(500).optional(),
+  bio: z.string().trim().max(500).optional(),
   username: z.string()
+    .trim()
+    .toLowerCase()
     .min(3, { message: "Username must be at least 3 characters" })
     .max(30, { message: "Username is too long" })
     .regex(/^[a-z0-9_-]+$/, { message: "Username can only contain lowercase letters, numbers, underscores, and dashes" })

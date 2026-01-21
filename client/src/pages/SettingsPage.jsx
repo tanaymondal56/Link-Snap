@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import {
@@ -41,10 +41,10 @@ import {
 
 import { formatDate } from '../utils/dateUtils';
 import api from '../api/axios';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
 import IdBadge from '../components/ui/IdBadge';
-import SubscriptionCard from '../components/subscription/SubscriptionCard';
+const SubscriptionCard = lazy(() => import('../components/subscription/SubscriptionCard'));
 import { getEffectiveTier } from '../utils/subscriptionUtils';
 
 const SettingsPage = () => {
@@ -782,7 +782,9 @@ const SettingsPage = () => {
 
       {/* Subscription Tab */}
       {activeTab === 'subscription' && (
-        <SubscriptionCard profile={profile} onRefresh={fetchProfile} />
+        <Suspense fallback={<div className="glass-dark p-6 rounded-2xl border border-white/5 h-96 flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div></div>}>
+          <SubscriptionCard profile={profile} onRefresh={fetchProfile} />
+        </Suspense>
       )}      {activeTab === 'security' && (
         <div className="space-y-6">
           {/* Account Status */}

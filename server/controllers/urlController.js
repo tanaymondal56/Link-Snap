@@ -1,4 +1,5 @@
 import Url from '../models/Url.js';
+import User from '../models/User.js';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { invalidateCache } from '../services/cacheService.js';
@@ -7,6 +8,11 @@ import { incrementLinkUsage } from '../middleware/subscriptionMiddleware.js';
 import { hasFeature } from '../services/subscriptionService.js';
 import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
 import { trackVisit } from '../services/analyticsService.js';
+import Settings from '../models/Settings.js';
+import { checkUrlsSafety } from '../services/safeBrowsingService.js';
+import { getTimeBasedDestination } from '../services/timeService.js';
+import NotificationService from '../services/notificationService.js';
+import logger from '../utils/logger.js';
 
 // Extract domain from URL (safe - no network request)
 const extractDomain = (url) => {
@@ -70,6 +76,23 @@ const createUrlSchema = z.object({
     expiresAt: z.string().datetime().optional().or(z.null()),  // ISO date string for custom
     // Password Protection
     password: z.string().min(4, "Password must be at least 4 characters").max(100).optional().or(z.literal('')),
+    // Schedule Activation (Free feature)
+    activeStartTime: z.string().datetime().optional().or(z.null()),
+    // Time-Based Redirects (Pro/Business)
+    timeRedirects: z.object({
+        enabled: z.boolean().default(false),
+        timezone: z.string().default('UTC'),
+        rules: z.array(z.object({
+            startTime: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM format"),
+            endTime: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM format"),
+            days: z.array(z.number().min(0).max(6)).default([]),
+            destination: z.string().url({ message: "Invalid destination URL" }).refine((url) => /^https?:\/\//i.test(url), {
+                message: "Destination URLs must be HTTP or HTTPS",
+            }),
+            priority: z.number().default(0),
+            label: z.string().optional()
+        })).max(50, "Maximum 50 schedule rules allowed").default([]),
+    }).optional(),
     // Device-Based Redirects (Pro/Business)
     deviceRedirects: z.object({
         enabled: z.boolean().default(false),
@@ -79,7 +102,7 @@ const createUrlSchema = z.object({
                 message: "Device redirect URLs must be HTTP or HTTPS",
             }),
             priority: z.number().default(0)
-        })).default([]),
+        })).max(50, "Maximum 50 device rules allowed").default([]),
     }).optional(),
 });
 
@@ -88,7 +111,6 @@ const createUrlSchema = z.object({
 // @access  Public/Private
 const createShortUrl = async (req, res, next) => {
     try {
-        // Normalize URL: Prepend https:// if missing (User Experience)
         // Normalize URL: Prepend https:// if missing (User Experience)
         if (req.body.originalUrl && typeof req.body.originalUrl === 'string' && !/^https?:\/\//i.test(req.body.originalUrl)) {
             req.body.originalUrl = `https://${req.body.originalUrl}`;
@@ -113,6 +135,18 @@ const createShortUrl = async (req, res, next) => {
 
         const { originalUrl, customAlias, title, expiresIn, expiresAt, password } = result.data;
         const userId = req.user ? req.user._id : null;
+
+        // Note: SSRF protection NOT needed here because:
+        // 1. We only STORE the URL, we don't fetch it server-side
+        // 2. Redirects are 302s - the USER's browser makes the request, not our server
+        // If we ever add features that make server-side requests (link preview, validation),
+        // use validateUrlSecurity() from utils/urlSecurity.js
+        
+        // Prevent Circular Redirects (Loop Protection)
+        if (isCircularRedirect(originalUrl)) {
+             res.status(400);
+             throw new Error('You cannot shorten a URL that points to this service (Infinite Loop Prevention)');
+        }
 
         // Check Feature: Custom Alias
         if (customAlias) {
@@ -208,6 +242,47 @@ const createShortUrl = async (req, res, next) => {
             };
         }
 
+        // Handle Time-Based Redirects (Pro/Business only)
+        let timeRedirectsData = null;
+        if (result.data.timeRedirects?.enabled) {
+            if (!req.user) {
+                res.status(403);
+                throw new Error('Time routing requires an account');
+            }
+            if (!hasFeature(req.user, 'time_redirects')) {
+                res.status(403);
+                throw new Error('Time routing is a Pro/Business feature');
+            }
+            
+            // Normalize destination URLs
+            const processedRules = result.data.timeRedirects.rules.map(rule => ({
+                ...rule,
+                destination: normalizeUrl(rule.destination)
+            }));
+            
+            // Check for circular redirects
+            const circularUrls = processedRules.filter(rule => isCircularRedirect(rule.destination));
+            if (circularUrls.length > 0) {
+                res.status(400);
+                throw new Error('Time redirect URLs cannot point to this service (circular redirect)');
+            }
+            
+            timeRedirectsData = {
+                ...result.data.timeRedirects,
+                rules: processedRules
+            };
+        }
+
+        // Handle activeStartTime (Schedule Activation - Free feature)
+        let activeStartTimeData = null;
+        if (result.data.activeStartTime) {
+            activeStartTimeData = new Date(result.data.activeStartTime);
+            if (activeStartTimeData <= new Date()) {
+                res.status(400);
+                throw new Error('Schedule activation time must be in the future');
+            }
+        }
+
         const newUrl = await Url.create({
             originalUrl,
             customAlias: customAlias || undefined,
@@ -217,13 +292,57 @@ const createShortUrl = async (req, res, next) => {
             isPasswordProtected,
             passwordHash,
             deviceRedirects: deviceRedirectsData,
+            activeStartTime: activeStartTimeData,
+            timeRedirects: timeRedirectsData,
         });
 
         // Return without passwordHash (already excluded by select: false)
-        // Increment usage for registered users
-        if (req.user) {
-            await incrementLinkUsage(req.user._id);
+        // Increment usage for both Anonymous and Registered users (Fire-and-forget)
+        incrementLinkUsage(req).catch(err => console.error('[Usage Tracking Error]', err));
+
+        // Send aggregated notification to admins
+        if (userId) {
+            NotificationService.linkCreated(userId, newUrl._id, newUrl.shortUrl).catch(err => {
+                logger.error(`[URL] Failed to send link created notification: ${err.message}`);
+            });
         }
+
+        // Safe Browsing Check (Async / Fire-and-forget)
+        (async () => {
+            try {
+                const settings = await Settings.findOne();
+                if (settings?.safeBrowsingAutoCheck) {
+                    // Collect ALL URLs to check
+                    const urlsToCheck = [originalUrl];
+                    
+                    if (deviceRedirectsData?.rules) {
+                        deviceRedirectsData.rules.forEach(r => { if(r.url) urlsToCheck.push(r.url); });
+                    }
+                    if (timeRedirectsData?.rules) {
+                        timeRedirectsData.rules.forEach(r => { if(r.destination) urlsToCheck.push(r.destination); });
+                    }
+
+                    const safetyResult = await checkUrlsSafety(urlsToCheck);
+                    
+                    if (safetyResult.status !== 'safe' && safetyResult.status !== 'pending') {
+                         await Url.findByIdAndUpdate(newUrl._id, {
+                             safetyStatus: safetyResult.status,
+                             safetyDetails: safetyResult.details,
+                             lastCheckedAt: new Date()
+                         });
+                    } else if (safetyResult.status === 'safe') {
+                         await Url.findByIdAndUpdate(newUrl._id, {
+                             safetyStatus: 'safe',
+                             lastCheckedAt: new Date()
+                         });
+                    }
+                } else {
+                    await Url.findByIdAndUpdate(newUrl._id, { safetyStatus: 'unchecked' });
+                }
+            } catch (err) {
+                 console.error('[SafeBrowsing] Async check failed:', err.message);
+            }
+        })();
 
         // Return without passwordHash (already excluded by select: false)
         res.status(201).json(newUrl);
@@ -282,8 +401,8 @@ const deleteUrl = async (req, res, next) => {
         }
 
         if (url.createdBy.toString() !== req.user._id.toString()) {
-            res.status(401);
-            throw new Error('Not authorized');
+            res.status(403);
+            throw new Error('Not authorized to delete this link');
         }
 
         // Invalidate cache before deleting
@@ -293,6 +412,18 @@ const deleteUrl = async (req, res, next) => {
         }
 
         await url.deleteOne();
+
+        // Decrement Active Count for logged-in users (atomic operation)
+        // Hard limit (total created) is NEVER decremented
+        // Uses aggregation pipeline to ensure count never goes below 0 in a single atomic operation
+        if (req.user) {
+            await User.findByIdAndUpdate(req.user._id, [{
+                $set: {
+                    'linkUsage.count': { $max: [0, { $subtract: ['$linkUsage.count', 1] }] }
+                }
+            }]);
+        }
+
         res.json({ message: 'URL removed' });
     } catch (error) {
         next(error);
@@ -378,6 +509,24 @@ const updateUrlSchema = z.object({
     // Password Protection
     password: z.string().min(4, "Password must be at least 4 characters").max(100).optional().or(z.literal('')),
     removePassword: z.boolean().optional(),
+    // Schedule Activation (Free feature)
+    activeStartTime: z.string().datetime().optional().or(z.null()),
+    removeActiveStartTime: z.boolean().optional(),
+    // Time-Based Redirects (Pro/Business)
+    timeRedirects: z.object({
+        enabled: z.boolean().default(false),
+        timezone: z.string().default('UTC'),
+        rules: z.array(z.object({
+            startTime: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM format"),
+            endTime: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM format"),
+            days: z.array(z.number().min(0).max(6)).default([]),
+            destination: z.string().url({ message: "Invalid destination URL" }).refine((url) => /^https?:\/\//i.test(url), {
+                message: "Destination URLs must be HTTP or HTTPS",
+            }),
+            priority: z.number().default(0),
+            label: z.string().optional()
+        })).max(50, "Maximum 50 schedule rules allowed").default([]),
+    }).optional(),
     // Device-Based Redirects (Pro/Business)
     deviceRedirects: z.object({
         enabled: z.boolean().default(false),
@@ -387,7 +536,7 @@ const updateUrlSchema = z.object({
                 message: "Device redirect URLs must be HTTP or HTTPS",
             }),
             priority: z.number().default(0)
-        })).default([]),
+        })).max(50, "Maximum 50 device rules allowed").default([]),
     }).optional(),
 });
 
@@ -404,11 +553,10 @@ const updateUrl = async (req, res, next) => {
         }
 
         if (url.createdBy.toString() !== req.user._id.toString()) {
-            res.status(401);
-            throw new Error('Not authorized');
+            res.status(403);
+            throw new Error('Not authorized to update this link');
         }
 
-        // Normalize URL if provided
         // Normalize URL if provided
         if (req.body.originalUrl && typeof req.body.originalUrl === 'string' && !/^https?:\/\//i.test(req.body.originalUrl)) {
             req.body.originalUrl = `https://${req.body.originalUrl}`;
@@ -474,6 +622,12 @@ const updateUrl = async (req, res, next) => {
                 invalidateCache(url.customAlias);
             }
             updateFields.originalUrl = originalUrl;
+            
+            // Security: Reset safety status to trigger re-check
+            // If we don't do this, a user could swap a safe URL for a malware one 
+            // and keep the "safe" badge.
+            updateFields.safetyStatus = 'pending';
+            updateFields.safetyDetails = null;
         }
 
         if (title !== undefined) {
@@ -531,7 +685,7 @@ const updateUrl = async (req, res, next) => {
         }
 
         // Handle device redirects (Pro/Business only)
-        const { deviceRedirects } = result.data;
+        const { deviceRedirects, timeRedirects, activeStartTime, removeActiveStartTime } = result.data;
         if (deviceRedirects !== undefined) {
             if (deviceRedirects?.enabled) {
                 // Check subscription tier AND status using hasFeature
@@ -564,6 +718,65 @@ const updateUrl = async (req, res, next) => {
             // Invalidate cache when device rules change
             invalidateCache(url.shortId);
             if (url.customAlias) invalidateCache(url.customAlias);
+            
+            // Security: Reset safety status (new URLs might be malicious)
+            updateFields.safetyStatus = 'pending';
+            updateFields.safetyDetails = null;
+        }
+
+        // Handle activeStartTime (Schedule Activation - Free feature)
+        if (removeActiveStartTime) {
+            unsetFields.activeStartTime = 1;
+            invalidateCache(url.shortId);
+            if (url.customAlias) invalidateCache(url.customAlias);
+        } else if (activeStartTime) {
+            const newActiveStartTime = new Date(activeStartTime);
+            if (newActiveStartTime <= new Date()) {
+                res.status(400);
+                throw new Error('Schedule activation time must be in the future');
+            }
+            updateFields.activeStartTime = newActiveStartTime;
+            invalidateCache(url.shortId);
+            if (url.customAlias) invalidateCache(url.customAlias);
+        }
+
+        // Handle Time-Based Redirects (Pro/Business only)
+        if (timeRedirects !== undefined) {
+            if (timeRedirects?.enabled) {
+                // Check subscription tier AND status using hasFeature
+                if (!hasFeature(req.user, 'time_redirects')) {
+                    res.status(403);
+                    throw new Error('Time routing is a Pro/Business feature');
+                }
+                
+                // Normalize destination URLs
+                const processedRules = timeRedirects.rules.map(rule => ({
+                    ...rule,
+                    destination: normalizeUrl(rule.destination)
+                }));
+                
+                // Check for circular redirects
+                const circularUrls = processedRules.filter(rule => isCircularRedirect(rule.destination));
+                if (circularUrls.length > 0) {
+                    res.status(400);
+                    throw new Error('Time redirect URLs cannot point to this service (circular redirect)');
+                }
+                
+                updateFields.timeRedirects = {
+                    ...timeRedirects,
+                    rules: processedRules
+                };
+            } else {
+                // Time redirects disabled - just save as-is
+                updateFields.timeRedirects = timeRedirects;
+            }
+            // Invalidate cache when time rules change
+            invalidateCache(url.shortId);
+            if (url.customAlias) invalidateCache(url.customAlias);
+
+            // Security: Reset safety status (new URLs might be malicious)
+            updateFields.safetyStatus = 'pending';
+            updateFields.safetyDetails = null;
         }
 
         // Build update operation
@@ -583,6 +796,51 @@ const updateUrl = async (req, res, next) => {
         );
 
         res.json(updatedUrl);
+
+        // Post-Update: Trigger Safety Check if URL changed
+        // We now check ALL fields (Original + Redirects) if ANY changed.
+        // Simply checking everything is safer and easier than diffing.
+        const shouldScan = originalUrl || deviceRedirects !== undefined || timeRedirects !== undefined;
+        
+        if (shouldScan) {
+             (async () => {
+                try {
+                    const settings = await Settings.findOne();
+                    if (settings?.safeBrowsingAutoCheck) {
+                        // Re-fetch updated document to get unified view
+                        const fullDoc = await Url.findById(url._id);
+                        if (!fullDoc) return;
+
+                        const urlsToCheck = [fullDoc.originalUrl];
+                         if (fullDoc.deviceRedirects?.enabled && fullDoc.deviceRedirects.rules) {
+                            fullDoc.deviceRedirects.rules.forEach(r => { if(r.url) urlsToCheck.push(r.url); });
+                        }
+                        if (fullDoc.timeRedirects?.enabled && fullDoc.timeRedirects.rules) {
+                            fullDoc.timeRedirects.rules.forEach(r => { if(r.destination) urlsToCheck.push(r.destination); });
+                        }
+
+                        const safetyResult = await checkUrlsSafety(urlsToCheck);
+                        
+                        if (safetyResult.status !== 'safe' && safetyResult.status !== 'pending') {
+                                await Url.findByIdAndUpdate(url._id, {
+                                    safetyStatus: safetyResult.status,
+                                    safetyDetails: safetyResult.details,
+                                    lastCheckedAt: new Date()
+                                });
+                        } else if (safetyResult.status === 'safe') {
+                                await Url.findByIdAndUpdate(url._id, {
+                                    safetyStatus: 'safe',
+                                    lastCheckedAt: new Date()
+                                });
+                        }
+                    } else {
+                        await Url.findByIdAndUpdate(url._id, { safetyStatus: 'unchecked' });
+                    }
+                } catch (err) {
+                        console.error('[SafeBrowsing] Update check failed:', err.message);
+                }
+            })();
+        }
     } catch (error) {
         next(error);
     }
@@ -633,16 +891,32 @@ const verifyLinkPassword = async (req, res, next) => {
         // Password correct - increment clicks and track visit
         Url.findByIdAndUpdate(url._id, { $inc: { clicks: 1 } }).exec();
 
-        // Apply device-based redirect if configured
-        const { targetUrl, deviceMatchType } = getDeviceRedirectUrl(url, req.headers['user-agent']);
-        
-        // Track visit with device match type
-        trackVisit(url._id, req, { deviceMatchType });
+        // Check Time-Based Redirect first (Pro feature)
+        // Import getTimeBasedDestination at top if not already
+        let finalTargetUrl = null;
+        if (url.timeRedirects?.enabled && url.createdBy) {
+            // Check if owner has time_redirects feature
+            const owner = await User.findById(url.createdBy).select('subscription role');
+            if (owner && (owner.role === 'admin' || hasFeature(owner, 'time_redirects'))) {
+                const timeDestination = getTimeBasedDestination(url.timeRedirects);
+                if (timeDestination) {
+                    finalTargetUrl = timeDestination;
+                    trackVisit(url._id, req, { deviceMatchType: 'time_redirect' });
+                }
+            }
+        }
 
-        // Return the device-specific URL (or original if no match)
+        // If no time-based match, apply device-based redirect
+        if (!finalTargetUrl) {
+            const { targetUrl, deviceMatchType } = getDeviceRedirectUrl(url, req.headers['user-agent']);
+            finalTargetUrl = targetUrl;
+            trackVisit(url._id, req, { deviceMatchType });
+        }
+
+        // Return the final URL (time-based, device-specific, or original)
         res.json({
             success: true,
-            originalUrl: targetUrl,
+            originalUrl: finalTargetUrl,
             shortId: url.shortId
         });
     } catch (error) {

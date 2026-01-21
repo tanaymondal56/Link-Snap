@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api, { setAccessToken } from '../api/axios';
-import showToast from '../components/ui/Toast';
+import showToast from '../utils/toastUtils';
 
 const AuthContext = createContext();
 
@@ -8,11 +8,63 @@ const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Max age for cached auth state (7 days in milliseconds)
+  const AUTH_CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+
+  // Persisted Auth: Try to load cached user from localStorage for instant UI
+  const [user, setUser] = useState(() => {
+    try {
+      const cached = localStorage.getItem('ls_auth_user');
+      const cachedAt = localStorage.getItem('ls_auth_cached_at');
+      
+      if (cached && cachedAt) {
+        const age = Date.now() - parseInt(cachedAt, 10);
+        // Only use cache if within max age
+        if (age < AUTH_CACHE_MAX_AGE) {
+          return JSON.parse(cached);
+        } else {
+          // Cache expired - clear it
+          localStorage.removeItem('ls_auth_user');
+          localStorage.removeItem('ls_auth_cached_at');
+        }
+      }
+    } catch { /* ignore parse errors */ }
+    return null;
+  });
+  
+  // Loading only true if we have no valid cached state to show
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('ls_auth_user');
+      const cachedAt = localStorage.getItem('ls_auth_cached_at');
+      if (cached && cachedAt) {
+        const age = Date.now() - parseInt(cachedAt, 10);
+        return age >= AUTH_CACHE_MAX_AGE;
+      }
+      return true;
+    } catch {
+      return true;
+    }
+  });
   const [authModal, setAuthModal] = useState({ isOpen: false, tab: 'login' });
 
-  // Check if user is logged in
+  // Persist user to localStorage whenever it changes (with timestamp)
+  useEffect(() => {
+    try {
+      if (user) {
+        localStorage.setItem('ls_auth_user', JSON.stringify(user));
+        localStorage.setItem('ls_auth_cached_at', Date.now().toString());
+      } else {
+        localStorage.removeItem('ls_auth_user');
+        localStorage.removeItem('ls_auth_cached_at');
+      }
+    } catch { /* ignore storage errors */ }
+  }, [user]);
+
+  // Track if background auth check is in progress
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+  // Check if user is logged in (background verification)
   const checkAuth = useCallback(async (initialRetryCount = 0) => {
     const executeCheck = async (retryCount) => {
       // Secure Auth Load: Try to silent refresh immediately
@@ -24,24 +76,35 @@ export const AuthProvider = ({ children }) => {
         // If successful, set the token in memory
         setAccessToken(refreshData.accessToken);
 
-        // Then fetch user profile
-        const { data: userData } = await api.get('/auth/me');
-        setUser(userData);
+        // OPTIMIZED: Use user data from refresh response if available
+        // This avoids the redundant /auth/me call
+        if (refreshData.user) {
+          setUser(refreshData.user);
+        } else {
+          // Fallback for older backend versions (should not be needed with recent update)
+          const { data: userData } = await api.get('/auth/me');
+          setUser(userData);
+        }
+
         setLoading(false);
+        setIsAuthChecking(false);
       } catch (error) {
         // Only treat 401/403 as definitive "not logged in"
         if (error.response && (error.response.status === 401 || error.response.status === 403)) {
           setUser(null);
           setAccessToken(null);
           setLoading(false);
+          setIsAuthChecking(false);
         } else {
           // For network errors (server restarting), retry up to 5 times
           if (retryCount < 5) {
             const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
             setTimeout(() => executeCheck(retryCount + 1), delay);
           } else {
-            setUser(null);
+            // After all retries fail, keep cached user state if available
+            // Only clear loading - don't clear cached user on network failure
             setLoading(false);
+            setIsAuthChecking(false);
           }
         }
       }
@@ -50,7 +113,7 @@ export const AuthProvider = ({ children }) => {
     await executeCheck(initialRetryCount);
   }, []);
 
-  // Initial auth check on mount
+  // Initial auth check on mount - runs in background
   useEffect(() => {
     // Set a timeout to prevent infinite loading
     const timeoutId = setTimeout(() => {
@@ -62,12 +125,11 @@ export const AuthProvider = ({ children }) => {
       });
     }, 15000);
 
-    // Small delay before first auth check to give server time to start
-    const startupDelay = setTimeout(() => checkAuth(), 500);
+    // Start auth check immediately - verifies cached state in background
+    checkAuth();
 
     return () => {
       clearTimeout(timeoutId);
-      clearTimeout(startupDelay);
     };
   }, [checkAuth]);
 
@@ -204,6 +266,7 @@ export const AuthProvider = ({ children }) => {
         user,
         setUser,
         loading,
+        isAuthChecking,
         login,
         register,
         logout,

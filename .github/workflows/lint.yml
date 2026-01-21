@@ -1,0 +1,47 @@
+name: Lint
+
+on:
+  push:
+    # Run on all branches
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-client:
+    name: Lint Client
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: client/package-lock.json
+    - name: Install dependencies
+      working-directory: ./client
+      run: npm ci --legacy-peer-deps
+    - name: Run Lint
+      working-directory: ./client
+      run: npm run lint
+
+  lint-server:
+    name: Lint Server
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: server/package-lock.json
+    - name: Install dependencies
+      working-directory: ./server
+      run: npm ci
+    - name: Run Lint
+      working-directory: ./server
+      run: npm run lint
