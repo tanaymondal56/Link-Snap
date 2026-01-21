@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://${{ secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com' }}
+      url: https://linksnap.centralindia.cloudapp.azure.com
 
     steps:
       - name: Checkout code
