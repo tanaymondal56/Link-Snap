@@ -11,22 +11,32 @@ import logger from '../utils/logger.js';
 // @access  Admin
 export const getAllLinks = async (req, res) => {
     try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 20;
-        const search = req.query.search || '';
-        const status = req.query.status || 'all'; 
-        const safety = req.query.safety || 'all'; 
+        // Input validation - Whitelist approach (most secure)
+        const ALLOWED_STATUSES = ['all', 'active', 'disabled', 'expired'];
+        const ALLOWED_SAFETY_STATUSES = ['all', 'safe', 'malware', 'phishing', 'pending', 'unchecked', 'unwanted'];
+
+        // Validate and sanitize input parameters
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+        const search = String(req.query.search || '').trim().substring(0, 100); // Limit length
+
+        // Validate status: only allow whitelisted values, default to 'all'
+        const status = ALLOWED_STATUSES.includes(String(req.query.status || '')) ? String(req.query.status) : 'all';
+
+        // Validate safety: only allow whitelisted values, default to 'all'
+        const safety = ALLOWED_SAFETY_STATUSES.includes(String(req.query.safety || '')) ? String(req.query.safety) : 'all';
+
         const skip = (page - 1) * limit;
 
         const matchStage = {};
         const now = new Date();
-        
-        
+
+
         // Search Logic - Build conditions for aggregation
         let searchUserIds = [];
         if (search) {
             const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            
+
             // Find users matching the search term (optimized with text index if available)
             try {
                 const matchingUsers = await User.find(
@@ -66,11 +76,11 @@ export const getAllLinks = async (req, res) => {
         }
 
         // Safety Status Filtering - Uses compound index { safetyStatus: 1, createdAt: -1 }
-        const allowedSafetyStatuses = ['safe', 'malware', 'phishing', 'pending', 'unchecked', 'unwanted'];
-        if (safety !== 'all' && allowedSafetyStatuses.includes(safety)) {
+        // Safety values are already whitelisted above
+        if (safety !== 'all') {
             matchStage.safetyStatus = safety;
-        } 
-        
+        }
+
         // Use concurrent queries for better compatibility (avoids $lookup inside $facet limitations)
         const [urls, total] = await Promise.all([
             Url.aggregate([
@@ -90,18 +100,20 @@ export const getAllLinks = async (req, res) => {
                     $addFields: {
                         // Extract only needed fields from the looked-up user (Direct array access, no variables)
                         createdBy: {
-                             _id: { $arrayElemAt: ['$createdByData._id', 0] },
-                             email: { $arrayElemAt: ['$createdByData.email', 0] },
-                             username: { $arrayElemAt: ['$createdByData.username', 0] },
-                             isActive: { $arrayElemAt: ['$createdByData.isActive', 0] },
-                             disableLinksOnBan: { $arrayElemAt: ['$createdByData.disableLinksOnBan', 0] }
+                            _id: { $arrayElemAt: ['$createdByData._id', 0] },
+                            email: { $arrayElemAt: ['$createdByData.email', 0] },
+                            username: { $arrayElemAt: ['$createdByData.username', 0] },
+                            isActive: { $arrayElemAt: ['$createdByData.isActive', 0] },
+                            disableLinksOnBan: { $arrayElemAt: ['$createdByData.disableLinksOnBan', 0] }
                         },
                         ownerBanned: {
                             $cond: {
-                                if: { $and: [
-                                    { $gt: [{ $size: '$createdByData' }, 0] },
-                                    { $eq: [{ $arrayElemAt: ['$createdByData.isActive', 0] }, false] }
-                                ]},
+                                if: {
+                                    $and: [
+                                        { $gt: [{ $size: '$createdByData' }, 0] },
+                                        { $eq: [{ $arrayElemAt: ['$createdByData.isActive', 0] }, false] }
+                                    ]
+                                },
                                 then: true,
                                 else: false
                             }
@@ -197,10 +209,10 @@ export const overrideLinkSafety = async (req, res) => {
 
         const { safetyStatus } = req.body;
         const allowedStatuses = ['safe', 'malware', 'phishing', 'pending', 'unwanted'];
-        
+
         if (!safetyStatus || !allowedStatuses.includes(safetyStatus)) {
-            return res.status(400).json({ 
-                message: `Invalid safety status. Allowed: ${allowedStatuses.join(', ')}` 
+            return res.status(400).json({
+                message: `Invalid safety status. Allowed: ${allowedStatuses.join(', ')}`
             });
         }
 
@@ -214,13 +226,13 @@ export const overrideLinkSafety = async (req, res) => {
         // Update with manual override flag to prevent background scan from overwriting
         const updatedUrl = await Url.findByIdAndUpdate(
             req.params.linkId,
-            { 
-                $set: { 
+            {
+                $set: {
                     safetyStatus,
                     safetyDetails: `Manual override by admin (was: ${previousStatus})`,
                     lastCheckedAt: new Date(),
                     manualSafetyOverride: true  // Flag to prevent auto-scan from changing
-                } 
+                }
             },
             { new: true }
         );
@@ -233,10 +245,10 @@ export const overrideLinkSafety = async (req, res) => {
 
         logger.info(`[Admin Safety Override] Link ${url.shortId}: ${previousStatus} -> ${safetyStatus} by Admin ${req.user?.email}`);
 
-        res.json({ 
-            message: `Safety status updated to ${safetyStatus}`, 
+        res.json({
+            message: `Safety status updated to ${safetyStatus}`,
             url: updatedUrl,
-            previousStatus 
+            previousStatus
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -260,13 +272,13 @@ export const rescanLinkSafety = async (req, res) => {
 
         // Collect all URLs to check (original + device redirects + time redirects)
         const urlsToCheck = [url.originalUrl];
-        
+
         if (url.deviceRedirects?.enabled && url.deviceRedirects.rules) {
             url.deviceRedirects.rules.forEach(r => {
                 if (r.url) urlsToCheck.push(r.url);
             });
         }
-        
+
         if (url.timeRedirects?.enabled && url.timeRedirects.rules) {
             url.timeRedirects.rules.forEach(r => {
                 if (r.destination) urlsToCheck.push(r.destination);
@@ -279,13 +291,13 @@ export const rescanLinkSafety = async (req, res) => {
         // Update the URL with the result
         const updatedUrl = await Url.findByIdAndUpdate(
             req.params.linkId,
-            { 
-                $set: { 
+            {
+                $set: {
                     safetyStatus: safetyResult.status,
                     safetyDetails: safetyResult.details,
                     lastCheckedAt: new Date(),
                     manualSafetyOverride: false  // Clear override flag since this is a fresh scan
-                } 
+                }
             },
             { new: true }
         );
@@ -298,8 +310,8 @@ export const rescanLinkSafety = async (req, res) => {
 
         logger.info(`[Admin Re-Scan] Link ${url.shortId}: Now ${safetyResult.status}`);
 
-        res.json({ 
-            message: `Scan complete: ${safetyResult.status}`, 
+        res.json({
+            message: `Scan complete: ${safetyResult.status}`,
             url: updatedUrl,
             scanResult: safetyResult
         });

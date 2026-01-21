@@ -198,3 +198,23 @@ export const usernameCheckLimiter = rateLimit({
     },
     skip: (req) => isWhitelisted(req.ip),
 });
+
+// Admin notification limiter - prevent abuse of notification endpoints
+export const adminNotificationLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 60, // 60 requests per minute (read-heavy operations, allow polling)
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many notification requests. Please try again later.' });
+    },
+    skip: (req) => isWhitelisted(req.ip),
+});
+
+// Admin notification write limiter - stricter for write operations
+export const adminNotificationWriteLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30, // 30 write operations per minute
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many notification updates. Please try again later.' });
+    },
+    skip: (req) => isWhitelisted(req.ip),
+});

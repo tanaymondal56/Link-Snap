@@ -135,14 +135,29 @@ class NotificationService {
       skip = 0
     } = options;
 
+    // Validate and sanitize input parameters
+    const ALLOWED_SEVERITIES = ['low', 'medium', 'high', 'critical'];
+
     const query = {};
-    if (severity) query.severity = severity;
-    if (isRead !== null) query.isRead = isRead;
+
+    // Only add severity if it's in the allowed list (prevent NoSQL injection)
+    if (severity && ALLOWED_SEVERITIES.includes(severity.toLowerCase())) {
+      query.severity = severity.toLowerCase();
+    }
+
+    // Only add isRead if it's a boolean (prevent NoSQL injection)
+    if (isRead !== null && typeof isRead === 'boolean') {
+      query.isRead = isRead;
+    }
+
+    // Ensure skip and limit are non-negative integers
+    const validSkip = Math.max(0, parseInt(skip, 10) || 0);
+    const validLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
 
     return AdminNotification.find(query)
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
+      .skip(validSkip)
+      .limit(validLimit)
       .lean();
   }
 
