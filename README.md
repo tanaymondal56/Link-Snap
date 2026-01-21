@@ -3,7 +3,7 @@
 > **Advanced URL Shortening, Analytics, & Bio-Link Platform with Stealth Security.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.5.5-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](package.json)
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
 
 **Link-Snap** is a modern, full-stack URL management platform engineered for power users and businesses. Beyond standard link shortening, it offers specific device targeting, comprehensive real-time analytics, and a "Link-in-Bio" page builder, all protected by a military-grade stealth admin system.
@@ -25,9 +25,11 @@
 *   **Device Breakdown**: Analyze traffic by OS and browser.
 
 ### Security & Admin
+*   **Safe Browsing & Anti-Bot**: Real-time URL scanning and intelligent bot protection (`botDetector.js`).
 *   **Stealth Admin Mode**: A hidden biometric/device authentication layer obscured behind `/.d/` endpoints, invisible to standard scanners.
 *   **Role-Based Access Control (RBAC)**: Hierarchical permissions (User ➔ Admin ➔ Master Admin).
 *   **Hybrid Authentication**: Dual-layer security using short-lived in-memory Access Tokens and HTTP-Only Refresh Cookies.
+
 
 ---
 

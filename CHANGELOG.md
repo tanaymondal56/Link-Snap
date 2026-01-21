@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.0] - 2026-01-21
+
+### Major Release: Performance & Security Overhaul
+
+This release focuses on significant performance optimizations, advanced security features, and UI/UX improvements.
+
+### 🚀 Performance & Optimization
+- **Bundle Optimization:** Reduced CSS bundle by ~88% and JS bundle by ~70% via strict tree-shaking and code splitting.
+- **Lazy Loading:** Implemented route-based and component-based lazy loading (Admin Dashboard, QR Codes, Landing Page).
+- **PWA Enhanced:** Fixed manifest injection and improved offline caching strategies.
+- **Compression:** Enabled Brotli & Gzip compression for all static assets.
+- **SEO & Lighthouse:** Improved Core Web Vitals (LCP, CLS) and SEO meta tags structure.
+- **DB Optimization:** Optimized Cosmos DB queries and indexing for faster data retrieval.
+
+### 🛡️ Security v2
+- **Safe Browsing Integration:** Real-time checking of destination URLs against threat databases.
+- **Bot Protection:** Advanced bot detection (`botDetector.js`) and persistent bio-profile limiting.
+- **Security Hardening:** Fully removed known security vulnerabilities (XSS, Regex Injection).
+- **Strict Headers:** Implemented strict origin and CSP headers.
+
+### ✨ Features & UI
+- **Time/Device Routing:** Enhanced routing logic with improved UI for creation/editing.
+- **UI Overhaul:** Standardized all modals with `dvh` support and better mobile gestures (Pull-to-Refresh).
+- **Admin Dashboard:** New notification system and improved user management UI.
+- **Enhanced Limits:** Updated tier limits for Bio Pages and Link creation.
+
+### 🐛 Fixes
+- Fixed time-zone handling in routing logic.
+- Fixed 404 errors with PWA manifest in development.
+- Resolved various mobile scrolling and modal interaction bugs.
+
+---
+
 ## [0.5.6] - 2026-01-07
 
 ### Update for Session & Security Stability
