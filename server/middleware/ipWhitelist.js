@@ -11,10 +11,12 @@ const allowedIPs = [
   ...envAllowedIPs
 ];
 
-// Debug: Print allowed IPs on startup (only once)
-logger.info(`🛡️ [Security Config] Admin Whitelist: ${allowedIPs.join(', ') || 'None'}`);
+// Security: Only log count of configured IPs, not the actual sensitive IP values
+if (allowedIPs.length > 0) {
+  logger.info(`🛡️ [Security Config] Admin Whitelist configured with ${allowedIPs.length} custom IP(s)`);
+}
 if (envTrustedProxies.length > 0) {
-  logger.info(`🛡️ [Security Config] Trusted Proxies: ${envTrustedProxies.join(', ')}`);
+  logger.info(`🛡️ [Security Config] Trusted Proxies configured with ${envTrustedProxies.length} proxy(ies)`);
 }
 
 // Localhost IP patterns (these are always allowed)
@@ -88,9 +90,9 @@ export const ipWhitelist = async (req, res, next) => {
     if (req.headers.authorization?.startsWith('Bearer')) {
       const token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-      
+
       const user = await User.findById(decoded.id).select('role isActive');
-      
+
       if (user && user.role === 'admin' && user.isActive) {
         logger.info(`[IP Whitelist] 🔓 Bypass by Admin Token: ${user._id} (${clientIP})`);
         return next();
@@ -105,7 +107,7 @@ export const ipWhitelist = async (req, res, next) => {
     // On crash, fail closed (404/500)
     // Return explicit error in dev for debugging
     if (process.env.NODE_ENV === 'development') {
-       return res.status(500).json({ message: 'Middleware Error', error: error.message, stack: error.stack });
+      return res.status(500).json({ message: 'Middleware Error', error: error.message, stack: error.stack });
     }
     return res.status(404).json({ message: 'Not Found' });
   }
@@ -128,7 +130,7 @@ export const strictIpWhitelist = (req, res, next) => {
   } catch (error) {
     logger.error(`[Strict IP] ERROR: ${error.message}`);
     if (process.env.NODE_ENV === 'development') {
-       return res.status(500).json({ message: 'Middleware Error', error: error.message, stack: error.stack });
+      return res.status(500).json({ message: 'Middleware Error', error: error.message, stack: error.stack });
     }
     return res.status(404).json({ message: 'Not Found' });
   }
