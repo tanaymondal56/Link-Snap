@@ -10,22 +10,21 @@ export default defineConfig(async ({ mode }) => {
   const isDev = mode !== 'production'
 
   // Load dev plugins only in development
-  // Load dev plugins only in development
   const devPlugins = isDev ? [
-    // Plugins removed to declutter UI
+    checker({
+      eslint: {
+        lintCommand: 'eslint "./src/**/*.{js,jsx}"',
+        useFlatConfig: true,
+      },
+      overlay: true,
+    }),
   ] : []
 
   return {
     plugins: [
       react(),
       ...devPlugins, // Click-to-code inspector + debug toolbar (dev only)
-      checker({
-        eslint: {
-          lintCommand: 'eslint "./src/**/*.{js,jsx}"',
-          useFlatConfig: true, // We are using ESLint 9+
-        },
-        overlay: isDev, // Only show errors in browser overlay during dev
-      }),      // Brotli compression for production builds (70-80% size reduction)
+      // Brotli compression for production builds (70-80% size reduction)
       viteCompression({
         algorithm: 'brotliCompress',
         ext: '.br',
@@ -122,7 +121,7 @@ export default defineConfig(async ({ mode }) => {
           manualChunks: {
             // Vendor chunks
             'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-            'ui-vendor': ['lucide-react', 'clsx', 'tailwind-merge'],
+            'ui-vendor': ['clsx', 'tailwind-merge'],
             'chart-vendor': ['recharts'],
             'qr-vendor': ['qrcode.react'],
             // Heavy components
@@ -132,6 +131,13 @@ export default defineConfig(async ({ mode }) => {
             ],
           },
         },
+        // Preserve tree-shaking by keeping entry signatures
+        preserveEntrySignatures: 'strict',
+        treeshake: {
+          moduleSideEffects: 'no-external',
+          propertyReadSideEffects: false,
+          tryCatchDeoptimization: false,
+        },
       },
       // Optimize chunk size warnings
       chunkSizeWarningLimit: 1000,
@@ -139,10 +145,13 @@ export default defineConfig(async ({ mode }) => {
       minify: 'terser',
       terserOptions: {
         compress: {
-          drop_console: true, // Remove console.logs in production
+          drop_console: false, // Keep console.logs for Easter eggs
           drop_debugger: true,
-          pure_funcs: ['console.log', 'console.info', 'console.debug', 'console.trace'],
+          pure_funcs: [], // Verify if any specific functions need stripping, otherwise empty to keep logs
           passes: 2, // Run minification twice for better results
+          unsafe_arrows: true, // Convert functions to arrow functions
+          unsafe_methods: true, // Optimize method calls
+          unsafe_proto: true, // Optimize prototype access
         },
         mangle: {
           safari10: true, // Fix Safari 10/11 bugs
@@ -154,7 +163,7 @@ export default defineConfig(async ({ mode }) => {
       // CSS code splitting for better caching
       cssCodeSplit: true,
       // Smaller chunk size for better parallel loading
-      cssMinify: true,
+      cssMinify: 'esbuild',
       // Optimize assets
       assetsInlineLimit: 4096, // Inline assets < 4kb as base64
       // Source maps for production debugging (optional)

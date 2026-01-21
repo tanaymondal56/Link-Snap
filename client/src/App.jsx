@@ -5,7 +5,6 @@ import { ToastProvider, useToast } from './components/ui/Toast';
 import { registerToastHandler } from './utils/toastUtils';
 import PublicLayout from './layouts/PublicLayout';
 import DashboardLayout from './layouts/DashboardLayout';
-import AdminLayout from './components/AdminLayout';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/AuthContext';
 import ConfirmDialogProvider from './components/ui/ConfirmDialog';
@@ -19,6 +18,8 @@ const DevCommandCenter = lazy(() => import('./components/DevCommandCenter'));
 const EasterEggs = lazy(() => import('./components/EasterEggs'));
 const PWAUpdatePrompt = lazy(() => import('./components/PWAUpdatePrompt'));
 const PostUpdateChoiceModal = lazy(() => import('./components/PostUpdateChoiceModal'));
+// Lazy load AdminLayout
+const LazyAdminLayout = lazy(() => import('./components/AdminLayout'));
 
 // Initialize version cache on app load (non-blocking)
 initializeVersion();
@@ -222,9 +223,9 @@ function AppContent() {
           <Route
             path="/admin/*"
             element={
-              <AdminLayout>
+              <LazyAdminLayout>
                 <AdminDashboard />
-              </AdminLayout>
+              </LazyAdminLayout>
             }
           />
 

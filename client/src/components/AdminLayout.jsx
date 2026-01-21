@@ -661,9 +661,9 @@ const AdminLayout = ({ children }) => {
         </div>
       </nav>
       <main className="container mx-auto p-6">
-        <PullToRefresh onRefresh={() => window.location.reload()}>
+        <LazyPullToRefresh onRefresh={() => window.location.reload()}>
           {children}
-        </PullToRefresh>
+        </LazyPullToRefresh>
       </main>
     </div>
   );

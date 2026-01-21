@@ -76,9 +76,16 @@ export const AuthProvider = ({ children }) => {
         // If successful, set the token in memory
         setAccessToken(refreshData.accessToken);
 
-        // Then fetch user profile
-        const { data: userData } = await api.get('/auth/me');
-        setUser(userData);
+        // OPTIMIZED: Use user data from refresh response if available
+        // This avoids the redundant /auth/me call
+        if (refreshData.user) {
+          setUser(refreshData.user);
+        } else {
+          // Fallback for older backend versions (should not be needed with recent update)
+          const { data: userData } = await api.get('/auth/me');
+          setUser(userData);
+        }
+
         setLoading(false);
         setIsAuthChecking(false);
       } catch (error) {

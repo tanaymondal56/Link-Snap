@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { QRCodeSVG } from 'qrcode.react';
+// Lazy load QRCodeSVG (only needed after link creation)
+const QRCodeSVG = lazy(() => import('qrcode.react').then(module => ({ default: module.QRCodeSVG })));
 import {
   Copy,
   Check,
@@ -746,7 +747,9 @@ const LandingPage = () => {
                     </div>
 
                     <div className="flex items-center justify-center bg-white p-4 rounded-lg">
-                      <QRCodeSVG value={shortUrl} size={120} />
+                      <Suspense fallback={<Loader2 className="animate-spin text-gray-500" />}>
+                        <QRCodeSVG value={shortUrl} size={120} />
+                      </Suspense>
                     </div>
                   </div>
                 </div>

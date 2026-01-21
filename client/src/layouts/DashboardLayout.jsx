@@ -32,6 +32,22 @@ const DashboardLayout = () => {
   const [createdLink, setCreatedLink] = useState(null);
   const adminTriggerTimer = useRef(null); // For hidden admin recovery trigger
 
+  // Set meta robots to noindex for dashboard pages (SEO)
+  useEffect(() => {
+    let metaRobots = document.querySelector('meta[name="robots"]');
+    if (!metaRobots) {
+      metaRobots = document.createElement('meta');
+      metaRobots.name = 'robots';
+      document.head.appendChild(metaRobots);
+    }
+    metaRobots.content = 'noindex, nofollow';
+
+    return () => {
+      // Reset to default when leaving dashboard
+      metaRobots.content = 'index, follow';
+    };
+  }, []);
+
   const handleLinkCreated = (newLink) => {
     setCreatedLink(newLink);
     // Success modal logic is handled by the CreateLinkModal's parent usually,

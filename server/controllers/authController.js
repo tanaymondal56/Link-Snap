@@ -745,7 +745,55 @@ const refreshAccessToken = async (req, res, next) => {
 
     // Generate new access token (NOT a new refresh token - prevents race conditions)
     const accessToken = generateAccessToken(user._id, role);
-    res.json({ accessToken });
+
+    // Prepare user data (unified with getMe response)
+    let userDataResponse;
+
+    if (role === 'master_admin') {
+      userDataResponse = {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: 'master_admin',
+        avatar: user.avatar,
+        createdAt: user.createdAt,
+        lastLoginAt: user.lastLoginAt,
+        subscription: { tier: 'pro', status: 'active' }, 
+        linkUsage: { count: 0, resetAt: new Date() },
+        clickUsage: { count: 0, resetAt: new Date() },
+      };
+    } else {
+      userDataResponse = {
+        _id: user._id,
+        eliteId: user.eliteId,
+        snapId: user.snapId,
+        idTier: user.idTier,
+        idNumber: user.idNumber,
+        username: user.username,
+        usernameChangedAt: user.usernameChangedAt,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        company: user.company,
+        website: user.website,
+        bio: user.bio,
+        avatar: user.avatar,
+        role: user.role,
+        createdAt: user.createdAt,
+        lastLoginAt: user.lastLoginAt,
+        subscription: user.subscription || { tier: 'free', status: 'active' },
+        linkUsage: user.linkUsage || { count: 0, resetAt: new Date() },
+        clickUsage: user.clickUsage || { count: 0, resetAt: new Date() },
+      };
+    }
+
+    res.json({ 
+      accessToken,
+      user: userDataResponse
+    });
     
   } catch (error) {
     next(error);
