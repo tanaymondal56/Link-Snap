@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Link as LinkIcon,
@@ -26,7 +26,7 @@ import { useAuth } from '../context/AuthContext';
 import BadgeTooltip from '../components/ui/BadgeTooltip';
 
 const OverviewPage = () => {
-  const { user } = useAuth();
+  const { user, isAuthChecking } = useAuth();
   const [stats, setStats] = useState({
     totalLinks: 0,
     totalClicks: 0,
@@ -39,11 +39,7 @@ const OverviewPage = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createdLink, setCreatedLink] = useState(null);
 
-  useEffect(() => {
-    fetchOverviewData();
-  }, []);
-
-  const fetchOverviewData = async () => {
+  const fetchOverviewData = useCallback(async () => {
     try {
       const { data } = await api.get('/url/my-links');
       const links = data.urls || [];
@@ -82,7 +78,15 @@ const OverviewPage = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // Only fetch data when user is authenticated AND auth check is complete
+    // This prevents race condition where cached user exists but token isn't refreshed yet
+    if (user && !isAuthChecking) {
+      fetchOverviewData();
+    }
+  }, [user, isAuthChecking, fetchOverviewData]);
 
   const handleLinkCreated = (newLink) => {
     setCreatedLink(newLink);

@@ -50,18 +50,18 @@ const DashboardLayout = () => {
   };
 
   // Redirect to home if not logged in (don't force auth modal)
-  // Don't redirect if there's a token being validated
+  // Don't redirect if there's a cached user being validated
   useEffect(() => {
-    const hasToken = localStorage.getItem('accessToken');
-    if (!loading && !user && !hasToken) {
+    const hasCachedUser = localStorage.getItem('ls_auth_user');
+    if (!loading && !user && !hasCachedUser) {
       navigate('/', { replace: true });
     }
   }, [loading, user, navigate]);
 
-  // Check if there's a token but user isn't set yet (still loading)
+  // Check if there's a cached user but user isn't set yet (still loading)
   // This prevents redirect to home when refreshing while logged in
-  const hasToken = typeof window !== 'undefined' && localStorage.getItem('accessToken');
-  const isStillLoading = loading || (hasToken && !user);
+  const hasCachedUser = typeof window !== 'undefined' && localStorage.getItem('ls_auth_user');
+  const isStillLoading = loading || (hasCachedUser && !user);
 
   if (isStillLoading)
     return (

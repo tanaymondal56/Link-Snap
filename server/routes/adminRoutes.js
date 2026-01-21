@@ -50,7 +50,15 @@ import {
 
 const router = express.Router();
 
-// Security: IP Whitelist -> Auth -> Admin Role
+// ===== LIGHTWEIGHT IP CHECK ENDPOINT (No Auth Required) =====
+// This endpoint ONLY checks IP whitelist status for frontend detection
+// Used by PublicLayout to show/hide admin link without causing 401 errors
+router.head('/ip-check', ipWhitelist, (req, res) => {
+  // If we reach here, IP is whitelisted (ipWhitelist would have returned 404 otherwise)
+  res.status(200).end();
+});
+
+// Security: IP Whitelist -> Auth -> Admin Role (for all other routes)
 router.use(ipWhitelist, verifyToken, verifyAdmin);
 
 // Stats

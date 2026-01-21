@@ -98,10 +98,12 @@ const adminNotificationSchema = new mongoose.Schema({
   // Auto-expire after 30 days
   expiresAt: {
     type: Date,
-    default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    index: { expireAfterSeconds: 0 }
+    default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   }
 });
+
+// TTL index: Auto-expire notifications after 30 days
+adminNotificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 // Compound index for efficient queries
 adminNotificationSchema.index({ severity: 1, isRead: 1, createdAt: -1 });

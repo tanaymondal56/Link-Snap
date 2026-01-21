@@ -24,26 +24,38 @@ const PublicLayout = () => {
     // Check the HTTP status for whitelisted but not authenticated
     const checkWithStatus = async () => {
       try {
-        // Use native fetch to avoid axios interceptor interference
+        // Use native fetch with minimal footprint - only checking IP whitelist status
         const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-        const response = await fetch(`${baseUrl}/admin/stats`, {
-          method: 'GET',
+        const response = await fetch(`${baseUrl}/admin/ip-check`, {
+          method: 'HEAD', // Use HEAD to minimize response size
           credentials: 'include',
         });
         
         if (!isMounted) return;
         
-        // 200 = authenticated + whitelisted
-        // 401 = IP allowed but not authenticated
-        // 403 = IP allowed but not admin role
-        // 404 = IP blocked (route hidden)
-        if (response.ok || response.status === 401 || response.status === 403) {
+        // 200 = IP is whitelisted
+        // 404 = endpoint not found (fallback to old method)
+        // Other = IP not whitelisted
+        if (response.ok) {
           setIsWhitelistedIP(true);
+        } else if (response.status === 404) {
+          // Fallback: try old endpoint but suppress 401 logging
+          const fallbackResponse = await fetch(`${baseUrl}/admin/stats`, {
+            method: 'GET',
+            credentials: 'include',
+          });
+          if (!isMounted) return;
+          // 200, 401, 403 all mean IP is allowed to see the route
+          if (fallbackResponse.ok || fallbackResponse.status === 401 || fallbackResponse.status === 403) {
+            setIsWhitelistedIP(true);
+          } else {
+            setIsWhitelistedIP(false);
+          }
         } else {
           setIsWhitelistedIP(false);
         }
       } catch {
-        // Network error
+        // Network error - silently fail
         if (isMounted) setIsWhitelistedIP(false);
       }
     };

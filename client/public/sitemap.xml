@@ -3,37 +3,37 @@
 
   <url>
     <loc>https://linksnap.centralindia.cloudapp.azure.com/</loc>
-    <lastmod>2026-01-20T19:13:33.585Z</lastmod>
+    <lastmod>2026-01-21T09:42:29.144Z</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://linksnap.centralindia.cloudapp.azure.com/login</loc>
-    <lastmod>2026-01-20T19:13:33.586Z</lastmod>
+    <lastmod>2026-01-21T09:42:29.145Z</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://linksnap.centralindia.cloudapp.azure.com/register</loc>
-    <lastmod>2026-01-20T19:13:33.586Z</lastmod>
+    <lastmod>2026-01-21T09:42:29.145Z</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://linksnap.centralindia.cloudapp.azure.com/pricing</loc>
-    <lastmod>2026-01-20T19:13:33.586Z</lastmod>
+    <lastmod>2026-01-21T09:42:29.145Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://linksnap.centralindia.cloudapp.azure.com/changelog</loc>
-    <lastmod>2026-01-20T19:13:33.586Z</lastmod>
+    <lastmod>2026-01-21T09:42:29.145Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://linksnap.centralindia.cloudapp.azure.com/roadmap</loc>
-    <lastmod>2026-01-20T19:13:33.586Z</lastmod>
+    <lastmod>2026-01-21T09:42:29.145Z</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>

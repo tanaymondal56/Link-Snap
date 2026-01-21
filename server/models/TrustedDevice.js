@@ -12,8 +12,7 @@ const trustedDeviceSchema = new mongoose.Schema({
   // WebAuthn credentials
   credentialId: {
     type: Buffer,
-    required: true,
-    unique: true
+    required: true
   },
   publicKey: {
     type: Buffer,

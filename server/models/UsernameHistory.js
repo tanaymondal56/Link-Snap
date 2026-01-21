@@ -26,8 +26,7 @@ const usernameHistorySchema = new mongoose.Schema({
   },
   changedAt: { 
     type: Date, 
-    default: Date.now,
-    index: true
+    default: Date.now
   },
   changedBy: { 
     type: mongoose.Schema.Types.ObjectId, 

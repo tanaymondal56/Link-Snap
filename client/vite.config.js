@@ -83,6 +83,7 @@ export default defineConfig(async ({ mode }) => {
           name: 'Link Snap',
           short_name: 'LinkSnap',
           description: 'Advanced URL Shortener with Analytics',
+          lang: 'en',
           theme_color: '#8b5cf6',
           background_color: '#030712', // gray-950 to match app
           display: 'standalone',

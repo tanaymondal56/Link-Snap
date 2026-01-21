@@ -10,11 +10,13 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 const ClickChart = lazy(() => import('../components/charts/ClickChart'));
 const DeviceChart = lazy(() => import('../components/charts/DeviceChart'));
 const LocationChart = lazy(() => import('../components/charts/LocationChart'));
 
 const AnalyticsPage = () => {
+  const { user, isAuthChecking } = useAuth();
   const { shortId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -33,14 +35,15 @@ const AnalyticsPage = () => {
         setLoading(false);
       }
     };
-
-    if (shortId) {
+    // Only fetch if user is authenticated AND auth check is complete
+    // This prevents 401 errors when cached user exists but token isn't refreshed yet
+    if (shortId && user && !isAuthChecking) {
       fetchAnalytics();
-    } else {
+    } else if (!shortId) {
       // No shortId provided - show empty state instead of loading
       setLoading(false);
     }
-  }, [shortId]);
+  }, [shortId, user, isAuthChecking]);
 
   // No link selected - show prompt to select a link
   if (!shortId && !loading) {

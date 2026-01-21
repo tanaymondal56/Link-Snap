@@ -13,12 +13,14 @@ const anonUsageSchema = new mongoose.Schema({
     },
     expiresAt: {
         type: Date,
-        required: true,
-        index: { expires: 0 } // TTL index: MongoDB auto-deletes doc when this time is reached
+        required: true
     }
 }, {
     timestamps: true // Adds createdAt, updatedAt
 });
+
+// TTL index: MongoDB auto-deletes doc when expiresAt time is reached
+anonUsageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 const AnonUsage = mongoose.model('AnonUsage', anonUsageSchema);
 
