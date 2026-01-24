@@ -31,8 +31,6 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
 
-
-
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="%VITE_BASE_URL%/" />
@@ -77,12 +75,14 @@
     <link rel="preconnect" href="%VITE_BASE_URL%" crossorigin />
     <link rel="dns-prefetch" href="%VITE_BASE_URL%" />
 
+    <!-- Preconnect to external services -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
     <!-- Prefetch critical assets for instant navigation -->
-    <!-- Favicon is small and frequently accessed -->
     <link rel="prefetch" href="/favicon.svg" as="image" />
 
-    <!-- Preload critical scripts and styles for faster FCP/LCP -->
-
+    <!-- Preload critical stylesheet (Note: Vite hashes this in production) -->
     <link rel="preload" href="/src/index.css" as="style" />
 
     <!-- Inline Critical CSS for faster initial render -->
