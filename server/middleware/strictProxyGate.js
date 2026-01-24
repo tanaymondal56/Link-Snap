@@ -96,13 +96,17 @@ const CONFIG = {
  * Extract the connecting IP address (could be Tailscale IP or direct connection)
  * Handles IPv6-mapped IPv4 addresses (::ffff:192.168.1.1 → 192.168.1.1)
  * 
+ * IMPORTANT: Always uses socket.remoteAddress to get the DIRECT connection,
+ * not req.ip which can be influenced by X-Forwarded-For headers.
+ * 
  * @param {import('express').Request} req - Express request object
  * @returns {string} The connecting IP address
  */
 const getConnectingIP = (req) => {
-    let ip = req.ip ||
+    // Use socket.remoteAddress directly (bypasses Express trust proxy logic)
+    // This gives us the ACTUAL connecting IP (should be Azure Tailscale IP)
+    let ip = req.socket?.remoteAddress ||
         req.connection?.remoteAddress ||
-        req.socket?.remoteAddress ||
         'unknown';
 
     // Normalize IPv6-mapped IPv4 addresses
