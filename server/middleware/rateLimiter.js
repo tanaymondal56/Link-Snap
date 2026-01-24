@@ -1,6 +1,12 @@
 import rateLimit from 'express-rate-limit';
 import { getEffectiveTier } from '../services/subscriptionService.js';
 import { getAnonFingerprint } from '../utils/fingerprint.js';
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROXY-AWARE IP EXTRACTION
+// ═══════════════════════════════════════════════════════════════════════════════
+// getUserIP extracts the REAL user's IP when behind Azure proxy
+// This ensures we rate-limit actual users, not the Azure Nginx proxy
+import { getUserIP } from './strictProxyGate.js';
 
 // IPs that bypass rate limiting
 // Add your trusted IPs to .env under RATE_LIMIT_WHITELIST_IPS
@@ -15,6 +21,12 @@ const whitelistedIPs = [
     ...envAllowedIPs
 ];
 
+/**
+ * Check if an IP is in the whitelist
+ * IMPORTANT: Call with getUserIP(req) to get real user IP when behind proxy
+ * @param {string} ip - The IP address to check
+ * @returns {boolean} - True if IP is whitelisted
+ */
 const isWhitelisted = (ip) => {
     if (!ip) return false;
 
@@ -36,7 +48,8 @@ export const apiLimiter = rateLimit({
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many requests from this IP, please try again after 15 minutes' });
     },
-    skip: (req) => isWhitelisted(req.ip),
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
 });
 
 export const authLimiter = rateLimit({
@@ -45,7 +58,8 @@ export const authLimiter = rateLimit({
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many login attempts from this IP, please try again after an hour' });
     },
-    skip: (req) => isWhitelisted(req.ip),
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
 });
 
 export const refreshLimiter = rateLimit({
@@ -54,7 +68,8 @@ export const refreshLimiter = rateLimit({
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many session refresh attempts. Please log in again.' });
     },
-    skip: (req) => isWhitelisted(req.ip),
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
 });
 
 // Tiered rate limiting uses getEffectiveTier and getAnonFingerprint (imported at top)
@@ -130,7 +145,8 @@ export const redirectLimiter = rateLimit({
     handler: (req, res) => {
         res.status(429).send('Too many requests. Please slow down.');
     },
-    skip: (req) => isWhitelisted(req.ip),
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
 });
 
 export const appealLimiter = rateLimit({
@@ -139,7 +155,8 @@ export const appealLimiter = rateLimit({
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many appeal requests. Please wait before trying again.' });
     },
-    skip: (req) => isWhitelisted(req.ip),
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
 });
 
 export const verifyOtpLimiter = rateLimit({
@@ -148,7 +165,8 @@ export const verifyOtpLimiter = rateLimit({
     handler: (req, res) => {
         res.status(429).json({ message: 'Whoa there! Too many attempts. Please take a short break and try again in about 15 minutes. ☕' });
     },
-    skip: (req) => isWhitelisted(req.ip),
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
 });
 
 export const forgotPasswordLimiter = rateLimit({
@@ -157,7 +175,8 @@ export const forgotPasswordLimiter = rateLimit({
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many password reset requests. Please try again in 15 minutes.' });
     },
-    skip: (req) => isWhitelisted(req.ip),
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
 });
 
 export const resetPasswordLimiter = rateLimit({
@@ -166,7 +185,8 @@ export const resetPasswordLimiter = rateLimit({
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many reset attempts. Please try again in 15 minutes.' });
     },
-    skip: (req) => isWhitelisted(req.ip),
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
 });
 
 // Password verification limiter for protected links - strict to prevent brute force
@@ -176,7 +196,8 @@ export const passwordVerifyLimiter = rateLimit({
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many password attempts. Please try again in 15 minutes.' });
     },
-    skip: (req) => isWhitelisted(req.ip),
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
 });
 
 // Profile update limiter - prevent rapid username changes
@@ -186,7 +207,8 @@ export const profileUpdateLimiter = rateLimit({
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many profile updates. Please try again later.' });
     },
-    skip: (req) => isWhitelisted(req.ip),
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
 });
 
 // Username availability check limiter - prevent enumeration attacks
@@ -196,7 +218,8 @@ export const usernameCheckLimiter = rateLimit({
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many requests. Please slow down.' });
     },
-    skip: (req) => isWhitelisted(req.ip),
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
 });
 
 // Admin notification limiter - prevent abuse of notification endpoints
@@ -206,7 +229,8 @@ export const adminNotificationLimiter = rateLimit({
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many notification requests. Please try again later.' });
     },
-    skip: (req) => isWhitelisted(req.ip),
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
 });
 
 // Admin notification write limiter - stricter for write operations
@@ -216,5 +240,6 @@ export const adminNotificationWriteLimiter = rateLimit({
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many notification updates. Please try again later.' });
     },
-    skip: (req) => isWhitelisted(req.ip),
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
 });

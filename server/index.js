@@ -19,6 +19,12 @@ import cookieSession from 'cookie-session';
 import authRoutes from './routes/authRoutes.js';
 import urlRoutes from './routes/urlRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROXY GATE SECURITY (Azure → AWS Migration)
+// ═══════════════════════════════════════════════════════════════════════════════
+// This middleware ensures ALL requests come through authorized Azure proxy
+// Set PROXY_GATE_ENABLED=true in production, false for local development
+import { strictProxyGate, validateProxyGateConfig } from './middleware/strictProxyGate.js';
 // Conditional Admin Import
 // Ghost Mode: Admin routes are ONLY loaded if explicitly enabled
 let adminRoutes = null;
@@ -38,8 +44,32 @@ import compression from 'compression';
 
 const app = express();
 
-// Trust proxy (required for correct IP detection behind Nginx/Load Balancers)
-app.set('trust proxy', 1);
+// ═══════════════════════════════════════════════════════════════════════════════
+// TRUST PROXY CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════════
+// When PROXY_GATE_ENABLED=true (production):
+//   - Trust ONLY the Azure Tailscale IP from TRUSTED_PROXY_IPS
+//   - This ensures we ONLY accept requests from the authorized proxy
+//
+// When PROXY_GATE_ENABLED=false (local dev):
+//   - Trust 1 proxy in the chain (generic, for local testing)
+//   - Security is disabled, so strictProxyGate will bypass validation
+const getTrustProxySetting = () => {
+  const isProxyGateEnabled = process.env.PROXY_GATE_ENABLED === 'true';
+
+  if (isProxyGateEnabled) {
+    // Production: Trust only the specific Azure Tailscale IPs
+    const trustedIPs = process.env.TRUSTED_PROXY_IPS
+      ? process.env.TRUSTED_PROXY_IPS.split(',').map(ip => ip.trim())
+      : ['127.0.0.1']; // Fallback to localhost only
+    return trustedIPs;
+  }
+
+  // Local dev: Trust 1 proxy (generic)
+  return 1;
+};
+
+app.set('trust proxy', getTrustProxySetting());
 
 // Enable compression for all responses (Gzip/Brotli)
 app.use(compression({
@@ -57,6 +87,15 @@ app.use(compression({
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STRICT PROXY GATE - FIRST SECURITY LAYER
+// ═══════════════════════════════════════════════════════════════════════════════
+// This MUST be the first middleware after basic setup (morgan/compression)
+// Validates: Secret Token → Tailscale IP → Extracts Real User IP
+// Bypasses: /health endpoint for load balancer probes
+// Toggle: PROXY_GATE_ENABLED=false for local development
+app.use(strictProxyGate);
 
 // Security headers with Helmet
 app.use(helmet({
@@ -310,6 +349,13 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   try {
     await connectDB();
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // VALIDATE PROXY GATE CONFIGURATION
+    // ═══════════════════════════════════════════════════════════════════════════
+    // This validates the proxy security settings and will exit with error if
+    // misconfigured in production. MUST be called after DB connects but before listen.
+    validateProxyGateConfig();
 
     app.listen(PORT, () => {
       logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);

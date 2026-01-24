@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://${{ secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com' }}
+      url: https://linksnap.centralindia.cloudapp.azure.com
 
     steps:
       - name: Checkout code
@@ -25,7 +25,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install client dependencies
