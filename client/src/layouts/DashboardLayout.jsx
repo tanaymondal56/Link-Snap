@@ -143,6 +143,7 @@ const DashboardLayout = () => {
           <button
             className="ml-auto lg:hidden text-gray-400 hover:text-white transition-colors"
             onClick={() => setIsSidebarOpen(false)}
+            aria-label="Close sidebar menu"
           >
             <X size={24} />
           </button>
@@ -265,6 +266,7 @@ const DashboardLayout = () => {
           <button
             className="lg:hidden text-gray-400 hover:text-white p-3 -m-1 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-white/5 rounded-lg transition-colors active:scale-95"
             onClick={() => setIsSidebarOpen(true)}
+            aria-label="Open sidebar menu"
           >
             <Menu size={24} />
           </button>

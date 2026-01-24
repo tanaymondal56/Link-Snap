@@ -115,6 +115,10 @@ export default defineConfig(async ({ mode }) => {
       }),
     ],
     build: {
+      // Enable module preload polyfill for older browsers
+      modulePreload: {
+        polyfill: true,
+      },
       // Optimize chunk splitting for better caching
       rollupOptions: {
         output: {
