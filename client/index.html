@@ -170,6 +170,18 @@
           background-position: -200% 0;
         }
       }
+      /* Fast fade-in animation */
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      #root {
+        animation: fadeIn 0.3s ease-in;
+      }
     </style>
   </head>
   <body>
@@ -179,6 +191,8 @@
         <div class="spinner"></div>
       </div>
     </div>
+    <!-- Preload critical script with high priority -->
+    <link rel="modulepreload" href="/src/main.jsx" />
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
