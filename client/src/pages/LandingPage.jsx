@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 // Lazy load QRCodeSVG (only needed after link creation)
-const QRCodeSVG = lazy(() => import('qrcode.react').then(module => ({ default: module.QRCodeSVG })));
+const QRCodeSVG = lazy(() =>
+  import('qrcode.react').then((module) => ({ default: module.QRCodeSVG }))
+);
 import {
   Copy,
   Check,
@@ -382,7 +384,7 @@ const LandingPage = () => {
               data, and manage your links with a beautiful, intuitive dashboard.
             </p>
 
-            <div className="flex flex-wrap gap-4 text-sm font-medium text-gray-500">
+            <div className="flex flex-wrap gap-4 text-sm font-medium text-gray-300">
               <div className="flex items-center gap-2">
                 <Check size={16} className="text-green-400" /> Real-Time Analytics
               </div>
@@ -401,10 +403,10 @@ const LandingPage = () => {
               {/* Decorative glow inside card */}
               <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
 
-              <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+              <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
                 <Zap className="text-yellow-400" size={20} />
                 Try it out
-              </h3>
+              </h2>
 
               <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
                 {/* Mobile Only: Go to Dashboard Button (Logged In) */}
@@ -421,7 +423,12 @@ const LandingPage = () => {
                 )}
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-400 ml-1">Destination URL</label>
+                  <label
+                    htmlFor="destination-url"
+                    className="text-sm font-medium text-gray-300 ml-1"
+                  >
+                    Destination URL
+                  </label>
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                       <LinkIcon
@@ -429,6 +436,7 @@ const LandingPage = () => {
                       />
                     </div>
                     <input
+                      id="destination-url"
                       type="text"
                       required
                       className={`block w-full pl-11 pr-4 py-4 bg-gray-900/50 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all ${isValidUrl(url) ? 'border-green-500/50' : 'border-gray-700'}`}
@@ -450,9 +458,12 @@ const LandingPage = () => {
                   onMouseEnter={() => aliasField.isLocked && setShowAliasUpgrade(true)}
                   onMouseLeave={() => setShowAliasUpgrade(false)}
                 >
-                  <label className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
+                  <label
+                    htmlFor="custom-alias"
+                    className="text-sm font-medium text-gray-300 ml-1 flex items-center gap-2"
+                  >
                     Custom Alias
-                    <span className="text-xs text-gray-500 font-normal">(optional)</span>
+                    <span className="text-xs text-gray-400 font-normal">(optional)</span>
                     {aliasField.isLocked ? (
                       <ProBadge />
                     ) : (
@@ -467,8 +478,10 @@ const LandingPage = () => {
                       {displayDomain}/
                     </span>
                     <input
+                      id="custom-alias"
                       type="text"
                       disabled={aliasField.isLocked}
+                      aria-label="Custom URL alias"
                       className={`block w-full pr-10 py-4 bg-gray-900/50 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all ${
                         aliasField.isLocked
                           ? 'border-gray-700/50 cursor-not-allowed opacity-50'
@@ -524,10 +537,13 @@ const LandingPage = () => {
                   onMouseEnter={() => expirationField.isLocked && setShowExpirationUpgrade(true)}
                   onMouseLeave={() => setShowExpirationUpgrade(false)}
                 >
-                  <label className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
+                  <label
+                    htmlFor="link-expiration"
+                    className="text-sm font-medium text-gray-300 ml-1 flex items-center gap-2"
+                  >
                     <Clock size={14} className="text-amber-400" />
                     Link Expiration
-                    <span className="text-xs text-gray-500 font-normal">(optional)</span>
+                    <span className="text-xs text-gray-400 font-normal">(optional)</span>
                     {expirationField.isLocked ? (
                       <ProBadge />
                     ) : (
@@ -536,11 +552,13 @@ const LandingPage = () => {
                   </label>
                   <div className="relative">
                     <select
+                      id="link-expiration"
                       value={expirationField.isLocked ? 'never' : expiresIn}
                       onChange={
                         expirationField.isLocked ? undefined : (e) => setExpiresIn(e.target.value)
                       }
                       disabled={expirationField.isLocked}
+                      aria-label="Link expiration time"
                       className={`block w-full py-4 px-4 bg-gray-900/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all appearance-none ${expirationField.isLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                       style={{
                         backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
@@ -604,6 +622,11 @@ const LandingPage = () => {
                       <button
                         type="button"
                         disabled={passwordField.isLocked}
+                        aria-label={
+                          enablePassword
+                            ? 'Disable password protection'
+                            : 'Enable password protection'
+                        }
                         onClick={
                           passwordField.isLocked
                             ? undefined
