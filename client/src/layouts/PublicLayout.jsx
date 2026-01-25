@@ -30,9 +30,9 @@ const PublicLayout = () => {
           method: 'HEAD', // Use HEAD to minimize response size
           credentials: 'include',
         });
-        
+
         if (!isMounted) return;
-        
+
         // 200 = IP is whitelisted
         // 404 = endpoint not found (fallback to old method)
         // Other = IP not whitelisted
@@ -46,7 +46,11 @@ const PublicLayout = () => {
           });
           if (!isMounted) return;
           // 200, 401, 403 all mean IP is allowed to see the route
-          if (fallbackResponse.ok || fallbackResponse.status === 401 || fallbackResponse.status === 403) {
+          if (
+            fallbackResponse.ok ||
+            fallbackResponse.status === 401 ||
+            fallbackResponse.status === 403
+          ) {
             setIsWhitelistedIP(true);
           } else {
             setIsWhitelistedIP(false);
@@ -195,7 +199,7 @@ const PublicLayout = () => {
       </main>
 
       <footer className="bg-gray-950 border-t border-white/5 py-8">
-        <div className="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm flex flex-col items-center gap-2">
+        <div className="max-w-7xl mx-auto px-4 text-center text-gray-400 text-sm flex flex-col items-center gap-2">
           <div className="flex items-center gap-1">
             &copy; {new Date().getFullYear()}{' '}
             <span className="group cursor-pointer">
@@ -206,9 +210,9 @@ const PublicLayout = () => {
                 Tanay&apos;s Creation 🚀
               </span>
             </span>
-            <span className="text-gray-500">. All rights reserved.</span>
+            <span className="text-gray-400">. All rights reserved.</span>
           </div>
-          <div className="text-xs text-gray-600">
+          <div className="text-xs text-gray-500">
             <Link
               to="/changelog"
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300 transition-all"
@@ -217,19 +221,25 @@ const PublicLayout = () => {
             </Link>{' '}
             •{' '}
             <span className="inline-block relative whitespace-nowrap">
-              <span className="animate-text-alternate">Made with ❤️</span>
+              <span className="animate-text-alternate text-gray-300">Made with ❤️</span>
               <span className="animate-text-alternate-reverse font-bold bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent whitespace-nowrap">
                 Crafted by Tanay ✨
               </span>
             </span>
           </div>
           {/* Legal Links */}
-          <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-gray-500 mt-2">
-            <Link to="/terms" className="hover:text-gray-300 transition-colors">Terms</Link>
-            <span className="text-gray-700">•</span>
-            <Link to="/privacy" className="hover:text-gray-300 transition-colors">Privacy</Link>
-            <span className="text-gray-700">•</span>
-            <Link to="/cookies" className="hover:text-gray-300 transition-colors">Cookies</Link>
+          <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-gray-400 mt-2">
+            <Link to="/terms" className="hover:text-gray-200 transition-colors">
+              Terms
+            </Link>
+            <span className="text-gray-600">•</span>
+            <Link to="/privacy" className="hover:text-gray-200 transition-colors">
+              Privacy
+            </Link>
+            <span className="text-gray-600">•</span>
+            <Link to="/cookies" className="hover:text-gray-200 transition-colors">
+              Cookies
+            </Link>
           </div>
         </div>
       </footer>
