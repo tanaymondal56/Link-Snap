@@ -45,7 +45,7 @@
     "ua-parser-js": "^2.0.7",
     "validator": "^13.15.26",
     "winston": "^3.18.3",
-    "zod": "^4.3.5"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
