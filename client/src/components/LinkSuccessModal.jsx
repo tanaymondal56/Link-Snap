@@ -1,15 +1,22 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ExternalLink, Copy, Download, Sparkles, PartyPopper, Link as LinkIcon } from 'lucide-react';
+import {
+  Check,
+  ExternalLink,
+  Copy,
+  Download,
+  Sparkles,
+  PartyPopper,
+  Link as LinkIcon,
+} from 'lucide-react';
 
 import { QRCodeSVG } from 'qrcode.react';
 
 import showToast from '../utils/toastUtils';
-import { getShortUrl } from '../utils/urlHelper';
+import { getShortUrl, getDisplayShortUrl } from '../utils/urlHelper';
 import { useScrollLock } from '../hooks/useScrollLock';
 
 const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
-
   const [copiedId, setCopiedId] = useState(null);
 
   // Scroll Lock
@@ -19,7 +26,6 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
 
   const randomUrl = getShortUrl(linkData.shortId);
   const customUrl = linkData.customAlias ? getShortUrl(linkData.customAlias) : null;
-
 
   const copyToClipboard = (url, id) => {
     navigator.clipboard.writeText(url);
@@ -57,7 +63,7 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
   return createPortal(
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 backdrop-blur-sm bg-gray-900/80">
       {/* Modal */}
-      <div 
+      <div
         data-modal-content
         className="relative w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl animate-modal-in overflow-hidden flex flex-col max-h-[90dvh] overscroll-contain"
         onClick={(e) => e.stopPropagation()}
@@ -66,12 +72,20 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
         <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500/20 via-green-500/10 to-transparent p-6 pb-4 border-b border-gray-800 shrink-0">
           {/* Background Sparkle Effect */}
           <div className="absolute inset-0 opacity-30">
-            <div className="absolute top-2 left-4 text-yellow-400 animate-pulse"><Sparkles size={12} /></div>
-            <div className="absolute top-8 right-8 text-emerald-400 animate-pulse delay-100"><Sparkles size={10} /></div>
-            <div className="absolute bottom-4 left-12 text-green-400 animate-pulse delay-200"><Sparkles size={8} /></div>
-            <div className="absolute top-4 right-16 text-lime-400 animate-pulse delay-300"><Sparkles size={10} /></div>
+            <div className="absolute top-2 left-4 text-yellow-400 animate-pulse">
+              <Sparkles size={12} />
+            </div>
+            <div className="absolute top-8 right-8 text-emerald-400 animate-pulse delay-100">
+              <Sparkles size={10} />
+            </div>
+            <div className="absolute bottom-4 left-12 text-green-400 animate-pulse delay-200">
+              <Sparkles size={8} />
+            </div>
+            <div className="absolute top-4 right-16 text-lime-400 animate-pulse delay-300">
+              <Sparkles size={10} />
+            </div>
           </div>
-          
+
           <div className="relative flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <PartyPopper size={24} className="text-white" />
@@ -88,27 +102,39 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
           {/* Main Link Section */}
           <div className="flex flex-col sm:flex-row items-center gap-4">
             {/* QR Code */}
-            <div
-              id="qr-random"
-              className="bg-white p-3 rounded-xl shadow-lg shrink-0"
-            >
+            <div id="qr-random" className="bg-white p-3 rounded-xl shadow-lg shrink-0">
               <QRCodeSVG value={customUrl || randomUrl} size={100} level="H" />
             </div>
 
             {/* Link Info */}
             <div className="flex-1 w-full text-center sm:text-left">
-              <p className="text-xs text-gray-500 uppercase tracking-wider mb-1.5">Your Short Link</p>
-              <p className="text-lg font-mono font-semibold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent break-all">
-                {customUrl || randomUrl}
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-1.5">
+                Your Short Link
               </p>
-              
+              <p
+                className="text-base sm:text-lg font-mono font-semibold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent"
+                title={customUrl || randomUrl}
+              >
+                {/* Mobile: truncated, Desktop: fuller display */}
+                <span className="sm:hidden">
+                  {getDisplayShortUrl(linkData.customAlias || linkData.shortId, {
+                    maxDomainLength: 12,
+                  })}
+                </span>
+                <span className="hidden sm:inline">
+                  {getDisplayShortUrl(linkData.customAlias || linkData.shortId, {
+                    maxDomainLength: 22,
+                  })}
+                </span>
+              </p>
+
               {/* Action Buttons */}
               <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
                 <button
                   onClick={() => copyToClipboard(customUrl || randomUrl, 'main')}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    copiedId === 'main' 
-                      ? 'bg-green-500 text-white' 
+                    copiedId === 'main'
+                      ? 'bg-green-500 text-white'
                       : 'bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white'
                   }`}
                 >
@@ -125,7 +151,9 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
                   Open
                 </a>
                 <button
-                  onClick={() => downloadQR('qr-random', `qr-${linkData.customAlias || linkData.shortId}.png`)}
+                  onClick={() =>
+                    downloadQR('qr-random', `qr-${linkData.customAlias || linkData.shortId}.png`)
+                  }
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   <Download size={14} />
@@ -139,15 +167,17 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
           {customUrl && (
             <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-xs text-gray-500 mb-0.5">Original ID</p>
-                  <p className="text-sm font-mono text-gray-400">{randomUrl}</p>
+                  <p className="text-sm font-mono text-gray-400 truncate" title={randomUrl}>
+                    {getDisplayShortUrl(linkData.shortId, { maxDomainLength: 15 })}
+                  </p>
                 </div>
                 <button
                   onClick={() => copyToClipboard(randomUrl, 'original')}
-                  className={`p-2 rounded-lg transition-colors ${
-                    copiedId === 'original' 
-                      ? 'bg-green-500/20 text-green-400' 
+                  className={`p-2 rounded-lg transition-colors shrink-0 ${
+                    copiedId === 'original'
+                      ? 'bg-green-500/20 text-green-400'
                       : 'bg-gray-700/50 text-gray-400 hover:text-white hover:bg-gray-700'
                   }`}
                 >
@@ -163,7 +193,9 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
               <LinkIcon size={14} className="text-gray-500" />
               <p className="text-xs text-gray-500 uppercase tracking-wider">Redirects to</p>
             </div>
-            <p className="text-gray-300 text-sm break-all leading-relaxed">{linkData.originalUrl}</p>
+            <p className="text-gray-300 text-sm break-all leading-relaxed">
+              {linkData.originalUrl}
+            </p>
           </div>
         </div>
 
