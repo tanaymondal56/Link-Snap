@@ -29,7 +29,7 @@ import api from '../api/axios';
 import { hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
 import { useAppVersion } from '../hooks/useAppVersion';
 import showToast from '../utils/toastUtils';
-import { getShortUrl } from '../utils/urlHelper';
+import { getShortUrl, getDisplayShortUrl } from '../utils/urlHelper';
 const LinkSuccessModal = lazy(() => import('../components/LinkSuccessModal'));
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { isFreeTier } from '../utils/subscriptionUtils';
@@ -739,13 +739,26 @@ const LandingPage = () => {
                             href={shortUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-400 font-medium truncate hover:underline"
+                            className="text-blue-400 font-medium hover:underline text-sm sm:text-base"
+                            title={shortUrl}
                           >
-                            {shortUrl}
+                            {/* Display truncated URL on mobile, fuller on desktop */}
+                            <span className="sm:hidden">
+                              {getDisplayShortUrl(
+                                createdLink?.customAlias || createdLink?.shortId,
+                                { maxDomainLength: 12 }
+                              )}
+                            </span>
+                            <span className="hidden sm:inline">
+                              {getDisplayShortUrl(
+                                createdLink?.customAlias || createdLink?.shortId,
+                                { maxDomainLength: 25 }
+                              )}
+                            </span>
                           </a>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={copyToClipboard}
                           className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 hover:text-white transition-colors"
