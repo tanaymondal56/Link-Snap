@@ -1714,7 +1714,7 @@ export const redirectUrl = async (req, res, next) => {
 };
 
 // Preview page handler (when user adds + at the end of URL)
-export const previewUrl = async (req, res, next) => {
+export const previewUrl = async (req, res) => {
     // Extract shortId from regex match or params
     let shortId = req.params[0] || req.params.shortId;
 

@@ -13,7 +13,7 @@ const router = express.Router();
 
 // Track single click from edge proxy mirror
 // POST /api/analytics/track/:shortCode
-router.post('/track/:shortCode*', trackEdgeClick);
+router.post('/track/:shortCode', trackEdgeClick);
 
 // Bulk import clicks (for log processing)
 // POST /api/analytics/track-bulk
