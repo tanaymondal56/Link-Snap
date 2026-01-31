@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
+import { sessionManagementLimiter } from '../middleware/rateLimiter.js';
 import {
   getMySessions,
   getCurrentSession,
@@ -13,8 +14,9 @@ import {
 
 const router = express.Router();
 
-// All routes require authentication
+// All routes require authentication and rate limiting
 router.use(protect);
+router.use(sessionManagementLimiter);
 
 // Get all sessions for current user
 router.get('/', getMySessions);

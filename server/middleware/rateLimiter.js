@@ -243,3 +243,36 @@ export const adminNotificationWriteLimiter = rateLimit({
     // Use getUserIP() for real user IP when behind Azure proxy
     skip: (req) => isWhitelisted(getUserIP(req)),
 });
+
+// Password change limiter - prevent brute force on current password
+export const passwordChangeLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // 5 attempts per 15 minutes
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many password change attempts. Please try again in 15 minutes.' });
+    },
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
+});
+
+// Logout limiter - prevent session enumeration/DoS
+export const logoutLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 10, // 10 logout attempts per minute
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many logout requests. Please slow down.' });
+    },
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
+});
+
+// Session management limiter - prevent rapid session operations
+export const sessionManagementLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30, // 30 session operations per minute
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many session requests. Please slow down.' });
+    },
+    // Use getUserIP() for real user IP when behind Azure proxy
+    skip: (req) => isWhitelisted(getUserIP(req)),
+});
