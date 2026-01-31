@@ -317,7 +317,20 @@ if (process.env.NODE_ENV === 'production') {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   // Catch-all route for SPA - Express 5 uses {*param} syntax
   // This handles all routes not matched by API or redirect routes
-  app.get('/{*splat}', (req, res) => {
+  // IMPORTANT: Exclude static asset paths that are handled by express.static
+  app.get('/{*splat}', (req, res, next) => {
+    // Skip catch-all for static assets (let express.static handle them)
+    if (
+      req.path.startsWith('/assets/') ||
+      req.path === '/manifest.json' ||
+      req.path === '/robots.txt' ||
+      req.path === '/sitemap.xml' ||
+      req.path === '/sw.js' ||
+      req.path === '/favicon.ico'
+    ) {
+      return next(); // Pass to express.static or 404
+    }
+    
     console.log(`[SPA Catch-all] Serving index.html for: ${req.path}`);
     // Allow browser caching with revalidation (enables bfcache for back/forward navigation)
     // Changed from 'no-store' to allow bfcache while still checking for updates
