@@ -1,0 +1,219 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# COMPREHENSIVE DOCKERIGNORE
+# ═══════════════════════════════════════════════════════════════════════════════
+# Excludes EVERYTHING not needed to build and run the app in production
+# Result: Faster builds, smaller images, better security
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# VERSION CONTROL (Never needed in container)
+# ═══════════════════════════════════════════════════════════════════════════════
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEPENDENCIES (Reinstalled during Docker build)
+# ═══════════════════════════════════════════════════════════════════════════════
+node_modules/
+.pnp
+.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm
+.yarn
+
+# Package manager lock files (keep only package-lock.json)
+yarn.lock
+pnpm-lock.yaml
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENVIRONMENT FILES (Provide at runtime, never bake into image!)
+# ═══════════════════════════════════════════════════════════════════════════════
+.env
+.env.*
+!.env.example
+server/.env
+server/.env.*
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BUILD ARTIFACTS (Rebuilt during Docker build)
+# ═══════════════════════════════════════════════════════════════════════════════
+client/dist/
+server/dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOGS & DEBUG FILES
+# ═══════════════════════════════════════════════════════════════════════════════
+logs/
+*.log
+build_log.txt*
+*_output.txt
+*_report.txt
+*_final.txt
+
+# Cache files
+.eslintcache
+.stylelintcache
+.cache/
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TESTING & COVERAGE
+# ═══════════════════════════════════════════════════════════════════════════════
+coverage/
+*.lcov
+.nyc_output/
+test-results/
+playwright-report/
+__tests__/
+*.test.js
+*.test.jsx
+*.spec.js
+*.spec.jsx
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DOCUMENTATION (Not needed in production container)
+# ═══════════════════════════════════════════════════════════════════════════════
+DOCs/
+feature-list/
+feature-docs/
+plans/
+fix-needed/
+My-VM-Automation/
+Notes/
+testing/
+study/
+README.md
+README*.md
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+CODE_OF_CONDUCT.md
+SECURITY.md
+
+# Text files (usually notes/docs)
+*.txt
+!robots.txt
+!package.json
+!package-lock.json
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEVELOPMENT TOOLS & IDE FILES
+# ═══════════════════════════════════════════════════════════════════════════════
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+*.sublime-project
+.editorconfig
+
+# Linters and formatters config
+.prettierrc*
+.prettierignore
+.eslintrc*
+.eslintignore
+.stylelintrc*
+.stylelintignore
+
+# TypeScript config
+tsconfig*.json
+!tsconfig.json
+
+# Build tool configs
+vite.config.*
+webpack.config.*
+rollup.config.*
+jest.config.*
+vitest.config.*
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# OS FILES
+# ═══════════════════════════════════════════════════════════════════════════════
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DOCKER & CI/CD FILES
+# ═══════════════════════════════════════════════════════════════════════════════
+.dockerignore
+Dockerfile*
+docker-compose*.yml
+.gitlab-ci.yml
+.travis.yml
+azure-pipelines.yml
+.circleci/
+Jenkinsfile
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEVELOPMENT SCRIPTS
+# ═══════════════════════════════════════════════════════════════════════════════
+server/scripts/
+*.sh
+*.bat
+*.ps1
+!deploy.sh
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEMPORARY FILES
+# ═══════════════════════════════════════════════════════════════════════════════
+tmp/
+temp/
+*.tmp
+*.temp
+*.local
+.temp/
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECURITY & SECRETS (Critical - never include!)
+# ═══════════════════════════════════════════════════════════════════════════════
+*.pem
+*.key
+*.cert
+*.crt
+secrets/
+.secrets/
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MEDIA & ASSETS (If not needed in production)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Uncomment if you have large design files not needed in production
+# *.psd
+# *.sketch
+# *.fig
+# design/
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# KEEP THESE FILES (Override exclusions with !)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Package definition files
+!package.json
+!package-lock.json
+!client/package.json
+!client/package-lock.json
+!server/package.json
+!server/package-lock.json
+
+# Public assets needed at runtime
+!client/public/
+!client/public/**
+
+# Source code directories
+!client/src/
+!client/src/**
+!server/
+!server/**

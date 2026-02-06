@@ -201,7 +201,25 @@ const isTrustedIP = (ip) => {
  */
 export const strictProxyGate = (req, res, next) => {
     // ═══════════════════════════════════════════════════════════════════════════
-    // 0. HEALTH CHECK BYPASS
+    // 0. STATIC ASSETS BYPASS
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Allow static assets to be served without proxy authentication
+    // These are public files that should be accessible directly
+    if (
+        req.path.startsWith('/assets/') ||
+        req.path === '/manifest.json' ||
+        req.path === '/robots.txt' ||
+        req.path === '/sitemap.xml' ||
+        req.path === '/sw.js' ||
+        req.path === '/favicon.ico'
+    ) {
+        // Set real user IP for logging (use connecting IP for static assets)
+        req.realUserIP = getConnectingIP(req);
+        return next();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 1. HEALTH CHECK BYPASS
     // ═══════════════════════════════════════════════════════════════════════════
     // Allow health checks without authentication for:
     // - Load balancer health probes
@@ -216,7 +234,7 @@ export const strictProxyGate = (req, res, next) => {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // 1. BYPASS CHECK - For Local Development
+    // 2. BYPASS CHECK - For Local Development
     // ═══════════════════════════════════════════════════════════════════════════
     // When PROXY_GATE_ENABLED=false, skip all security checks
     // Use this for local development where you're not behind a proxy
@@ -227,7 +245,7 @@ export const strictProxyGate = (req, res, next) => {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // 2. SECRET TOKEN VALIDATION
+    // 3. SECRET TOKEN VALIDATION
     // ═══════════════════════════════════════════════════════════════════════════
     // Check for the secret token header set by Azure Nginx
     // This is the first line of defense at the application level
@@ -248,7 +266,7 @@ export const strictProxyGate = (req, res, next) => {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // 3. IP WHITELIST VALIDATION (Defense in Depth)
+    // 4. IP WHITELIST VALIDATION (Defense in Depth)
     // ═══════════════════════════════════════════════════════════════════════════
     // Even with valid secret, verify the request comes from trusted network
     // This prevents secret token leakage from granting access
@@ -273,7 +291,7 @@ export const strictProxyGate = (req, res, next) => {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // 4. EXTRACT REAL USER IP
+    // 5. EXTRACT REAL USER IP
     // ═══════════════════════════════════════════════════════════════════════════
     // Extract the actual user's IP from headers for:
     // - Rate limiting (so we limit real users, not the proxy)
