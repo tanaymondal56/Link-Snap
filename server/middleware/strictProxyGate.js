@@ -230,6 +230,7 @@ export const strictProxyGate = (req, res, next) => {
         '/api/url/',             // URL redirect (GET /:shortId)
         '/api/auth/',            // Auth routes (login, register, etc.)
         '/api/users/public',     // Public profile data
+        '/api/.d/',              // Hidden device auth routes (has its own ipWhitelist)
     ];
     
     const isPublicApi = publicApiPaths.some(path => req.path.startsWith(path));

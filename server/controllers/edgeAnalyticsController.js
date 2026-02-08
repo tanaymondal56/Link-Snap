@@ -57,14 +57,14 @@ export const trackEdgeClick = async (req, res) => {
         }
 
         // Create a mock request object for trackVisit compatibility
+        // Set realUserIP for proxy-aware extraction (matches strictProxyGate pattern)
+        const realIP = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
         const mockReq = {
             headers: {
                 'user-agent': req.headers['user-agent'] || 'Unknown',
-                'x-forwarded-for': req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || req.ip,
                 'referer': req.headers['referer'] || ''
             },
-            ip: req.headers['x-real-ip'] || req.ip,
-            connection: { remoteAddress: req.headers['x-real-ip'] || req.ip }
+            realUserIP: realIP  // Used by getUserIP() for analytics
         };
 
         // Track the visit using existing analytics service
@@ -115,11 +115,9 @@ export const trackBulkClicks = async (req, res) => {
             const mockReq = {
                 headers: {
                     'user-agent': userAgent || 'Unknown',
-                    'x-forwarded-for': ip,
                     'referer': referer || ''
                 },
-                ip: ip,
-                connection: { remoteAddress: ip }
+                realUserIP: ip || 'unknown'  // Used by getUserIP() for analytics
             };
 
             await trackVisit(url._id, mockReq, { deviceMatchType: 'bulk_import' });

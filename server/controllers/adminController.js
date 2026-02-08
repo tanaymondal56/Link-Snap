@@ -14,6 +14,7 @@ import { escapeRegex } from '../utils/regexUtils.js';
 import { generateUserIdentity } from '../services/idService.js';
 import { scanPendingLinks, scanUncheckedLinks } from '../services/safeBrowsingService.js';
 import logger from '../utils/logger.js';
+import { getUserIP } from '../middleware/strictProxyGate.js';
 
 // Helper function to calculate ban expiry date
 const calculateBanExpiry = (duration) => {
@@ -297,7 +298,7 @@ export const updateUserStatus = async (req, res, next) => {
                 bannedUntil,
                 linksAffected: disableLinks || false,
                 performedBy: req.user.role === 'master_admin' ? null : req.user.id,
-                ipAddress: req.ip || req.connection?.remoteAddress
+                ipAddress: getUserIP(req)
             });
 
             // Send ban notification email (pass user object for email data)
@@ -323,7 +324,7 @@ export const updateUserStatus = async (req, res, next) => {
                 reason: 'Manually unbanned by administrator',
                 linksAffected: reenableLinks || false,
                 performedBy: req.user.role === 'master_admin' ? null : req.user.id,
-                ipAddress: req.ip || req.connection?.remoteAddress
+                ipAddress: getUserIP(req)
             });
 
             // Send unban notification email
@@ -863,7 +864,7 @@ export const respondToAppeal = async (req, res, next) => {
                         reason: `Appeal approved: ${adminResponse || 'No additional comments'}`,
                         linksAffected: true,
                         performedBy: req.user.id,
-                        ipAddress: req.ip || req.connection?.remoteAddress
+                        ipAddress: getUserIP(req)
                     });
 
                     // Invalidate cache for user's links
@@ -894,7 +895,7 @@ export const respondToAppeal = async (req, res, next) => {
                         reason: `Appeal approved (Unban Pending): ${adminResponse || 'No additional comments'}`,
                         linksAffected: false,
                         performedBy: req.user.id,
-                        ipAddress: req.ip || req.connection?.remoteAddress
+                        ipAddress: getUserIP(req)
                     });
                 }
             }

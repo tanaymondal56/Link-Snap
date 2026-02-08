@@ -3,6 +3,7 @@ import SubscriptionAuditLog from '../models/SubscriptionAuditLog.js';
 import logger from '../utils/logger.js';
 import axios from 'axios';
 import mongoose from 'mongoose';
+import { getUserIP } from '../middleware/strictProxyGate.js';
 
 
 /**
@@ -230,7 +231,7 @@ export const overrideUserSubscription = async (req, res) => {
           currentPeriodEnd: updatedUser.subscription?.currentPeriodEnd,
           billingCycle: updatedUser.subscription?.billingCycle
         },
-        ipAddress: req.ip || req.headers['x-forwarded-for'],
+        ipAddress: getUserIP(req),
         userAgent: req.get('User-Agent')
       });
     } catch (auditErr) {
@@ -357,7 +358,7 @@ export const syncUserSubscription = async (req, res) => {
             billingCycle: updatedUser.subscription?.billingCycle,
             cancelledAt: updatedUser.subscription?.cancelledAt
           },
-          ipAddress: req.ip || req.headers['x-forwarded-for'],
+          ipAddress: getUserIP(req),
           userAgent: req.get('User-Agent')
         });
       } catch (auditErr) {
@@ -470,7 +471,7 @@ export const deleteUserSubscription = async (req, res) => {
           customerPortalUrl: null,
           cancelledAt: null
         },
-        ipAddress: req.ip || req.headers['x-forwarded-for'],
+        ipAddress: getUserIP(req),
         userAgent: req.get('User-Agent')
       });
     } catch (auditErr) {

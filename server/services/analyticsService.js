@@ -1,6 +1,7 @@
 import Analytics from '../models/Analytics.js';
 import { UAParser } from 'ua-parser-js';
 import geoip from 'geoip-lite';
+import { getUserIP } from '../middleware/strictProxyGate.js';
 
 // Buffer configuration
 const BATCH_SIZE = 100;
@@ -52,8 +53,8 @@ export const trackVisit = async (urlId, req, extras = {}) => {
         const os = parser.getOS();
         const device = parser.getDevice();
 
-        // Get IP address (handle proxies)
-        const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.ip || req.connection.remoteAddress;
+        // Get real user IP using proxy-aware extraction
+        const ip = getUserIP(req);
 
         // GeoIP lookup
         const geo = geoip.lookup(ip);

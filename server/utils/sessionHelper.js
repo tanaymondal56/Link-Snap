@@ -3,6 +3,7 @@ import Session from '../models/Session.js';
 import { parseUserAgent } from './parseUserAgent.js';
 import { generateRefreshToken } from './generateToken.js';
 import logger from './logger.js';
+import { getUserIP } from '../middleware/strictProxyGate.js';
 
 // Session configuration - can be moved to env for easier tuning
 const MAX_SESSIONS_PER_USER = parseInt(process.env.MAX_SESSIONS_PER_USER) || 10;
@@ -20,23 +21,12 @@ export const hashToken = (token) => {
 
 /**
  * Get client IP address from request
+ * Uses getUserIP from strictProxyGate for proper proxy-aware extraction
  * @param {Object} req - Express request object
  * @returns {string} Client IP address
  */
 export const getClientIP = (req) => {
-  // Check for forwarded headers (behind proxy/load balancer)
-  const forwarded = req.headers['x-forwarded-for'];
-  if (forwarded) {
-    return forwarded.split(',')[0].trim();
-  }
-  
-  // Check x-real-ip header
-  if (req.headers['x-real-ip']) {
-    return req.headers['x-real-ip'];
-  }
-  
-  // Fall back to direct connection IP
-  return req.ip || req.connection?.remoteAddress || 'Unknown';
+  return getUserIP(req);
 };
 
 /**

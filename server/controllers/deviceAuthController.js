@@ -10,6 +10,7 @@ import { generateAccessToken } from '../utils/generateToken.js';
 import { createSession } from '../utils/sessionHelper.js';
 import logger from '../utils/logger.js';
 import LoginHistory from '../models/LoginHistory.js';
+import { getUserIP } from '../middleware/strictProxyGate.js';
 
 // Config
 const rpName = process.env.WEBAUTHN_RP_NAME || 'Link Snap Admin';
@@ -42,12 +43,9 @@ const cleanup = () => {
 // Cleanup every minute
 setInterval(cleanup, 60000);
 
-// Helper: Get client IP
+// Helper: Get client IP - uses proxy-aware extraction
 const getClientIP = (req) => {
-  return req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-    req.headers['x-real-ip'] ||
-    req.socket?.remoteAddress?.replace(/^::ffff:/, '') ||
-    'unknown';
+  return getUserIP(req);
 };
 
 // Helper: Cookie settings (matches authController.js)
