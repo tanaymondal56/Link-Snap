@@ -26,22 +26,43 @@ const localhostPatterns = [
   '::ffff:127.0.0.1',
 ];
 
+/**
+ * Check if IP is in Tailscale's CGNAT subnet (100.64.0.0/10)
+ * Range: 100.64.0.0 - 100.127.255.255
+ */
+const isTailscaleSubnet = (ip) => {
+  if (!ip || typeof ip !== 'string') return false;
+  const normalized = ip.replace(/^::ffff:/, '');
+  const parts = normalized.split('.');
+  if (parts.length !== 4) return false;
+  const firstOctet = parseInt(parts[0], 10);
+  const secondOctet = parseInt(parts[1], 10);
+  return firstOctet === 100 && secondOctet >= 64 && secondOctet <= 127;
+};
+
 // Helper: Check IP Logic
 const checkIpAccess = (req) => {
   // Get the actual connection IP (not from headers - can't be spoofed)
   const socketIP = req.socket?.remoteAddress || req.connection?.remoteAddress || '';
   const normalizedSocketIP = socketIP.replace(/^::ffff:/, '');
 
-  // Check if request is coming from a trusted proxy (localhost OR explicitly trusted proxy)
+  // Check if request is coming from a trusted proxy:
+  // - localhost
+  // - explicitly configured TRUSTED_PROXIES
+  // - Tailscale subnet (100.64.0.0/10) - for Azure proxy
   const isFromTrustedProxy = localhostPatterns.includes(socketIP) ||
     localhostPatterns.includes(normalizedSocketIP) ||
     normalizedSocketIP === '127.0.0.1' ||
     normalizedSocketIP.startsWith('127.') ||
-    envTrustedProxies.includes(normalizedSocketIP);
+    envTrustedProxies.includes(normalizedSocketIP) ||
+    isTailscaleSubnet(normalizedSocketIP);  // ← Added Tailscale detection
 
-  // Get client IP from headers (only trust if from a proxy)
+  // Get client IP - prefer realUserIP set by strictProxyGate middleware
   let clientIP;
-  if (isFromTrustedProxy) {
+  if (req.realUserIP) {
+    // strictProxyGate already extracted the real user IP
+    clientIP = req.realUserIP;
+  } else if (isFromTrustedProxy) {
     // Request is from localhost/proxy, trust the forwarded headers
     clientIP =
       req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
@@ -91,11 +112,24 @@ export const ipWhitelist = async (req, res, next) => {
       const token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
 
+      // Check if user is a regular admin
       const user = await User.findById(decoded.id).select('role isActive');
 
       if (user && user.role === 'admin' && user.isActive) {
         logger.info(`[IP Whitelist] 🔓 Bypass by Admin Token: ${user._id} (${clientIP})`);
         return next();
+      }
+
+      // Also check if it's a MasterAdmin (different model)
+      if (decoded.type === 'master' || decoded.role === 'master_admin') {
+        // Import dynamically to avoid circular dependency issues
+        const MasterAdmin = (await import('../models/MasterAdmin.js')).default;
+        const masterAdmin = await MasterAdmin.findById(decoded.id).select('_id');
+        
+        if (masterAdmin) {
+          logger.info(`[IP Whitelist] 🔓 Bypass by Master Admin Token: ${masterAdmin._id} (${clientIP})`);
+          return next();
+        }
       }
     }
 

@@ -11,7 +11,7 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 # STAGE 1: BUILDER - Install dependencies and build frontend
 # ═══════════════════════════════════════════════════════════════════════════════
-FROM node:20-alpine AS builder
+FROM node:alpine AS builder
 
 WORKDIR /app
 
@@ -37,7 +37,7 @@ COPY server/package*.json ./server/
 # Root dependencies (concurrently) are only for local dev, not needed in Docker!
 
 # Install client dependencies (includes Vite, React, etc.)
-RUN cd client && npm ci
+RUN cd client && npm ci --legacy-peer-deps
 
 # Install server dependencies (includes Express, MongoDB driver, etc.)
 RUN cd server && npm ci
@@ -63,7 +63,7 @@ RUN cd client && npm run build
 # This stage creates the FINAL image that gets deployed
 # We start fresh and only copy runtime files (no build tools, no source code!)
 
-FROM node:20-alpine
+FROM node:alpine
 
 WORKDIR /app
 

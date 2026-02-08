@@ -5,6 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](package.json)
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
+[![Docker](https://img.shields.io/badge/docker-tanaymondal%2Flinksnap-blue?logo=docker)](https://hub.docker.com/repository/docker/tanaymondal/linksnap/)
 
 **Link-Snap** is a modern, full-stack URL management platform engineered for power users and businesses. Beyond standard link shortening, it offers specific device targeting, comprehensive real-time analytics, and a "Link-in-Bio" page builder, all protected by a military-grade stealth admin system.
 
@@ -46,10 +47,12 @@
 *   **MongoDB (Mongoose)** with Aggregation Pipelines for complex analytics.
 *   **JWT & Bcrypt** for industry-standard security.
 
-**DevOps & Tools**
+**DevOps & Infrastructure**
+*   **Docker** - Multi-stage production builds.
+*   **Multi-Cloud** - Azure (Edge) + AWS (Backend) via Tailscale VPN.
+*   **Nginx** - Reverse proxy with SSL/TLS termination.
+*   **GitHub Actions** - CI/CD with linting and security scanning.
 *   **ESLint & Prettier** for code quality.
-*   **PostCSS** for CSS processing.
-*   **Dev Command Center** - Built-in developer toolkit (`Ctrl+Shift+D`).
 
 ---
 
@@ -93,6 +96,22 @@ Link-Snap implements a **"Defense in Depth"** strategy:
 1.  **Device Fingerprinting**: Admin actions require trusted devices verified via WebAuthn/Biometrics.
 2.  **IP Whitelisting**: Key administrative endpoints are locked to known IPs.
 3.  **Token Rotation**: Automatic silent refresh of tokens prevents session hijacking while maintaining user convenience.
+
+---
+
+## 🐳 Docker Quickstart
+
+For production deployment, use the official Docker image:
+
+```bash
+# Pull the image
+docker pull tanaymondal/linksnap:latest
+
+# Run the container
+docker run -d -p 5000:5000 --env-file server/.env --name linksnap tanaymondal/linksnap:latest
+```
+
+> See [DOCs/docker-overview.md](DOCs/docker-overview.md) for full Docker Compose setup and environment variables.
 
 ---
 

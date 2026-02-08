@@ -219,6 +219,28 @@ export const strictProxyGate = (req, res, next) => {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // 0.5. PUBLIC API ENDPOINTS BYPASS
+    // ═══════════════════════════════════════════════════════════════════════════
+    // These API routes are public and should be accessible without proxy auth headers
+    // They are still accessible through the proxy, just don't require the secret header
+    const publicApiPaths = [
+        '/api/changelog',        // Public changelog page
+        '/api/roadmap',          // Public roadmap page
+        '/api/feedback',         // Public feedback submission (POST)
+        '/api/url/',             // URL redirect (GET /:shortId)
+        '/api/auth/',            // Auth routes (login, register, etc.)
+        '/api/users/public',     // Public profile data
+    ];
+    
+    const isPublicApi = publicApiPaths.some(path => req.path.startsWith(path));
+    
+    if (isPublicApi) {
+        // Still extract real user IP for rate limiting and logging
+        req.realUserIP = getRealUserIP(req) || getConnectingIP(req);
+        return next();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // 1. HEALTH CHECK BYPASS
     // ═══════════════════════════════════════════════════════════════════════════
     // Allow health checks without authentication for:
