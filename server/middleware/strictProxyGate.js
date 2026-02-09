@@ -231,14 +231,17 @@ export const strictProxyGate = (req, res, next) => {
         '/api/auth/',            // Auth routes (login, register, etc.)
         '/api/users/public',     // Public profile data
         '/api/.d/',              // Hidden device auth routes (has its own ipWhitelist)
+        '/api/analytics/track',  // Internal analytics from Nginx mirror (uses X-Internal-Analytics-Secret)
     ];
     
     const isPublicApi = publicApiPaths.some(path => req.path.startsWith(path));
     
-    // DEBUG: Temporary logging to diagnose bypass issue
-    if (req.path.includes('changelog') || req.path.includes('.d')) {
-        console.log(`[ProxyGate DEBUG] Path: "${req.path}", isPublicApi: ${isPublicApi}`);
-        console.log(`[ProxyGate DEBUG] Matches: ${publicApiPaths.filter(p => req.path.startsWith(p)).join(', ') || 'NONE'}`);
+    // DEBUG: Temporary logging to diagnose device API bypass issue
+    if (req.path.includes('.d')) {
+        console.log(`[ProxyGate DEBUG] Path: "${req.path}", Method: ${req.method}`);
+        console.log(`[ProxyGate DEBUG] isPublicApi: ${isPublicApi}`);
+        console.log(`[ProxyGate DEBUG] Matched bypass: ${publicApiPaths.filter(p => req.path.startsWith(p)).join(', ') || 'NONE'}`);
+        console.log(`[ProxyGate DEBUG] Has Auth Header: ${!!req.headers.authorization}`);
     }
     
     if (isPublicApi) {
