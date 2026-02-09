@@ -319,6 +319,17 @@ if (process.env.NODE_ENV === 'production') {
   // This handles all routes not matched by API or redirect routes
   // IMPORTANT: Exclude static asset paths that are handled by express.static
   app.get('/{*splat}', (req, res, next) => {
+    // Skip catch-all for API routes (they should never reach this point if properly routed)
+    // This is a safety net in case an API route falls through
+    if (req.path.startsWith('/api/')) {
+      console.warn(`[SPA Catch-all] WARNING: API route fell through: ${req.path}`);
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'API endpoint not found',
+        path: req.path
+      });
+    }
+    
     // Skip catch-all for static assets (let express.static handle them)
     if (
       req.path.startsWith('/assets/') ||
