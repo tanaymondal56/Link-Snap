@@ -186,6 +186,19 @@ const DevCommandCenter = () => {
     { id: 'force-logout', label: 'Force Logout', icon: LogOut, action: () => { localStorage.clear(); document.cookie.split(";").forEach(c => document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")); window.location.href = '/login'; }, category: '⚙️ Dev Tools', danger: true, keywords: 'signout' },
     { id: 'clear-recent', label: 'Clear Recent', icon: XCircle, action: () => { localStorage.removeItem('dev_recent_commands'); setRecentCommands([]); showToast.success('Recent commands cleared'); }, category: '⚙️ Dev Tools', keywords: 'history' },
     { id: 'fullscreen', label: 'Toggle Fullscreen', icon: MonitorSmartphone, action: () => { try { if (document.fullscreenElement) { document.exitFullscreen(); } else { document.documentElement.requestFullscreen().catch(() => showToast.error('Fullscreen not supported')); } } catch { showToast.error('Fullscreen not supported'); } }, category: '⚙️ Dev Tools', keywords: 'full screen maximize' },
+    { 
+      id: 'simulate-pwa-update', 
+      label: 'Simulate PWA Update', 
+      icon: Sparkles, 
+      action: () => {
+        showToast.loading('Simulating PWA Update...', 'Dev Tools');
+        setTimeout(() => {
+          window.dispatchEvent(new Event('pwa-update-manual-trigger'));
+        }, 800);
+      }, 
+      category: '⚙️ Dev Tools',
+      keywords: 'pwa service worker update prompt test'
+    },
     
     // Debug
     { 

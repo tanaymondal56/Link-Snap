@@ -111,8 +111,6 @@ docker pull tanaymondal/linksnap:latest
 docker run -d -p 5000:5000 --env-file server/.env --name linksnap tanaymondal/linksnap:latest
 ```
 
-> See [DOCs/docker-overview.md](DOCs/docker-overview.md) for full Docker Compose setup and environment variables.
-
 ---
 
 ## 🤝 Contributing
