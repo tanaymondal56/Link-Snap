@@ -5,7 +5,6 @@ import {
   History,
   MessageSquare,
   ShieldAlert,
-  ShieldCircle,
   CheckCircle,
   Clock,
   User,
@@ -325,7 +324,7 @@ const UserDetailsModal = ({ isOpen, onClose, user }) => {
                 <div className="space-y-4">
                   {banHistory.length === 0 ? (
                     <div className="text-center py-12 text-gray-500 bg-white/5 rounded-xl border border-dashed border-gray-700">
-                      <ShieldCircle size={48} className="mx-auto mb-3 opacity-20" />
+                      <Shield size={48} className="mx-auto mb-3 opacity-20" />
                       <p>No ban history found</p>
                     </div>
                   ) : (
