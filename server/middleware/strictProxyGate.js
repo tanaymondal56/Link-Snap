@@ -406,9 +406,10 @@ export const validateProxyGateConfig = () => {
         }
 
         // Validate IP format (basic check)
-        CONFIG.trustedProxyIPs.forEach(ip => {
+        CONFIG.trustedProxyIPs.forEach((ip, index) => {
             if (!ip.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) {
-                warnings.push(`Trusted IP "${ip}" doesn't look like a valid IPv4 address`);
+                // Redacted for security (CWE-312) - Log index instead of value
+                warnings.push(`Trusted IP at index ${index} doesn't look like a valid IPv4 address`);
             }
         });
 
@@ -428,10 +429,13 @@ export const validateProxyGateConfig = () => {
 
         // Success message
         console.log('[ProxyGate] ✓ Security middleware ENABLED');
-        console.log(`[ProxyGate]   • Trusted Proxies: ${CONFIG.trustedProxyIPs.join(', ')}`);
+        // Redacted for security (CWE-312) - Log count instead of values
+        console.log(`[ProxyGate]   • Trusted Proxies: ${CONFIG.trustedProxyIPs.length} configured`);
         console.log(`[ProxyGate]   • Real IP Header: ${CONFIG.realIpHeader}`);
         console.log(`[ProxyGate]   • Health Check: GET ${CONFIG.healthCheckPath} (bypasses auth)`);
-        console.log(`[ProxyGate]   • Secret Token: ${CONFIG.secret.substring(0, 8)}...${CONFIG.secret.substring(CONFIG.secret.length - 4)}`);
+        console.log(`[ProxyGate]   • Health Check: GET ${CONFIG.healthCheckPath} (bypasses auth)`);
+        // Redacted for security (CWE-312) - Do not log even partial secrets
+        console.log(`[ProxyGate]   • Secret Token: Configured (Length: ${CONFIG.secret.length})`);
 
     } else {
         // Disabled mode

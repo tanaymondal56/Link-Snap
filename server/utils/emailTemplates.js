@@ -18,6 +18,8 @@ const brandColors = {
     grayLight: '#9ca3af',
 };
 
+import { convert } from 'html-to-text';
+
 // Simple HTML escaper
 const escapeHtml = (unsafe) => {
     return (unsafe || '')
@@ -1019,26 +1021,14 @@ export const newLoginEmail = (user, loginInfo = {}) => {
  * Strips HTML tags and formats for text-only email clients
  */
 export const generatePlainText = (htmlContent, preheader = '') => {
-    // Simple HTML to text conversion
-    return (preheader ? preheader + '\n\n' : '') + 
-        htmlContent
-            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove style blocks
-            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove scripts
-            .replace(/<br\s*\/?>/gi, '\n') // BR to newline
-            .replace(/<\/p>/gi, '\n\n') // End of paragraph
-            .replace(/<\/h[1-6]>/gi, '\n\n') // End of headings
-            .replace(/<\/tr>/gi, '\n') // End of table rows
-            .replace(/<hr[^>]*>/gi, '\n---\n') // HR to dashes
-            .replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '$2 ($1)') // Links: text (url)
-            .replace(/<[^>]+>/g, '') // Remove remaining tags
-            .replace(/&nbsp;/gi, ' ')
-            .replace(/&amp;/gi, '&')
-            .replace(/&lt;/gi, '<')
-            .replace(/&gt;/gi, '>')
-            .replace(/&quot;/gi, '"')
-            .replace(/&#039;/gi, "'")
-            .replace(/\n{3,}/g, '\n\n') // Collapse multiple newlines
-            .trim();
+    const text = convert(htmlContent, {
+        wordwrap: 130,
+        selectors: [
+            { selector: 'a', options: { hideLinkHrefIfSameAsText: true } },
+            { selector: 'img', format: 'skip' }
+        ]
+    });
+    return (preheader ? preheader + '\n\n' : '') + text;
 };
 
 export default {

@@ -7,6 +7,7 @@ import Session from '../models/Session.js';
 import { nanoid } from 'nanoid';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 
 // ============================================
 // RANDOM DATA GENERATORS FOR SIGNUP TESTING
@@ -17,8 +18,8 @@ const LAST_NAMES = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 
 const COMPANIES = ['TechCorp', 'DevStudio', 'StartupHub', 'CloudNine', 'DataFlow', 'CodeCraft', 'ByteWorks', 'PixelLab', 'WebForge', 'AppNest', null];
 const DOMAINS = ['gmail.com', 'outlook.com', 'yahoo.com', 'proton.me', 'icloud.com', 'fastmail.com'];
 
-const randomFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const randomPhone = () => `+1${Math.floor(2000000000 + Math.random() * 8000000000)}`;
+const randomFrom = (arr) => arr[crypto.randomInt(0, arr.length)];
+const randomPhone = () => `+1${crypto.randomInt(2000000000, 9999999999)}`;
 const randomWebsite = (company) => company ? `https://${company.toLowerCase().replace(/\s/g, '')}.com` : null;
 
 /**
@@ -467,6 +468,9 @@ export const devGenerateAnalytics = async (req, res) => {
     // Get target links
     let links;
     if (linkId) {
+      if (!mongoose.Types.ObjectId.isValid(linkId)) {
+        return res.status(400).json({ message: 'Invalid linkId format' });
+      }
       const link = await Url.findOne({ _id: linkId, createdBy: user._id });
       links = link ? [link] : [];
     } else {
@@ -489,22 +493,26 @@ export const devGenerateAnalytics = async (req, res) => {
     const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
     
     for (let i = 0; i < count; i++) {
-      const link = links[Math.floor(Math.random() * links.length)];
-      const countryIdx = Math.floor(Math.random() * countries.length);
-      
-      analyticsData.push({
-        urlId: link._id,
-        timestamp: new Date(thirtyDaysAgo + Math.random() * (now - thirtyDaysAgo)),
-        ip: `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
-        country: countries[countryIdx],
-        city: cities[countryIdx],
-        browser: browsers[Math.floor(Math.random() * browsers.length)],
-        browserVersion: `${Math.floor(Math.random() * 100) + 50}.0`,
-        device: devices[Math.floor(Math.random() * devices.length)],
-        os: oses[Math.floor(Math.random() * oses.length)],
-        referrer: referrers[Math.floor(Math.random() * referrers.length)]
-      });
-    }
+        const link = links[crypto.randomInt(0, links.length)];
+        const countryIdx = crypto.randomInt(0, countries.length);
+        
+        // Random time within last 30 days
+        // crypto.randomInt only takes integer max, so we get a random offset up to the full duration
+        const timeOffset = crypto.randomInt(0, now - thirtyDaysAgo);
+        
+        analyticsData.push({
+          urlId: link._id,
+          timestamp: new Date(thirtyDaysAgo + timeOffset),
+          ip: `192.168.${crypto.randomInt(0, 256)}.${crypto.randomInt(0, 256)}`,
+          country: countries[countryIdx],
+          city: cities[countryIdx],
+          browser: browsers[crypto.randomInt(0, browsers.length)],
+          browserVersion: `${crypto.randomInt(50, 150)}.0`,
+          device: devices[crypto.randomInt(0, devices.length)],
+          os: oses[crypto.randomInt(0, oses.length)],
+          referrer: referrers[crypto.randomInt(0, referrers.length)]
+        });
+      }
     
     const inserted = await Analytics.insertMany(analyticsData, { ordered: false });
     
