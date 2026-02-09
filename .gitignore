@@ -13,7 +13,9 @@ node_modules/
 
 # Build outputs
 # Note: client/dist is built during deployment, don't commit it
+# Build artifacts
 client/dist/
+dist/
 server/dist/
 build/
 .next/
