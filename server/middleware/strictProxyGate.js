@@ -434,8 +434,8 @@ export const validateProxyGateConfig = () => {
         console.log(`[ProxyGate]   • Real IP Header: ${CONFIG.realIpHeader}`);
         console.log(`[ProxyGate]   • Health Check: GET ${CONFIG.healthCheckPath} (bypasses auth)`);
         console.log(`[ProxyGate]   • Health Check: GET ${CONFIG.healthCheckPath} (bypasses auth)`);
-        // Redacted for security (CWE-312) - Do not log even partial secrets
-        console.log(`[ProxyGate]   • Secret Token: Configured (Length: ${CONFIG.secret.length})`);
+        // Redacted for security (CWE-312) - Do not log secret values or metadata derived from them
+        console.log('[ProxyGate]   • Secret Token: Configured');
 
     } else {
         // Disabled mode
