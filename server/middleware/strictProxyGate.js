@@ -235,9 +235,16 @@ export const strictProxyGate = (req, res, next) => {
     
     const isPublicApi = publicApiPaths.some(path => req.path.startsWith(path));
     
+    // DEBUG: Temporary logging to diagnose bypass issue
+    if (req.path.includes('changelog') || req.path.includes('.d')) {
+        console.log(`[ProxyGate DEBUG] Path: "${req.path}", isPublicApi: ${isPublicApi}`);
+        console.log(`[ProxyGate DEBUG] Matches: ${publicApiPaths.filter(p => req.path.startsWith(p)).join(', ') || 'NONE'}`);
+    }
+    
     if (isPublicApi) {
         // Still extract real user IP for rate limiting and logging
         req.realUserIP = getRealUserIP(req) || getConnectingIP(req);
+        console.log(`[ProxyGate] ✅ Public API bypass for: ${req.path}`);
         return next();
     }
 
