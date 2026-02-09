@@ -34,13 +34,18 @@ const analyticsSchema = new mongoose.Schema({
     // Device-based redirect tracking (null if not using device targeting)
     deviceMatchType: {
         type: String,
-        enum: ['ios', 'android', 'mobile', 'tablet', 'desktop', 'mobile_fallback', 'fallback', 'time_redirect', null],
+        enum: ['ios', 'android', 'mobile', 'tablet', 'desktop', 'mobile_fallback', 'fallback', 'time_redirect', 'edge_cached', 'bulk_import', null],
         default: null,
     },
 });
 
 // Index for faster aggregation by URL and Date
 analyticsSchema.index({ urlId: 1, timestamp: -1 });
+
+// TTL index for automatic cleanup of old analytics data (90 days)
+// Note: This is a fallback cleanup. Business/Pro retention is handled in queries.
+// Azure Cosmos DB compatible TTL index
+analyticsSchema.index({ timestamp: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
 
 const Analytics = mongoose.model('Analytics', analyticsSchema);
 

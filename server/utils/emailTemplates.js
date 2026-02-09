@@ -18,6 +18,8 @@ const brandColors = {
     grayLight: '#9ca3af',
 };
 
+import { convert } from 'html-to-text';
+
 // Simple HTML escaper
 const escapeHtml = (unsafe) => {
     return (unsafe || '')
@@ -378,26 +380,26 @@ export const verificationEmail = (user, verificationToken, otp) => {
 
     <!-- OTP Display -->
     <p style="margin: 0 0 16px 0; font-family: Arial, sans-serif; font-size: 16px; color: ${brandColors.gray}; text-align: center; line-height: 1.6;">
-      Use the code below to complete your registration:
+      Use the code below to complete your registration <strong>(expires in 10 minutes)</strong>:
     </p>
     
     <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 24px;">
       <tr>
         <td align="center">
           <div style="font-family: monospace; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: ${brandColors.dark}; background-color: #f3f4f6; padding: 16px 32px; border-radius: 12px; display: inline-block; border: 2px dashed ${brandColors.grayLight};">
-            ${otp}
+            ${escapeHtml(otp)}
           </div>
         </td>
       </tr>
     </table>
 
     <p style="margin: 0 0 8px 0; font-family: Arial, sans-serif; font-size: 14px; color: ${brandColors.gray}; text-align: center;">
-      Or verify directly by clicking the button below:
+      Or verify directly by clicking the button below <strong>(valid for 24 hours)</strong>:
     </p>
     
     ${primaryButton('Verify Email Address', verifyUrl)}
     
-    ${statusBox('info', '⏰', 'Link expires in 24 hours', 'For security, this verification link will expire in 24 hours.')}
+    ${statusBox('info', '⏰', 'Two ways to verify', 'Enter the 6-digit code (10 min) or click the link (24 hours). Use whichever is more convenient!')}
     
     ${divider()}
     
@@ -424,8 +426,9 @@ export const verificationEmail = (user, verificationToken, otp) => {
  */
 export const suspensionEmail = (user, reason, bannedUntil) => {
     const firstName = escapeHtml(user.firstName) || 'there';
-    const untilText = bannedUntil
-        ? `until <strong>${new Date(bannedUntil).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</strong>`
+    const parsedDate = bannedUntil ? new Date(bannedUntil) : null;
+    const untilText = parsedDate && !isNaN(parsedDate.getTime())
+        ? `until <strong>${parsedDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</strong>`
         : '<strong>indefinitely</strong>';
 
     const content = `
@@ -732,7 +735,7 @@ export const passwordResetEmail = (user, resetToken, otp) => {
     <!-- OTP Box -->
     <div style="background: linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary}); border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
       <p style="margin: 0 0 8px 0; font-family: Arial, sans-serif; font-size: 14px; color: rgba(255,255,255,0.9);">Your Reset Code</p>
-      <p style="margin: 0; font-family: 'Courier New', monospace; font-size: 36px; font-weight: bold; letter-spacing: 8px; color: ${brandColors.white};">${otp}</p>
+      <p style="margin: 0; font-family: 'Courier New', monospace; font-size: 36px; font-weight: bold; letter-spacing: 8px; color: ${brandColors.white};">${escapeHtml(otp)}</p>
       <p style="margin: 8px 0 0 0; font-family: Arial, sans-serif; font-size: 12px; color: rgba(255,255,255,0.7);">Expires in 10 minutes</p>
     </div>
     
@@ -758,8 +761,274 @@ export const passwordResetEmail = (user, resetToken, otp) => {
 
     return {
         subject: 'Reset Your Password - Link Snap',
-        html: baseTemplate(content, `Hi ${firstName}, here's your password reset code: ${otp}`)
+        html: baseTemplate(content, `Hi ${firstName}, here's your password reset code: ${escapeHtml(otp)}`)
     };
+};
+
+/**
+ * Password Changed Confirmation Email
+ * Sent after successful password reset to notify user
+ */
+export const passwordChangedEmail = (user) => {
+    const firstName = escapeHtml(user.firstName) || 'there';
+    const loginUrl = `${getAppUrl()}/login`;
+    const timestamp = new Date().toLocaleString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZoneName: 'short'
+    });
+
+    const content = `
+    <!-- Icon -->
+    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+      <tr>
+        <td align="center" style="padding-bottom: 24px;">
+          <div style="background: linear-gradient(135deg, ${brandColors.success} 0%, #16a34a 100%); width: 72px; height: 72px; border-radius: 50%; display: inline-block; text-align: center; line-height: 72px;">
+            <span style="font-size: 36px;">🔐</span>
+          </div>
+        </td>
+      </tr>
+    </table>
+    
+    <!-- Heading -->
+    <h1 style="margin: 0 0 16px 0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 28px; font-weight: 700; color: ${brandColors.dark}; text-align: center;">
+      Password Changed Successfully
+    </h1>
+    
+    <!-- Message -->
+    <p style="margin: 0 0 8px 0; font-family: Arial, sans-serif; font-size: 16px; color: ${brandColors.gray}; text-align: center; line-height: 1.6;">
+      Hi ${firstName},
+    </p>
+    <p style="margin: 0 0 24px 0; font-family: Arial, sans-serif; font-size: 16px; color: ${brandColors.gray}; text-align: center; line-height: 1.6;">
+      Your password was successfully changed on <strong>${timestamp}</strong>.
+    </p>
+    
+    ${statusBox('success', '✅', 'Password Updated', 'Your account is now secured with your new password.')}
+    
+    ${primaryButton('Log In Now', loginUrl)}
+    
+    ${divider()}
+    
+    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 24px 0;">
+      <p style="margin: 0; font-family: Arial, sans-serif; font-size: 14px; color: #dc2626;">
+        <strong>⚠️ Didn't make this change?</strong> If you didn't reset your password, your account may be compromised. Please contact us immediately at 
+        <a href="mailto:${process.env.SUPPORT_EMAIL || 'support@linksnap.com'}" style="color: #dc2626; text-decoration: underline;">
+          ${process.env.SUPPORT_EMAIL || 'support@linksnap.com'}
+        </a>
+      </p>
+    </div>
+  `;
+
+    return {
+        subject: '🔐 Your Link Snap password was changed',
+        html: baseTemplate(content, `Hi ${firstName}, your Link Snap password was successfully changed.`)
+    };
+};
+
+/**
+ * Email Changed Notification
+ * Sent to the OLD email address when email is changed (security notification)
+ */
+export const emailChangedEmail = (user, newEmail) => {
+    const firstName = escapeHtml(user.firstName) || 'there';
+    const timestamp = new Date().toLocaleString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZoneName: 'short'
+    });
+
+    const content = `
+    <!-- Icon -->
+    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+      <tr>
+        <td align="center" style="padding-bottom: 24px;">
+          <div style="background: linear-gradient(135deg, ${brandColors.warning} 0%, #d97706 100%); width: 72px; height: 72px; border-radius: 50%; display: inline-block; text-align: center; line-height: 72px;">
+            <span style="font-size: 36px;">📧</span>
+          </div>
+        </td>
+      </tr>
+    </table>
+    
+    <!-- Heading -->
+    <h1 style="margin: 0 0 16px 0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 28px; font-weight: 700; color: ${brandColors.dark}; text-align: center;">
+      Email Address Changed
+    </h1>
+    
+    <!-- Message -->
+    <p style="margin: 0 0 8px 0; font-family: Arial, sans-serif; font-size: 16px; color: ${brandColors.gray}; text-align: center; line-height: 1.6;">
+      Hi ${firstName},
+    </p>
+    <p style="margin: 0 0 24px 0; font-family: Arial, sans-serif; font-size: 16px; color: ${brandColors.gray}; text-align: center; line-height: 1.6;">
+      The email address on your Link Snap account was changed on <strong>${timestamp}</strong>.
+    </p>
+    
+    ${statusBox('info', '📧', 'New Email Address', escapeHtml(newEmail))}
+    
+    ${divider()}
+    
+    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 24px 0;">
+      <p style="margin: 0; font-family: Arial, sans-serif; font-size: 14px; color: #dc2626;">
+        <strong>⚠️ Didn't make this change?</strong> If you didn't change your email, your account may be compromised. Please contact us immediately at 
+        <a href="mailto:${process.env.SUPPORT_EMAIL || 'support@linksnap.com'}" style="color: #dc2626; text-decoration: underline;">
+          ${process.env.SUPPORT_EMAIL || 'support@linksnap.com'}
+        </a>
+      </p>
+    </div>
+    
+    <p style="margin: 24px 0 0 0; font-family: Arial, sans-serif; font-size: 13px; color: ${brandColors.grayLight}; text-align: center;">
+      This notification was sent to your old email address for security purposes.
+    </p>
+  `;
+
+    return {
+        subject: '⚠️ Your Link Snap email address was changed',
+        html: baseTemplate(content, `Hi ${firstName}, the email on your Link Snap account was changed. If this wasn't you, contact support immediately.`)
+    };
+};
+
+/**
+ * New Login Notification Email
+ * Sent when a login is detected from a new device/location
+ */
+export const newLoginEmail = (user, loginInfo = {}) => {
+    const firstName = escapeHtml(user.firstName) || 'there';
+    const { 
+        device = 'Unknown device', 
+        browser = 'Unknown browser', 
+        location = 'Unknown location',
+        ip = 'Unknown IP',
+        timestamp = new Date()
+    } = loginInfo;
+
+    const formattedTime = new Date(timestamp).toLocaleString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZoneName: 'short'
+    });
+
+    const content = `
+    <!-- Icon -->
+    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+      <tr>
+        <td align="center" style="padding-bottom: 24px;">
+          <div style="background: linear-gradient(135deg, ${brandColors.primary} 0%, ${brandColors.secondary} 100%); width: 72px; height: 72px; border-radius: 50%; display: inline-block; text-align: center; line-height: 72px;">
+            <span style="font-size: 36px;">🔔</span>
+          </div>
+        </td>
+      </tr>
+    </table>
+    
+    <!-- Heading -->
+    <h1 style="margin: 0 0 16px 0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 28px; font-weight: 700; color: ${brandColors.dark}; text-align: center;">
+      New Login Detected
+    </h1>
+    
+    <!-- Message -->
+    <p style="margin: 0 0 24px 0; font-family: Arial, sans-serif; font-size: 16px; color: ${brandColors.gray}; text-align: center; line-height: 1.6;">
+      Hi ${firstName}, we noticed a new login to your account.
+    </p>
+    
+    <!-- Login Details -->
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f9fafb; border-radius: 12px; padding: 20px; margin: 24px 0;">
+      <tr>
+        <td style="padding: 12px 20px; border-bottom: 1px solid #e5e7eb;">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="font-family: Arial, sans-serif; font-size: 14px; color: ${brandColors.gray}; width: 100px;">📍 Location</td>
+              <td style="font-family: Arial, sans-serif; font-size: 14px; color: ${brandColors.dark}; font-weight: 600;">${escapeHtml(location)}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 20px; border-bottom: 1px solid #e5e7eb;">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="font-family: Arial, sans-serif; font-size: 14px; color: ${brandColors.gray}; width: 100px;">💻 Device</td>
+              <td style="font-family: Arial, sans-serif; font-size: 14px; color: ${brandColors.dark}; font-weight: 600;">${escapeHtml(device)}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 20px; border-bottom: 1px solid #e5e7eb;">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="font-family: Arial, sans-serif; font-size: 14px; color: ${brandColors.gray}; width: 100px;">🌐 Browser</td>
+              <td style="font-family: Arial, sans-serif; font-size: 14px; color: ${brandColors.dark}; font-weight: 600;">${escapeHtml(browser)}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 20px; border-bottom: 1px solid #e5e7eb;">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="font-family: Arial, sans-serif; font-size: 14px; color: ${brandColors.gray}; width: 100px;">🔢 IP</td>
+              <td style="font-family: Arial, sans-serif; font-size: 14px; color: ${brandColors.dark}; font-weight: 600;">${escapeHtml(ip)}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 20px;">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="font-family: Arial, sans-serif; font-size: 14px; color: ${brandColors.gray}; width: 100px;">🕐 Time</td>
+              <td style="font-family: Arial, sans-serif; font-size: 14px; color: ${brandColors.dark}; font-weight: 600;">${formattedTime}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+    
+    ${statusBox('success', '✅', 'Was this you?', 'If this was you, no action is needed. You can safely ignore this email.')}
+    
+    ${divider()}
+    
+    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 24px 0;">
+      <p style="margin: 0 0 8px 0; font-family: Arial, sans-serif; font-size: 14px; color: #dc2626; font-weight: 600;">
+        ⚠️ Wasn't you?
+      </p>
+      <p style="margin: 0; font-family: Arial, sans-serif; font-size: 14px; color: #dc2626;">
+        If you didn't log in, someone may have access to your account. Please reset your password immediately and contact support.
+      </p>
+    </div>
+    
+    ${primaryButton('Secure My Account', `${getAppUrl()}/forgot-password`)}
+  `;
+
+    return {
+        subject: '🔔 New login to your Link Snap account',
+        html: baseTemplate(content, `Hi ${firstName}, we detected a new login to your account from ${escapeHtml(location)}.`)
+    };
+};
+
+/**
+ * Generate plain-text version from HTML email
+ * Strips HTML tags and formats for text-only email clients
+ */
+export const generatePlainText = (htmlContent, preheader = '') => {
+    const text = convert(htmlContent, {
+        wordwrap: 130,
+        selectors: [
+            { selector: 'a', options: { hideLinkHrefIfSameAsText: true } },
+            { selector: 'img', format: 'skip' }
+        ]
+    });
+    return (preheader ? preheader + '\n\n' : '') + text;
 };
 
 export default {
@@ -771,4 +1040,8 @@ export default {
     testEmail,
     accountExistsEmail,
     passwordResetEmail,
+    passwordChangedEmail,
+    emailChangedEmail,
+    newLoginEmail,
+    generatePlainText,
 };

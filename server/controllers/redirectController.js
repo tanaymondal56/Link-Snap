@@ -673,6 +673,78 @@ const getDaysAgo = (date) => {
     return diffDays;
 };
 
+// Beautiful HTML page for link not found (404)
+const getLinkNotFoundPage = (shortId) => {
+    const safeShortId = escapeHtml(shortId);
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link Not Found - Link Snap</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #fff;
+            padding: 20px;
+        }
+        .orb { position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.5; animation: float 8s ease-in-out infinite; }
+        .orb-1 { width: 400px; height: 400px; background: linear-gradient(135deg, #64748b 0%, #475569 100%); top: -100px; left: -100px; }
+        .orb-2 { width: 300px; height: 300px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); bottom: -50px; right: -50px; animation-delay: -4s; }
+        @keyframes float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-30px) scale(1.05); } }
+        .container { position: relative; z-index: 10; max-width: 500px; width: 100%; text-align: center; }
+        .card { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px; padding: 48px 32px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .icon-container { width: 80px; height: 80px; margin: 0 auto 24px; background: linear-gradient(135deg, rgba(100, 116, 139, 0.2) 0%, rgba(71, 85, 105, 0.2) 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid rgba(100, 116, 139, 0.3); }
+        .icon { width: 40px; height: 40px; stroke: #94a3b8; stroke-width: 2; fill: none; }
+        .error-code { font-size: 4rem; font-weight: 800; color: #475569; margin-bottom: 8px; }
+        h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 12px; color: #e2e8f0; }
+        .subtitle { color: #94a3b8; font-size: 1rem; line-height: 1.6; margin-bottom: 24px; }
+        .link-id { display: inline-block; background: rgba(255, 255, 255, 0.1); padding: 6px 14px; border-radius: 8px; font-family: monospace; font-size: 0.95rem; color: #94a3b8; margin-bottom: 24px; }
+        .info-box { background: rgba(100, 116, 139, 0.1); border: 1px solid rgba(100, 116, 139, 0.3); border-radius: 16px; padding: 20px; margin-bottom: 28px; text-align: left; }
+        .info-box p { color: #94a3b8; font-size: 0.9rem; line-height: 1.6; }
+        .info-box strong { display: block; margin-bottom: 6px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 24px; border-radius: 14px; font-size: 1rem; font-weight: 600; text-decoration: none; transition: all 0.3s ease; cursor: pointer; border: none; width: 100%; margin-bottom: 10px; }
+        .btn-primary { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: #fff; box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4); }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(99, 102, 241, 0.5); }
+        .btn-secondary { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #e2e8f0; }
+        .footer-text { color: #475569; font-size: 0.8rem; margin-top: 24px; }
+        .footer-text a { color: #818cf8; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="container">
+        <div class="card">
+            <div class="error-code">404</div>
+            <h1>Link Not Found</h1>
+            <p class="subtitle">The short link you're looking for doesn't exist or may have been removed.</p>
+            <div class="link-id">/${safeShortId}</div>
+            <div class="info-box">
+                <p>
+                    <strong>What happened?</strong>
+                    This link may have never existed, was deleted by its creator, or you might have mistyped the URL. Double-check the link and try again.
+                </p>
+            </div>
+            <div class="cta-section">
+                <a href="/" class="btn btn-primary">Go to Homepage</a>
+                <a href="/dashboard" class="btn btn-secondary">Create Your Own Link</a>
+            </div>
+            <p class="footer-text">Powered by <a href="/">Link Snap</a> — Fast, secure URL shortening</p>
+        </div>
+    </div>
+</body>
+</html>
+`;
+};
+
 // Beautiful HTML page for inactive links
 const getInactiveLinkPage = () => `
 <!DOCTYPE html>
@@ -1020,7 +1092,7 @@ const getScheduledLinkPage = (shortId, activeStartTime) => {
     // Get base URL for display (short link only, no real destination exposed)
     const baseUrl = (process.env.BASE_URL || process.env.CLIENT_URL || 'https://linksnap.io').replace(/\/$/, '');
     const shortLink = `${baseUrl}/${safeShortId}`;
-    
+
     return `
 <!DOCTYPE html>
 <html lang="en">
@@ -1423,18 +1495,18 @@ export const redirectUrl = async (req, res, next) => {
             // Given the 'invalidateMultiple' called in AdminController, cache should be fresh.
             // However, to be robust:
             if (cached.ownerId && cached.ownerBanned === undefined) {
-                 const owner = await User.findById(cached.ownerId).select('isActive disableLinksOnBan');
-                 if (owner) {
-                     // Update cache with this info to prevent future lookups
-                     const isBanned = !owner.isActive;
-                     cached.ownerBanned = isBanned;
-                     cached.disableLinksOnBan = owner.disableLinksOnBan;
-                     setInCache(shortId, cached);
+                const owner = await User.findById(cached.ownerId).select('isActive disableLinksOnBan');
+                if (owner) {
+                    // Update cache with this info to prevent future lookups
+                    const isBanned = !owner.isActive;
+                    cached.ownerBanned = isBanned;
+                    cached.disableLinksOnBan = owner.disableLinksOnBan;
+                    setInCache(shortId, cached);
 
-                     if (isBanned && owner.disableLinksOnBan) {
-                         return res.status(410).send(getInactiveLinkPage(shortId));
-                     }
-                 }
+                    if (isBanned && owner.disableLinksOnBan) {
+                        return res.status(410).send(getInactiveLinkPage(shortId));
+                    }
+                }
             }
 
             // Check if link is ready to go live (activeStartTime)
@@ -1457,7 +1529,7 @@ export const redirectUrl = async (req, res, next) => {
             if (cached.ownerId) {
                 const usageCheck = await checkAndIncrementClickUsage(cached.ownerId);
                 if (!usageCheck.allowed) {
-                     return res.status(403).send(getLimitReachedPage());
+                    return res.status(403).send(getLimitReachedPage());
                 }
             }
 
@@ -1477,7 +1549,7 @@ export const redirectUrl = async (req, res, next) => {
                         setSubscriptionCache(cached.ownerId.toString(), ownerSub);
                     }
                 }
-                
+
                 if (ownerSub && (ownerSub.role === 'admin' || hasFeature(ownerSub, 'time_redirects'))) {
                     const timeDestination = getTimeBasedDestination(cached.timeRedirects);
                     if (timeDestination) {
@@ -1529,8 +1601,9 @@ export const redirectUrl = async (req, res, next) => {
         }
 
         if (!url) {
-            // Next middleware (frontend)
-            return next();
+            // Return proper 404 page for short URL patterns
+            // This allows Nginx to cache the 404 response appropriately
+            return res.status(404).send(getLinkNotFoundPage(shortId));
         }
 
         // 3. Fetch owner status alongside URL
@@ -1573,13 +1646,13 @@ export const redirectUrl = async (req, res, next) => {
         if (url.createdBy) {
             const usageCheck = await checkAndIncrementClickUsage(url.createdBy);
             if (!usageCheck.allowed) {
-                 return res.status(403).send(getLimitReachedPage());
+                return res.status(403).send(getLimitReachedPage());
             }
         }
 
         // 4. Store in cache with ban status
-        setInCache(shortId, { 
-            ...url.toObject(), 
+        setInCache(shortId, {
+            ...url.toObject(),
             ownerId: url.createdBy,
             ownerBanned,
             disableLinksOnBan
@@ -1595,11 +1668,11 @@ export const redirectUrl = async (req, res, next) => {
             const ownerFull = await User.findById(url.createdBy).select('subscription role');
             if (ownerFull) {
                 // Cache for future requests
-                setSubscriptionCache(url.createdBy.toString(), { 
-                    subscription: ownerFull.subscription, 
-                    role: ownerFull.role 
+                setSubscriptionCache(url.createdBy.toString(), {
+                    subscription: ownerFull.subscription,
+                    role: ownerFull.role
                 });
-                
+
                 if (ownerFull.role === 'admin' || hasFeature(ownerFull, 'time_redirects')) {
                     const timeDestination = getTimeBasedDestination(url.timeRedirects);
                     if (timeDestination) {
@@ -1641,7 +1714,7 @@ export const redirectUrl = async (req, res, next) => {
 };
 
 // Preview page handler (when user adds + at the end of URL)
-export const previewUrl = async (req, res, next) => {
+export const previewUrl = async (req, res) => {
     // Extract shortId from regex match or params
     let shortId = req.params[0] || req.params.shortId;
 
@@ -1668,7 +1741,8 @@ export const previewUrl = async (req, res, next) => {
         }
 
         if (!url) {
-            return next();
+            // Return proper 404 page for preview of non-existent links
+            return res.status(404).send(getLinkNotFoundPage(shortId));
         }
 
         // Check if link is inactive

@@ -18,11 +18,11 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
 } from 'lucide-react';
 import api from '../api/axios';
 import showToast from '../utils/toastUtils';
-import { getShortUrl } from '../utils/urlHelper';
+import { getDomain } from '../utils/urlHelper';
 
 import { useScrollLock } from '../hooks/useScrollLock';
 import { Link } from 'react-router-dom';
@@ -80,11 +80,15 @@ const useDebounce = (value, delay) => {
   return debouncedValue;
 };
 
-// Get base domain from getShortUrl helper
+// Get base domain from getDomain helper (already without protocol)
 const getBaseDomain = () => {
-  const fullUrl = getShortUrl('');
-  // Remove trailing slash
-  return fullUrl.replace(/\/$/, '');
+  return getDomain();
+};
+
+// Get a truncated display version for long domains
+const getDisplayDomain = (domain, maxLength = 20) => {
+  if (domain.length <= maxLength) return domain;
+  return domain.slice(0, maxLength - 3) + '...';
 };
 
 const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
@@ -95,7 +99,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
   // Expiration state
   const [expiresIn, setExpiresIn] = useState('never');
   const [customExpiresAt, setCustomExpiresAt] = useState('');
-  
+
   // Password state
   const [enablePassword, setEnablePassword] = useState(false);
   const [password, setPassword] = useState('');
@@ -168,7 +172,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
   const checkScroll = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    
+
     const { scrollTop, scrollHeight, clientHeight } = container;
     setShowTopArrow(scrollTop > 20);
     setShowBottomArrow(scrollTop + clientHeight < scrollHeight - 20);
@@ -180,8 +184,11 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
   }, [activeTab, checkScroll]);
 
   // Calculate badges/indicators
-  const settingsActive = (expiresIn !== 'never' && expiresIn !== '') || enablePassword || enableSchedule;
-  const targetingActive = (deviceRedirects.enabled && deviceRedirects.rules.length > 0) || (timeRedirects.enabled && timeRedirects.rules.length > 0);
+  const settingsActive =
+    (expiresIn !== 'never' && expiresIn !== '') || enablePassword || enableSchedule;
+  const targetingActive =
+    (deviceRedirects.enabled && deviceRedirects.rules.length > 0) ||
+    (timeRedirects.enabled && timeRedirects.rules.length > 0);
 
   // Check alias availability
   const checkAlias = useCallback(async (alias) => {
@@ -233,13 +240,28 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       enableSchedule,
       activeStartTime,
       timeRedirects,
-      savedAt: Date.now()
+      savedAt: Date.now(),
     };
     // Only save if there's actual content (use optional chaining for safety)
-    if (url || customAlias || (deviceRedirects?.rules?.length > 0) || enableSchedule || (timeRedirects?.rules?.length > 0)) {
+    if (
+      url ||
+      customAlias ||
+      deviceRedirects?.rules?.length > 0 ||
+      enableSchedule ||
+      timeRedirects?.rules?.length > 0
+    ) {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     }
-  }, [url, customAlias, expiresIn, customExpiresAt, deviceRedirects, enableSchedule, activeStartTime, timeRedirects]);
+  }, [
+    url,
+    customAlias,
+    expiresIn,
+    customExpiresAt,
+    deviceRedirects,
+    enableSchedule,
+    activeStartTime,
+    timeRedirects,
+  ]);
 
   // Load draft from localStorage
   const loadDraft = useCallback(() => {
@@ -250,10 +272,10 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
         // Only restore if saved within last 24 hours
         if (draft.savedAt && Date.now() - draft.savedAt < 24 * 60 * 60 * 1000) {
           let skippedPastDates = false;
-          
+
           setUrl(draft.url || '');
           setCustomAlias(draft.customAlias || '');
-          
+
           // Check if saved expiration date is now in the past
           if (draft.expiresIn === 'custom' && draft.customExpiresAt) {
             const expiresDate = new Date(draft.customExpiresAt);
@@ -270,12 +292,16 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
             setExpiresIn(draft.expiresIn || 'never');
             setCustomExpiresAt('');
           }
-          
+
           // Password protection preference is not saved/restored
           // Password is never saved/loaded from localStorage for security
           // Validate deviceRedirects structure to prevent undefined access errors
           const savedDeviceRedirects = draft.deviceRedirects;
-          if (savedDeviceRedirects && typeof savedDeviceRedirects === 'object' && Array.isArray(savedDeviceRedirects.rules)) {
+          if (
+            savedDeviceRedirects &&
+            typeof savedDeviceRedirects === 'object' &&
+            Array.isArray(savedDeviceRedirects.rules)
+          ) {
             setDeviceRedirects({
               enabled: Boolean(savedDeviceRedirects.enabled),
               rules: savedDeviceRedirects.rules,
@@ -283,7 +309,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
           } else {
             setDeviceRedirects({ enabled: false, rules: [] });
           }
-          
+
           // Restore Schedule Activation - check if date is in the past
           if (draft.enableSchedule !== undefined && draft.activeStartTime) {
             const scheduleDate = new Date(draft.activeStartTime);
@@ -300,23 +326,33 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
             setEnableSchedule(false);
             setActiveStartTime('');
           }
-          
+
           const savedTimeRedirects = draft.timeRedirects;
-          if (savedTimeRedirects && typeof savedTimeRedirects === 'object' && Array.isArray(savedTimeRedirects.rules)) {
+          if (
+            savedTimeRedirects &&
+            typeof savedTimeRedirects === 'object' &&
+            Array.isArray(savedTimeRedirects.rules)
+          ) {
             setTimeRedirects({
               enabled: Boolean(savedTimeRedirects.enabled),
-              timezone: savedTimeRedirects.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+              timezone:
+                savedTimeRedirects.timezone ||
+                Intl.DateTimeFormat().resolvedOptions().timeZone ||
+                'UTC',
               rules: savedTimeRedirects.rules,
             });
           }
-          
+
           // Show notification if some dates were skipped because they're now in the past
           if (skippedPastDates) {
             setTimeout(() => {
-              showToast.info('Some dates from your draft are now in the past and were reset.', 'Draft Restored');
+              showToast.info(
+                'Some dates from your draft are now in the past and were reset.',
+                'Draft Restored'
+              );
             }, 500);
           }
-          
+
           return true;
         }
       }
@@ -365,7 +401,11 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       // Reset TBR states
       setEnableSchedule(false);
       setActiveStartTime('');
-      setTimeRedirects({ enabled: false, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', rules: [] });
+      setTimeRedirects({
+        enabled: false,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+        rules: [],
+      });
       setActiveTab('essentials');
     }
   }, [isOpen]);
@@ -420,8 +460,8 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
         payload.deviceRedirects = {
           enabled: deviceRedirects.enabled,
           rules: deviceRedirects.rules
-            .filter(r => r.url && r.url.trim() !== '')
-            .map(r => ({ ...r, url: normalizeUrl(r.url) })),
+            .filter((r) => r.url && r.url.trim() !== '')
+            .map((r) => ({ ...r, url: normalizeUrl(r.url) })),
         };
       }
 
@@ -442,8 +482,8 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
           enabled: true,
           timezone: timeRedirects.timezone,
           rules: timeRedirects.rules
-            .filter(r => r.destination && r.startTime && r.endTime)
-            .map(r => ({ ...r, destination: normalizeUrl(r.destination) })),
+            .filter((r) => r.destination && r.startTime && r.endTime)
+            .map((r) => ({ ...r, destination: normalizeUrl(r.destination) })),
         };
       }
 
@@ -454,17 +494,17 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
     } catch (error) {
       const errData = error.response?.data;
       const msg = errData?.message || 'Failed to create link';
-      
+
       if (errData?.type === 'hard_limit') {
-          showToast.upgrade(msg, 'Monthly Cap Hit');
+        showToast.upgrade(msg, 'Monthly Cap Hit');
       } else if (errData?.type === 'active_limit') {
-          showToast.limit(msg, 'Maximum Links Reached', [
-              { label: 'Manage Links', onClick: onClose }
-          ]);
+        showToast.limit(msg, 'Maximum Links Reached', [
+          { label: 'Manage Links', onClick: onClose },
+        ]);
       } else if (errData?.type === 'rate_limit') {
-          showToast.error(msg, 'Slow Down');
+        showToast.error(msg, 'Slow Down');
       } else {
-          showToast.error(msg);
+        showToast.error(msg);
       }
       console.error('Failed to create link:', error);
     } finally {
@@ -492,7 +532,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-gray-900/80">
-      <div 
+      <div
         data-modal-content
         className="relative w-full max-w-2xl bg-gray-900 border border-gray-800 rounded-2xl shadow-xl max-h-[90dvh] flex flex-col overflow-hidden overscroll-contain"
         onClick={(e) => e.stopPropagation()}
@@ -505,7 +545,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
             </h2>
             <p className="text-sm text-gray-400 mt-1">Shorten and customize your URL</p>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-white bg-gray-800/50 hover:bg-gray-800 rounded-full transition-colors"
           >
@@ -521,8 +561,8 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
               <ChevronLeft size={18} className="text-violet-400" strokeWidth={3} />
             </div>
           )}
-          
-          <div 
+
+          <div
             ref={tabsRef}
             onScroll={checkTabScroll}
             className="flex p-2 gap-2 border-b border-gray-800 bg-gray-900/50 overflow-x-auto scrollbar-hide"
@@ -530,20 +570,20 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
             <button
               onClick={() => setActiveTab('essentials')}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-                activeTab === 'essentials' 
-                  ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' 
+                activeTab === 'essentials'
+                  ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
                   : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
               }`}
             >
               <LinkIcon size={16} />
               Essentials
             </button>
-            
+
             <button
               onClick={() => setActiveTab('settings')}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-                activeTab === 'settings' 
-                  ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' 
+                activeTab === 'settings'
+                  ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
                   : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
               }`}
             >
@@ -555,12 +595,12 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
               </div>
               Settings
             </button>
-            
+
             <button
               onClick={() => setActiveTab('targeting')}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-                activeTab === 'targeting' 
-                  ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' 
+                activeTab === 'targeting'
+                  ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
                   : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
               }`}
             >
@@ -574,7 +614,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
               <ProBadge className="ml-1 scale-75" />
             </button>
           </div>
-          
+
           {/* Right scroll indicator */}
           {showRightArrow && (
             <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-gray-900 via-gray-900/90 to-transparent pointer-events-none z-10 sm:hidden flex items-center justify-end pr-1">
@@ -594,258 +634,285 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
               </div>
             </div>
           )}
-          
-          <div 
+
+          <div
             ref={scrollContainerRef}
             onScroll={checkScroll}
             className="overflow-y-auto p-6 pb-8 space-y-6 custom-scrollbar h-full max-h-[calc(90vh-240px)]"
           >
-          
-          {/* TAB 1: ESSENTIALS */}
-          <div className={activeTab === 'essentials' ? 'space-y-6' : 'hidden'}>
-            
-            {/* Destination URL */}
-            <div className="space-y-4">
-              <label className="block text-sm font-medium text-gray-300">
-                Destination URL <span className="text-red-400">*</span>
-              </label>
-              <div className="relative group">
-                <input
-                  type="text"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://example.com/long-url"
-                  className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 pl-11 text-white placeholder-gray-500 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50 focus:outline-none transition-all group-hover:border-gray-600"
-                  autoFocus
-                />
-                <LinkIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 group-hover:text-violet-400 transition-colors" size={18} />
+            {/* TAB 1: ESSENTIALS */}
+            <div className={activeTab === 'essentials' ? 'space-y-6' : 'hidden'}>
+              {/* Destination URL */}
+              <div className="space-y-4">
+                <label className="block text-sm font-medium text-gray-300">
+                  Destination URL <span className="text-red-400">*</span>
+                </label>
+                <div className="relative group">
+                  <input
+                    type="text"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="https://example.com/long-url"
+                    className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 pl-11 text-white placeholder-gray-500 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50 focus:outline-none transition-all group-hover:border-gray-600"
+                    autoFocus
+                  />
+                  <LinkIcon
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 group-hover:text-violet-400 transition-colors"
+                    size={18}
+                  />
+                </div>
               </div>
-            </div>
 
-            {/* Custom Alias */}
-            <div className="space-y-4">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                <Sparkles size={16} className="text-violet-400" />
-                Custom Link
-                <Crown size={14} className="text-amber-400" />
-              </label>
-              
-              {aliasField.isLocked ? (
-                <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-orange-500/30">
-                  <div className="flex items-center justify-between relative z-10">
-                    <div>
-                      <h4 className="font-medium text-gray-300 mb-1">Upgrade to customize</h4>
-                      <p className="text-sm text-gray-500">Create branded links with custom back-halves.</p>
-                    </div>
-                    <Link 
-                      to={aliasField.upgradePath}
-                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
-                    >
-                      <Crown size={16} />
-                      {aliasField.upgradeText}
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <div className="relative">
-                  <div className="flex items-center">
-                    <span className="hidden sm:flex items-center px-4 py-3 bg-gray-800/50 border border-r-0 border-gray-700 rounded-l-xl text-gray-400 text-sm min-w-[140px]">
-                      {baseDomain.replace(/^https?:\/\//, '')}/
-                    </span>
-                    <input
-                      type="text"
-                      value={customAlias}
-                      onChange={handleAliasChange}
-                      onBlur={() => checkAlias(customAlias)}
-                      placeholder="custom-alias"
-                      className="flex-1 bg-gray-800/30 border border-gray-700 sm:rounded-l-none rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50 focus:outline-none transition-all"
-                    />
-                    {/* Alias Status Indicator */}
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      {aliasStatus.checking ? (
-                         <Loader2 size={16} className="animate-spin text-gray-400" />
-                      ) : customAlias && customAlias.length >= 3 && (
-                        aliasStatus.available ? (
-                          <Check size={16} className="text-green-500" />
-                        ) : (
-                          <X size={16} className="text-red-500" />
-                        )
-                      )}
-                    </div>
-                  </div>
-                  {customAlias && customAlias.length >= 3 && !aliasStatus.checking && !aliasStatus.available && (
-                     <div className="absolute -bottom-6 left-0 flex items-center gap-1.5 text-xs text-red-400 animate-in fade-in slide-in-from-top-1">
-                        <AlertCircle size={12} />
-                        {aliasStatus.reason || 'Alias unavailable'}
-                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* TAB 2: SETTINGS (Protection & Lifecycle) */}
-          <div className={activeTab === 'settings' ? 'space-y-6' : 'hidden'}>
-            
-            {/* Schedule Activation */}
-            <div className="p-4 rounded-xl bg-gray-800/20 border border-gray-800 space-y-4">
-               <div className="flex items-center justify-between">
-                 <div className="flex items-center gap-2">
-                   <div className="p-2 bg-blue-500/10 rounded-lg">
-                     <Clock size={18} className="text-blue-400" />
-                   </div>
-                   <div>
-                     <h3 className="text-sm font-medium text-white">Schedule Activation</h3>
-                     <p className="text-xs text-gray-400">Link goes live at a specific time</p>
-                   </div>
-                 </div>
-                 <label className="relative inline-flex items-center cursor-pointer">
-                   <input type="checkbox" checked={enableSchedule} onChange={(e) => setEnableSchedule(e.target.checked)} className="sr-only peer" />
-                   <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                 </label>
-               </div>
-               
-                {enableSchedule && (
-                  <div className="mt-4 pt-4 border-t border-gray-700/50 animate-in slide-in-from-top-2">
-                     <label className="block text-sm text-gray-400 mb-2">Start Time (Your Local Time)</label>
-                     <div className="overflow-hidden rounded-lg">
-                       <input
-                         type="datetime-local"
-                         value={activeStartTime}
-                         onChange={(e) => {
-                            const value = e.target.value;
-                            if (value && isPastDate(value)) {
-                              showToast.error('Please select a future date and time');
-                              return;
-                            }
-                            setActiveStartTime(value);
-                          }}
-                         min={new Date().toISOString().slice(0, 16)}
-                         className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2.5 text-white focus:border-blue-500 focus:outline-none text-sm"
-                       />
-                     </div>
-                     {activeStartTime && (
-                       <div className="mt-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200">
-                         <p className="font-medium mb-1">Schedule Summary:</p>
-                         <div className="grid grid-cols-1 sm:grid-cols-[auto,1fr] gap-y-2 sm:gap-y-1 gap-x-4">
-                           <div className="flex items-center justify-between gap-2 sm:contents">
-                             <span className="text-blue-200/60">Local:</span>
-                             <span className="text-right sm:text-left">{new Date(activeStartTime).toLocaleString()}</span>
-                           </div>
-                           <div className="flex items-center justify-between gap-2 sm:contents">
-                             <span className="text-blue-200/60">UTC:</span>
-                             <span className="font-mono text-right sm:text-left">{new Date(activeStartTime).toISOString().slice(0, 16).replace('T', ' ')} UTC</span>
-                           </div>
-                         </div>
-                       </div>
-                     )}
-                  </div>
-                )}
-             </div>
-
-            {/* Expiration */}
-            <div className="space-y-4">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                <Clock size={16} className="text-orange-400" />
-                Link Expiration
-                <Crown size={14} className="text-amber-400" />
-              </label>
-              
-              {expirationField.isLocked ? (
-                <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-orange-500/30">
-                  <div className="flex items-center justify-between relative z-10">
-                    <div>
-                      <h4 className="font-medium text-gray-300 mb-1">Upgrade to set Expiry</h4>
-                      <p className="text-sm text-gray-500">Auto-delete links after a set time.</p>
-                    </div>
-                    <Link 
-                      to={expirationField.upgradePath}
-                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
-                    >
-                      <Crown size={16} />
-                      {expirationField.upgradeText}
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-2">
-                  {EXPIRATION_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => {
-                        setExpiresIn(option.value);
-                        if (option.value !== 'custom') setCustomExpiresAt('');
-                      }}
-                      className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all ${
-                        expiresIn === option.value
-                          ? 'bg-orange-500/10 text-orange-400 border-orange-500/50'
-                          : 'bg-gray-800/50 text-gray-400 border-gray-700 hover:bg-gray-800 hover:text-gray-300'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-              
-              {!expirationField.isLocked && expiresIn === 'custom' && (
-                <input
-                  type="datetime-local"
-                  value={customExpiresAt}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value && isPastDate(value)) {
-                      showToast.error('Expiration date must be in the future');
-                      return;
-                    }
-                    setCustomExpiresAt(value);
-                  }}
-                  className="w-full mt-2 bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-orange-500 focus:outline-none"
-                  min={new Date().toISOString().slice(0, 16)}
-                />
-              )}
-            </div>
-
-            {/* Password Protection */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              {/* Custom Alias */}
+              <div className="space-y-4">
                 <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                  <Lock size={16} className="text-purple-400" />
-                  Password Protection
+                  <Sparkles size={16} className="text-violet-400" />
+                  Custom Link
                   <Crown size={14} className="text-amber-400" />
                 </label>
-                {!passwordField.isLocked && (
+
+                {aliasField.isLocked ? (
+                  <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-orange-500/30">
+                    <div className="flex items-center justify-between relative z-10">
+                      <div>
+                        <h4 className="font-medium text-gray-300 mb-1">Upgrade to customize</h4>
+                        <p className="text-sm text-gray-500">
+                          Create branded links with custom back-halves.
+                        </p>
+                      </div>
+                      <Link
+                        to={aliasField.upgradePath}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
+                      >
+                        <Crown size={16} />
+                        {aliasField.upgradeText}
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <div className="flex items-center">
+                      <span
+                        className="hidden sm:flex items-center px-3 py-3 bg-gray-800/50 border border-r-0 border-gray-700 rounded-l-xl text-gray-400 text-sm max-w-[180px]"
+                        title={`${baseDomain}/`}
+                      >
+                        <span className="truncate">{getDisplayDomain(baseDomain, 18)}</span>/
+                      </span>
+                      <input
+                        type="text"
+                        value={customAlias}
+                        onChange={handleAliasChange}
+                        onBlur={() => checkAlias(customAlias)}
+                        placeholder="custom-alias"
+                        className="flex-1 bg-gray-800/30 border border-gray-700 sm:rounded-l-none rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50 focus:outline-none transition-all"
+                      />
+                      {/* Alias Status Indicator */}
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        {aliasStatus.checking ? (
+                          <Loader2 size={16} className="animate-spin text-gray-400" />
+                        ) : (
+                          customAlias &&
+                          customAlias.length >= 3 &&
+                          (aliasStatus.available ? (
+                            <Check size={16} className="text-green-500" />
+                          ) : (
+                            <X size={16} className="text-red-500" />
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    {customAlias &&
+                      customAlias.length >= 3 &&
+                      !aliasStatus.checking &&
+                      !aliasStatus.available && (
+                        <div className="absolute -bottom-6 left-0 flex items-center gap-1.5 text-xs text-red-400 animate-in fade-in slide-in-from-top-1">
+                          <AlertCircle size={12} />
+                          {aliasStatus.reason || 'Alias unavailable'}
+                        </div>
+                      )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* TAB 2: SETTINGS (Protection & Lifecycle) */}
+            <div className={activeTab === 'settings' ? 'space-y-6' : 'hidden'}>
+              {/* Schedule Activation */}
+              <div className="p-4 rounded-xl bg-gray-800/20 border border-gray-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-blue-500/10 rounded-lg">
+                      <Clock size={18} className="text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-white">Schedule Activation</h3>
+                      <p className="text-xs text-gray-400">Link goes live at a specific time</p>
+                    </div>
+                  </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={enablePassword} 
-                      onChange={(e) => setEnablePassword(e.target.checked)} 
-                      className="sr-only peer" 
+                    <input
+                      type="checkbox"
+                      checked={enableSchedule}
+                      onChange={(e) => setEnableSchedule(e.target.checked)}
+                      className="sr-only peer"
                     />
-                    <div className="w-9 h-5 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
+                </div>
+
+                {enableSchedule && (
+                  <div className="mt-4 pt-4 border-t border-gray-700/50 animate-in slide-in-from-top-2">
+                    <label className="block text-sm text-gray-400 mb-2">
+                      Start Time (Your Local Time)
+                    </label>
+                    <div className="overflow-hidden rounded-lg">
+                      <input
+                        type="datetime-local"
+                        value={activeStartTime}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value && isPastDate(value)) {
+                            showToast.error('Please select a future date and time');
+                            return;
+                          }
+                          setActiveStartTime(value);
+                        }}
+                        min={new Date().toISOString().slice(0, 16)}
+                        className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2.5 text-white focus:border-blue-500 focus:outline-none text-sm"
+                      />
+                    </div>
+                    {activeStartTime && (
+                      <div className="mt-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200">
+                        <p className="font-medium mb-1">Schedule Summary:</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-[auto,1fr] gap-y-2 sm:gap-y-1 gap-x-4">
+                          <div className="flex items-center justify-between gap-2 sm:contents">
+                            <span className="text-blue-200/60">Local:</span>
+                            <span className="text-right sm:text-left">
+                              {new Date(activeStartTime).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 sm:contents">
+                            <span className="text-blue-200/60">UTC:</span>
+                            <span className="font-mono text-right sm:text-left">
+                              {new Date(activeStartTime)
+                                .toISOString()
+                                .slice(0, 16)
+                                .replace('T', ' ')}{' '}
+                              UTC
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
-              {passwordField.isLocked ? (
-                <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-purple-500/30">
-                  <div className="flex items-center justify-between relative z-10">
-                    <div>
-                      <h4 className="font-medium text-gray-300 mb-1">Upgrade to set Password</h4>
-                      <p className="text-sm text-gray-500">Secure your links from unauthorized access.</p>
+              {/* Expiration */}
+              <div className="space-y-4">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                  <Clock size={16} className="text-orange-400" />
+                  Link Expiration
+                  <Crown size={14} className="text-amber-400" />
+                </label>
+
+                {expirationField.isLocked ? (
+                  <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-orange-500/30">
+                    <div className="flex items-center justify-between relative z-10">
+                      <div>
+                        <h4 className="font-medium text-gray-300 mb-1">Upgrade to set Expiry</h4>
+                        <p className="text-sm text-gray-500">Auto-delete links after a set time.</p>
+                      </div>
+                      <Link
+                        to={expirationField.upgradePath}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
+                      >
+                        <Crown size={16} />
+                        {expirationField.upgradeText}
+                      </Link>
                     </div>
-                    <Link 
-                      to={passwordField.upgradePath}
-                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
-                    >
-                      <Crown size={16} />
-                      {passwordField.upgradeText}
-                    </Link>
                   </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {EXPIRATION_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          setExpiresIn(option.value);
+                          if (option.value !== 'custom') setCustomExpiresAt('');
+                        }}
+                        className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all ${
+                          expiresIn === option.value
+                            ? 'bg-orange-500/10 text-orange-400 border-orange-500/50'
+                            : 'bg-gray-800/50 text-gray-400 border-gray-700 hover:bg-gray-800 hover:text-gray-300'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {!expirationField.isLocked && expiresIn === 'custom' && (
+                  <input
+                    type="datetime-local"
+                    value={customExpiresAt}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value && isPastDate(value)) {
+                        showToast.error('Expiration date must be in the future');
+                        return;
+                      }
+                      setCustomExpiresAt(value);
+                    }}
+                    className="w-full mt-2 bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-orange-500 focus:outline-none"
+                    min={new Date().toISOString().slice(0, 16)}
+                  />
+                )}
+              </div>
+
+              {/* Password Protection */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                    <Lock size={16} className="text-purple-400" />
+                    Password Protection
+                    <Crown size={14} className="text-amber-400" />
+                  </label>
+                  {!passwordField.isLocked && (
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={enablePassword}
+                        onChange={(e) => setEnablePassword(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                    </label>
+                  )}
                 </div>
-              ) : (
-                enablePassword && (
+
+                {passwordField.isLocked ? (
+                  <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-purple-500/30">
+                    <div className="flex items-center justify-between relative z-10">
+                      <div>
+                        <h4 className="font-medium text-gray-300 mb-1">Upgrade to set Password</h4>
+                        <p className="text-sm text-gray-500">
+                          Secure your links from unauthorized access.
+                        </p>
+                      </div>
+                      <Link
+                        to={passwordField.upgradePath}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold rounded-lg shadow-lg hover:shadow-amber-500/30 transition-all"
+                      >
+                        <Crown size={16} />
+                        {passwordField.upgradeText}
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  enablePassword && (
                     <div className="relative animate-in fade-in slide-in-from-top-2">
                       <input
                         type={showPassword ? 'text' : 'password'}
@@ -868,7 +935,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
                       >
                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
-                      
+
                       {/* Password Strength Indicators (Simplified for brevity as user verified) */}
                       {password.length > 0 && password.length < 4 && (
                         <p className="text-xs text-red-400 mt-1.5 flex items-center gap-1">
@@ -877,45 +944,43 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
                         </p>
                       )}
                     </div>
-                )
+                  )
+                )}
+              </div>
+            </div>
+
+            {/* TAB 3: TARGETING (Device & Time) */}
+            <div className={activeTab === 'targeting' ? 'space-y-8' : 'hidden'}>
+              <DeviceTargetingSection
+                deviceRedirects={deviceRedirects}
+                setDeviceRedirects={setDeviceRedirects}
+                isLocked={deviceTargetingField.isLocked}
+                upgradePath={deviceTargetingField.upgradePath}
+              />
+
+              {/* Priority Conflict Warning */}
+              {deviceRedirects.enabled && timeRedirects.enabled && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                  <Info className="text-amber-400 shrink-0 mt-0.5" size={16} />
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium text-amber-200">Time rules take priority</p>
+                    <p className="text-xs text-amber-200/70 leading-relaxed">
+                      When active, time rules override device rules. Visitors matching a time window
+                      go to that destination, regardless of device.
+                    </p>
+                  </div>
+                </div>
               )}
+
+              <TimeRoutingSection
+                timeRedirects={timeRedirects}
+                setTimeRedirects={setTimeRedirects}
+                isLocked={timeRedirectsField.isLocked}
+                upgradePath={timeRedirectsField.upgradePath}
+              />
             </div>
           </div>
 
-          {/* TAB 3: TARGETING (Device & Time) */}
-          <div className={activeTab === 'targeting' ? 'space-y-8' : 'hidden'}>
-            
-            <DeviceTargetingSection 
-              deviceRedirects={deviceRedirects}
-              setDeviceRedirects={setDeviceRedirects}
-              isLocked={deviceTargetingField.isLocked}
-              upgradePath={deviceTargetingField.upgradePath}
-            />
-
-            {/* Priority Conflict Warning */}
-            {deviceRedirects.enabled && timeRedirects.enabled && (
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
-                <Info className="text-amber-400 shrink-0 mt-0.5" size={16} />
-                <div className="space-y-0.5">
-                  <p className="text-sm font-medium text-amber-200">Time rules take priority</p>
-                  <p className="text-xs text-amber-200/70 leading-relaxed">
-                    When active, time rules override device rules. Visitors matching a time window go to that destination, regardless of device.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <TimeRoutingSection
-              timeRedirects={timeRedirects}
-              setTimeRedirects={setTimeRedirects}
-              isLocked={timeRedirectsField.isLocked}
-              upgradePath={timeRedirectsField.upgradePath}
-            />
-
-          </div>
-
-          </div>
-          
           {/* Bottom Scroll Indicator */}
           {showBottomArrow && (
             <div className="absolute bottom-0 left-0 right-0 z-10 flex justify-center pointer-events-none">
@@ -954,8 +1019,9 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
           </button>
         </div>
       </div>
-    </div>
-  , document.body);
+    </div>,
+    document.body
+  );
 };
 
 export default CreateLinkModal;

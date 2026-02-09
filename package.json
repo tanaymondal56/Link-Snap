@@ -16,21 +16,30 @@
   },
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
     "preview": "concurrently \"npm run server\" \"wait-on tcp:5000 && npm run preview --prefix client\"",
     "server": "npm run dev --prefix server",
     "client": "npm run dev --prefix client",
-    "install:all": "npm install && npm install --prefix server && npm install --prefix client",
-    "build": "npm install --prefix client && npm run build --prefix client && npm install --prefix server",
+    "install:all": "npm install --legacy-peer-deps && npm install --prefix server && npm install --prefix client --legacy-peer-deps",
+    "build": "npm install --prefix client --legacy-peer-deps && npm run build --prefix client && npm install --prefix server",
     "prod": "npm run start:prod --prefix server",
     "start": "cd server && npm start",
     "postinstall": "npm run build",
     "sync:version": "node scripts/sync-version.js",
     "bump:patch": "node scripts/sync-version.js patch",
     "bump:minor": "node scripts/sync-version.js minor",
-    "bump:major": "node scripts/sync-version.js major"
+    "bump:major": "node scripts/sync-version.js major",
+    "dev:quick-login": "curl -X POST http://localhost:5000/api/dev/quick-login -H \"Content-Type: application/json\" -d \"{\\\"email\\\":\\\"dev@test.com\\\"}\" -c cookies.txt",
+    "dev:status": "curl http://localhost:5000/api/dev/status -b cookies.txt",
+    "dev:upgrade": "curl -X POST http://localhost:5000/api/dev/subscription/upgrade -b cookies.txt",
+    "dev:reset": "curl -X POST http://localhost:5000/api/dev/subscription/reset -b cookies.txt",
+    "dev:seed-links": "curl -X POST http://localhost:5000/api/dev/links -H \"Content-Type: application/json\" -d \"{\\\"count\\\":10}\" -b cookies.txt",
+    "dev:seed-analytics": "curl -X POST http://localhost:5000/api/dev/analytics -H \"Content-Type: application/json\" -d \"{\\\"count\\\":100}\" -b cookies.txt",
+    "dev:toggle-verification": "curl -X POST http://localhost:5000/api/dev/toggle-verification"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
+    "concurrently": "^9.2.1",
     "wait-on": "^9.0.3"
   }
 }

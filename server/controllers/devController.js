@@ -1,8 +1,575 @@
 import User from '../models/User.js';
 import RedeemCode from '../models/RedeemCode.js';
 import Url from '../models/Url.js';
+import Analytics from '../models/Analytics.js';
+import Settings from '../models/Settings.js';
+import Session from '../models/Session.js';
 import { nanoid } from 'nanoid';
 import logger from '../utils/logger.js';
+import mongoose from 'mongoose';
+import crypto from 'crypto';
+
+// ============================================
+// RANDOM DATA GENERATORS FOR SIGNUP TESTING
+// ============================================
+
+const FIRST_NAMES = ['Alex', 'Jordan', 'Taylor', 'Morgan', 'Casey', 'Riley', 'Quinn', 'Avery', 'Cameron', 'Dakota', 'Skyler', 'Blake', 'Drew', 'Hayden', 'Jamie', 'Kendall', 'Logan', 'Parker', 'Reese', 'Sam'];
+const LAST_NAMES = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Martinez', 'Anderson', 'Taylor', 'Thomas', 'Moore', 'Jackson', 'Martin', 'Lee', 'White', 'Harris', 'Clark', 'Lewis'];
+const COMPANIES = ['TechCorp', 'DevStudio', 'StartupHub', 'CloudNine', 'DataFlow', 'CodeCraft', 'ByteWorks', 'PixelLab', 'WebForge', 'AppNest', null];
+const DOMAINS = ['gmail.com', 'outlook.com', 'yahoo.com', 'proton.me', 'icloud.com', 'fastmail.com'];
+
+const randomFrom = (arr) => arr[crypto.randomInt(0, arr.length)];
+const randomPhone = () => `+1${crypto.randomInt(2000000000, 9999999999)}`;
+const randomWebsite = (company) => company ? `https://${company.toLowerCase().replace(/\s/g, '')}.com` : null;
+
+/**
+ * Dev: Get random signup info for testing new registration
+ * GET /api/dev/signup-info/random
+ */
+export const devGetRandomSignupInfo = async (req, res) => {
+  try {
+    const firstName = randomFrom(FIRST_NAMES);
+    const lastName = randomFrom(LAST_NAMES);
+    const suffix = nanoid(6).toLowerCase();
+    const domain = randomFrom(DOMAINS);
+    const company = randomFrom(COMPANIES);
+    
+    const signupInfo = {
+      email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}.${suffix}@${domain}`,
+      password: 'Test123!@#',
+      confirmPassword: 'Test123!@#',
+      firstName,
+      lastName,
+      username: `${firstName.toLowerCase()}${suffix}`,
+      phone: randomPhone(),
+      company: company,
+      website: randomWebsite(company)
+    };
+    
+    logger.info(`[DEV] Generated random signup info: ${signupInfo.email}`);
+    res.json({
+      message: 'Random signup info generated',
+      info: signupInfo,
+      note: 'Use this to test NEW user registration'
+    });
+  } catch (error) {
+    logger.error(`[Dev Random Signup Error] ${error.message}`);
+    res.status(500).json({ message: 'Failed to generate signup info', error: error.message });
+  }
+};
+
+/**
+ * Dev: Get existing user info for testing duplicate/recurring signup prevention
+ * GET /api/dev/signup-info/existing
+ */
+export const devGetExistingSignupInfo = async (req, res) => {
+  try {
+    // Find an existing verified user to test duplicate prevention
+    let existingUser = await User.findOne({ 
+      isVerified: true, 
+      email: { $regex: /@dev\.local$|@test\.com$|@gmail\.com$/ } 
+    }).select('email firstName lastName username phone company website isVerified');
+    
+    // If no test user exists, find any verified user
+    if (!existingUser) {
+      existingUser = await User.findOne({ isVerified: true })
+        .select('email firstName lastName username phone company website isVerified');
+    }
+    
+    // If still no user, create a persistent test user
+    if (!existingUser) {
+      const { generateUserIdentity } = await import('../services/idService.js');
+      const identity = await generateUserIdentity(false);
+      
+      existingUser = await User.create({
+        email: 'existing.user@test.com',
+        username: 'existing_test_user',
+        password: 'Test123!@#',
+        firstName: 'Existing',
+        lastName: 'TestUser',
+        isVerified: true,
+        isActive: true,
+        eliteId: identity.eliteId,
+        snapId: identity.snapId,
+        idTier: identity.idTier,
+        idNumber: identity.idNumber
+      });
+      
+      logger.info(`[DEV] Created persistent test user: ${existingUser.email}`);
+    }
+    
+    const signupInfo = {
+      email: existingUser.email,
+      password: 'Test123!@#',
+      confirmPassword: 'Test123!@#',
+      firstName: existingUser.firstName || 'Existing',
+      lastName: existingUser.lastName || 'User',
+      username: `${existingUser.username}_new_${nanoid(4)}`, // Different username to avoid that error
+      phone: existingUser.phone || randomPhone(),
+      company: existingUser.company || 'TestCorp',
+      website: existingUser.website || 'https://testcorp.com'
+    };
+    
+    logger.info(`[DEV] Returning existing user signup info: ${signupInfo.email}`);
+    res.json({
+      message: 'Existing user signup info retrieved',
+      info: signupInfo,
+      note: 'Use this to test DUPLICATE signup prevention (accountExistsEmail)',
+      existingUser: {
+        id: existingUser._id,
+        email: existingUser.email,
+        isVerified: existingUser.isVerified
+      }
+    });
+  } catch (error) {
+    logger.error(`[Dev Existing Signup Error] ${error.message}`);
+    res.status(500).json({ message: 'Failed to get existing user info', error: error.message });
+  }
+};
+
+/**
+ * Dev: Get unverified user info for testing resend verification flow
+ * GET /api/dev/signup-info/unverified
+ */
+export const devGetUnverifiedSignupInfo = async (req, res) => {
+  try {
+    // Find an existing unverified user
+    let unverifiedUser = await User.findOne({ isVerified: false })
+      .select('email firstName lastName username phone company website isVerified');
+    
+    // If no unverified user exists, create one
+    if (!unverifiedUser) {
+      const { generateUserIdentity } = await import('../services/idService.js');
+      const identity = await generateUserIdentity(false);
+      const suffix = nanoid(6).toLowerCase();
+      
+      unverifiedUser = await User.create({
+        email: `unverified.${suffix}@test.com`,
+        username: `unverified_${suffix}`,
+        password: 'Test123!@#',
+        firstName: 'Unverified',
+        lastName: 'TestUser',
+        isVerified: false,
+        isActive: true,
+        eliteId: identity.eliteId,
+        snapId: identity.snapId,
+        idTier: identity.idTier,
+        idNumber: identity.idNumber,
+        otp: '123456',
+        otpExpires: new Date(Date.now() + 10 * 60 * 1000),
+        verificationToken: nanoid(32),
+        verificationTokenExpires: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      });
+      
+      logger.info(`[DEV] Created unverified test user: ${unverifiedUser.email}`);
+    }
+    
+    const signupInfo = {
+      email: unverifiedUser.email,
+      password: 'Test123!@#',
+      confirmPassword: 'Test123!@#',
+      firstName: unverifiedUser.firstName || 'Unverified',
+      lastName: unverifiedUser.lastName || 'User',
+      username: unverifiedUser.username,
+      phone: unverifiedUser.phone || randomPhone(),
+      company: unverifiedUser.company || 'TestCorp',
+      website: unverifiedUser.website || 'https://testcorp.com'
+    };
+    
+    logger.info(`[DEV] Returning unverified user signup info: ${signupInfo.email}`);
+    res.json({
+      message: 'Unverified user signup info retrieved',
+      info: signupInfo,
+      note: 'Use this to test RESEND VERIFICATION flow (re-register with unverified email)',
+      unverifiedUser: {
+        id: unverifiedUser._id,
+        email: unverifiedUser.email,
+        isVerified: unverifiedUser.isVerified
+      }
+    });
+  } catch (error) {
+    logger.error(`[Dev Unverified Signup Error] ${error.message}`);
+    res.status(500).json({ message: 'Failed to get unverified user info', error: error.message });
+  }
+};
+
+// ============================================
+// DEV STATUS & HEALTH
+// ============================================
+
+/**
+ * Dev: Get development status and quick stats
+ * GET /api/dev/status
+ */
+export const devStatus = async (req, res) => {
+  try {
+    const user = req.user;
+    const [userCount, urlCount, analyticsCount, sessionCount, settings] = await Promise.all([
+      User.countDocuments(),
+      Url.countDocuments(),
+      Analytics.estimatedDocumentCount(),
+      Session.countDocuments({ userId: user._id }),
+      Settings.findOne().lean()
+    ]);
+
+    res.json({
+      status: 'ok',
+      mode: process.env.NODE_ENV,
+      timestamp: new Date().toISOString(),
+      user: {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+        tier: user.subscription?.tier || 'free',
+        isVerified: user.isVerified,
+        activeSessions: sessionCount
+      },
+      database: {
+        connected: mongoose.connection.readyState === 1,
+        users: userCount,
+        urls: urlCount,
+        analytics: analyticsCount
+      },
+      settings: {
+        requireEmailVerification: settings?.requireEmailVerification ?? true,
+        emailConfigured: settings?.emailConfigured ?? false,
+        maintenanceMode: settings?.maintenanceMode ?? false
+      },
+      features: {
+        devRoutes: true,
+        quickLogin: true,
+        autoVerify: true,
+        bulkLinks: true
+      }
+    });
+  } catch (error) {
+    logger.error(`[Dev Status Error] ${error.message}`);
+    res.status(500).json({ message: 'Failed to get dev status', error: error.message });
+  }
+};
+
+/**
+ * Dev: Quick login as test user (creates if not exists, returns tokens directly)
+ * POST /api/dev/quick-login
+ * Body: { email?: string, role?: 'user' | 'admin' }
+ */
+export const devQuickLogin = async (req, res) => {
+  try {
+    const { email = 'dev@test.com', role = 'user' } = req.body;
+    
+    // Import token utils dynamically to avoid circular dependencies
+    const { generateAccessToken } = await import('../utils/generateToken.js');
+    const { createSession } = await import('../utils/sessionHelper.js');
+    const { generateUserIdentity } = await import('../services/idService.js');
+    
+    let user = await User.findOne({ email: email.toLowerCase() });
+    
+    if (!user) {
+      // Create test user with identity
+      const identity = await generateUserIdentity(role === 'admin');
+      user = await User.create({
+        email: email.toLowerCase(),
+        username: `dev_${nanoid(6)}`,
+        password: 'Dev123!@#',
+        firstName: 'Dev',
+        lastName: 'User',
+        isVerified: true,
+        isActive: true,
+        role,
+        eliteId: identity.eliteId,
+        snapId: identity.snapId,
+        idTier: identity.idTier,
+        idNumber: identity.idNumber,
+        subscription: role === 'admin' ? {
+          tier: 'pro',
+          status: 'active',
+          variantId: 'DEV-ADMIN'
+        } : undefined
+      });
+      logger.info(`[DEV] Created quick-login user: ${email} (${role})`);
+    }
+    
+    // Generate tokens
+    const accessToken = generateAccessToken(user._id);
+    const { refreshToken } = await createSession(user._id, req);
+    
+    // Set cookies
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000
+    });
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+    
+    logger.info(`[DEV] Quick login: ${user.email}`);
+    
+    res.json({
+      message: `Logged in as ${user.email}`,
+      user: {
+        _id: user._id,
+        email: user.email,
+        role: user.role,
+        firstName: user.firstName,
+        isVerified: user.isVerified,
+        subscription: user.subscription
+      },
+      tokens: {
+        accessToken,
+        refreshToken
+      }
+    });
+  } catch (error) {
+    logger.error(`[Dev Quick Login Error] ${error.message}`);
+    res.status(500).json({ message: 'Failed to quick login', error: error.message });
+  }
+};
+
+/**
+ * Dev: Auto-verify current user's email
+ * POST /api/dev/verify-self
+ */
+export const devVerifySelf = async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { 
+        isVerified: true,
+        otp: null,
+        otpExpires: null,
+        verificationToken: null,
+        verificationTokenExpires: null
+      },
+      { new: true }
+    ).select('-password');
+    
+    logger.info(`[DEV] User ${user.email} self-verified`);
+    res.json({ message: 'Email verified', user });
+  } catch (error) {
+    logger.error(`[Dev Verify Error] ${error.message}`);
+    res.status(500).json({ message: 'Failed to verify', error: error.message });
+  }
+};
+
+/**
+ * Dev: Toggle email verification requirement
+ * POST /api/dev/toggle-verification
+ */
+export const devToggleVerification = async (req, res) => {
+  try {
+    let settings = await Settings.findOne();
+    if (!settings) {
+      settings = await Settings.create({});
+    }
+    
+    settings.requireEmailVerification = !settings.requireEmailVerification;
+    await settings.save();
+    
+    logger.info(`[DEV] Email verification ${settings.requireEmailVerification ? 'enabled' : 'disabled'}`);
+    res.json({ 
+      message: `Email verification ${settings.requireEmailVerification ? 'enabled' : 'disabled'}`,
+      requireEmailVerification: settings.requireEmailVerification
+    });
+  } catch (error) {
+    logger.error(`[Dev Toggle Verification Error] ${error.message}`);
+    res.status(500).json({ message: 'Failed to toggle', error: error.message });
+  }
+};
+
+/**
+ * Dev: Clear all sessions for current user
+ * DELETE /api/dev/sessions
+ */
+export const devClearSessions = async (req, res) => {
+  try {
+    const result = await Session.deleteMany({ userId: req.user._id });
+    logger.info(`[DEV] Cleared ${result.deletedCount} sessions for ${req.user.email}`);
+    res.json({ message: `Cleared ${result.deletedCount} sessions`, deletedCount: result.deletedCount });
+  } catch (error) {
+    logger.error(`[Dev Clear Sessions Error] ${error.message}`);
+    res.status(500).json({ message: 'Failed to clear sessions', error: error.message });
+  }
+};
+
+/**
+ * Dev: Seed test users
+ * POST /api/dev/seed-users
+ * Body: { count?: number }
+ */
+export const devSeedUsers = async (req, res) => {
+  try {
+    const count = Math.min(Math.max(parseInt(req.body.count) || 5, 1), 50);
+    const { generateUserIdentity } = await import('../services/idService.js');
+    
+    const users = [];
+    for (let i = 0; i < count; i++) {
+      const identity = await generateUserIdentity(false);
+      const suffix = nanoid(6);
+      users.push({
+        email: `testuser${suffix}@dev.local`,
+        username: `testuser_${suffix}`,
+        password: 'Test123!@#',
+        firstName: `Test${i + 1}`,
+        lastName: 'User',
+        isVerified: true,
+        isActive: true,
+        eliteId: identity.eliteId,
+        snapId: identity.snapId,
+        idTier: identity.idTier,
+        idNumber: identity.idNumber
+      });
+    }
+    
+    const created = await User.insertMany(users, { ordered: false }).catch(e => e.insertedDocs || []);
+    logger.info(`[DEV] Seeded ${created.length} test users`);
+    
+    res.json({ 
+      message: `Created ${created.length} test users`,
+      count: created.length,
+      sample: created.slice(0, 3).map(u => ({ email: u.email, username: u.username }))
+    });
+  } catch (error) {
+    logger.error(`[Dev Seed Users Error] ${error.message}`);
+    res.status(500).json({ message: 'Failed to seed users', error: error.message });
+  }
+};
+
+/**
+ * Dev: Delete all test users (by email pattern)
+ * DELETE /api/dev/seed-users
+ */
+export const devDeleteTestUsers = async (req, res) => {
+  try {
+    const result = await User.deleteMany({ email: { $regex: /@dev\.local$/ } });
+    logger.info(`[DEV] Deleted ${result.deletedCount} test users`);
+    res.json({ message: `Deleted ${result.deletedCount} test users`, deletedCount: result.deletedCount });
+  } catch (error) {
+    logger.error(`[Dev Delete Test Users Error] ${error.message}`);
+    res.status(500).json({ message: 'Failed to delete test users', error: error.message });
+  }
+};
+
+/**
+ * Dev: Generate analytics for user's links
+ * POST /api/dev/generate-analytics
+ * Body: { count?: number, linkId?: string }
+ */
+export const devGenerateAnalytics = async (req, res) => {
+  try {
+    const user = req.user;
+    const count = Math.min(Math.max(parseInt(req.body.count) || 100, 1), 1000);
+    const { linkId } = req.body;
+    
+    // Get target links
+    let links;
+    if (linkId) {
+      if (!mongoose.Types.ObjectId.isValid(linkId)) {
+        return res.status(400).json({ message: 'Invalid linkId format' });
+      }
+      const link = await Url.findOne({ _id: linkId, createdBy: user._id });
+      links = link ? [link] : [];
+    } else {
+      links = await Url.find({ createdBy: user._id }).limit(10);
+    }
+    
+    if (links.length === 0) {
+      return res.status(400).json({ message: 'No links found to generate analytics for' });
+    }
+    
+    const countries = ['US', 'GB', 'DE', 'FR', 'IN', 'JP', 'BR', 'CA', 'AU', 'MX'];
+    const cities = ['New York', 'London', 'Berlin', 'Paris', 'Mumbai', 'Tokyo', 'São Paulo', 'Toronto', 'Sydney', 'Mexico City'];
+    const browsers = ['Chrome', 'Firefox', 'Safari', 'Edge', 'Opera'];
+    const devices = ['desktop', 'mobile', 'tablet'];
+    const oses = ['Windows', 'macOS', 'Linux', 'iOS', 'Android'];
+    const referrers = ['https://google.com', 'https://twitter.com', 'https://facebook.com', 'https://linkedin.com', 'direct'];
+    
+    const analyticsData = [];
+    const now = Date.now();
+    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+    
+    for (let i = 0; i < count; i++) {
+        const link = links[crypto.randomInt(0, links.length)];
+        const countryIdx = crypto.randomInt(0, countries.length);
+        
+        // Random time within last 30 days
+        // crypto.randomInt only takes integer max, so we get a random offset up to the full duration
+        const timeOffset = crypto.randomInt(0, now - thirtyDaysAgo);
+        
+        analyticsData.push({
+          urlId: link._id,
+          timestamp: new Date(thirtyDaysAgo + timeOffset),
+          ip: `192.168.${crypto.randomInt(0, 256)}.${crypto.randomInt(0, 256)}`,
+          country: countries[countryIdx],
+          city: cities[countryIdx],
+          browser: browsers[crypto.randomInt(0, browsers.length)],
+          browserVersion: `${crypto.randomInt(50, 150)}.0`,
+          device: devices[crypto.randomInt(0, devices.length)],
+          os: oses[crypto.randomInt(0, oses.length)],
+          referrer: referrers[crypto.randomInt(0, referrers.length)]
+        });
+      }
+    
+    const inserted = await Analytics.insertMany(analyticsData, { ordered: false });
+    
+    // Update click counts on links
+    const linkClickMap = {};
+    for (const a of analyticsData) {
+      linkClickMap[a.urlId.toString()] = (linkClickMap[a.urlId.toString()] || 0) + 1;
+    }
+    
+    await Promise.all(
+      Object.entries(linkClickMap).map(([id, clicks]) =>
+        Url.findByIdAndUpdate(id, { $inc: { clicks } })
+      )
+    );
+    
+    logger.info(`[DEV] Generated ${inserted.length} analytics records for ${user.email}`);
+    res.json({ 
+      message: `Generated ${inserted.length} analytics records across ${Object.keys(linkClickMap).length} links`,
+      count: inserted.length,
+      linksAffected: Object.keys(linkClickMap).length
+    });
+  } catch (error) {
+    logger.error(`[Dev Generate Analytics Error] ${error.message}`);
+    res.status(500).json({ message: 'Failed to generate analytics', error: error.message });
+  }
+};
+
+/**
+ * Dev: Clear all analytics for current user's links
+ * DELETE /api/dev/analytics
+ */
+export const devClearAnalytics = async (req, res) => {
+  try {
+    const user = req.user;
+    const links = await Url.find({ createdBy: user._id }).select('_id');
+    const linkIds = links.map(l => l._id);
+    
+    const result = await Analytics.deleteMany({ urlId: { $in: linkIds } });
+    
+    // Reset click counts
+    await Url.updateMany({ _id: { $in: linkIds } }, { $set: { clicks: 0 } });
+    
+    logger.info(`[DEV] Cleared ${result.deletedCount} analytics for ${user.email}`);
+    res.json({ 
+      message: `Cleared ${result.deletedCount} analytics records`,
+      deletedCount: result.deletedCount,
+      linksReset: links.length
+    });
+  } catch (error) {
+    logger.error(`[Dev Clear Analytics Error] ${error.message}`);
+    res.status(500).json({ message: 'Failed to clear analytics', error: error.message });
+  }
+};
+
+// ============================================
+// EXISTING FUNCTIONS (SUBSCRIPTION & LINKS)
+// ============================================
 
 /**
  * Dev: Upgrade own account to Pro
@@ -215,8 +782,7 @@ const DEVICE_REDIRECT_URLS = {
   ]
 };
 
-// Helper to get random item from array
-const randomFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+// Note: randomFrom helper is defined at the top of the file
 
 /**
  * Dev: Create test links with ALL options filled (OPTIMIZED FOR BULK)

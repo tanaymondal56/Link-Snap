@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react-swc'
 import checker from 'vite-plugin-checker'
 import { VitePWA } from 'vite-plugin-pwa'
 import viteCompression from 'vite-plugin-compression'
+import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig(async ({ mode }) => {
@@ -22,6 +23,7 @@ export default defineConfig(async ({ mode }) => {
 
   return {
     plugins: [
+      tailwindcss(),
       react(),
       ...devPlugins, // Click-to-code inspector + debug toolbar (dev only)
       // Brotli compression for production builds (70-80% size reduction)
@@ -115,6 +117,10 @@ export default defineConfig(async ({ mode }) => {
       }),
     ],
     build: {
+      // Enable module preload polyfill for older browsers
+      modulePreload: {
+        polyfill: true,
+      },
       // Optimize chunk splitting for better caching
       rollupOptions: {
         output: {

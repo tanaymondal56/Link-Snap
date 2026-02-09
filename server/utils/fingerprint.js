@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { getUserIP } from '../middleware/strictProxyGate.js';
 
 /**
  * Generates a fingerprint for anonymous users based on IP and User-Agent.
@@ -9,8 +10,8 @@ import crypto from 'crypto';
  * @returns {string} Fingerprint string (IP:UA_HASH)
  */
 export const getAnonFingerprint = (req) => {
-    // Get IP address (trust proxy should be enabled in app.js if behind Nginx/Cloudflare)
-    const ip = req.ip || req.connection.remoteAddress || 'unknown';
+    // Get real user IP using proxy-aware extraction
+    const ip = getUserIP(req);
     
     // Hash the User-Agent to keep the fingerprint short
     // Using SHA-256 for better collision resistance than MD5

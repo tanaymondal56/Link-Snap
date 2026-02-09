@@ -40,7 +40,7 @@ const encrypt = (text) => {
         return iv.toString('hex') + ':' + encrypted.toString('hex');
     } catch (error) {
         console.error('Encryption error:', error.message);
-        throw new Error('Failed to encrypt data. Check ENCRYPTION_KEY configuration.');
+        throw new Error('Failed to encrypt data. Check ENCRYPTION_KEY configuration.', { cause: error });
     }
 };
 

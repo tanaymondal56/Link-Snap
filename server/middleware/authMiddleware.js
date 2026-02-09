@@ -49,7 +49,12 @@ const protect = async (req, res, next) => {
 
       next();
     } catch (error) {
-      console.error(error);
+      // Don't log expected token expiration errors (frontend handles refresh)
+      // Only log unexpected errors like malformed tokens or server issues
+      if (error.name !== 'TokenExpiredError') {
+        console.error('🔐 Auth Error:', error.message);
+      }
+      
       // Check if response already sent (for ban case)
       if (!res.headersSent) {
         res.status(401);

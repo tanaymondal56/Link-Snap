@@ -15,6 +15,7 @@ const rootEnvPath = path.resolve(__dirname, '../../.env');
 // Try server/.env first, then root/.env
 let envResult = dotenv.config({ path: serverEnvPath });
 if (envResult.error) {
+  // eslint-disable-next-line no-useless-assignment -- Fallback pattern: try loading from root if server path fails
   envResult = dotenv.config({ path: rootEnvPath });
 }
 

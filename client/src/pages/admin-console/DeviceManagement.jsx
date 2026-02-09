@@ -26,6 +26,8 @@ import {
   getDeviceInfo
 } from '../../utils/deviceAuth';
 
+import { useAuth } from '../../context/AuthContext';
+
 // Helper functions (outside component for purity)
 const formatDate = (date) => {
   if (!date) return 'Never';
@@ -45,6 +47,7 @@ const isDeviceInactive = (device) => {
 };
 
 const DeviceManagement = () => {
+  const { isAuthChecking } = useAuth();
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
@@ -61,6 +64,9 @@ const DeviceManagement = () => {
   const currentDeviceInfo = getDeviceInfo();
 
   const fetchDevices = useCallback(async () => {
+    // Don't fetch if auth is still initializing (token not ready)
+    if (isAuthChecking) return;
+
     setLoading(true);
     const result = await getDevices();
     if (result.success) {
@@ -69,11 +75,13 @@ const DeviceManagement = () => {
       showToast.error('Failed to load devices');
     }
     setLoading(false);
-  }, []);
+  }, [isAuthChecking]);
 
   useEffect(() => {
-    fetchDevices();
-  }, [fetchDevices]);
+    if (!isAuthChecking) {
+      fetchDevices();
+    }
+  }, [fetchDevices, isAuthChecking]);
 
   const handleRegisterDevice = async () => {
     if (!webAuthnSupported) {
