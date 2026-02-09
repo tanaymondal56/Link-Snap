@@ -307,7 +307,8 @@ export const strictProxyGate = (req, res, next) => {
     if (!isInTailscaleSubnet && !isExplicitlyTrusted) {
         console.warn(`[ProxyGate] ❌ BLOCKED - Untrusted IP with valid secret`);
         console.warn(`[ProxyGate]    Connecting IP: ${connectingIP}`);
-        console.warn(`[ProxyGate]    Trusted IPs: ${CONFIG.trustedProxyIPs.join(', ') || '(none configured)'}`);
+        // Redacted for security (CWE-312) - Log count instead of values
+        console.warn(`[ProxyGate]    Trusted IPs Configured: ${CONFIG.trustedProxyIPs.length}`);
         console.warn(`[ProxyGate]    In Tailscale Subnet: ${isInTailscaleSubnet}`);
 
         return res.status(403).json({
