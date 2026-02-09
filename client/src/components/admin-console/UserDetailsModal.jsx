@@ -5,6 +5,7 @@ import {
   History,
   MessageSquare,
   ShieldAlert,
+  ShieldCircle,
   CheckCircle,
   Clock,
   User,

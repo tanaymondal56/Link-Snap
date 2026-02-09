@@ -99,17 +99,17 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
-  
+
   // Link-in-Bio Page Settings
   bioPage: {
     isEnabled: { type: Boolean, default: false }, // Off by default (requires Pro to enable)
     displayName: { type: String, maxlength: 50, trim: true },
     bio: { type: String, maxlength: 160, trim: true }, // SEO-friendly length
     avatarUrl: { type: String, trim: true },
-    theme: { 
-      type: String, 
+    theme: {
+      type: String,
       enum: ['default', 'dark', 'midnight', 'ocean', 'forest', 'sunset', 'custom'],
-      default: 'default' 
+      default: 'default'
     },
     customTheme: {
       background: String,
@@ -132,22 +132,22 @@ const userSchema = new mongoose.Schema({
     pinnedLinks: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Url' }],
     lastUpdatedAt: { type: Date, default: Date.now }
   },
-  
+
   // Subscription & Billing
   subscription: {
     customerId: { type: String, index: true }, // lemon_squeezy_customer_id
     subscriptionId: { type: String, index: true }, // lemon_squeezy_subscription_id
     variantId: String, // lemon_squeezy_variant_id
-    tier: { 
-      type: String, 
-      enum: ['free', 'pro', 'business'], 
-      default: 'free' 
+    tier: {
+      type: String,
+      enum: ['free', 'pro', 'business'],
+      default: 'free'
     },
     billingCycle: { type: String, enum: ['monthly', 'yearly', 'lifetime', 'one_time', null] },
-    status: { 
-      type: String, 
+    status: {
+      type: String,
       enum: ['active', 'on_trial', 'past_due', 'paused', 'cancelled', 'expired', 'unpaid'],
-      default: 'active' 
+      default: 'active'
     },
     currentPeriodStart: Date,
     currentPeriodEnd: Date,
@@ -156,7 +156,7 @@ const userSchema = new mongoose.Schema({
     customerPortalUrl: String,
     updatePaymentUrl: String,
   },
-  
+
   // Usage Tracking
   linkUsage: {
     count: { type: Number, default: 0 },      // Active links (decreases on delete)
@@ -233,7 +233,7 @@ userSchema.pre('save', async function () {
   if (!this.isModified('password')) {
     return;
   }
-  
+
   try {
     // Use 12 salt rounds (OWASP minimum recommendation for security)
     const salt = await bcrypt.genSalt(12);
@@ -241,7 +241,7 @@ userSchema.pre('save', async function () {
   } catch (error) {
     // Critical: If encryption fails, DO NOT save the user.
     // Propagate error to abort the save operation.
-    throw new Error('Password encryption failed: ' + error.message);
+    throw new Error('Password encryption failed: ' + error.message, { cause: error });
   }
 });
 
@@ -262,7 +262,7 @@ userSchema.index({ isActive: 1, bannedUntil: 1 });
 // Text index for admin search (weighted by relevance)
 userSchema.index(
   { email: 'text', username: 'text', firstName: 'text', lastName: 'text' },
-  { 
+  {
     weights: { email: 10, username: 5, firstName: 2, lastName: 2 },
     name: 'user_search_text_index'
   }

@@ -27,6 +27,7 @@ const getSnapshot = () => currentVersion;
 
 // Initialize: fetch version once on module load
 if (!fetchPromise) {
+  // eslint-disable-next-line no-useless-assignment -- Singleton pattern: prevents re-fetching on subsequent imports
   fetchPromise = getAppVersionAsync().then((latestVersion) => {
     if (latestVersion && latestVersion !== currentVersion) {
       currentVersion = latestVersion;
