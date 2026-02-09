@@ -102,13 +102,6 @@ export const ipWhitelist = async (req, res, next) => {
     // Set the flag on the request object
     req.isWhitelistedIP = isAllowed;
 
-    // DEBUG: Temporary logging for device routes
-    if (req.path.includes('.d')) {
-      console.log(`[IP Whitelist DEBUG] Path: "${req.path}", Method: ${req.method}`);
-      console.log(`[IP Whitelist DEBUG] Client IP: ${clientIP}, isAllowed: ${isAllowed}`);
-      console.log(`[IP Whitelist DEBUG] Has realUserIP: ${!!req.realUserIP}, Has Auth: ${!!req.headers.authorization}`);
-    }
-
     if (isAllowed) {
       logger.debug(`[IP Whitelist] ✅ Allowed: ${clientIP} (socket: ${socketIP}, normalized: ${normalizedIP})`);
       return next();
