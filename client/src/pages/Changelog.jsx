@@ -250,8 +250,8 @@ const Changelog = () => {
 
           {/* Timeline */}
           <div className="relative">
-            {/* Timeline Line */}
-            <div className="absolute left-8 top-0 bottom-0 w-px bg-gradient-to-b from-purple-500 via-blue-500 to-transparent" />
+            {/* Timeline Line - hidden on mobile */}
+            <div className="absolute left-8 top-0 bottom-0 w-px bg-gradient-to-b from-purple-500 via-blue-500 to-transparent hidden sm:block" />
 
             {/* Loading State */}
             {loading && (
@@ -313,14 +313,14 @@ const Changelog = () => {
             {!loading && !error && filteredReleases.length > 0 && (
               <div className="space-y-12">
                 {filteredReleases.map((release) => (
-                  <div key={release._id || release.version} className="relative pl-20">
-                    {/* Timeline Dot */}
+                  <div key={release._id || release.version} className="relative pl-0 sm:pl-20">
+                    {/* Timeline Dot - hidden on mobile */}
                     <div
-                      className={`absolute left-6 w-5 h-5 rounded-full bg-gradient-to-r ${getVersionBadgeColor(release.type)} transform -translate-x-1/2 ring-4 ring-gray-950`}
+                      className={`absolute left-6 w-5 h-5 rounded-full bg-gradient-to-r ${getVersionBadgeColor(release.type)} transform -translate-x-1/2 ring-4 ring-gray-950 hidden sm:block`}
                     />
 
                     {/* Release Card */}
-                    <div className="bg-gray-900/50 backdrop-blur-sm border border-white/5 rounded-2xl p-6 hover:border-white/10 transition-all duration-300">
+                    <div className="bg-gray-900/50 backdrop-blur-sm border border-white/5 rounded-2xl p-4 sm:p-6 hover:border-white/10 transition-all duration-300">
                       {/* Header */}
                       <div className="flex flex-wrap items-center gap-3 mb-4">
                         <div
@@ -353,11 +353,11 @@ const Changelog = () => {
                         {release.changes.map((change, idx) => (
                           <li key={idx} className="flex items-start gap-3">
                             <span
-                              className={`px-2 py-0.5 rounded text-xs font-medium border ${getTypeColor(change.type)} shrink-0 mt-0.5`}
+                              className={`w-20 px-2 py-0.5 rounded text-xs font-medium border ${getTypeColor(change.type)} shrink-0 mt-0.5 text-center flex justify-center`}
                             >
                               {getTypeLabel(change.type)}
                             </span>
-                            <span className="text-gray-300">{change.text}</span>
+                            <span className="text-gray-300 flex-1">{change.text}</span>
                           </li>
                         ))}
                       </ul>

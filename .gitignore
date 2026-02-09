@@ -87,6 +87,7 @@ pnpm-lock.yaml
 
 # Optional: Documentation and feature tracking
 # Uncomment if you want to track these in git
+# Files for personal use related to this project
 DOCs/
 feature-list/
 feature-docs/

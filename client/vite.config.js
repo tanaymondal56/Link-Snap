@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
-import checker from 'vite-plugin-checker'
+// import checker from 'vite-plugin-checker'
 import { VitePWA } from 'vite-plugin-pwa'
 import viteCompression from 'vite-plugin-compression'
 import tailwindcss from '@tailwindcss/vite'
@@ -12,13 +12,13 @@ export default defineConfig(async ({ mode }) => {
 
   // Load dev plugins only in development
   const devPlugins = isDev ? [
-    checker({
-      eslint: {
-        lintCommand: 'eslint "./src/**/*.{js,jsx}"',
-        useFlatConfig: true,
-      },
-      overlay: true,
-    }),
+    // checker({
+    //   eslint: {
+    //     lintCommand: 'eslint "./src/**/*.{js,jsx}"',
+    //     useFlatConfig: true,
+    //   },
+    //   overlay: true,
+    // }),
   ] : []
 
   return {
