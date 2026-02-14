@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.6.0] - 2026-01-21
+## [0.6.0] - 2026-02-14
 
 ### Major Release: Performance & Security Overhaul
 

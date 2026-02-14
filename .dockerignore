@@ -127,8 +127,7 @@ SECURITY.md
 tsconfig*.json
 !tsconfig.json
 
-# Build tool configs
-vite.config.*
+# Build tool configs (keep vite.config.js - needed for client build)
 webpack.config.*
 rollup.config.*
 jest.config.*
@@ -207,6 +206,9 @@ secrets/
 !client/package-lock.json
 !server/package.json
 !server/package-lock.json
+
+# Vite config (needed for client build)
+!client/vite.config.js
 
 # Public assets needed at runtime
 !client/public/

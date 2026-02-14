@@ -11,7 +11,7 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 # STAGE 1: BUILDER - Install dependencies and build frontend
 # ═══════════════════════════════════════════════════════════════════════════════
-FROM node:alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -54,6 +54,15 @@ COPY server/ ./server/
 # Step 4: Build the frontend
 # ───────────────────────────────────────────────────────────────────────────────
 # This creates client/dist/ with optimized HTML, CSS, JS
+# VITE_* vars are needed at BUILD TIME (baked into the JS bundle)
+
+ARG VITE_BASE_URL=https://linksnap.centralindia.cloudapp.azure.com
+ARG VITE_DOMAIN=linksnap.centralindia.cloudapp.azure.com
+ARG VITE_API_URL=/api
+
+ENV VITE_BASE_URL=$VITE_BASE_URL
+ENV VITE_DOMAIN=$VITE_DOMAIN
+ENV VITE_API_URL=$VITE_API_URL
 
 RUN cd client && npm run build
 
@@ -63,7 +72,7 @@ RUN cd client && npm run build
 # This stage creates the FINAL image that gets deployed
 # We start fresh and only copy runtime files (no build tools, no source code!)
 
-FROM node:alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
@@ -71,16 +80,16 @@ WORKDIR /app
 # Copy ONLY runtime files from builder stage
 # ───────────────────────────────────────────────────────────────────────────────
 
-# 1. Copy server dependencies (Express, MongoDB driver, etc.)
+# 1. Copy server source code first (your Express app)
+COPY --from=builder /app/server ./server
+
+# 2. Copy server dependencies on top (ensures node_modules isn't overwritten)
 #    These are needed to run: node server/index.js
 COPY --from=builder /app/server/node_modules ./server/node_modules
 
-# 2. Copy built frontend (HTML, CSS, JS - already optimized!)
+# 3. Copy built frontend (HTML, CSS, JS - already optimized!)
 #    This is what Express serves with express.static()
 COPY --from=builder /app/client/dist ./client/dist
-
-# 3. Copy server source code (your Express app)
-COPY --from=builder /app/server ./server
 
 # ───────────────────────────────────────────────────────────────────────────────
 # Configuration
