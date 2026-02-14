@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -76,7 +76,7 @@ jobs:
         run: |
           PROD_DOMAIN="${{ secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com' }}"
           echo "📦 Production URL: https://$PROD_DOMAIN"
-          echo "🌍 Domain: $PROD_DOMAINpp.azure.com' }}"
+          echo "🌍 Domain: $PROD_DOMAIN"
           echo "🌍 Domain: ${{ secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com' }}"
           echo ""
           echo "📝 Next steps:"
