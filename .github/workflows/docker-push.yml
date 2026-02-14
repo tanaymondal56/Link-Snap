@@ -4,6 +4,8 @@ on:
   push:
     branches: [master]
     tags: ['v*.*.*']
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -22,9 +24,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/link-snap
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/linksnap
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' || github.event_name == 'release' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,format=short

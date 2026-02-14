@@ -7,7 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.6.0] - 2026-02-14
+## [0.6.1] - 2026-02-14
+
+### Docker CI/CD Automation & Security Update
+
+This release automates the Docker build and push pipeline while hardening environment security and dependencies.
+
+### 🐳 Docker CI/CD
+- **Automated Pipeline:** Implemented GitHub Actions workflow for automated builds and pushes to Docker Hub.
+- **Smart Tagging:** Added support for `latest`, SemVer, and Git commit SHA tagging.
+- **Build Optimization:** Reduced Docker build context by ~99% using a comprehensive `.dockerignore`.
+- **Reproducible Builds:** Pinned Docker images to `node:20-alpine` and fixed `VITE_*` build arguments for reliable production URL injection.
+
+### 🛡️ Security & Scalability
+- **Dependency Hardening:** Updated `mongoose` (9.2.0) and `qs` (6.14.2) to resolve Dependabot alerts.
+- **Cleanup:** Removed orphaned `client/Dockerfile` and fixed `deploy.yml` string bugs.
+
+---
+
+## [0.6.0] - 2026-02-10
 
 ### Major Release: Performance & Security Overhaul
 
