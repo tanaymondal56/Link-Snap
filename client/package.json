@@ -52,9 +52,5 @@
     "vite-plugin-devtools": "^0.4.0",
     "vite-plugin-pwa": "^1.2.0",
     "vite-plugin-react-inspector": "^0.3.3"
-  },
-  "overrides": {
-    "ajv": "^8.18.0",
-    "minimatch": "^3.1.2"
   }
 }

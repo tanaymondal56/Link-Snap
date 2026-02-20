@@ -55,9 +55,5 @@
     "globals": "^17.3.0",
     "nodemon": "^3.1.13",
     "prettier": "^3.8.1"
-  },
-  "overrides": {
-    "ajv": "^8.18.0",
-    "minimatch": "^3.1.2"
   }
 }
