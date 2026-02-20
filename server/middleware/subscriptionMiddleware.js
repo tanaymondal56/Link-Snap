@@ -47,7 +47,7 @@ export const checkLinkLimit = async (req, res, next) => {
         let resetPerformed = false;
 
         if (currentPeriodStart) {
-            // For subs, reset if usage.resetAt is before current period start
+            // For paid subs, reset if usage.resetAt is before current billing period start
             if (resetAt && new Date(resetAt) < new Date(currentPeriodStart)) {
                 // ATOMIC: Only reset if resetAt still matches (prevents race condition)
                 const resetResult = await User.findOneAndUpdate(
@@ -66,26 +66,32 @@ export const checkLinkLimit = async (req, res, next) => {
                 resetPerformed = !!resetResult;
             }
         } else {
-            // For free tier, reset monthly (atomic with 30-day check)
-            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-            const resetResult = await User.findOneAndUpdate(
-                {
-                    _id: user._id,
-                    $or: [
-                        { 'linkUsage.resetAt': { $lt: thirtyDaysAgo } },
-                        { 'linkUsage.resetAt': null },
-                        { 'linkUsage.resetAt': { $exists: false } }
-                    ]
-                },
-                {
-                    $set: {
-                        'linkUsage.hardCount': 0,
-                        'linkUsage.resetAt': now
-                    }
-                },
-                { new: true }
-            );
-            resetPerformed = !!resetResult;
+            // For free tier: reset on the 1st of each calendar month (not rolling 30 days)
+            // This matches what the UI tooltip says: "Resets on the 1st of each month"
+            const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            const needsReset = !resetAt ||
+                new Date(resetAt) < startOfCurrentMonth;
+
+            if (needsReset) {
+                const resetResult = await User.findOneAndUpdate(
+                    {
+                        _id: user._id,
+                        $or: [
+                            { 'linkUsage.resetAt': { $lt: startOfCurrentMonth } },
+                            { 'linkUsage.resetAt': null },
+                            { 'linkUsage.resetAt': { $exists: false } }
+                        ]
+                    },
+                    {
+                        $set: {
+                            'linkUsage.hardCount': 0,
+                            'linkUsage.resetAt': now
+                        }
+                    },
+                    { new: true }
+                );
+                resetPerformed = !!resetResult;
+            }
         }
 
         // Update local user object if reset was performed
@@ -199,6 +205,64 @@ export const incrementLinkUsage = async (reqOrUserId) => {
             $inc: { 'linkUsage.count': 1, 'linkUsage.hardCount': 1 }
         });
     }
+};
+
+/**
+ * Resolve the current (possibly reset) linkUsage for a user object.
+ * Call this in getMe / refreshAccessToken so the dashboard always shows
+ * the correct count even if the user hasn't tried to create a link yet.
+ *
+ * Returns the linkUsage object with hardCount already zeroed if a new
+ * calendar month has started since the last reset.
+ *
+ * @param {object} user - Mongoose user document (or plain object with linkUsage & subscription)
+ * @returns {object} linkUsage - { count, hardCount, resetAt } (potentially zeroed)
+ */
+export const resolveCurrentLinkUsage = async (user) => {
+    const now = new Date();
+    const linkUsage = user.linkUsage || { count: 0, hardCount: 0, resetAt: null };
+    const resetAt = linkUsage.resetAt;
+    const currentPeriodStart = user.subscription?.currentPeriodStart;
+
+    let needsReset = false;
+
+    if (currentPeriodStart) {
+        // Paid sub: reset if last reset was before the current billing period start
+        needsReset = resetAt && new Date(resetAt) < new Date(currentPeriodStart);
+    } else {
+        // Free tier: reset on the 1st of each calendar month
+        const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        needsReset = !resetAt || new Date(resetAt) < startOfCurrentMonth;
+    }
+
+    if (!needsReset) {
+        return linkUsage;
+    }
+
+    // Atomically reset — same logic as checkLinkLimit to stay in sync
+    const condition = currentPeriodStart
+        ? { _id: user._id, 'linkUsage.resetAt': resetAt }
+        : {
+            _id: user._id,
+            $or: [
+                { 'linkUsage.resetAt': { $lt: new Date(now.getFullYear(), now.getMonth(), 1) } },
+                { 'linkUsage.resetAt': null },
+                { 'linkUsage.resetAt': { $exists: false } }
+            ]
+          };
+
+    const updated = await User.findOneAndUpdate(
+        condition,
+        { $set: { 'linkUsage.hardCount': 0, 'linkUsage.resetAt': now } },
+        { new: true, select: 'linkUsage' }
+    );
+
+    if (updated) {
+        return { ...linkUsage, hardCount: 0, resetAt: now };
+    }
+
+    // Another request beat us to the reset — return zeroed count anyway for this response
+    return { ...linkUsage, hardCount: 0, resetAt: now };
 };
 
 /**
