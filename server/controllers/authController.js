@@ -16,6 +16,7 @@ import { isReservedWord } from '../config/reservedWords.js';
 import logger from '../utils/logger.js';
 import { generateUserIdentity } from '../services/idService.js';
 import NotificationService from '../services/notificationService.js';
+import { resolveCurrentLinkUsage } from '../middleware/subscriptionMiddleware.js';
 
 // Simple email validation - ReDoS safe
 const isValidEmail = (email) => {
@@ -785,7 +786,7 @@ const refreshAccessToken = async (req, res, next) => {
         createdAt: user.createdAt,
         lastLoginAt: user.lastLoginAt,
         subscription: user.subscription || { tier: 'free', status: 'active' },
-        linkUsage: user.linkUsage || { count: 0, resetAt: new Date() },
+        linkUsage: await resolveCurrentLinkUsage(user),
         clickUsage: user.clickUsage || { count: 0, resetAt: new Date() },
       };
     }
@@ -844,7 +845,7 @@ const getMe = async (req, res) => {
     lastLoginAt: req.user.lastLoginAt,
     // Subscription & Usage data for frontend
     subscription: req.user.subscription || { tier: 'free', status: 'active' },
-    linkUsage: req.user.linkUsage || { count: 0, resetAt: new Date() },
+    linkUsage: await resolveCurrentLinkUsage(req.user),
     clickUsage: req.user.clickUsage || { count: 0, resetAt: new Date() },
   };
   res.status(200).json(user);
