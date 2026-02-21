@@ -5,21 +5,38 @@ import logger from '../utils/logger.js';
 
 const router = express.Router();
 
-// List of known frontend routes and paths to skip
 // List of known frontend routes to skip (Exact Match)
+// IMPORTANT: Keep in sync with client/src/App.jsx routes
 const EXACT_SKIP_PATHS = new Set([
+    // Auth routes
     'login',
     'register',
+    'verify-email',
+    'verify-otp',
+    'forgot-password',
+    'reset-password',
+    'account-suspended',
+    // App routes
     'dashboard',
     'admin',
     'analytics',
-    'verify-email',
-    'forgot-password',
-    'reset-password',
     'changelog',
+    'roadmap',
+    'pricing',
+    'redeem',
+    // Legal pages
     'privacy',
     'terms',
-    'account-suspended',
+    'cookies',
+    // Easter eggs
+    '404',
+    'teapot',
+    // SPA sub-route prefixes (/:shortId captures first segment only, e.g. 'u' from '/u/tanay')
+    'u',              // Bio profile pages (/u/:username)
+    'easter',         // Easter egg pages (/easter/credits, etc.)
+    'admin-console',  // Admin console sub-routes
+    'dev',            // Dev easter eggs (/dev/null)
+    // Static assets
     'assets',
     'favicon.ico',
     'favicon.svg',
@@ -32,7 +49,9 @@ const EXACT_SKIP_PATHS = new Set([
     'apple-touch-icon',
 ]);
 
-// Prefixes to skip (System/Assets)
+// Prefixes to skip (System/Assets/SPA sub-routes)
+// NOTE: req.params.shortId only captures the first path segment (no slashes)
+// so these prefixes match the start of that segment (e.g. 'workbox-abc123')
 const PREFIX_SKIP_PATHS = [
     'workbox-',
     'pwa-',
