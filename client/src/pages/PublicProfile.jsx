@@ -26,6 +26,8 @@ import {
 import LazyPullToRefresh from '../components/LazyPullToRefresh';
 import showToast from '../utils/toastUtils';
 import api from '../api/axios';
+import { useQrWorker } from '../hooks/useQrWorker';
+import { exportQrCode } from '../utils/qrExport';
 
 // Theme configurations with modern gradients
 const THEMES = {
@@ -263,31 +265,7 @@ const Badge = ({ children, tooltip, gradient, shadowColor }) => {
   );
 };
 
-// Helper to download SVG as PNG
-const downloadSvgAsPng = (elementId, filename) => {
-  const svg = document.getElementById(elementId);
-  if (!svg) return;
 
-  const svgData = new XMLSerializer().serializeToString(svg);
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  const img = new Image();
-
-  img.onload = () => {
-    canvas.width = 512;
-    canvas.height = 512;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 512, 512);
-    ctx.drawImage(img, 0, 0, 512, 512);
-
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  };
-
-  img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
-};
 
 export default function PublicProfile() {
   const { username } = useParams();
@@ -298,6 +276,7 @@ export default function PublicProfile() {
   const [showQR, setShowQR] = useState(false);
   const [linkQR, setLinkQR] = useState(null); // For per-link QR modal
   const [avatarError, setAvatarError] = useState(false);
+  const { exportToPng } = useQrWorker();
 
   // Dynamic domain for short URL display
   const shortDomain = window.location.hostname;
@@ -347,7 +326,11 @@ export default function PublicProfile() {
   };
 
   const handleDownloadQR = () => {
-    downloadSvgAsPng('profile-qr-code', `${profile?.username || 'profile'}-qr.png`);
+    exportQrCode({
+      exportToPng,
+      selector: '#profile-qr-code',
+      filename: `${profile?.username || 'profile'}-qr.png`,
+    });
   };
 
   const theme = THEMES[profile?.theme] || THEMES.default;
@@ -759,7 +742,11 @@ export default function PublicProfile() {
               </div>
               <div className="grid grid-cols-2 gap-3 mt-6">
                 <button
-                  onClick={() => downloadSvgAsPng('link-qr-code', `${linkQR.shortCode}-qr.png`)}
+                  onClick={() => exportQrCode({
+                    exportToPng,
+                    selector: '#link-qr-code',
+                    filename: `${linkQR.shortCode}-qr.png`,
+                  })}
                   className="px-4 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium flex items-center justify-center gap-2 transition"
                 >
                   <Download className="w-4 h-4" />

@@ -15,12 +15,15 @@ import { QRCodeSVG } from 'qrcode.react';
 import showToast from '../utils/toastUtils';
 import { getShortUrl, getDisplayShortUrl } from '../utils/urlHelper';
 import { useScrollLock } from '../hooks/useScrollLock';
+import { useQrWorker } from '../hooks/useQrWorker';
+import { exportQrCode } from '../utils/qrExport';
 
 const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
   const [copiedId, setCopiedId] = useState(null);
 
   // Scroll Lock
   useScrollLock(isOpen);
+  const { exportToPng } = useQrWorker();
 
   if (!isOpen || !linkData) return null;
 
@@ -34,31 +37,7 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const downloadQR = (elementId, filename) => {
-    const svg = document.querySelector(`#${elementId} svg`);
-    if (!svg) return;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const data = new XMLSerializer().serializeToString(svg);
-    const img = new Image();
-    const svgBlob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-    img.onload = () => {
-      canvas.width = img.width * 2;
-      canvas.height = img.height * 2;
-      ctx.scale(2, 2);
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-      URL.revokeObjectURL(url);
-      const pngUrl = canvas.toDataURL('image/png');
-      const downloadLink = document.createElement('a');
-      downloadLink.href = pngUrl;
-      downloadLink.download = filename;
-      downloadLink.click();
-    };
-    img.src = url;
-  };
+
 
   return createPortal(
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 backdrop-blur-sm bg-gray-900/80">
@@ -152,7 +131,12 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
                 </a>
                 <button
                   onClick={() =>
-                    downloadQR('qr-random', `qr-${linkData.customAlias || linkData.shortId}.png`)
+                    exportQrCode({
+                      exportToPng,
+                      selector: '#qr-random',
+                      filename: `qr-${linkData.customAlias || linkData.shortId}.png`,
+                      scale: 2,
+                    })
                   }
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg text-sm font-medium transition-colors"
                 >
