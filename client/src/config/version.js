@@ -2,7 +2,7 @@
 // This module provides dynamic version fetching from the API with robust fallback handling
 
 // Fallback version used when API is unavailable or on first load
-export const FALLBACK_VERSION = '0.5.6';
+export const FALLBACK_VERSION = '0.6.1';
 
 // Cache configuration
 const CACHE_KEY = 'app_version_cache_v2';

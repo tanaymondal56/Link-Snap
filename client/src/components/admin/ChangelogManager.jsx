@@ -23,6 +23,7 @@ import {
   Flame,
   Heart,
   Loader2,
+  Upload,
 } from 'lucide-react';
 import { formatDate, formatDateTime, toInputDate, toInputDateTime } from '../../utils/dateUtils';
 
@@ -63,6 +64,7 @@ const ChangelogManager = () => {
   const confirm = useConfirm();
   const [changelogs, setChangelogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -72,6 +74,8 @@ const ChangelogManager = () => {
   const [selectedIds, setSelectedIds] = useState([]); // Bulk selection
   const [editingUpdatedAt, setEditingUpdatedAt] = useState(null); // For concurrent edit detection
   const formModalRef = useRef(null); // Bug #4: Ref for scrolling modal to top
+  const importFileRef = useRef(null); // Ref for hidden JSON file input
+  const importTargetRef = useRef(null); // Tracks which changelog to update via import (null = create new)
   
   const DRAFT_KEY = 'changelog_draft';
   
@@ -217,11 +221,13 @@ const ChangelogManager = () => {
   const fetchChangelogs = async () => {
     try {
       setLoading(true);
+      setLoadError(false);
       const { data } = await api.get('/changelog/admin');
       setChangelogs(data);
     } catch (error) {
       console.error('Failed to fetch changelogs:', error);
-      showToast.error('Failed to load changelogs');
+      setLoadError(true);
+      showToast.error('Failed to load changelogs. Click retry to try again.');
     } finally {
       setLoading(false);
     }
@@ -566,6 +572,173 @@ const ChangelogManager = () => {
     }));
   };
 
+  // Import changelog from JSON file (supports both create-new and update-existing)
+  const handleImportJSON = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      importTargetRef.current = null; // Reset target on cancel
+      return;
+    }
+
+    // Reset file input so same file can be re-selected
+    e.target.value = '';
+
+    // Capture update target before async read (ref may change)
+    const updateTarget = importTargetRef.current;
+    importTargetRef.current = null;
+
+    if (!file.name.endsWith('.json')) {
+      showToast.error('Please select a .json file');
+      return;
+    }
+
+    // Guard: Reject files larger than 100KB (prevents accidental large imports)
+    if (file.size > 100 * 1024) {
+      showToast.error('File is too large (max 100KB). Changelog JSON should be small.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const raw = event.target.result;
+
+        // Guard: Empty file
+        if (!raw || !raw.trim()) {
+          showToast.error('File is empty');
+          return;
+        }
+
+        const data = JSON.parse(raw);
+
+        // Guard: Must be a plain object
+        if (!data || typeof data !== 'object' || Array.isArray(data)) {
+          showToast.error('JSON root must be an object (not an array or primitive)');
+          return;
+        }
+
+        // Validate required fields
+        if (!data.version || typeof data.version !== 'string' || !data.version.trim()) {
+          showToast.error('JSON must contain a valid "version" field (e.g., "1.0.0")');
+          return;
+        }
+        if (!data.title || typeof data.title !== 'string' || !data.title.trim()) {
+          showToast.error('JSON must contain a valid "title" field');
+          return;
+        }
+        if (!Array.isArray(data.changes) || data.changes.length === 0) {
+          showToast.error('JSON must contain a non-empty "changes" array');
+          return;
+        }
+
+        // Validate each change entry
+        const validChangeTypes = ['feature', 'improvement', 'fix', 'note', 'breaking', 'deprecated'];
+        const validatedChanges = data.changes
+          .filter(c => c && typeof c === 'object' && typeof c.text === 'string' && c.text.trim())
+          .map(c => ({
+            type: validChangeTypes.includes(c.type) ? c.type : 'feature',
+            text: c.text.trim().slice(0, 200),
+          }));
+
+        if (validatedChanges.length === 0) {
+          showToast.error('No valid changes found. Each change needs { "type": "...", "text": "..." }');
+          return;
+        }
+
+        // Validate enum fields
+        const validTypes = ['major', 'minor', 'patch', 'initial'];
+        const validIcons = ['Sparkles', 'Rocket', 'Shield', 'Zap', 'BarChart3', 'Bell', 'Bug', 'Star', 'Gift', 'Flame', 'Heart'];
+        const validRoadmapStatuses = ['idea', 'planned', 'in-progress', 'testing', 'coming-soon'];
+
+        // Safe date parsing — falls back to today if invalid
+        let parsedDate = toInputDate(new Date());
+        if (data.date) {
+          const d = new Date(data.date);
+          if (!isNaN(d.getTime())) {
+            parsedDate = toInputDate(d);
+          } else {
+            showToast.warning(`Invalid date "${data.date}" — using today's date`);
+          }
+        }
+
+        // Safe scheduledFor parsing
+        let parsedScheduledFor = '';
+        if (data.scheduledFor) {
+          const sd = new Date(data.scheduledFor);
+          if (!isNaN(sd.getTime())) {
+            parsedScheduledFor = toInputDateTime(sd);
+          }
+        }
+
+        // Warn if version already exists in loaded changelogs
+        const versionExists = changelogs.some(
+          c => c.version.toLowerCase() === data.version.trim().toLowerCase()
+        );
+        if (versionExists) {
+          showToast.warning(`Version ${data.version} already exists — you may need to change it before saving`);
+        }
+
+        // Build form state from JSON — default to draft/unpublished unless explicitly stated
+        setForm({
+          version: data.version.trim(),
+          date: parsedDate,
+          title: data.title.trim().slice(0, 100),
+          description: typeof data.description === 'string' ? data.description.trim().slice(0, 500) : '',
+          type: validTypes.includes(data.type) ? data.type : 'minor',
+          icon: validIcons.includes(data.icon) ? data.icon : 'Sparkles',
+          changes: validatedChanges,
+          // Default to false (draft) unless JSON explicitly says true
+          isPublished: data.isPublished === true,
+          scheduledFor: parsedScheduledFor,
+          // Roadmap fields
+          showOnRoadmap: data.showOnRoadmap === true,
+          roadmapStatus: validRoadmapStatuses.includes(data.roadmapStatus) ? data.roadmapStatus : 'planned',
+          estimatedRelease: typeof data.estimatedRelease === 'string' ? data.estimatedRelease.trim().slice(0, 50) : '',
+          roadmapPriority: typeof data.roadmapPriority === 'number'
+            ? Math.min(100, Math.max(0, Math.round(data.roadmapPriority)))
+            : 0,
+        });
+
+        // Set edit mode if updating an existing changelog
+        if (updateTarget) {
+          setEditingId(updateTarget._id);
+          setEditingUpdatedAt(updateTarget.updatedAt);
+        } else {
+          // Always create new, clear any stale edit state
+          setEditingId(null);
+          setEditingUpdatedAt(null);
+        }
+        setShowForm(true);
+
+        const skippedCount = data.changes.length - validatedChanges.length;
+        const statusLabel = data.isPublished === true ? 'published' : 'draft';
+        const modeLabel = updateTarget ? `Update v${updateTarget.version}` : `Import v${data.version}`;
+        let toastMsg = `${modeLabel} as ${statusLabel}`;
+        if (skippedCount > 0) {
+          toastMsg += ` (${skippedCount} empty change${skippedCount > 1 ? 's' : ''} skipped)`;
+        }
+        showToast.success(toastMsg, updateTarget ? 'JSON Update' : 'JSON Imported');
+      } catch (err) {
+        console.error('JSON parse error:', err);
+        showToast.error('Invalid JSON file. Please check the format and try again.');
+      }
+    };
+    reader.onerror = () => {
+      showToast.error('Failed to read file');
+    };
+    reader.readAsText(file);
+  };
+
+  // Trigger import for updating an existing changelog
+  const triggerImportForUpdate = (changelog) => {
+    importTargetRef.current = {
+      _id: changelog._id,
+      version: changelog.version,
+      updatedAt: changelog.updatedAt,
+    };
+    importFileRef.current?.click();
+  };
+
   // Filter changelogs based on search and filter
   const filteredChangelogs = changelogs.filter(changelog => {
     // Apply search filter
@@ -589,18 +762,54 @@ const ChangelogManager = () => {
     );
   }
 
+  if (loadError && changelogs.length === 0) {
+    return (
+      <div className="text-center py-16 bg-gray-900/50 rounded-2xl border border-red-500/30">
+        <svg className="w-12 h-12 text-red-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.27 16.5c-.77.833.192 2.5 1.732 2.5z" />
+        </svg>
+        <h3 className="text-lg font-medium text-white mb-2">Failed to load changelogs</h3>
+        <p className="text-gray-400 mb-4">There was a network or server error. Please try again.</p>
+        <button
+          onClick={fetchChangelogs}
+          className="px-5 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-xl hover:opacity-90 transition-opacity"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-white">Changelog Manager</h2>
-        <button
-          onClick={handleCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-xl hover:opacity-90 transition-opacity"
-        >
-          <Plus className="w-4 h-4" />
-          New Release
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Hidden file input for JSON import */}
+          <input
+            ref={importFileRef}
+            type="file"
+            accept=".json"
+            onChange={handleImportJSON}
+            className="hidden"
+          />
+          <button
+            onClick={() => importFileRef.current?.click()}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 text-gray-300 font-medium rounded-xl hover:bg-gray-700 hover:text-white transition-colors"
+            title="Import changelog from a JSON file"
+          >
+            <Upload className="w-4 h-4" />
+            Import JSON
+          </button>
+          <button
+            onClick={handleCreate}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-xl hover:opacity-90 transition-opacity"
+          >
+            <Plus className="w-4 h-4" />
+            New Release
+          </button>
+        </div>
       </div>
 
       {/* Search and Filter */}
@@ -1136,6 +1345,13 @@ const ChangelogManager = () => {
                       title="Edit"
                     >
                       <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => triggerImportForUpdate(changelog)}
+                      className="p-2 text-gray-500 hover:text-amber-400 hover:bg-amber-500/20 rounded-lg transition-colors"
+                      title="Update from JSON file"
+                    >
+                      <Upload className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(changelog._id)}
