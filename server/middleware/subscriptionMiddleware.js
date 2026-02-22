@@ -229,7 +229,7 @@ export const resolveCurrentLinkUsage = async (user) => {
     const resetAt = linkUsage.resetAt;
     const currentPeriodStart = user.subscription?.currentPeriodStart;
 
-    let needsReset = false;
+    let needsReset;
 
     if (currentPeriodStart) {
         // Paid sub: reset if last reset was before the current billing period start
