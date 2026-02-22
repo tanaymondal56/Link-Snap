@@ -778,7 +778,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
                           setActiveStartTime(value);
                         }}
                         min={new Date().toISOString().slice(0, 16)}
-                        className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2.5 text-white focus:border-blue-500 focus:outline-none text-sm"
+                        className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2.5 text-white focus:border-blue-500 focus:outline-none text-base"
                       />
                     </div>
                     {activeStartTime && (

@@ -1130,7 +1130,7 @@ const SettingsPage = () => {
                                   if (e.key === 'Escape') cancelEditingSession();
                                 }}
                                 placeholder="Enter device name..."
-                                className="px-2 py-1 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500 w-40"
+                                className="px-2 py-1 bg-gray-700 border border-gray-600 rounded-lg text-white text-base focus:outline-none focus:border-blue-500 w-40"
                                 maxLength={50}
                                 autoFocus
                               />
