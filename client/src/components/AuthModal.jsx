@@ -75,7 +75,9 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
     const timeoutId = setTimeout(async () => {
       try {
         const { data } = await api.get(`/auth/check-username/${username}`);
-        setUsernameStatus(data.available ? 'available' : (data.reason === 'reserved' ? 'reserved' : 'taken'));
+        setUsernameStatus(
+          data.available ? 'available' : data.reason === 'reserved' ? 'reserved' : 'taken'
+        );
       } catch {
         setUsernameStatus('idle');
       }
@@ -102,19 +104,19 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    
+
     // Identifier validation (email or username required)
     if (!identifier.trim()) {
       showToast.warning('Please enter your email or username', 'Missing Field');
       return;
     }
-    
+
     // Password required
     if (!password) {
       showToast.warning('Please enter your password', 'Missing Password');
       return;
     }
-    
+
     setIsLoading(true);
     const result = await login(identifier, password);
     setIsLoading(false);
@@ -146,21 +148,24 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    
+
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       showToast.warning('Please enter a valid email address', 'Invalid Email');
       return;
     }
-    
+
     // Username validation
     if (!username.trim()) {
       showToast.warning('Username is required', 'Missing Field');
       return;
     }
     if (!/^[a-z0-9_-]+$/.test(username)) {
-      showToast.warning('Username can only contain lowercase letters, numbers, underscores, and dashes', 'Invalid Username');
+      showToast.warning(
+        'Username can only contain lowercase letters, numbers, underscores, and dashes',
+        'Invalid Username'
+      );
       return;
     }
     if (username.length < 3 || username.length > 30) {
@@ -171,26 +176,32 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
       showToast.warning('This username is not available', 'Username Taken');
       return;
     }
-    
+
     // First name is required
     if (!firstName.trim()) {
       showToast.warning('First name is required', 'Missing Field');
       return;
     }
-    
+
     // First name format
     const nameRegex = /^[a-zA-Z\s'-]+$/;
     if (!nameRegex.test(firstName.trim())) {
-      showToast.warning('First name can only contain letters, spaces, hyphens, and apostrophes', 'Invalid Name');
+      showToast.warning(
+        'First name can only contain letters, spaces, hyphens, and apostrophes',
+        'Invalid Name'
+      );
       return;
     }
-    
+
     // Last name format (if provided)
     if (lastName.trim() && !nameRegex.test(lastName.trim())) {
-      showToast.warning('Last name can only contain letters, spaces, hyphens, and apostrophes', 'Invalid Name');
+      showToast.warning(
+        'Last name can only contain letters, spaces, hyphens, and apostrophes',
+        'Invalid Name'
+      );
       return;
     }
-    
+
     // Password validation
     if (password.length < 8) {
       showToast.warning('Password must be at least 8 characters', 'Too Short');
@@ -208,19 +219,19 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
       showToast.warning('Password must contain at least one number', 'Weak Password');
       return;
     }
-    
+
     // Confirm password
     if (password !== confirmPassword) {
       showToast.warning("Passwords don't match", 'Check Again');
       return;
     }
-    
+
     // Phone validation (if provided)
     if (phone.trim() && !/^[\d\s\-+()]+$/.test(phone.trim())) {
       showToast.warning('Please enter a valid phone number', 'Invalid Phone');
       return;
     }
-    
+
     setIsLoading(true);
     const result = await register(username, email, password, {
       firstName: firstName.trim(),
@@ -256,7 +267,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
       />
 
       {/* Modal */}
-      <div 
+      <div
         data-modal-content
         className="relative w-[95%] max-w-md animate-modal-in flex flex-col max-h-[95dvh] overscroll-contain"
       >
@@ -347,20 +358,40 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                   required
                   placeholder="Username * (e.g., john_doe)"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                  onChange={(e) =>
+                    setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))
+                  }
                   className={`w-full pl-12 pr-12 py-3.5 bg-gray-800/50 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all ${
-                    usernameStatus === 'available' ? 'border-green-500/50' :
-                    usernameStatus === 'taken' || usernameStatus === 'reserved' || usernameStatus === 'invalid' ? 'border-red-500/50' :
-                    'border-gray-700'
+                    usernameStatus === 'available'
+                      ? 'border-green-500/50'
+                      : usernameStatus === 'taken' ||
+                          usernameStatus === 'reserved' ||
+                          usernameStatus === 'invalid'
+                        ? 'border-red-500/50'
+                        : 'border-gray-700'
                   }`}
                 />
                 <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
-                  {usernameStatus === 'checking' && <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />}
+                  {usernameStatus === 'checking' && (
+                    <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
+                  )}
                   {usernameStatus === 'available' && <Check className="h-5 w-5 text-green-500" />}
-                  {(usernameStatus === 'taken' || usernameStatus === 'reserved' || usernameStatus === 'invalid') && <X className="h-5 w-5 text-red-500" />}
+                  {(usernameStatus === 'taken' ||
+                    usernameStatus === 'reserved' ||
+                    usernameStatus === 'invalid') && <X className="h-5 w-5 text-red-500" />}
                 </div>
-                <p className={`mt-1 text-xs ${usernameStatus === 'available' ? 'text-green-500' : usernameStatus === 'taken' || usernameStatus === 'reserved' ? 'text-red-500' : 'text-gray-500'}`}>
-                  {usernameStatus === 'available' ? 'Available!' : usernameStatus === 'taken' ? 'Already taken' : usernameStatus === 'reserved' ? 'Not available' : usernameStatus === 'invalid' ? 'Invalid format' : 'Lowercase letters, numbers, underscores, dashes only'}
+                <p
+                  className={`mt-1 text-xs ${usernameStatus === 'available' ? 'text-green-500' : usernameStatus === 'taken' || usernameStatus === 'reserved' ? 'text-red-500' : 'text-gray-500'}`}
+                >
+                  {usernameStatus === 'available'
+                    ? 'Available!'
+                    : usernameStatus === 'taken'
+                      ? 'Already taken'
+                      : usernameStatus === 'reserved'
+                        ? 'Not available'
+                        : usernameStatus === 'invalid'
+                          ? 'Invalid format'
+                          : 'Lowercase letters, numbers, underscores, dashes only'}
                 </p>
               </div>
             )}
@@ -460,7 +491,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                     placeholder="Last name"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-sm"
+                    className="w-full pl-12 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-base"
                   />
                 </div>
 
@@ -474,7 +505,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                     placeholder="Phone number (optional)"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-sm"
+                    className="w-full pl-12 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-base"
                   />
                 </div>
 
@@ -488,7 +519,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                     placeholder="Company (optional)"
                     value={company}
                     onChange={(e) => setCompany(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-sm"
+                    className="w-full pl-12 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-base"
                   />
                 </div>
               </>

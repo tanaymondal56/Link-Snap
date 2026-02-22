@@ -49,7 +49,7 @@ const SubscriptionCard = lazy(() => import('../components/subscription/Subscript
 import { getEffectiveTier } from '../utils/subscriptionUtils';
 
 const SettingsPage = () => {
-  const { refreshUser } = useAuth();
+  const { setUser } = useAuth();
   const location = useLocation();
   const getInitialTab = () => {
     const searchParams = new URLSearchParams(location.search);
@@ -149,6 +149,32 @@ const SettingsPage = () => {
   });
   const [changingPassword, setChangingPassword] = useState(false);
 
+  // Define fetchProfile BEFORE the useEffect that depends on it (const is not hoisted)
+  const fetchProfile = useCallback(async () => {
+    try {
+      const { data } = await api.get('/auth/me');
+      setProfile(data);
+      setUsernameChangedAt(data.usernameChangedAt);
+      setProfileForm({
+        username: data.username || '',
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
+        phone: data.phone || '',
+        company: data.company || '',
+        website: data.website || '',
+        bio: data.bio || '',
+      });
+      // Sync auth context directly from /auth/me data to update tier theme CSS vars
+      // without triggering a separate /auth/refresh cycle (prevents API flooding)
+      setUser(data);
+    } catch (error) {
+      console.error('Failed to fetch profile:', error);
+      handleApiError(error, 'Failed to load profile');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setUser]);
+
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
@@ -169,30 +195,6 @@ const SettingsPage = () => {
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [confirmModal.isOpen]);
-
-  const fetchProfile = useCallback(async () => {
-    try {
-      const { data } = await api.get('/auth/me');
-      setProfile(data);
-      setUsernameChangedAt(data.usernameChangedAt);
-      setProfileForm({
-        username: data.username || '',
-        firstName: data.firstName || '',
-        lastName: data.lastName || '',
-        phone: data.phone || '',
-        company: data.company || '',
-        website: data.website || '',
-        bio: data.bio || '',
-      });
-      // Force a global context refresh to synchronize the Dashboard tierTheme CSS variables
-      if (refreshUser) refreshUser();
-    } catch (error) {
-      console.error('Failed to fetch profile:', error);
-      handleApiError(error, 'Failed to load profile');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [refreshUser]);
 
   // Calculate if username change is allowed (30-day cooldown)
   const canChangeUsername =
@@ -1128,7 +1130,7 @@ const SettingsPage = () => {
                                   if (e.key === 'Escape') cancelEditingSession();
                                 }}
                                 placeholder="Enter device name..."
-                                className="px-2 py-1 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500 w-40"
+                                className="px-2 py-1 bg-gray-700 border border-gray-600 rounded-lg text-white text-base focus:outline-none focus:border-blue-500 w-40"
                                 maxLength={50}
                                 autoFocus
                               />

@@ -3,11 +3,7 @@ import { createPortal } from 'react-dom';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { RefreshCw, Download, Sparkles, AlertCircle, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import {
-  getStoredVersion,
-  setStoredVersion,
-  setShowChangelogAfterUpdate,
-} from '../config/version';
+import { getStoredVersion, setStoredVersion, setShowChangelogAfterUpdate } from '../config/version';
 import { useAppVersion } from '../hooks/useAppVersion';
 
 // Check if the app is running as an installed PWA (standalone mode)
@@ -32,15 +28,13 @@ const PWAUpdatePrompt = () => {
   const [isSimulated, setIsSimulated] = useState(false);
   // Check PWA status on initial render
   const [isPWA] = useState(() => isInstalledPWA());
-  // Track if we've detected an update (persisted in sessionStorage)
-  const [hasUpdate, setHasUpdate] = useState(() => {
-    return sessionStorage.getItem('pwa_update_available') === 'true';
-  });
+  // Track if the SW signalled a new version is waiting
+  const [swNeedsRefresh, setSwNeedsRefresh] = useState(false);
   const currentVersion = getStoredVersion();
   const appVersion = useAppVersion();
   const newVersion = appVersion;
 
-  // Use prompt mode - needRefresh becomes true when update is available
+  // Use prompt mode — needRefresh becomes true when a new SW is waiting
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
@@ -49,7 +43,7 @@ const PWAUpdatePrompt = () => {
       if (registration) {
         // Check for updates immediately
         registration.update();
-        
+
         // Then check every 60 seconds
         setInterval(() => {
           registration.update();
@@ -57,16 +51,28 @@ const PWAUpdatePrompt = () => {
       }
     },
     onNeedRefresh() {
-      setHasUpdate(true);
-      sessionStorage.setItem('pwa_update_available', 'true');
+      // Only flag once — prevents stacked prompts when multiple SW
+      // versions install back-to-back before the user taps Update.
+      setSwNeedsRefresh(true);
     },
   });
 
   // Check for version mismatch (most reliable method)
   const hasVersionMismatch = currentVersion !== newVersion;
 
-  // If version mismatch detected in PWA mode (or simulation), show update prompt
-  const shouldBlock = (isPWA || isSimulated) && (hasVersionMismatch || needRefresh || hasUpdate);
+  // Show prompt when there's genuinely something new —
+  // either the API reports a newer version OR the SW flagged a waiting worker.
+  const shouldBlock =
+    (isPWA || isSimulated) && (hasVersionMismatch || needRefresh || swNeedsRefresh);
+
+  // After a successful reload the versions should match — clear leftover flags
+  // so the prompt doesn't reappear for the same version.
+  useEffect(() => {
+    if (!hasVersionMismatch && !needRefresh) {
+      setSwNeedsRefresh(false);
+      sessionStorage.removeItem('pwa_update_available');
+    }
+  }, [hasVersionMismatch, needRefresh]);
 
   // Prevent keyboard shortcuts that might close overlay
   useEffect(() => {
@@ -89,8 +95,7 @@ const PWAUpdatePrompt = () => {
     const handleManualTrigger = () => {
       console.log('[PWA] Manual update simulation triggered');
       setIsSimulated(true);
-      setHasUpdate(true);
-      sessionStorage.setItem('pwa_update_available', 'true');
+      setSwNeedsRefresh(true);
     };
 
     window.addEventListener('pwa-update-manual-trigger', handleManualTrigger);
@@ -100,20 +105,21 @@ const PWAUpdatePrompt = () => {
   const handleUpdate = async () => {
     setIsUpdating(true);
     try {
-      // Clear the update available flag
+      // Clear all update flags so prompt doesn't re-appear after reload
       sessionStorage.removeItem('pwa_update_available');
+      setSwNeedsRefresh(false);
       // Set flag to show changelog after page reloads
       setShowChangelogAfterUpdate(true);
       // Update stored version to the new version
       setStoredVersion(appVersion);
-      
+
       // Try to update the service worker first
       try {
         await updateServiceWorker(true);
       } catch {
         // console.log('[PWA] SW update skipped, doing hard reload:', swError);
       }
-      
+
       // Force a hard reload to get the latest content
       window.location.reload();
     } catch (error) {
@@ -132,18 +138,14 @@ const PWAUpdatePrompt = () => {
   return createPortal(
     <div className="fixed inset-0 z-[9999] font-sans">
       {/* Backdrop overlay - Blocks all interactions behind it */}
-      <div 
-        className="absolute inset-0 bg-black/90 backdrop-blur-md" 
+      <div
+        className="absolute inset-0 bg-black/90 backdrop-blur-md"
         style={{ pointerEvents: 'auto' }}
       />
 
       {/* Update prompt - Centered and Interactive */}
-      <div 
-        className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none"
-      >
-        <div 
-          className="w-full max-w-sm bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 rounded-2xl shadow-2xl shadow-purple-500/30 border border-purple-400/20 overflow-hidden animate-in zoom-in-95 duration-300 pointer-events-auto"
-        >
+      <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+        <div className="w-full max-w-sm bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 rounded-2xl shadow-2xl shadow-purple-500/30 border border-purple-400/20 overflow-hidden animate-in zoom-in-95 duration-300 pointer-events-auto">
           {/* Header */}
           <div className="px-5 py-4 flex items-center gap-3 border-b border-white/10">
             <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
@@ -227,4 +229,3 @@ const PWAUpdatePrompt = () => {
 };
 
 export default PWAUpdatePrompt;
-

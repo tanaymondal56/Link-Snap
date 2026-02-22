@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import api, { setAccessToken } from '../api/axios';
 import showToast from '../utils/toastUtils';
 
@@ -68,53 +68,83 @@ export const AuthProvider = ({ children }) => {
   // Track if background auth check is in progress
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
+  // Deduplication: prevent concurrent/rapid checkAuth calls (iOS PWA flood fix)
+  const checkAuthPromiseRef = useRef(null);
+  const lastCheckAuthRef = useRef(0);
+  const MIN_CHECK_AUTH_INTERVAL = 5000; // 5s minimum between checks
+
   // Check if user is logged in (background verification)
-  const checkAuth = useCallback(async (initialRetryCount = 0) => {
-    const executeCheck = async (retryCount) => {
-      // Secure Auth Load: Try to silent refresh immediately
-      // This relies on the httpOnly cookie being present
-      try {
-        // Attempt to get a new access token using the refresh token cookie
-        const { data: refreshData } = await api.get('/auth/refresh');
+  const checkAuth = useCallback(async () => {
+    const now = Date.now();
 
-        // If successful, set the token in memory
-        setAccessToken(refreshData.accessToken);
+    // If a check is already in progress, return the existing promise
+    if (checkAuthPromiseRef.current) {
+      return checkAuthPromiseRef.current;
+    }
 
-        // OPTIMIZED: Use user data from refresh response if available
-        // This avoids the redundant /auth/me call
-        if (refreshData.user) {
-          setUser(refreshData.user);
-        } else {
-          // Fallback for older backend versions (should not be needed with recent update)
-          const { data: userData } = await api.get('/auth/me');
-          setUser(userData);
-        }
+    // Throttle: skip if last completed check was very recent
+    if (now - lastCheckAuthRef.current < MIN_CHECK_AUTH_INTERVAL) {
+      return;
+    }
 
-        setLoading(false);
-        setIsAuthChecking(false);
-      } catch (error) {
-        // Only treat 401/403 as definitive "not logged in"
-        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-          setUser(null);
-          setAccessToken(null);
+    const promise = new Promise((resolve) => {
+      const executeCheck = async (retryCount) => {
+        // Secure Auth Load: Try to silent refresh immediately
+        // This relies on the httpOnly cookie being present
+        try {
+          // Attempt to get a new access token using the refresh token cookie
+          const { data: refreshData } = await api.get('/auth/refresh');
+
+          // If successful, set the token in memory
+          setAccessToken(refreshData.accessToken);
+
+          // OPTIMIZED: Use user data from refresh response if available
+          // This avoids the redundant /auth/me call
+          if (refreshData.user) {
+            setUser(refreshData.user);
+          } else {
+            // Fallback for older backend versions (should not be needed with recent update)
+            const { data: userData } = await api.get('/auth/me');
+            setUser(userData);
+          }
+
           setLoading(false);
           setIsAuthChecking(false);
-        } else {
-          // For network errors (server restarting), retry up to 5 times
-          if (retryCount < 5) {
-            const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
-            setTimeout(() => executeCheck(retryCount + 1), delay);
-          } else {
-            // After all retries fail, keep cached user state if available
-            // Only clear loading - don't clear cached user on network failure
+          resolve();
+        } catch (error) {
+          // Only treat 401/403 as definitive "not logged in"
+          if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+            setUser(null);
+            setAccessToken(null);
             setLoading(false);
             setIsAuthChecking(false);
+            resolve();
+          } else {
+            // For network errors (server restarting), retry up to 2 times (reduced from 5)
+            if (retryCount < 2) {
+              const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+              setTimeout(() => executeCheck(retryCount + 1), delay);
+            } else {
+              // After all retries fail, keep cached user state if available
+              // Only clear loading - don't clear cached user on network failure
+              setLoading(false);
+              setIsAuthChecking(false);
+              resolve();
+            }
           }
         }
-      }
-    };
+      };
 
-    await executeCheck(initialRetryCount);
+      executeCheck(0);
+    });
+
+    checkAuthPromiseRef.current = promise;
+    promise.finally(() => {
+      lastCheckAuthRef.current = Date.now();
+      checkAuthPromiseRef.current = null;
+    });
+
+    return promise;
   }, []);
 
   // Initial auth check on mount - runs in background
@@ -182,11 +212,9 @@ export const AuthProvider = ({ children }) => {
         'Logged In'
       );
 
-      // Background refresh: immediately fetch comprehensive user data from /auth/refresh
-      // The login response has a subset of fields; the refresh endpoint returns the full
-      // user object including subscription details. This prevents stale tier display when
-      // the login response or localStorage cache has outdated subscription data.
-      checkAuth();
+      // Login already provides fresh tokens + complete user data (including subscription).
+      // No separate checkAuth() needed — avoids redundant /auth/refresh calls that
+      // caused API flooding on iOS PWA over local networks.
 
       return { success: true, user: userData };
     } catch (error) {
@@ -273,8 +301,8 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       showToast.success('Your account is ready!', 'Welcome');
 
-      // Background refresh: fetch comprehensive user data
-      checkAuth();
+      // Register already provides fresh tokens + complete user data.
+      // No separate checkAuth() needed — avoids redundant /auth/refresh calls.
 
       return { success: true, user: userData };
     } catch (error) {

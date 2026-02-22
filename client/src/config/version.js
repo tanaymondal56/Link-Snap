@@ -37,19 +37,19 @@ const getCachedVersion = () => {
     try {
         const cached = localStorage.getItem(CACHE_KEY);
         if (!cached) return null;
-        
+
         const data = JSON.parse(cached);
-        
+
         // Validate cache structure
         if (!data.version || !data.cachedAt) return null;
-        
+
         // Check if cache is expired
         const cacheAge = Date.now() - data.cachedAt;
         if (cacheAge > CACHE_TTL_MS) {
             // Cache expired but return stale data (can be used as fallback)
             return { ...data, isStale: true };
         }
-        
+
         return { ...data, isStale: false };
     } catch (error) {
         // Cache corrupted, clear it
@@ -83,7 +83,7 @@ const setCachedVersion = (version) => {
 const fetchVersionFromAPI = async () => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    
+
     try {
         const response = await fetch(getVersionApiUrl(), {
             method: 'GET',
@@ -92,26 +92,26 @@ const fetchVersionFromAPI = async () => {
             },
             signal: controller.signal
         });
-        
+
         clearTimeout(timeoutId);
-        
+
         if (!response.ok) {
             console.warn('Version API returned status:', response.status);
             return null;
         }
-        
+
         const data = await response.json();
-        
+
         // Validate response
         if (!data.version || typeof data.version !== 'string') {
             console.warn('Version API returned invalid data:', data);
             return null;
         }
-        
+
         return data.version;
     } catch (error) {
         clearTimeout(timeoutId);
-        
+
         if (error.name === 'AbortError') {
             console.warn('Version API request timed out');
         } else {
@@ -132,18 +132,18 @@ const fetchVersionFromAPI = async () => {
  */
 export const getAppVersion = () => {
     const cached = getCachedVersion();
-    
+
     if (cached && !cached.isStale) {
         // Fresh cache available
         return cached.version;
     }
-    
+
     if (cached && cached.isStale) {
         // Stale cache - return it but trigger background refresh
         refreshVersionInBackground();
         return cached.version;
     }
-    
+
     // No cache - return fallback (will be updated on next async call)
     return FALLBACK_VERSION;
 };
@@ -157,18 +157,18 @@ export const getAppVersion = () => {
 export const getAppVersionAsync = async () => {
     // Try to fetch fresh version
     const freshVersion = await fetchVersionFromAPI();
-    
+
     if (freshVersion) {
         setCachedVersion(freshVersion);
         return freshVersion;
     }
-    
+
     // Fetch failed - try cache (even if stale)
     const cached = getCachedVersion();
     if (cached) {
         return cached.version;
     }
-    
+
     // Last resort - fallback
     return FALLBACK_VERSION;
 };
@@ -180,7 +180,7 @@ const refreshVersionInBackground = () => {
     // Use a flag to prevent multiple concurrent refreshes
     if (window.__versionRefreshInProgress) return;
     window.__versionRefreshInProgress = true;
-    
+
     fetchVersionFromAPI()
         .then((version) => {
             if (version) {
@@ -198,7 +198,7 @@ const refreshVersionInBackground = () => {
  */
 export const initializeVersion = async () => {
     const cached = getCachedVersion();
-    
+
     // If no cache or cache is stale, fetch fresh version
     if (!cached || cached.isStale) {
         await getAppVersionAsync();
@@ -250,13 +250,18 @@ export const hasSeenCurrentChangelog = () => {
     return seenVersion === getAppVersion();
 };
 
-export const markChangelogAsSeen = () => {
-    localStorage.setItem('changelog_seen_version', getAppVersion());
+export const markChangelogAsSeen = (liveVersion) => {
+    localStorage.setItem('changelog_seen_version', liveVersion || getAppVersion());
 };
 
-// Check if there's a new version the user hasn't seen changelog for
-export const hasUnseenChangelog = () => {
-    return !hasSeenCurrentChangelog();
+// Check if there's a new version the user hasn't seen changelog for.
+// Pass a live version (from useAppVersion()) for accurate comparison
+// after a deployment — the sync getAppVersion() may return a stale
+// FALLBACK_VERSION if the PWA cache hasn't updated yet.
+export const hasUnseenChangelog = (liveVersion) => {
+    const version = liveVersion || getAppVersion();
+    const seenVersion = localStorage.getItem('changelog_seen_version');
+    return seenVersion !== version;
 };
 
 // ============================================================================
@@ -271,21 +276,21 @@ export const hasUnseenChangelog = () => {
  */
 export const compareVersions = (v1, v2) => {
     if (!v1 || !v2) return 0;
-    
+
     // Strip any pre-release tags for comparison (e.g., "-beta")
     const clean = (v) => v.replace(/-[a-z0-9]+$/i, '');
-    
+
     const parts1 = clean(v1).split('.').map(Number);
     const parts2 = clean(v2).split('.').map(Number);
-    
+
     for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
         const p1 = parts1[i] || 0;
         const p2 = parts2[i] || 0;
-        
+
         if (p1 > p2) return 1;
         if (p1 < p2) return -1;
     }
-    
+
     return 0;
 };
 

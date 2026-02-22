@@ -290,7 +290,10 @@ const UserDashboard = () => {
         </div>
 
         {/* Usage Stats */}
-        <div className="p-4 rounded-xl transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+        <div
+          className="p-4 rounded-xl transition-colors duration-300"
+          style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
+        >
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Links Usage */}
             {/* Links Usage Stats - Active & Monthly */}
@@ -383,8 +386,8 @@ const UserDashboard = () => {
           onClick={() => setIsCreateModalOpen(true)}
           className="flex items-center justify-center gap-2 text-white py-2.5 px-6 rounded-xl font-bold transition-all hover:scale-105 active:scale-95 w-full sm:w-auto sm:self-start border border-white/10"
           style={{
-              background: 'linear-gradient(to right, var(--accent-from), var(--accent-to))',
-              boxShadow: '0 8px 20px var(--cta-shadow)'
+            background: 'linear-gradient(to right, var(--accent-from), var(--accent-to))',
+            boxShadow: '0 8px 20px var(--cta-shadow)',
           }}
         >
           <Plus size={18} />
@@ -403,14 +406,14 @@ const UserDashboard = () => {
           <input
             type="text"
             placeholder="Search links..."
-            className="w-full rounded-xl pl-10 pr-4 py-3 text-sm transition-all focus:outline-none"
+            className="w-full rounded-xl pl-10 pr-4 py-3 text-base transition-all focus:outline-none"
             style={{
-                backgroundColor: 'var(--topbar-bg)',
-                border: '1px solid var(--input-border)',
-                color: 'var(--heading-color)'
+              backgroundColor: 'var(--topbar-bg)',
+              border: '1px solid var(--input-border)',
+              color: 'var(--heading-color)',
             }}
-            onFocus={(e) => e.target.style.borderColor = 'var(--input-focus)'}
-            onBlur={(e) => e.target.style.borderColor = 'var(--input-border)'}
+            onFocus={(e) => (e.target.style.borderColor = 'var(--input-focus)')}
+            onBlur={(e) => (e.target.style.borderColor = 'var(--input-border)')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -419,12 +422,22 @@ const UserDashboard = () => {
 
       {/* Links Card View — shared render function used by both virtual and normal paths */}
       {filteredLinks.length === 0 ? (
-        <div className="rounded-2xl p-12 text-center transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
-          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'var(--stat-icon-bg)', color: 'var(--stat-icon-color)' }}>
+        <div
+          className="rounded-2xl p-12 text-center transition-colors duration-300"
+          style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
+        >
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
+            style={{ backgroundColor: 'var(--stat-icon-bg)', color: 'var(--stat-icon-color)' }}
+          >
             <LinkIcon size={32} />
           </div>
-          <p className="font-medium text-lg" style={{ color: 'var(--heading-color)' }}>No links found</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--subtext-color)' }}>Create a new link above to get started</p>
+          <p className="font-medium text-lg" style={{ color: 'var(--heading-color)' }}>
+            No links found
+          </p>
+          <p className="text-sm mt-1" style={{ color: 'var(--subtext-color)' }}>
+            Create a new link above to get started
+          </p>
         </div>
       ) : useVirtual ? (
         /* ── VIRTUAL SCROLLING MODE (View All with many links) ── */
@@ -446,14 +459,853 @@ const UserDashboard = () => {
               const link = filteredLinks[virtualRow.index];
               const isLinkDisabled = link.ownerBanned || !link.isActive;
 
-            // Check expiration status
+              // Check expiration status
+              const isExpired = link.expiresAt && new Date(link.expiresAt) < new Date();
+              const isExpiringSoon =
+                link.expiresAt &&
+                !isExpired &&
+                new Date(link.expiresAt) - new Date() < 24 * 60 * 60 * 1000; // Less than 24h
+
+              // Calculate time remaining for display
+              const getExpirationText = () => {
+                if (!link.expiresAt) return null;
+                if (isExpired) return 'Expired';
+                const diff = new Date(link.expiresAt) - new Date();
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const days = Math.floor(hours / 24);
+                if (days > 0) return `${days}d left`;
+                if (hours > 0) return `${hours}h left`;
+                return 'Less than 1h';
+              };
+
+              // Check if link is flagged for safety issues
+              const isFlagged =
+                link.safetyStatus === 'malware' ||
+                link.safetyStatus === 'phishing' ||
+                link.safetyStatus === 'unwanted';
+              const getSafetyLabel = () => {
+                switch (link.safetyStatus) {
+                  case 'malware':
+                    return 'Flagged: Malware Detected';
+                  case 'phishing':
+                    return 'Flagged: Phishing Detected';
+                  case 'unwanted':
+                    return 'Flagged: Unwanted Software';
+                  default:
+                    return 'Flagged';
+                }
+              };
+
+              return (
+                <div
+                  key={link._id}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                    paddingBottom: '16px', // gap between cards
+                  }}
+                  role="listitem"
+                  aria-setsize={filteredLinks.length}
+                  aria-posinset={virtualRow.index + 1}
+                >
+                  <div
+                    className={`rounded-2xl transition-colors duration-300 overflow-hidden border ${
+                      isFlagged
+                        ? 'border-red-500/40 bg-red-500/5'
+                        : isLinkDisabled
+                          ? 'border-orange-500/30 bg-orange-500/5'
+                          : 'hover:bg-white/5'
+                    }`}
+                    style={
+                      !isFlagged && !isLinkDisabled
+                        ? { backgroundColor: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }
+                        : {}
+                    }
+                  >
+                    {/* Flagged Link Banner */}
+                    {isFlagged && (
+                      <div className="bg-red-500/10 border-b border-red-500/20 px-5 py-2 flex items-center gap-2">
+                        <ShieldAlert size={14} className="text-red-400" />
+                        <span className="text-red-300 text-xs font-medium">{getSafetyLabel()}</span>
+                        <span className="text-red-400/70 text-xs ml-auto">
+                          This link may not redirect until reviewed
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Disabled Banner */}
+                    {isLinkDisabled && !isFlagged && (
+                      <div className="bg-orange-500/10 border-b border-orange-500/20 px-5 py-2 flex items-center gap-2">
+                        <Ban size={14} className="text-orange-400" />
+                        <span className="text-orange-300 text-xs font-medium">
+                          {link.ownerBanned ? 'Disabled (Account Suspended)' : 'Link Disabled'}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Main Card Content */}
+                    <div className="p-3 sm:p-5">
+                      <div className="flex flex-col lg:flex-row lg:items-start gap-3 sm:gap-4">
+                        {/* QR Code - Shows custom alias QR if available, otherwise random */}
+                        <button
+                          onClick={() => setQrModalLink(link)}
+                          className={`p-1.5 sm:p-2 rounded-lg sm:rounded-xl shadow-lg transition-transform cursor-pointer self-center lg:self-start shrink-0 ${
+                            isLinkDisabled ? 'bg-gray-200 opacity-60' : 'bg-white hover:scale-105'
+                          }`}
+                          title="Click to view QR code"
+                        >
+                          <QRCodeSVG
+                            value={getShortUrl(link.customAlias || link.shortId)}
+                            size={60}
+                            level="H"
+                            className="sm:w-20 sm:h-20"
+                          />
+                        </button>
+
+                        {/* Link Info */}
+                        <div className="flex-1 min-w-0 space-y-2 sm:space-y-3">
+                          {/* Title & Original URL */}
+                          <div className="text-center lg:text-left">
+                            <h3
+                              className={`font-semibold text-base sm:text-lg truncate ${isLinkDisabled ? 'text-gray-400' : 'text-white'}`}
+                            >
+                              {link.title || 'Untitled Link'}
+                            </h3>
+                            <p
+                              className="text-gray-500 text-xs sm:text-sm truncate"
+                              title={link.originalUrl}
+                            >
+                              → {link.originalUrl}
+                            </p>
+                          </div>
+
+                          {/* Short Links */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-row gap-2 sm:gap-3">
+                            {/* Custom Alias - Show First if exists */}
+                            {link.customAlias && (
+                              <div
+                                className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 ${
+                                  isLinkDisabled
+                                    ? 'bg-gray-800/30 border border-gray-700/30'
+                                    : 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20'
+                                }`}
+                              >
+                                <Sparkles
+                                  size={12}
+                                  className={`sm:w-[14px] sm:h-[14px] ${
+                                    isLinkDisabled
+                                      ? 'text-gray-500 shrink-0'
+                                      : 'text-purple-400 shrink-0'
+                                  }`}
+                                />
+                                <span
+                                  className={`font-mono text-xs sm:text-sm truncate ${
+                                    isLinkDisabled
+                                      ? 'text-gray-500 cursor-not-allowed'
+                                      : 'text-purple-400 cursor-pointer hover:underline'
+                                  }`}
+                                  onClick={() =>
+                                    !isLinkDisabled && copyToClipboard(link.customAlias)
+                                  }
+                                  title={isLinkDisabled ? 'Link is disabled' : 'Click to copy'}
+                                >
+                                  /{link.customAlias}
+                                </span>
+                                <button
+                                  onClick={() =>
+                                    !isLinkDisabled && copyToClipboard(link.customAlias)
+                                  }
+                                  className={`p-0.5 sm:p-1 rounded transition-colors shrink-0 ${
+                                    isLinkDisabled
+                                      ? 'text-gray-600 cursor-not-allowed'
+                                      : 'hover:bg-purple-500/20'
+                                  }`}
+                                  title={isLinkDisabled ? 'Link is disabled' : 'Copy custom link'}
+                                  disabled={isLinkDisabled}
+                                >
+                                  {copiedId === link.customAlias ? (
+                                    <Check
+                                      size={12}
+                                      className="sm:w-[14px] sm:h-[14px] text-green-400"
+                                    />
+                                  ) : (
+                                    <Copy
+                                      size={12}
+                                      className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-600' : 'text-purple-400'}`}
+                                    />
+                                  )}
+                                </button>
+                                {!isLinkDisabled && (
+                                  <a
+                                    href={getShortUrl(link.customAlias)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-0.5 sm:p-1 hover:bg-purple-500/20 rounded transition-colors shrink-0"
+                                    title="Open custom link"
+                                  >
+                                    <ExternalLink
+                                      size={12}
+                                      className="sm:w-[14px] sm:h-[14px] text-purple-400"
+                                    />
+                                  </a>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Random Short ID */}
+                            <div
+                              className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 ${
+                                isLinkDisabled
+                                  ? 'bg-gray-800/30 border border-gray-700/30'
+                                  : 'bg-gray-800/50 border border-gray-700/50'
+                              }`}
+                            >
+                              <LinkIcon
+                                size={12}
+                                className={`sm:w-[14px] sm:h-[14px] ${
+                                  isLinkDisabled
+                                    ? 'text-gray-500 shrink-0'
+                                    : 'text-blue-400 shrink-0'
+                                }`}
+                              />
+                              <span
+                                className={`font-mono text-xs sm:text-sm truncate ${
+                                  isLinkDisabled
+                                    ? 'text-gray-500 cursor-not-allowed'
+                                    : 'text-blue-400 cursor-pointer hover:underline'
+                                }`}
+                                onClick={() => !isLinkDisabled && copyToClipboard(link.shortId)}
+                                title={isLinkDisabled ? 'Link is disabled' : 'Click to copy'}
+                              >
+                                /{link.shortId}
+                              </span>
+                              <button
+                                onClick={() => !isLinkDisabled && copyToClipboard(link.shortId)}
+                                className={`p-0.5 sm:p-1 rounded transition-colors shrink-0 ${
+                                  isLinkDisabled
+                                    ? 'text-gray-600 cursor-not-allowed'
+                                    : 'hover:bg-blue-500/20'
+                                }`}
+                                title={isLinkDisabled ? 'Link is disabled' : 'Copy random link'}
+                                disabled={isLinkDisabled}
+                              >
+                                {copiedId === link.shortId ? (
+                                  <Check
+                                    size={12}
+                                    className="sm:w-[14px] sm:h-[14px] text-green-400"
+                                  />
+                                ) : (
+                                  <Copy
+                                    size={12}
+                                    className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-600' : 'text-blue-400'}`}
+                                  />
+                                )}
+                              </button>
+                              {!isLinkDisabled && (
+                                <a
+                                  href={getShortUrl(link.shortId)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-0.5 sm:p-1 hover:bg-blue-500/20 rounded transition-colors shrink-0"
+                                  title="Open random link"
+                                >
+                                  <ExternalLink
+                                    size={12}
+                                    className="sm:w-[14px] sm:h-[14px] text-blue-400"
+                                  />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Feature Badges - Horizontal wrap layout */}
+                        <div className="flex flex-wrap items-center justify-center lg:justify-end gap-2 mt-2 sm:mt-0">
+                          {/* Click Count */}
+                          <BadgeTooltip content={`${link.clicks} total clicks on this link`}>
+                            <div
+                              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${
+                                isLinkDisabled
+                                  ? 'bg-gray-800/30 border border-gray-700/30'
+                                  : 'bg-purple-500/10 border border-purple-500/20'
+                              }`}
+                            >
+                              <BarChart2
+                                size={14}
+                                className={isLinkDisabled ? 'text-gray-500' : 'text-purple-400'}
+                              />
+                              <span
+                                className={`font-medium text-xs ${isLinkDisabled ? 'text-gray-500' : 'text-purple-400'}`}
+                              >
+                                {link.clicks}
+                              </span>
+                            </div>
+                          </BadgeTooltip>
+
+                          {/* Expiration Badge */}
+                          {link.expiresAt && (
+                            <BadgeTooltip
+                              content={
+                                isExpired
+                                  ? `Expired on ${new Date(link.expiresAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`
+                                  : `Expires ${new Date(link.expiresAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`
+                              }
+                            >
+                              <div
+                                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${
+                                  isExpired
+                                    ? 'bg-red-500/10 border border-red-500/20'
+                                    : isExpiringSoon
+                                      ? 'bg-amber-500/10 border border-amber-500/20'
+                                      : 'bg-gray-800/30 border border-gray-700/30'
+                                }`}
+                              >
+                                <Clock
+                                  size={14}
+                                  className={
+                                    isExpired
+                                      ? 'text-red-400'
+                                      : isExpiringSoon
+                                        ? 'text-amber-400'
+                                        : 'text-gray-400'
+                                  }
+                                />
+                                <span
+                                  className={`font-medium text-xs hidden sm:inline ${
+                                    isExpired
+                                      ? 'text-red-400'
+                                      : isExpiringSoon
+                                        ? 'text-amber-400'
+                                        : 'text-gray-400'
+                                  }`}
+                                >
+                                  {getExpirationText()}
+                                </span>
+                              </div>
+                            </BadgeTooltip>
+                          )}
+
+                          {/* Password Protection Badge */}
+                          {link.isPasswordProtected && (
+                            <BadgeTooltip content="This link requires a password to access">
+                              <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 bg-purple-500/10 border border-purple-500/20 cursor-default">
+                                <Lock size={14} className="text-purple-400" />
+                                <span className="font-medium text-xs text-purple-400 hidden sm:inline">
+                                  Protected
+                                </span>
+                              </div>
+                            </BadgeTooltip>
+                          )}
+
+                          {/* Device Targeting Badge */}
+                          {link.deviceRedirects?.enabled &&
+                            link.deviceRedirects?.rules?.length > 0 && (
+                              <BadgeTooltip
+                                content={`${link.deviceRedirects.rules.length} device rule${link.deviceRedirects.rules.length > 1 ? 's' : ''} configured`}
+                              >
+                                <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 bg-cyan-500/10 border border-cyan-500/20 cursor-default">
+                                  <Target size={14} className="text-cyan-400" />
+                                  <span className="font-medium text-xs text-cyan-400 hidden sm:inline">
+                                    {link.deviceRedirects.rules.length}
+                                  </span>
+                                </div>
+                              </BadgeTooltip>
+                            )}
+
+                          {/* Time Routing Badge */}
+                          {link.timeRedirects?.enabled && link.timeRedirects?.rules?.length > 0 && (
+                            <BadgeTooltip
+                              content={`${link.timeRedirects.rules.length} time schedule${link.timeRedirects.rules.length > 1 ? 's' : ''} configured`}
+                            >
+                              <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 bg-violet-500/10 border border-violet-500/20 cursor-default">
+                                <Timer size={14} className="text-violet-400" />
+                                <span className="font-medium text-xs text-violet-400 hidden sm:inline">
+                                  {link.timeRedirects.rules.length}
+                                </span>
+                              </div>
+                            </BadgeTooltip>
+                          )}
+
+                          {/* Schedule Activation Badge */}
+                          {link.activeStartTime && (
+                            <BadgeTooltip
+                              content={
+                                new Date(link.activeStartTime) > new Date()
+                                  ? `Link will activate on ${new Date(link.activeStartTime).toLocaleString()}`
+                                  : `Link became active on ${new Date(link.activeStartTime).toLocaleString()}`
+                              }
+                            >
+                              <div
+                                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${
+                                  new Date(link.activeStartTime) > new Date()
+                                    ? 'bg-amber-500/10 border border-amber-500/20'
+                                    : 'bg-emerald-500/10 border border-emerald-500/20'
+                                }`}
+                              >
+                                <CalendarClock
+                                  size={14}
+                                  className={
+                                    new Date(link.activeStartTime) > new Date()
+                                      ? 'text-amber-400'
+                                      : 'text-emerald-400'
+                                  }
+                                />
+                                {/* Desktop: Show "Until date" or "Since date" */}
+                                <span
+                                  className={`hidden sm:inline text-xs font-medium ${
+                                    new Date(link.activeStartTime) > new Date()
+                                      ? 'text-amber-400'
+                                      : 'text-emerald-400'
+                                  }`}
+                                >
+                                  {new Date(link.activeStartTime) > new Date()
+                                    ? 'Until '
+                                    : 'Since '}
+                                  {new Date(link.activeStartTime).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                  })}
+                                  {', '}
+                                  {new Date(link.activeStartTime).toLocaleTimeString('en-US', {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                              </div>
+                            </BadgeTooltip>
+                          )}
+
+                          {/* Date */}
+                          <span className="text-gray-500 text-xs ml-1">
+                            {formatDate(link.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Actions Bar */}
+                      <div
+                        className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t"
+                        style={{ borderTopColor: 'var(--divider-color)' }}
+                      >
+                        <div className="flex items-center gap-0.5 sm:gap-1">
+                          <button
+                            onClick={() => setEditingLink(link)}
+                            className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors text-xs sm:text-sm"
+                            title="Edit link"
+                          >
+                            <Edit3 size={14} className="sm:w-4 sm:h-4" />
+                            <span className="hidden sm:inline">Edit</span>
+                          </button>
+                          <Link
+                            to={`/dashboard/analytics/${link.shortId}`}
+                            className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors text-xs sm:text-sm"
+                            title="View analytics"
+                          >
+                            <BarChart2 size={14} className="sm:w-4 sm:h-4" />
+                            <span className="hidden sm:inline">Analytics</span>
+                          </Link>
+                          <button
+                            onClick={() => setQrModalLink(link)}
+                            className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-green-400 hover:bg-green-500/10 rounded-lg transition-colors text-xs sm:text-sm"
+                            title="View QR codes"
+                          >
+                            <QrCode size={14} className="sm:w-4 sm:h-4" />
+                            <span className="hidden sm:inline">QR</span>
+                          </button>
+                          <button
+                            onClick={() =>
+                              setExpandedLinkId(expandedLinkId === link._id ? null : link._id)
+                            }
+                            className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm ${
+                              expandedLinkId === link._id
+                                ? 'text-cyan-400 bg-cyan-500/10'
+                                : 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10'
+                            }`}
+                            title="View details"
+                          >
+                            <Eye size={14} className="sm:w-4 sm:h-4" />
+                            <span className="hidden sm:inline">Details</span>
+                            <ChevronDown
+                              size={12}
+                              className={`transition-transform duration-200 ${expandedLinkId === link._id ? 'rotate-180' : ''}`}
+                            />
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => handleDelete(link._id)}
+                          className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-xs sm:text-sm"
+                          title="Delete link"
+                        >
+                          <Trash2 size={14} className="sm:w-4 sm:h-4" />
+                          <span className="hidden sm:inline">Delete</span>
+                        </button>
+                      </div>
+
+                      {/* Expandable Details Panel */}
+                      {expandedLinkId === link._id && (
+                        <div className="mt-3 pt-3 border-t border-gray-700/50 animate-in slide-in-from-top-2 duration-200">
+                          {/* Quick Actions Row - Icon only on mobile */}
+                          <div className="flex gap-1.5 sm:gap-2 mb-3">
+                            <button
+                              onClick={() => copyToClipboard(link.customAlias || link.shortId)}
+                              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-[10px] sm:text-xs font-medium transition-colors"
+                            >
+                              {copiedId === (link.customAlias || link.shortId) ? (
+                                <Check size={12} />
+                              ) : (
+                                <Copy size={12} />
+                              )}
+                              <span className="hidden xs:inline sm:inline">
+                                {copiedId === (link.customAlias || link.shortId)
+                                  ? 'Copied!'
+                                  : 'Copy'}
+                              </span>
+                            </button>
+                            <a
+                              href={getShortUrl(link.customAlias || link.shortId)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-lg text-[10px] sm:text-xs font-medium transition-colors"
+                            >
+                              <ExternalLink size={12} />
+                              <span className="hidden xs:inline sm:inline">Short</span>
+                            </a>
+                            <a
+                              href={link.originalUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-gray-700/50 hover:bg-gray-700 text-gray-300 rounded-lg text-[10px] sm:text-xs font-medium transition-colors"
+                            >
+                              <ExternalLink size={12} />
+                              <span className="hidden xs:inline sm:inline">Original</span>
+                            </a>
+                          </div>
+
+                          {/* Destination URL - Compact on mobile */}
+                          <div className="bg-gray-800/50 rounded-lg p-2 sm:p-3 mb-3">
+                            <div className="flex items-center gap-1 text-gray-500 mb-1 text-[10px] sm:text-xs">
+                              <LinkIcon size={10} /> Destination
+                            </div>
+                            <p className="text-blue-400 break-all text-[10px] sm:text-xs leading-relaxed line-clamp-2 sm:line-clamp-3">
+                              {link.originalUrl}
+                            </p>
+                          </div>
+
+                          {/* Details Grid - 3 cols on mobile for compact view */}
+                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
+                            {/* Password */}
+                            <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                              <Lock size={12} className="mx-auto mb-0.5 text-gray-500" />
+                              <div
+                                className={`text-[10px] sm:text-xs ${link.isPasswordProtected ? 'text-purple-400' : 'text-gray-600'}`}
+                              >
+                                {link.isPasswordProtected ? '🔒' : '—'}
+                              </div>
+                            </div>
+
+                            {/* Expires */}
+                            <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                              <Timer size={12} className="mx-auto mb-0.5 text-gray-500" />
+                              <div
+                                className={`text-[10px] sm:text-xs truncate ${link.expiresAt ? (new Date(link.expiresAt) < new Date() ? 'text-red-400' : 'text-amber-400') : 'text-gray-600'}`}
+                              >
+                                {link.expiresAt
+                                  ? new Date(link.expiresAt).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                    })
+                                  : '—'}
+                              </div>
+                            </div>
+
+                            {/* Starts */}
+                            <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                              <CalendarClock size={12} className="mx-auto mb-0.5 text-gray-500" />
+                              <div
+                                className={`text-[10px] sm:text-xs truncate ${link.activeStartTime ? 'text-blue-400' : 'text-gray-600'}`}
+                              >
+                                {link.activeStartTime
+                                  ? new Date(link.activeStartTime).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                    })
+                                  : '—'}
+                              </div>
+                            </div>
+
+                            {/* Devices */}
+                            <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                              <Smartphone size={12} className="mx-auto mb-0.5 text-gray-500" />
+                              <div
+                                className={`text-[10px] sm:text-xs ${link.deviceRedirects?.enabled ? 'text-cyan-400' : 'text-gray-600'}`}
+                              >
+                                {link.deviceRedirects?.enabled
+                                  ? link.deviceRedirects.rules?.length || 0
+                                  : '—'}
+                              </div>
+                            </div>
+
+                            {/* Time Rules */}
+                            <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                              <Clock size={12} className="mx-auto mb-0.5 text-gray-500" />
+                              <div
+                                className={`text-[10px] sm:text-xs ${link.timeRedirects?.enabled ? 'text-indigo-400' : 'text-gray-600'}`}
+                              >
+                                {link.timeRedirects?.enabled
+                                  ? link.timeRedirects.rules?.length || 0
+                                  : '—'}
+                              </div>
+                            </div>
+
+                            {/* Safety */}
+                            <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                              <ShieldAlert size={12} className="mx-auto mb-0.5 text-gray-500" />
+                              <div
+                                className={`text-[10px] sm:text-xs ${
+                                  link.safetyStatus === 'safe'
+                                    ? 'text-green-400'
+                                    : link.safetyStatus === 'malware' ||
+                                        link.safetyStatus === 'phishing'
+                                      ? 'text-red-400'
+                                      : 'text-gray-500'
+                                }`}
+                              >
+                                {link.safetyStatus === 'safe'
+                                  ? '✅'
+                                  : link.safetyStatus === 'malware' ||
+                                      link.safetyStatus === 'phishing' ||
+                                      link.safetyStatus === 'unwanted'
+                                    ? '⚠️'
+                                    : link.safetyStatus === 'pending'
+                                      ? '⏳'
+                                      : '—'}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Device Redirects */}
+                          {link.deviceRedirects?.enabled &&
+                            link.deviceRedirects.rules?.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-gray-700/30">
+                                <div className="text-[10px] sm:text-xs text-gray-500 mb-2 flex items-center gap-1">
+                                  <Smartphone size={10} /> Device Targets
+                                </div>
+                                <div className="space-y-1.5">
+                                  {link.deviceRedirects.rules.map((rule, i) => {
+                                    // Helper for device styling
+                                    const getDeviceStyle = (type) => {
+                                      switch (type) {
+                                        case 'desktop':
+                                          return {
+                                            icon: <Monitor size={10} />,
+                                            style:
+                                              'bg-indigo-500/10 border-indigo-500/20 text-indigo-400',
+                                            badge: 'bg-indigo-500/20 text-indigo-300',
+                                          };
+                                        case 'tablet':
+                                          return {
+                                            icon: <Tablet size={10} />,
+                                            style:
+                                              'bg-purple-500/10 border-purple-500/20 text-purple-400',
+                                            badge: 'bg-purple-500/20 text-purple-300',
+                                          };
+                                        case 'android':
+                                          return {
+                                            icon: <Smartphone size={10} />,
+                                            style:
+                                              'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+                                            badge: 'bg-emerald-500/20 text-emerald-300',
+                                          };
+                                        case 'ios':
+                                          return {
+                                            icon: <Smartphone size={10} />,
+                                            style: 'bg-sky-500/10 border-sky-500/20 text-sky-400',
+                                            badge: 'bg-sky-500/20 text-sky-300',
+                                          };
+                                        case 'mobile':
+                                        default:
+                                          return {
+                                            icon: <Smartphone size={10} />,
+                                            style:
+                                              'bg-blue-500/10 border-blue-500/20 text-blue-400',
+                                            badge: 'bg-blue-500/20 text-blue-300',
+                                          };
+                                      }
+                                    };
+
+                                    const { icon, style, badge } = getDeviceStyle(rule.device);
+
+                                    return (
+                                      <div
+                                        key={i}
+                                        className={`flex items-center gap-2 rounded-lg p-1.5 sm:p-2 border ${style}`}
+                                      >
+                                        <span
+                                          className={`flex items-center gap-1 text-[9px] sm:text-[10px] font-bold uppercase ${badge} px-1.5 py-0.5 rounded shrink-0`}
+                                        >
+                                          {icon}
+                                          {rule.device}
+                                        </span>
+                                        <span className="text-[9px] sm:text-[10px] truncate flex-1 min-w-0 opacity-90">
+                                          {rule.url}
+                                        </span>
+                                        <div className="flex gap-0.5 shrink-0">
+                                          <button
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(rule.url);
+                                              showToast.success('Copied');
+                                            }}
+                                            className="p-1 sm:p-1.5 bg-black/20 hover:bg-black/30 rounded transition-colors"
+                                          >
+                                            <Copy size={10} className="sm:w-3 sm:h-3" />
+                                          </button>
+                                          <a
+                                            href={rule.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="p-1 sm:p-1.5 bg-black/20 hover:bg-black/30 rounded transition-colors"
+                                          >
+                                            <ExternalLink size={10} className="sm:w-3 sm:h-3" />
+                                          </a>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                          {/* Time-Based Redirects */}
+                          {link.timeRedirects?.enabled && link.timeRedirects.rules?.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-gray-700/30">
+                              <div className="text-[10px] sm:text-xs text-gray-500 mb-2 flex flex-wrap items-center gap-2 justify-between">
+                                <span className="flex items-center gap-1">
+                                  <Clock size={10} /> Time Targets
+                                </span>
+
+                                {/* Timezone Badge with Rich Tooltip */}
+                                <BadgeTooltip
+                                  content={(() => {
+                                    try {
+                                      const targetZone = link.timeRedirects.timezone || 'UTC';
+                                      const now = new Date();
+
+                                      // 1. Get Offset (e.g., UTC-05:00)
+                                      const offsetString = new Intl.DateTimeFormat('en-US', {
+                                        timeZone: targetZone,
+                                        timeZoneName: 'longOffset',
+                                      })
+                                        .formatToParts(now)
+                                        .find((p) => p.type === 'timeZoneName')?.value;
+
+                                      // 2. Convert User's Midnight to Target Zone
+                                      const userMidnight = new Date();
+                                      userMidnight.setHours(0, 0, 0, 0);
+
+                                      const targetTimeAtMidnight = new Intl.DateTimeFormat(
+                                        'en-US',
+                                        {
+                                          timeZone: targetZone,
+                                          hour: 'numeric',
+                                          minute: '2-digit',
+                                          hour12: true,
+                                        }
+                                      ).format(userMidnight);
+
+                                      return (
+                                        <div className="text-left w-full space-y-2 py-0.5">
+                                          {/* Header: UTC Offset */}
+                                          <div className="font-bold text-amber-400 border-b border-gray-600/50 pb-1.5 text-xs">
+                                            {offsetString || targetZone}
+                                          </div>
+
+                                          {/* Conversion Info */}
+                                          <div className="space-y-1">
+                                            <div className="text-[10px] text-gray-400 font-medium">
+                                              Timezone Alignment:
+                                            </div>
+                                            <div className="flex items-center justify-between gap-3 text-[10px] bg-gray-900/50 p-1.5 rounded">
+                                              <span className="text-gray-400">My 12:00 AM</span>
+                                              <span className="text-gray-500">→</span>
+                                              <span className="text-white font-mono">
+                                                {targetTimeAtMidnight}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    } catch {
+                                      return 'Invalid Timezone Configuration';
+                                    }
+                                  })()}
+                                >
+                                  <div className="flex items-center gap-1 text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded text-[9px] font-medium shadow-sm cursor-default hover:bg-amber-500/20 transition-colors">
+                                    <span className="opacity-70">Zone:</span>{' '}
+                                    {link.timeRedirects.timezone || 'UTC'}
+                                    <Info size={8} className="ml-0.5 opacity-50" />
+                                  </div>
+                                </BadgeTooltip>
+                              </div>
+                              <div className="space-y-1.5">
+                                {link.timeRedirects.rules.map((rule, i) => (
+                                  <div
+                                    key={i}
+                                    className="flex items-center gap-2 bg-violet-500/5 rounded-lg p-1.5 sm:p-2 border border-violet-500/10"
+                                  >
+                                    <span className="text-[9px] sm:text-[10px] font-medium text-violet-200 bg-violet-600/30 border border-violet-500/30 px-1.5 sm:px-2 py-0.5 rounded shrink-0 whitespace-nowrap">
+                                      {rule.startTime} - {rule.endTime}
+                                    </span>
+                                    <span className="text-[9px] sm:text-[10px] text-violet-300 truncate flex-1 min-w-0">
+                                      {rule.destination}
+                                    </span>
+                                    <div className="flex gap-0.5 shrink-0">
+                                      <button
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(rule.destination);
+                                          showToast.success('Copied');
+                                        }}
+                                        className="p-1 sm:p-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded transition-colors"
+                                      >
+                                        <Copy size={10} className="sm:w-3 sm:h-3" />
+                                      </button>
+                                      <a
+                                        href={rule.destination}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="p-1 sm:p-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded transition-colors"
+                                      >
+                                        <ExternalLink size={10} className="sm:w-3 sm:h-3" />
+                                      </a>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        /* ── NORMAL MODE (Paginated / small list) ── */
+        <div className="space-y-4">
+          {filteredLinks.map((link) => {
+            const isLinkDisabled = link.ownerBanned || !link.isActive;
             const isExpired = link.expiresAt && new Date(link.expiresAt) < new Date();
             const isExpiringSoon =
               link.expiresAt &&
               !isExpired &&
-              new Date(link.expiresAt) - new Date() < 24 * 60 * 60 * 1000; // Less than 24h
-
-            // Calculate time remaining for display
+              new Date(link.expiresAt) - new Date() < 24 * 60 * 60 * 1000;
             const getExpirationText = () => {
               if (!link.expiresAt) return null;
               if (isExpired) return 'Expired';
@@ -464,8 +1316,6 @@ const UserDashboard = () => {
               if (hours > 0) return `${hours}h left`;
               return 'Less than 1h';
             };
-
-            // Check if link is flagged for safety issues
             const isFlagged =
               link.safetyStatus === 'malware' ||
               link.safetyStatus === 'phishing' ||
@@ -484,22 +1334,7 @@ const UserDashboard = () => {
             };
 
             return (
-              <div
-                key={link._id}
-                data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${virtualRow.start}px)`,
-                  paddingBottom: '16px', // gap between cards
-                }}
-                role="listitem"
-                aria-setsize={filteredLinks.length}
-                aria-posinset={virtualRow.index + 1}
-              >
+              <div key={link._id}>
                 <div
                   className={`rounded-2xl transition-colors duration-300 overflow-hidden border ${
                     isFlagged
@@ -508,9 +1343,12 @@ const UserDashboard = () => {
                         ? 'border-orange-500/30 bg-orange-500/5'
                         : 'hover:bg-white/5'
                   }`}
-                  style={!isFlagged && !isLinkDisabled ? { backgroundColor: 'var(--glass-bg)', borderColor: 'var(--glass-border)' } : {}}
+                  style={
+                    !isFlagged && !isLinkDisabled
+                      ? { backgroundColor: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }
+                      : {}
+                  }
                 >
-                  {/* Flagged Link Banner */}
                   {isFlagged && (
                     <div className="bg-red-500/10 border-b border-red-500/20 px-5 py-2 flex items-center gap-2">
                       <ShieldAlert size={14} className="text-red-400" />
@@ -520,8 +1358,6 @@ const UserDashboard = () => {
                       </span>
                     </div>
                   )}
-
-                  {/* Disabled Banner */}
                   {isLinkDisabled && !isFlagged && (
                     <div className="bg-orange-500/10 border-b border-orange-500/20 px-5 py-2 flex items-center gap-2">
                       <Ban size={14} className="text-orange-400" />
@@ -530,16 +1366,11 @@ const UserDashboard = () => {
                       </span>
                     </div>
                   )}
-
-                  {/* Main Card Content */}
                   <div className="p-3 sm:p-5">
                     <div className="flex flex-col lg:flex-row lg:items-start gap-3 sm:gap-4">
-                      {/* QR Code - Shows custom alias QR if available, otherwise random */}
                       <button
                         onClick={() => setQrModalLink(link)}
-                        className={`p-1.5 sm:p-2 rounded-lg sm:rounded-xl shadow-lg transition-transform cursor-pointer self-center lg:self-start shrink-0 ${
-                          isLinkDisabled ? 'bg-gray-200 opacity-60' : 'bg-white hover:scale-105'
-                        }`}
+                        className={`p-1.5 sm:p-2 rounded-lg sm:rounded-xl shadow-lg transition-transform cursor-pointer self-center lg:self-start shrink-0 ${isLinkDisabled ? 'bg-gray-200 opacity-60' : 'bg-white hover:scale-105'}`}
                         title="Click to view QR code"
                       >
                         <QRCodeSVG
@@ -549,10 +1380,7 @@ const UserDashboard = () => {
                           className="sm:w-20 sm:h-20"
                         />
                       </button>
-
-                      {/* Link Info */}
                       <div className="flex-1 min-w-0 space-y-2 sm:space-y-3">
-                        {/* Title & Original URL */}
                         <div className="text-center lg:text-left">
                           <h3
                             className={`font-semibold text-base sm:text-lg truncate ${isLinkDisabled ? 'text-gray-400' : 'text-white'}`}
@@ -566,45 +1394,24 @@ const UserDashboard = () => {
                             → {link.originalUrl}
                           </p>
                         </div>
-
-                        {/* Short Links */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-row gap-2 sm:gap-3">
-                          {/* Custom Alias - Show First if exists */}
                           {link.customAlias && (
                             <div
-                              className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 ${
-                                isLinkDisabled
-                                  ? 'bg-gray-800/30 border border-gray-700/30'
-                                  : 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20'
-                              }`}
+                              className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 ${isLinkDisabled ? 'bg-gray-800/30 border border-gray-700/30' : 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20'}`}
                             >
                               <Sparkles
                                 size={12}
-                                className={`sm:w-[14px] sm:h-[14px] ${
-                                  isLinkDisabled
-                                    ? 'text-gray-500 shrink-0'
-                                    : 'text-purple-400 shrink-0'
-                                }`}
+                                className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-500 shrink-0' : 'text-purple-400 shrink-0'}`}
                               />
                               <span
-                                className={`font-mono text-xs sm:text-sm truncate ${
-                                  isLinkDisabled
-                                    ? 'text-gray-500 cursor-not-allowed'
-                                    : 'text-purple-400 cursor-pointer hover:underline'
-                                }`}
+                                className={`font-mono text-xs sm:text-sm truncate ${isLinkDisabled ? 'text-gray-500 cursor-not-allowed' : 'text-purple-400 cursor-pointer hover:underline'}`}
                                 onClick={() => !isLinkDisabled && copyToClipboard(link.customAlias)}
-                                title={isLinkDisabled ? 'Link is disabled' : 'Click to copy'}
                               >
                                 /{link.customAlias}
                               </span>
                               <button
                                 onClick={() => !isLinkDisabled && copyToClipboard(link.customAlias)}
-                                className={`p-0.5 sm:p-1 rounded transition-colors shrink-0 ${
-                                  isLinkDisabled
-                                    ? 'text-gray-600 cursor-not-allowed'
-                                    : 'hover:bg-purple-500/20'
-                                }`}
-                                title={isLinkDisabled ? 'Link is disabled' : 'Copy custom link'}
+                                className={`p-0.5 sm:p-1 rounded transition-colors shrink-0 ${isLinkDisabled ? 'text-gray-600 cursor-not-allowed' : 'hover:bg-purple-500/20'}`}
                                 disabled={isLinkDisabled}
                               >
                                 {copiedId === link.customAlias ? (
@@ -625,7 +1432,6 @@ const UserDashboard = () => {
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="p-0.5 sm:p-1 hover:bg-purple-500/20 rounded transition-colors shrink-0"
-                                  title="Open custom link"
                                 >
                                   <ExternalLink
                                     size={12}
@@ -635,40 +1441,22 @@ const UserDashboard = () => {
                               )}
                             </div>
                           )}
-
-                          {/* Random Short ID */}
                           <div
-                            className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 ${
-                              isLinkDisabled
-                                ? 'bg-gray-800/30 border border-gray-700/30'
-                                : 'bg-gray-800/50 border border-gray-700/50'
-                            }`}
+                            className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 ${isLinkDisabled ? 'bg-gray-800/30 border border-gray-700/30' : 'bg-gray-800/50 border border-gray-700/50'}`}
                           >
                             <LinkIcon
                               size={12}
-                              className={`sm:w-[14px] sm:h-[14px] ${
-                                isLinkDisabled ? 'text-gray-500 shrink-0' : 'text-blue-400 shrink-0'
-                              }`}
+                              className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-500 shrink-0' : 'text-blue-400 shrink-0'}`}
                             />
                             <span
-                              className={`font-mono text-xs sm:text-sm truncate ${
-                                isLinkDisabled
-                                  ? 'text-gray-500 cursor-not-allowed'
-                                  : 'text-blue-400 cursor-pointer hover:underline'
-                              }`}
+                              className={`font-mono text-xs sm:text-sm truncate ${isLinkDisabled ? 'text-gray-500 cursor-not-allowed' : 'text-blue-400 cursor-pointer hover:underline'}`}
                               onClick={() => !isLinkDisabled && copyToClipboard(link.shortId)}
-                              title={isLinkDisabled ? 'Link is disabled' : 'Click to copy'}
                             >
                               /{link.shortId}
                             </span>
                             <button
                               onClick={() => !isLinkDisabled && copyToClipboard(link.shortId)}
-                              className={`p-0.5 sm:p-1 rounded transition-colors shrink-0 ${
-                                isLinkDisabled
-                                  ? 'text-gray-600 cursor-not-allowed'
-                                  : 'hover:bg-blue-500/20'
-                              }`}
-                              title={isLinkDisabled ? 'Link is disabled' : 'Copy random link'}
+                              className={`p-0.5 sm:p-1 rounded transition-colors shrink-0 ${isLinkDisabled ? 'text-gray-600 cursor-not-allowed' : 'hover:bg-blue-500/20'}`}
                               disabled={isLinkDisabled}
                             >
                               {copiedId === link.shortId ? (
@@ -689,7 +1477,6 @@ const UserDashboard = () => {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="p-0.5 sm:p-1 hover:bg-blue-500/20 rounded transition-colors shrink-0"
-                                title="Open random link"
                               >
                                 <ExternalLink
                                   size={12}
@@ -700,17 +1487,10 @@ const UserDashboard = () => {
                           </div>
                         </div>
                       </div>
-
-                      {/* Feature Badges - Horizontal wrap layout */}
                       <div className="flex flex-wrap items-center justify-center lg:justify-end gap-2 mt-2 sm:mt-0">
-                        {/* Click Count */}
                         <BadgeTooltip content={`${link.clicks} total clicks on this link`}>
                           <div
-                            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${
-                              isLinkDisabled
-                                ? 'bg-gray-800/30 border border-gray-700/30'
-                                : 'bg-purple-500/10 border border-purple-500/20'
-                            }`}
+                            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${isLinkDisabled ? 'bg-gray-800/30 border border-gray-700/30' : 'bg-purple-500/10 border border-purple-500/20'}`}
                           >
                             <BarChart2
                               size={14}
@@ -723,8 +1503,6 @@ const UserDashboard = () => {
                             </span>
                           </div>
                         </BadgeTooltip>
-
-                        {/* Expiration Badge */}
                         {link.expiresAt && (
                           <BadgeTooltip
                             content={
@@ -734,13 +1512,7 @@ const UserDashboard = () => {
                             }
                           >
                             <div
-                              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${
-                                isExpired
-                                  ? 'bg-red-500/10 border border-red-500/20'
-                                  : isExpiringSoon
-                                    ? 'bg-amber-500/10 border border-amber-500/20'
-                                    : 'bg-gray-800/30 border border-gray-700/30'
-                              }`}
+                              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${isExpired ? 'bg-red-500/10 border border-red-500/20' : isExpiringSoon ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-gray-800/30 border border-gray-700/30'}`}
                             >
                               <Clock
                                 size={14}
@@ -753,21 +1525,13 @@ const UserDashboard = () => {
                                 }
                               />
                               <span
-                                className={`font-medium text-xs hidden sm:inline ${
-                                  isExpired
-                                    ? 'text-red-400'
-                                    : isExpiringSoon
-                                      ? 'text-amber-400'
-                                      : 'text-gray-400'
-                                }`}
+                                className={`font-medium text-xs hidden sm:inline ${isExpired ? 'text-red-400' : isExpiringSoon ? 'text-amber-400' : 'text-gray-400'}`}
                               >
                                 {getExpirationText()}
                               </span>
                             </div>
                           </BadgeTooltip>
                         )}
-
-                        {/* Password Protection Badge */}
                         {link.isPasswordProtected && (
                           <BadgeTooltip content="This link requires a password to access">
                             <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 bg-purple-500/10 border border-purple-500/20 cursor-default">
@@ -778,8 +1542,6 @@ const UserDashboard = () => {
                             </div>
                           </BadgeTooltip>
                         )}
-
-                        {/* Device Targeting Badge */}
                         {link.deviceRedirects?.enabled &&
                           link.deviceRedirects?.rules?.length > 0 && (
                             <BadgeTooltip
@@ -793,8 +1555,6 @@ const UserDashboard = () => {
                               </div>
                             </BadgeTooltip>
                           )}
-
-                        {/* Time Routing Badge */}
                         {link.timeRedirects?.enabled && link.timeRedirects?.rules?.length > 0 && (
                           <BadgeTooltip
                             content={`${link.timeRedirects.rules.length} time schedule${link.timeRedirects.rules.length > 1 ? 's' : ''} configured`}
@@ -807,8 +1567,6 @@ const UserDashboard = () => {
                             </div>
                           </BadgeTooltip>
                         )}
-
-                        {/* Schedule Activation Badge */}
                         {link.activeStartTime && (
                           <BadgeTooltip
                             content={
@@ -818,11 +1576,7 @@ const UserDashboard = () => {
                             }
                           >
                             <div
-                              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${
-                                new Date(link.activeStartTime) > new Date()
-                                  ? 'bg-amber-500/10 border border-amber-500/20'
-                                  : 'bg-emerald-500/10 border border-emerald-500/20'
-                              }`}
+                              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${new Date(link.activeStartTime) > new Date() ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-emerald-500/10 border border-emerald-500/20'}`}
                             >
                               <CalendarClock
                                 size={14}
@@ -832,38 +1586,19 @@ const UserDashboard = () => {
                                     : 'text-emerald-400'
                                 }
                               />
-                              {/* Desktop: Show "Until date" or "Since date" */}
-                              <span
-                                className={`hidden sm:inline text-xs font-medium ${
-                                  new Date(link.activeStartTime) > new Date()
-                                    ? 'text-amber-400'
-                                    : 'text-emerald-400'
-                                }`}
-                              >
-                                {new Date(link.activeStartTime) > new Date() ? 'Until ' : 'Since '}
-                                {new Date(link.activeStartTime).toLocaleDateString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                })}
-                                {', '}
-                                {new Date(link.activeStartTime).toLocaleTimeString('en-US', {
-                                  hour: 'numeric',
-                                  minute: '2-digit',
-                                })}
-                              </span>
                             </div>
                           </BadgeTooltip>
                         )}
-
-                        {/* Date */}
                         <span className="text-gray-500 text-xs ml-1">
                           {formatDate(link.createdAt)}
                         </span>
                       </div>
                     </div>
-
                     {/* Actions Bar */}
-                    <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t" style={{ borderTopColor: 'var(--divider-color)' }}>
+                    <div
+                      className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t"
+                      style={{ borderTopColor: 'var(--divider-color)' }}
+                    >
                       <div className="flex items-center gap-0.5 sm:gap-1">
                         <button
                           onClick={() => setEditingLink(link)}
@@ -893,11 +1628,7 @@ const UserDashboard = () => {
                           onClick={() =>
                             setExpandedLinkId(expandedLinkId === link._id ? null : link._id)
                           }
-                          className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm ${
-                            expandedLinkId === link._id
-                              ? 'text-cyan-400 bg-cyan-500/10'
-                              : 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10'
-                          }`}
+                          className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm ${expandedLinkId === link._id ? 'text-cyan-400 bg-cyan-500/10' : 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10'}`}
                           title="View details"
                         >
                           <Eye size={14} className="sm:w-4 sm:h-4" />
@@ -921,7 +1652,6 @@ const UserDashboard = () => {
                     {/* Expandable Details Panel */}
                     {expandedLinkId === link._id && (
                       <div className="mt-3 pt-3 border-t border-gray-700/50 animate-in slide-in-from-top-2 duration-200">
-                        {/* Quick Actions Row - Icon only on mobile */}
                         <div className="flex gap-1.5 sm:gap-2 mb-3">
                           <button
                             onClick={() => copyToClipboard(link.customAlias || link.shortId)}
@@ -955,8 +1685,6 @@ const UserDashboard = () => {
                             <span className="hidden xs:inline sm:inline">Original</span>
                           </a>
                         </div>
-
-                        {/* Destination URL - Compact on mobile */}
                         <div className="bg-gray-800/50 rounded-lg p-2 sm:p-3 mb-3">
                           <div className="flex items-center gap-1 text-gray-500 mb-1 text-[10px] sm:text-xs">
                             <LinkIcon size={10} /> Destination
@@ -965,10 +1693,7 @@ const UserDashboard = () => {
                             {link.originalUrl}
                           </p>
                         </div>
-
-                        {/* Details Grid - 3 cols on mobile for compact view */}
                         <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
-                          {/* Password */}
                           <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
                             <Lock size={12} className="mx-auto mb-0.5 text-gray-500" />
                             <div
@@ -977,8 +1702,6 @@ const UserDashboard = () => {
                               {link.isPasswordProtected ? '🔒' : '—'}
                             </div>
                           </div>
-
-                          {/* Expires */}
                           <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
                             <Timer size={12} className="mx-auto mb-0.5 text-gray-500" />
                             <div
@@ -992,8 +1715,6 @@ const UserDashboard = () => {
                                 : '—'}
                             </div>
                           </div>
-
-                          {/* Starts */}
                           <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
                             <CalendarClock size={12} className="mx-auto mb-0.5 text-gray-500" />
                             <div
@@ -1007,8 +1728,6 @@ const UserDashboard = () => {
                                 : '—'}
                             </div>
                           </div>
-
-                          {/* Devices */}
                           <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
                             <Smartphone size={12} className="mx-auto mb-0.5 text-gray-500" />
                             <div
@@ -1019,8 +1738,6 @@ const UserDashboard = () => {
                                 : '—'}
                             </div>
                           </div>
-
-                          {/* Time Rules */}
                           <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
                             <Clock size={12} className="mx-auto mb-0.5 text-gray-500" />
                             <div
@@ -1031,19 +1748,10 @@ const UserDashboard = () => {
                                 : '—'}
                             </div>
                           </div>
-
-                          {/* Safety */}
                           <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
                             <ShieldAlert size={12} className="mx-auto mb-0.5 text-gray-500" />
                             <div
-                              className={`text-[10px] sm:text-xs ${
-                                link.safetyStatus === 'safe'
-                                  ? 'text-green-400'
-                                  : link.safetyStatus === 'malware' ||
-                                      link.safetyStatus === 'phishing'
-                                    ? 'text-red-400'
-                                    : 'text-gray-500'
-                              }`}
+                              className={`text-[10px] sm:text-xs ${link.safetyStatus === 'safe' ? 'text-green-400' : link.safetyStatus === 'malware' || link.safetyStatus === 'phishing' ? 'text-red-400' : 'text-gray-500'}`}
                             >
                               {link.safetyStatus === 'safe'
                                 ? '✅'
@@ -1054,422 +1762,6 @@ const UserDashboard = () => {
                                   : link.safetyStatus === 'pending'
                                     ? '⏳'
                                     : '—'}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Device Redirects */}
-                        {link.deviceRedirects?.enabled &&
-                          link.deviceRedirects.rules?.length > 0 && (
-                            <div className="mt-3 pt-3 border-t border-gray-700/30">
-                              <div className="text-[10px] sm:text-xs text-gray-500 mb-2 flex items-center gap-1">
-                                <Smartphone size={10} /> Device Targets
-                              </div>
-                              <div className="space-y-1.5">
-                                {link.deviceRedirects.rules.map((rule, i) => {
-                                  // Helper for device styling
-                                  const getDeviceStyle = (type) => {
-                                    switch (type) {
-                                      case 'desktop':
-                                        return {
-                                          icon: <Monitor size={10} />,
-                                          style:
-                                            'bg-indigo-500/10 border-indigo-500/20 text-indigo-400',
-                                          badge: 'bg-indigo-500/20 text-indigo-300',
-                                        };
-                                      case 'tablet':
-                                        return {
-                                          icon: <Tablet size={10} />,
-                                          style:
-                                            'bg-purple-500/10 border-purple-500/20 text-purple-400',
-                                          badge: 'bg-purple-500/20 text-purple-300',
-                                        };
-                                      case 'android':
-                                        return {
-                                          icon: <Smartphone size={10} />,
-                                          style:
-                                            'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
-                                          badge: 'bg-emerald-500/20 text-emerald-300',
-                                        };
-                                      case 'ios':
-                                        return {
-                                          icon: <Smartphone size={10} />,
-                                          style: 'bg-sky-500/10 border-sky-500/20 text-sky-400',
-                                          badge: 'bg-sky-500/20 text-sky-300',
-                                        };
-                                      case 'mobile':
-                                      default:
-                                        return {
-                                          icon: <Smartphone size={10} />,
-                                          style: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
-                                          badge: 'bg-blue-500/20 text-blue-300',
-                                        };
-                                    }
-                                  };
-
-                                  const { icon, style, badge } = getDeviceStyle(rule.device);
-
-                                  return (
-                                    <div
-                                      key={i}
-                                      className={`flex items-center gap-2 rounded-lg p-1.5 sm:p-2 border ${style}`}
-                                    >
-                                      <span
-                                        className={`flex items-center gap-1 text-[9px] sm:text-[10px] font-bold uppercase ${badge} px-1.5 py-0.5 rounded shrink-0`}
-                                      >
-                                        {icon}
-                                        {rule.device}
-                                      </span>
-                                      <span className="text-[9px] sm:text-[10px] truncate flex-1 min-w-0 opacity-90">
-                                        {rule.url}
-                                      </span>
-                                      <div className="flex gap-0.5 shrink-0">
-                                        <button
-                                          onClick={() => {
-                                            navigator.clipboard.writeText(rule.url);
-                                            showToast.success('Copied');
-                                          }}
-                                          className="p-1 sm:p-1.5 bg-black/20 hover:bg-black/30 rounded transition-colors"
-                                        >
-                                          <Copy size={10} className="sm:w-3 sm:h-3" />
-                                        </button>
-                                        <a
-                                          href={rule.url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="p-1 sm:p-1.5 bg-black/20 hover:bg-black/30 rounded transition-colors"
-                                        >
-                                          <ExternalLink size={10} className="sm:w-3 sm:h-3" />
-                                        </a>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-
-                        {/* Time-Based Redirects */}
-                        {link.timeRedirects?.enabled && link.timeRedirects.rules?.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-gray-700/30">
-                            <div className="text-[10px] sm:text-xs text-gray-500 mb-2 flex flex-wrap items-center gap-2 justify-between">
-                              <span className="flex items-center gap-1">
-                                <Clock size={10} /> Time Targets
-                              </span>
-
-                              {/* Timezone Badge with Rich Tooltip */}
-                              <BadgeTooltip
-                                content={(() => {
-                                  try {
-                                    const targetZone = link.timeRedirects.timezone || 'UTC';
-                                    const now = new Date();
-
-                                    // 1. Get Offset (e.g., UTC-05:00)
-                                    const offsetString = new Intl.DateTimeFormat('en-US', {
-                                      timeZone: targetZone,
-                                      timeZoneName: 'longOffset',
-                                    })
-                                      .formatToParts(now)
-                                      .find((p) => p.type === 'timeZoneName')?.value;
-
-                                    // 2. Convert User's Midnight to Target Zone
-                                    const userMidnight = new Date();
-                                    userMidnight.setHours(0, 0, 0, 0);
-
-                                    const targetTimeAtMidnight = new Intl.DateTimeFormat('en-US', {
-                                      timeZone: targetZone,
-                                      hour: 'numeric',
-                                      minute: '2-digit',
-                                      hour12: true,
-                                    }).format(userMidnight);
-
-                                    return (
-                                      <div className="text-left w-full space-y-2 py-0.5">
-                                        {/* Header: UTC Offset */}
-                                        <div className="font-bold text-amber-400 border-b border-gray-600/50 pb-1.5 text-xs">
-                                          {offsetString || targetZone}
-                                        </div>
-
-                                        {/* Conversion Info */}
-                                        <div className="space-y-1">
-                                          <div className="text-[10px] text-gray-400 font-medium">
-                                            Timezone Alignment:
-                                          </div>
-                                          <div className="flex items-center justify-between gap-3 text-[10px] bg-gray-900/50 p-1.5 rounded">
-                                            <span className="text-gray-400">My 12:00 AM</span>
-                                            <span className="text-gray-500">→</span>
-                                            <span className="text-white font-mono">
-                                              {targetTimeAtMidnight}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    );
-                                  } catch {
-                                    return 'Invalid Timezone Configuration';
-                                  }
-                                })()}
-                              >
-                                <div className="flex items-center gap-1 text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded text-[9px] font-medium shadow-sm cursor-default hover:bg-amber-500/20 transition-colors">
-                                  <span className="opacity-70">Zone:</span>{' '}
-                                  {link.timeRedirects.timezone || 'UTC'}
-                                  <Info size={8} className="ml-0.5 opacity-50" />
-                                </div>
-                              </BadgeTooltip>
-                            </div>
-                            <div className="space-y-1.5">
-                              {link.timeRedirects.rules.map((rule, i) => (
-                                <div
-                                  key={i}
-                                  className="flex items-center gap-2 bg-violet-500/5 rounded-lg p-1.5 sm:p-2 border border-violet-500/10"
-                                >
-                                  <span className="text-[9px] sm:text-[10px] font-medium text-violet-200 bg-violet-600/30 border border-violet-500/30 px-1.5 sm:px-2 py-0.5 rounded shrink-0 whitespace-nowrap">
-                                    {rule.startTime} - {rule.endTime}
-                                  </span>
-                                  <span className="text-[9px] sm:text-[10px] text-violet-300 truncate flex-1 min-w-0">
-                                    {rule.destination}
-                                  </span>
-                                  <div className="flex gap-0.5 shrink-0">
-                                    <button
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(rule.destination);
-                                        showToast.success('Copied');
-                                      }}
-                                      className="p-1 sm:p-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded transition-colors"
-                                    >
-                                      <Copy size={10} className="sm:w-3 sm:h-3" />
-                                    </button>
-                                    <a
-                                      href={rule.destination}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="p-1 sm:p-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded transition-colors"
-                                    >
-                                      <ExternalLink size={10} className="sm:w-3 sm:h-3" />
-                                    </a>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          </div>
-        </div>
-      ) : (
-        /* ── NORMAL MODE (Paginated / small list) ── */
-        <div className="space-y-4">
-          {filteredLinks.map((link) => {
-            const isLinkDisabled = link.ownerBanned || !link.isActive;
-            const isExpired = link.expiresAt && new Date(link.expiresAt) < new Date();
-            const isExpiringSoon =
-              link.expiresAt &&
-              !isExpired &&
-              new Date(link.expiresAt) - new Date() < 24 * 60 * 60 * 1000;
-            const getExpirationText = () => {
-              if (!link.expiresAt) return null;
-              if (isExpired) return 'Expired';
-              const diff = new Date(link.expiresAt) - new Date();
-              const hours = Math.floor(diff / (1000 * 60 * 60));
-              const days = Math.floor(hours / 24);
-              if (days > 0) return `${days}d left`;
-              if (hours > 0) return `${hours}h left`;
-              return 'Less than 1h';
-            };
-            const isFlagged =
-              link.safetyStatus === 'malware' ||
-              link.safetyStatus === 'phishing' ||
-              link.safetyStatus === 'unwanted';
-            const getSafetyLabel = () => {
-              switch (link.safetyStatus) {
-                case 'malware': return 'Flagged: Malware Detected';
-                case 'phishing': return 'Flagged: Phishing Detected';
-                case 'unwanted': return 'Flagged: Unwanted Software';
-                default: return 'Flagged';
-              }
-            };
-
-            return (
-              <div key={link._id}>
-                <div
-                  className={`rounded-2xl transition-colors duration-300 overflow-hidden border ${
-                    isFlagged
-                      ? 'border-red-500/40 bg-red-500/5'
-                      : isLinkDisabled
-                        ? 'border-orange-500/30 bg-orange-500/5'
-                        : 'hover:bg-white/5'
-                  }`}
-                  style={!isFlagged && !isLinkDisabled ? { backgroundColor: 'var(--glass-bg)', borderColor: 'var(--glass-border)' } : {}}
-                >
-                  {isFlagged && (
-                    <div className="bg-red-500/10 border-b border-red-500/20 px-5 py-2 flex items-center gap-2">
-                      <ShieldAlert size={14} className="text-red-400" />
-                      <span className="text-red-300 text-xs font-medium">{getSafetyLabel()}</span>
-                      <span className="text-red-400/70 text-xs ml-auto">This link may not redirect until reviewed</span>
-                    </div>
-                  )}
-                  {isLinkDisabled && !isFlagged && (
-                    <div className="bg-orange-500/10 border-b border-orange-500/20 px-5 py-2 flex items-center gap-2">
-                      <Ban size={14} className="text-orange-400" />
-                      <span className="text-orange-300 text-xs font-medium">{link.ownerBanned ? 'Disabled (Account Suspended)' : 'Link Disabled'}</span>
-                    </div>
-                  )}
-                  <div className="p-3 sm:p-5">
-                    <div className="flex flex-col lg:flex-row lg:items-start gap-3 sm:gap-4">
-                      <button onClick={() => setQrModalLink(link)} className={`p-1.5 sm:p-2 rounded-lg sm:rounded-xl shadow-lg transition-transform cursor-pointer self-center lg:self-start shrink-0 ${isLinkDisabled ? 'bg-gray-200 opacity-60' : 'bg-white hover:scale-105'}`} title="Click to view QR code">
-                        <QRCodeSVG value={getShortUrl(link.customAlias || link.shortId)} size={60} level="H" className="sm:w-20 sm:h-20" />
-                      </button>
-                      <div className="flex-1 min-w-0 space-y-2 sm:space-y-3">
-                        <div className="text-center lg:text-left">
-                          <h3 className={`font-semibold text-base sm:text-lg truncate ${isLinkDisabled ? 'text-gray-400' : 'text-white'}`}>{link.title || 'Untitled Link'}</h3>
-                          <p className="text-gray-500 text-xs sm:text-sm truncate" title={link.originalUrl}>→ {link.originalUrl}</p>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-row gap-2 sm:gap-3">
-                          {link.customAlias && (
-                            <div className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 ${isLinkDisabled ? 'bg-gray-800/30 border border-gray-700/30' : 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20'}`}>
-                              <Sparkles size={12} className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-500 shrink-0' : 'text-purple-400 shrink-0'}`} />
-                              <span className={`font-mono text-xs sm:text-sm truncate ${isLinkDisabled ? 'text-gray-500 cursor-not-allowed' : 'text-purple-400 cursor-pointer hover:underline'}`} onClick={() => !isLinkDisabled && copyToClipboard(link.customAlias)}>/{link.customAlias}</span>
-                              <button onClick={() => !isLinkDisabled && copyToClipboard(link.customAlias)} className={`p-0.5 sm:p-1 rounded transition-colors shrink-0 ${isLinkDisabled ? 'text-gray-600 cursor-not-allowed' : 'hover:bg-purple-500/20'}`} disabled={isLinkDisabled}>
-                                {copiedId === link.customAlias ? <Check size={12} className="sm:w-[14px] sm:h-[14px] text-green-400" /> : <Copy size={12} className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-600' : 'text-purple-400'}`} />}
-                              </button>
-                              {!isLinkDisabled && (<a href={getShortUrl(link.customAlias)} target="_blank" rel="noopener noreferrer" className="p-0.5 sm:p-1 hover:bg-purple-500/20 rounded transition-colors shrink-0"><ExternalLink size={12} className="sm:w-[14px] sm:h-[14px] text-purple-400" /></a>)}
-                            </div>
-                          )}
-                          <div className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 ${isLinkDisabled ? 'bg-gray-800/30 border border-gray-700/30' : 'bg-gray-800/50 border border-gray-700/50'}`}>
-                            <LinkIcon size={12} className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-500 shrink-0' : 'text-blue-400 shrink-0'}`} />
-                            <span className={`font-mono text-xs sm:text-sm truncate ${isLinkDisabled ? 'text-gray-500 cursor-not-allowed' : 'text-blue-400 cursor-pointer hover:underline'}`} onClick={() => !isLinkDisabled && copyToClipboard(link.shortId)}>/{link.shortId}</span>
-                            <button onClick={() => !isLinkDisabled && copyToClipboard(link.shortId)} className={`p-0.5 sm:p-1 rounded transition-colors shrink-0 ${isLinkDisabled ? 'text-gray-600 cursor-not-allowed' : 'hover:bg-blue-500/20'}`} disabled={isLinkDisabled}>
-                              {copiedId === link.shortId ? <Check size={12} className="sm:w-[14px] sm:h-[14px] text-green-400" /> : <Copy size={12} className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-600' : 'text-blue-400'}`} />}
-                            </button>
-                            {!isLinkDisabled && (<a href={getShortUrl(link.shortId)} target="_blank" rel="noopener noreferrer" className="p-0.5 sm:p-1 hover:bg-blue-500/20 rounded transition-colors shrink-0"><ExternalLink size={12} className="sm:w-[14px] sm:h-[14px] text-blue-400" /></a>)}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-center lg:justify-end gap-2 mt-2 sm:mt-0">
-                        <BadgeTooltip content={`${link.clicks} total clicks on this link`}>
-                          <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${isLinkDisabled ? 'bg-gray-800/30 border border-gray-700/30' : 'bg-purple-500/10 border border-purple-500/20'}`}>
-                            <BarChart2 size={14} className={isLinkDisabled ? 'text-gray-500' : 'text-purple-400'} />
-                            <span className={`font-medium text-xs ${isLinkDisabled ? 'text-gray-500' : 'text-purple-400'}`}>{link.clicks}</span>
-                          </div>
-                        </BadgeTooltip>
-                        {link.expiresAt && (
-                          <BadgeTooltip content={isExpired ? `Expired on ${new Date(link.expiresAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}` : `Expires ${new Date(link.expiresAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`}>
-                            <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${isExpired ? 'bg-red-500/10 border border-red-500/20' : isExpiringSoon ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-gray-800/30 border border-gray-700/30'}`}>
-                              <Clock size={14} className={isExpired ? 'text-red-400' : isExpiringSoon ? 'text-amber-400' : 'text-gray-400'} />
-                              <span className={`font-medium text-xs hidden sm:inline ${isExpired ? 'text-red-400' : isExpiringSoon ? 'text-amber-400' : 'text-gray-400'}`}>{getExpirationText()}</span>
-                            </div>
-                          </BadgeTooltip>
-                        )}
-                        {link.isPasswordProtected && (
-                          <BadgeTooltip content="This link requires a password to access">
-                            <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 bg-purple-500/10 border border-purple-500/20 cursor-default">
-                              <Lock size={14} className="text-purple-400" />
-                              <span className="font-medium text-xs text-purple-400 hidden sm:inline">Protected</span>
-                            </div>
-                          </BadgeTooltip>
-                        )}
-                        {link.deviceRedirects?.enabled && link.deviceRedirects?.rules?.length > 0 && (
-                          <BadgeTooltip content={`${link.deviceRedirects.rules.length} device rule${link.deviceRedirects.rules.length > 1 ? 's' : ''} configured`}>
-                            <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 bg-cyan-500/10 border border-cyan-500/20 cursor-default">
-                              <Target size={14} className="text-cyan-400" />
-                              <span className="font-medium text-xs text-cyan-400 hidden sm:inline">{link.deviceRedirects.rules.length}</span>
-                            </div>
-                          </BadgeTooltip>
-                        )}
-                        {link.timeRedirects?.enabled && link.timeRedirects?.rules?.length > 0 && (
-                          <BadgeTooltip content={`${link.timeRedirects.rules.length} time schedule${link.timeRedirects.rules.length > 1 ? 's' : ''} configured`}>
-                            <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 bg-violet-500/10 border border-violet-500/20 cursor-default">
-                              <Timer size={14} className="text-violet-400" />
-                              <span className="font-medium text-xs text-violet-400 hidden sm:inline">{link.timeRedirects.rules.length}</span>
-                            </div>
-                          </BadgeTooltip>
-                        )}
-                        {link.activeStartTime && (
-                          <BadgeTooltip content={new Date(link.activeStartTime) > new Date() ? `Link will activate on ${new Date(link.activeStartTime).toLocaleString()}` : `Link became active on ${new Date(link.activeStartTime).toLocaleString()}`}>
-                            <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${new Date(link.activeStartTime) > new Date() ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-emerald-500/10 border border-emerald-500/20'}`}>
-                              <CalendarClock size={14} className={new Date(link.activeStartTime) > new Date() ? 'text-amber-400' : 'text-emerald-400'} />
-                            </div>
-                          </BadgeTooltip>
-                        )}
-                        <span className="text-gray-500 text-xs ml-1">{formatDate(link.createdAt)}</span>
-                      </div>
-                    </div>
-                    {/* Actions Bar */}
-                    <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t" style={{ borderTopColor: 'var(--divider-color)' }}>
-                      <div className="flex items-center gap-0.5 sm:gap-1">
-                        <button onClick={() => setEditingLink(link)} className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors text-xs sm:text-sm" title="Edit link">
-                          <Edit3 size={14} className="sm:w-4 sm:h-4" /><span className="hidden sm:inline">Edit</span>
-                        </button>
-                        <Link to={`/dashboard/analytics/${link.shortId}`} className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors text-xs sm:text-sm" title="View analytics">
-                          <BarChart2 size={14} className="sm:w-4 sm:h-4" /><span className="hidden sm:inline">Analytics</span>
-                        </Link>
-                        <button onClick={() => setQrModalLink(link)} className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-green-400 hover:bg-green-500/10 rounded-lg transition-colors text-xs sm:text-sm" title="View QR codes">
-                          <QrCode size={14} className="sm:w-4 sm:h-4" /><span className="hidden sm:inline">QR</span>
-                        </button>
-                        <button onClick={() => setExpandedLinkId(expandedLinkId === link._id ? null : link._id)} className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm ${expandedLinkId === link._id ? 'text-cyan-400 bg-cyan-500/10' : 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10'}`} title="View details">
-                          <Eye size={14} className="sm:w-4 sm:h-4" /><span className="hidden sm:inline">Details</span>
-                          <ChevronDown size={12} className={`transition-transform duration-200 ${expandedLinkId === link._id ? 'rotate-180' : ''}`} />
-                        </button>
-                      </div>
-                      <button onClick={() => handleDelete(link._id)} className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-xs sm:text-sm" title="Delete link">
-                        <Trash2 size={14} className="sm:w-4 sm:h-4" /><span className="hidden sm:inline">Delete</span>
-                      </button>
-                    </div>
-
-                    {/* Expandable Details Panel */}
-                    {expandedLinkId === link._id && (
-                      <div className="mt-3 pt-3 border-t border-gray-700/50 animate-in slide-in-from-top-2 duration-200">
-                        <div className="flex gap-1.5 sm:gap-2 mb-3">
-                          <button onClick={() => copyToClipboard(link.customAlias || link.shortId)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-[10px] sm:text-xs font-medium transition-colors">
-                            {copiedId === (link.customAlias || link.shortId) ? <Check size={12} /> : <Copy size={12} />}
-                            <span className="hidden xs:inline sm:inline">{copiedId === (link.customAlias || link.shortId) ? 'Copied!' : 'Copy'}</span>
-                          </button>
-                          <a href={getShortUrl(link.customAlias || link.shortId)} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-lg text-[10px] sm:text-xs font-medium transition-colors">
-                            <ExternalLink size={12} /><span className="hidden xs:inline sm:inline">Short</span>
-                          </a>
-                          <a href={link.originalUrl} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-gray-700/50 hover:bg-gray-700 text-gray-300 rounded-lg text-[10px] sm:text-xs font-medium transition-colors">
-                            <ExternalLink size={12} /><span className="hidden xs:inline sm:inline">Original</span>
-                          </a>
-                        </div>
-                        <div className="bg-gray-800/50 rounded-lg p-2 sm:p-3 mb-3">
-                          <div className="flex items-center gap-1 text-gray-500 mb-1 text-[10px] sm:text-xs"><LinkIcon size={10} /> Destination</div>
-                          <p className="text-blue-400 break-all text-[10px] sm:text-xs leading-relaxed line-clamp-2 sm:line-clamp-3">{link.originalUrl}</p>
-                        </div>
-                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
-                          <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
-                            <Lock size={12} className="mx-auto mb-0.5 text-gray-500" />
-                            <div className={`text-[10px] sm:text-xs ${link.isPasswordProtected ? 'text-purple-400' : 'text-gray-600'}`}>{link.isPasswordProtected ? '🔒' : '—'}</div>
-                          </div>
-                          <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
-                            <Timer size={12} className="mx-auto mb-0.5 text-gray-500" />
-                            <div className={`text-[10px] sm:text-xs truncate ${link.expiresAt ? (new Date(link.expiresAt) < new Date() ? 'text-red-400' : 'text-amber-400') : 'text-gray-600'}`}>
-                              {link.expiresAt ? new Date(link.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
-                            </div>
-                          </div>
-                          <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
-                            <CalendarClock size={12} className="mx-auto mb-0.5 text-gray-500" />
-                            <div className={`text-[10px] sm:text-xs truncate ${link.activeStartTime ? 'text-blue-400' : 'text-gray-600'}`}>
-                              {link.activeStartTime ? new Date(link.activeStartTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
-                            </div>
-                          </div>
-                          <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
-                            <Smartphone size={12} className="mx-auto mb-0.5 text-gray-500" />
-                            <div className={`text-[10px] sm:text-xs ${link.deviceRedirects?.enabled ? 'text-cyan-400' : 'text-gray-600'}`}>{link.deviceRedirects?.enabled ? link.deviceRedirects.rules?.length || 0 : '—'}</div>
-                          </div>
-                          <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
-                            <Clock size={12} className="mx-auto mb-0.5 text-gray-500" />
-                            <div className={`text-[10px] sm:text-xs ${link.timeRedirects?.enabled ? 'text-indigo-400' : 'text-gray-600'}`}>{link.timeRedirects?.enabled ? link.timeRedirects.rules?.length || 0 : '—'}</div>
-                          </div>
-                          <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
-                            <ShieldAlert size={12} className="mx-auto mb-0.5 text-gray-500" />
-                            <div className={`text-[10px] sm:text-xs ${link.safetyStatus === 'safe' ? 'text-green-400' : link.safetyStatus === 'malware' || link.safetyStatus === 'phishing' ? 'text-red-400' : 'text-gray-500'}`}>
-                              {link.safetyStatus === 'safe' ? '✅' : link.safetyStatus === 'malware' || link.safetyStatus === 'phishing' || link.safetyStatus === 'unwanted' ? '⚠️' : link.safetyStatus === 'pending' ? '⏳' : '—'}
                             </div>
                           </div>
                         </div>
@@ -1603,11 +1895,13 @@ const UserDashboard = () => {
                           {copiedId === 'primary-url' ? 'Copied!' : 'Copy Link'}
                         </button>
                         <button
-                          onClick={() => exportQrCode({
-                            exportToPng,
-                            selector: '#primary-qr',
-                            filename: `qr-${qrModalLink.customAlias || qrModalLink.shortId}.png`,
-                          })}
+                          onClick={() =>
+                            exportQrCode({
+                              exportToPng,
+                              selector: '#primary-qr',
+                              filename: `qr-${qrModalLink.customAlias || qrModalLink.shortId}.png`,
+                            })
+                          }
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-gray-900 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors"
                         >
                           <Download size={14} />
@@ -1660,11 +1954,13 @@ const UserDashboard = () => {
                             Copy
                           </button>
                           <button
-                            onClick={() => exportQrCode({
-                              exportToPng,
-                              selector: '#secondary-qr',
-                              filename: `qr-${qrModalLink.shortId}.png`,
-                            })}
+                            onClick={() =>
+                              exportQrCode({
+                                exportToPng,
+                                selector: '#secondary-qr',
+                                filename: `qr-${qrModalLink.shortId}.png`,
+                              })
+                            }
                             className="flex items-center gap-1 px-2 py-1 bg-gray-700/50 text-gray-400 hover:text-white hover:bg-gray-700 rounded text-xs transition-colors"
                           >
                             <Download size={12} />

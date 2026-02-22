@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* ─── Tier Theme: CSS Custom Property Defaults ────────────────────────────── */
 /* These are the Free tier defaults. applyTierTheme() in tierTheme.js
@@ -10,71 +10,191 @@
   --orb-3: #db2777;
   --accent-from: #3b82f6;
   --accent-to: #9333ea;
-  --nav-active-bg: rgba(255,255,255,0.1);
+  --nav-active-bg: rgba(255, 255, 255, 0.1);
   --nav-active-text: #ffffff;
   --nav-active-icon: #60a5fa;
-  --card-border: rgba(255,255,255,0.05);
-  --sidebar-border: rgba(255,255,255,0.05);
+  --card-border: rgba(255, 255, 255, 0.05);
+  --sidebar-border: rgba(255, 255, 255, 0.05);
   --avatar-from: #3b82f6;
   --avatar-to: #9333ea;
-  --selection: rgba(168,85,247,0.3);
-  --bg-radial: rgba(30,58,138,0.2);
-  --scrollbar: rgb(55,65,81);
-  --cta-shadow: rgba(59,130,246,0.2);
+  --selection: rgba(168, 85, 247, 0.3);
+  --bg-radial: rgba(30, 58, 138, 0.2);
+  --scrollbar: rgb(55, 65, 81);
+  --cta-shadow: rgba(59, 130, 246, 0.2);
   --topbar-accent: transparent;
   --theme-transition-duration: 0.8s;
 
   /* ─── Extended tokens for full-page theming ───── */
-  --glass-bg: rgba(17,24,39,0.6);          /* glass-dark panel bg */
-  --glass-border: rgba(255,255,255,0.05);  /* glass-dark border */
-  --card-hover-bg: rgba(31,41,55,0.5);     /* card hover state */
-  --stat-icon-bg: rgba(59,130,246,0.2);    /* stat card icon bg */
-  --stat-icon-color: #60a5fa;              /* stat card icon color */
-  --progress-from: #3b82f6;               /* progress bar start */
-  --progress-to: #9333ea;                 /* progress bar end */
-  --heading-color: #ffffff;               /* h1/h2 text */
-  --subtext-color: #9ca3af;               /* secondary text */
-  --sidebar-bg: rgba(17,24,39,0.95);      /* sidebar background */
+  --glass-bg: rgba(17, 24, 39, 0.6); /* glass-dark panel bg */
+  --glass-border: rgba(255, 255, 255, 0.05); /* glass-dark border */
+  --card-hover-bg: rgba(31, 41, 55, 0.5); /* card hover state */
+  --stat-icon-bg: rgba(59, 130, 246, 0.2); /* stat card icon bg */
+  --stat-icon-color: #60a5fa; /* stat card icon color */
+  --progress-from: #3b82f6; /* progress bar start */
+  --progress-to: #9333ea; /* progress bar end */
+  --heading-color: #ffffff; /* h1/h2 text */
+  --subtext-color: #9ca3af; /* secondary text */
+  --sidebar-bg: rgba(17, 24, 39, 0.95); /* sidebar background */
   --sidebar-logo-text: linear-gradient(to right, #ffffff, #9ca3af);
-  --topbar-bg: rgba(3,7,18,0.8);          /* topbar background */
-  --divider-color: rgba(255,255,255,0.05); /* dividers */
-  --input-border: rgba(55,65,81,1);       /* input borders */
-  --input-focus: rgba(59,130,246,0.5);    /* input focus ring */
+  --topbar-bg: rgba(3, 7, 18, 0.8); /* topbar background */
+  --divider-color: rgba(255, 255, 255, 0.05); /* dividers */
+  --input-border: rgba(55, 65, 81, 1); /* input borders */
+  --input-focus: rgba(59, 130, 246, 0.5); /* input focus ring */
 }
 
 /* ─── @property Registrations (enables smooth color transitions) ──────── */
 /* Without @property, custom property changes snap instantly.
    With it, browsers interpolate the color over the transition duration.   */
-@property --orb-1     { syntax: '<color>'; inherits: true; initial-value: #4f46e5; }
-@property --orb-2     { syntax: '<color>'; inherits: true; initial-value: #7c3aed; }
-@property --orb-3     { syntax: '<color>'; inherits: true; initial-value: #db2777; }
-@property --accent-from { syntax: '<color>'; inherits: true; initial-value: #3b82f6; }
-@property --accent-to   { syntax: '<color>'; inherits: true; initial-value: #9333ea; }
-@property --nav-active-bg   { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.1); }
-@property --nav-active-text { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
-@property --nav-active-icon { syntax: '<color>'; inherits: true; initial-value: #60a5fa; }
-@property --card-border     { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.05); }
-@property --sidebar-border  { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.05); }
-@property --avatar-from { syntax: '<color>'; inherits: true; initial-value: #3b82f6; }
-@property --avatar-to   { syntax: '<color>'; inherits: true; initial-value: #9333ea; }
-@property --selection   { syntax: '<color>'; inherits: true; initial-value: rgba(168,85,247,0.3); }
-@property --bg-radial   { syntax: '<color>'; inherits: true; initial-value: rgba(30,58,138,0.2); }
-@property --scrollbar   { syntax: '<color>'; inherits: true; initial-value: rgb(55,65,81); }
-@property --cta-shadow  { syntax: '<color>'; inherits: true; initial-value: rgba(59,130,246,0.2); }
-@property --glass-bg        { syntax: '<color>'; inherits: true; initial-value: rgba(17,24,39,0.6); }
-@property --glass-border    { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.05); }
-@property --card-hover-bg   { syntax: '<color>'; inherits: true; initial-value: rgba(31,41,55,0.5); }
-@property --stat-icon-bg    { syntax: '<color>'; inherits: true; initial-value: rgba(59,130,246,0.2); }
-@property --stat-icon-color { syntax: '<color>'; inherits: true; initial-value: #60a5fa; }
-@property --progress-from   { syntax: '<color>'; inherits: true; initial-value: #3b82f6; }
-@property --progress-to     { syntax: '<color>'; inherits: true; initial-value: #9333ea; }
-@property --heading-color   { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
-@property --subtext-color   { syntax: '<color>'; inherits: true; initial-value: #9ca3af; }
-@property --sidebar-bg      { syntax: '<color>'; inherits: true; initial-value: rgba(17,24,39,0.95); }
-@property --topbar-bg       { syntax: '<color>'; inherits: true; initial-value: rgba(3,7,18,0.8); }
-@property --divider-color   { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.05); }
-@property --input-border    { syntax: '<color>'; inherits: true; initial-value: rgba(55,65,81,1); }
-@property --input-focus     { syntax: '<color>'; inherits: true; initial-value: rgba(59,130,246,0.5); }
+@property --orb-1 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #4f46e5;
+}
+@property --orb-2 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #7c3aed;
+}
+@property --orb-3 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #db2777;
+}
+@property --accent-from {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #3b82f6;
+}
+@property --accent-to {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #9333ea;
+}
+@property --nav-active-bg {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.1);
+}
+@property --nav-active-text {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffffff;
+}
+@property --nav-active-icon {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #60a5fa;
+}
+@property --card-border {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.05);
+}
+@property --sidebar-border {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.05);
+}
+@property --avatar-from {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #3b82f6;
+}
+@property --avatar-to {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #9333ea;
+}
+@property --selection {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(168, 85, 247, 0.3);
+}
+@property --bg-radial {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(30, 58, 138, 0.2);
+}
+@property --scrollbar {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgb(55, 65, 81);
+}
+@property --cta-shadow {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(59, 130, 246, 0.2);
+}
+@property --glass-bg {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(17, 24, 39, 0.6);
+}
+@property --glass-border {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.05);
+}
+@property --card-hover-bg {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(31, 41, 55, 0.5);
+}
+@property --stat-icon-bg {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(59, 130, 246, 0.2);
+}
+@property --stat-icon-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #60a5fa;
+}
+@property --progress-from {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #3b82f6;
+}
+@property --progress-to {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #9333ea;
+}
+@property --heading-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffffff;
+}
+@property --subtext-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #9ca3af;
+}
+@property --sidebar-bg {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(17, 24, 39, 0.95);
+}
+@property --topbar-bg {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(3, 7, 18, 0.8);
+}
+@property --divider-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.05);
+}
+@property --input-border {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(55, 65, 81, 1);
+}
+@property --input-focus {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(59, 130, 246, 0.5);
+}
 
 /* Smooth transition on all registered properties */
 :root {
@@ -110,7 +230,6 @@
     --input-border var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
     --input-focus var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1);
 }
-
 
 @layer utilities {
   .glass {
@@ -496,7 +615,7 @@ input[type='datetime-local'] {
 /* Ensure datetime picker doesn't overflow container */
 @media (max-width: 640px) {
   input[type='datetime-local'] {
-    font-size: 14px;
+    font-size: 16px; /* Prevent iOS Safari auto-zoom on input focus (requires >= 16px) */
     padding-left: 12px;
     padding-right: 12px;
   }
@@ -530,46 +649,60 @@ input[type='datetime-local'] {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255,255,255,0.25) 50%,
+    rgba(255, 255, 255, 0.25) 50%,
     transparent 100%
   );
   animation: badge-shimmer 3s ease-in-out infinite;
 }
 
 @keyframes badge-shimmer {
-  0%   { left: -100%; }
-  50%  { left: 100%; }
-  100% { left: 100%; }
+  0% {
+    left: -100%;
+  }
+  50% {
+    left: 100%;
+  }
+  100% {
+    left: 100%;
+  }
 }
 
 /* Pro badge — Violet */
 .badge-pro {
   background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
   color: #e9d5ff;
-  box-shadow: 0 0 8px rgba(124,58,237,0.4);
+  box-shadow: 0 0 8px rgba(124, 58, 237, 0.4);
 }
 
 /* Business badge — Gold */
 .badge-business {
   background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
   color: #fef3c7;
-  box-shadow: 0 0 8px rgba(217,119,6,0.4);
+  box-shadow: 0 0 8px rgba(217, 119, 6, 0.4);
 }
 
 /* Master Admin badge — Crimson */
 .badge-master {
   background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
   color: #fecaca;
-  box-shadow: 0 0 8px rgba(220,38,38,0.4);
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.4);
 }
 
 /* ─── Upgrade Celebration Glow ────────────────────────────────────────────── */
 /* Applied briefly to the sidebar user card on tier upgrade.                  */
 
 @keyframes tier-upgrade-glow {
-  0%   { box-shadow: 0 0 0  rgba(var(--accent-from), 0); }
-  30%  { box-shadow: 0 0 20px var(--accent-from), 0 0 40px var(--accent-to); }
-  100% { box-shadow: 0 0 0  rgba(var(--accent-from), 0); }
+  0% {
+    box-shadow: 0 0 0 rgba(var(--accent-from), 0);
+  }
+  30% {
+    box-shadow:
+      0 0 20px var(--accent-from),
+      0 0 40px var(--accent-to);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(var(--accent-from), 0);
+  }
 }
 
 .upgrade-celebrate {
