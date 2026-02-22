@@ -24,6 +24,8 @@ const CreateLinkModal = lazy(() => import('../components/CreateLinkModal'));
 import LinkSuccessModal from '../components/LinkSuccessModal';
 import { useAuth } from '../context/AuthContext';
 import BadgeTooltip from '../components/ui/BadgeTooltip';
+import { getTierConfig } from '../config/subscriptionTiers';
+import { getEffectiveTier } from '../utils/subscriptionUtils';
 
 const OverviewPage = () => {
   const { user, isAuthChecking } = useAuth();
@@ -111,7 +113,11 @@ const OverviewPage = () => {
         </div>
         <button
           onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white py-3 px-5 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30"
+          className="flex items-center gap-2 text-white py-3 px-5 rounded-xl font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
+          style={{
+            background: `linear-gradient(to right, var(--accent-from), var(--accent-to))`,
+            boxShadow: `0 4px 12px var(--cta-shadow)`,
+          }}
         >
           <Plus size={18} />
           Create New Link
@@ -121,86 +127,87 @@ const OverviewPage = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Links */}
-        <div className="glass-dark p-6 rounded-2xl border border-blue-500/20 relative overflow-hidden group">
-          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+        <div className="p-6 rounded-2xl relative overflow-hidden group transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity" style={{ color: 'var(--stat-icon-color)' }}>
             <LinkIcon size={64} />
           </div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-blue-500/20 rounded-lg">
-              <LinkIcon size={18} className="text-blue-400" />
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--stat-icon-bg)' }}>
+              <LinkIcon size={18} style={{ color: 'var(--stat-icon-color)' }} />
             </div>
-            <p className="text-gray-400 text-sm font-medium">Total Links</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--subtext-color)' }}>Total Links</p>
           </div>
-          <p className="text-3xl font-bold text-white">{stats.totalLinks}</p>
-          <p className="text-xs text-gray-500 mt-1">+{stats.linksThisMonth} this month</p>
+          <p className="text-3xl font-bold" style={{ color: 'var(--heading-color)' }}>{stats.totalLinks}</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--subtext-color)' }}>+{stats.linksThisMonth} this month</p>
         </div>
 
         {/* Total Clicks */}
-        <div className="glass-dark p-6 rounded-2xl border border-purple-500/20 relative overflow-hidden group">
-          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+        <div className="p-6 rounded-2xl relative overflow-hidden group transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity" style={{ color: 'var(--stat-icon-color)' }}>
             <MousePointerClick size={64} />
           </div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-purple-500/20 rounded-lg">
-              <MousePointerClick size={18} className="text-purple-400" />
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--stat-icon-bg)' }}>
+              <MousePointerClick size={18} style={{ color: 'var(--stat-icon-color)' }} />
             </div>
-            <p className="text-gray-400 text-sm font-medium">Total Clicks</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--subtext-color)' }}>Total Clicks</p>
           </div>
-          <p className="text-3xl font-bold text-white">{stats.totalClicks}</p>
-          <p className="text-xs text-gray-500 mt-1">+{stats.clicksThisMonth} this month</p>
+          <p className="text-3xl font-bold" style={{ color: 'var(--heading-color)' }}>{stats.totalClicks}</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--subtext-color)' }}>+{stats.clicksThisMonth} this month</p>
         </div>
 
         {/* Avg Clicks per Link */}
-        <div className="glass-dark p-6 rounded-2xl border border-green-500/20 relative overflow-hidden group">
-          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+        <div className="p-6 rounded-2xl relative overflow-hidden group transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity" style={{ color: 'var(--stat-icon-color)' }}>
             <TrendingUp size={64} />
           </div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-green-500/20 rounded-lg">
-              <TrendingUp size={18} className="text-green-400" />
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--stat-icon-bg)' }}>
+              <TrendingUp size={18} style={{ color: 'var(--stat-icon-color)' }} />
             </div>
-            <p className="text-gray-400 text-sm font-medium">Avg. Clicks</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--subtext-color)' }}>Avg. Clicks</p>
           </div>
-          <p className="text-3xl font-bold text-white">
+          <p className="text-3xl font-bold" style={{ color: 'var(--heading-color)' }}>
             {stats.totalLinks > 0 ? (stats.totalClicks / stats.totalLinks).toFixed(1) : '0'}
           </p>
-          <p className="text-xs text-gray-500 mt-1">per link</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--subtext-color)' }}>per link</p>
         </div>
 
         {/* Activity */}
-        <div className="glass-dark p-6 rounded-2xl border border-orange-500/20 relative overflow-hidden group">
-          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+        <div className="p-6 rounded-2xl relative overflow-hidden group transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity" style={{ color: 'var(--stat-icon-color)' }}>
             <Activity size={64} />
           </div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-orange-500/20 rounded-lg">
-              <Activity size={18} className="text-orange-400" />
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--stat-icon-bg)' }}>
+              <Activity size={18} style={{ color: 'var(--stat-icon-color)' }} />
             </div>
-            <p className="text-gray-400 text-sm font-medium">This Month</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--subtext-color)' }}>This Month</p>
           </div>
-          <p className="text-3xl font-bold text-white">{stats.linksThisMonth}</p>
-          <p className="text-xs text-gray-500 mt-1">links created</p>
+          <p className="text-3xl font-bold" style={{ color: 'var(--heading-color)' }}>{stats.linksThisMonth}</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--subtext-color)' }}>links created</p>
         </div>
       </div>
 
       {/* Subscription Usage Card */}
-      <div className="glass-dark p-6 rounded-2xl border border-amber-500/20">
+      <div className="p-6 rounded-2xl transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-500/20 rounded-lg">
-              <Crown size={18} className="text-amber-400" />
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--stat-icon-bg)' }}>
+              <Crown size={18} style={{ color: 'var(--stat-icon-color)' }} />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white capitalize">
-                {user?.subscription?.tier || 'Free'} Plan
+              <h2 className="text-lg font-semibold capitalize" style={{ color: 'var(--heading-color)' }}>
+                {getEffectiveTier(user) === 'master' ? 'Master' : getEffectiveTier(user).charAt(0).toUpperCase() + getEffectiveTier(user).slice(1)} Plan
               </h2>
-              <p className="text-gray-400 text-sm">Monthly usage limits</p>
+              <p className="text-sm" style={{ color: 'var(--subtext-color)' }}>Monthly usage limits</p>
             </div>
           </div>
-          {(user?.subscription?.tier === 'free' || !user?.subscription?.tier) && (
+          {getEffectiveTier(user) === 'free' && (
             <Link
               to="/pricing"
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white rounded-xl font-medium text-sm transition-all"
+              className="flex items-center gap-2 px-4 py-2 text-white rounded-xl font-medium text-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+              style={{ background: `linear-gradient(to right, var(--accent-from), var(--accent-to))` }}
             >
               <Sparkles size={14} />
               Upgrade
@@ -213,32 +220,28 @@ const OverviewPage = () => {
           {/* Links Usage */}
           <div>
             <div className="flex justify-between items-center mb-2">
-              <span className="text-gray-400 text-sm flex items-center gap-2">
+              <span className="text-sm flex items-center gap-2" style={{ color: 'var(--subtext-color)' }}>
                 <LinkIcon size={14} />
                 Links Created
                 <BadgeTooltip content="Links currently active in your account. Delete links to free up space.">
-                  <Info size={18} className="text-blue-400 hover:text-blue-300 transition-colors" />
+                  <Info size={18} style={{ color: 'var(--stat-icon-color)' }} className="opacity-70 hover:opacity-100 transition-opacity" />
                 </BadgeTooltip>
               </span>
-              <span className="text-white text-sm font-medium">
+              <span className="text-sm font-medium" style={{ color: 'var(--heading-color)' }}>
                 {user?.linkUsage?.count || 0} /{' '}
-                {user?.subscription?.tier === 'pro'
-                  ? 500
-                  : user?.subscription?.tier === 'business'
-                    ? '10,000'
-                    : 25}
+                  {getTierConfig(getEffectiveTier(user)).activeLimit === Infinity
+                    ? '∞'
+                    : getTierConfig(getEffectiveTier(user)).activeLimit.toLocaleString()}
               </span>
             </div>
-            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+            <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--divider-color)' }}>
               <div
-                className={`h-full rounded-full transition-all ${
-                  (user?.linkUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 500 : 25) >=
-                  0.8
-                    ? 'bg-gradient-to-r from-orange-500 to-red-500'
-                    : 'bg-gradient-to-r from-blue-500 to-purple-500'
-                }`}
+                className="h-full rounded-full transition-all"
                 style={{
-                  width: `${Math.min(100, ((user?.linkUsage?.count || 0) / (user?.subscription?.tier === 'pro' ? 500 : 25)) * 100)}%`,
+                  background: ((user?.linkUsage?.count || 0) / (getTierConfig(getEffectiveTier(user)).activeLimit === Infinity ? Infinity : getTierConfig(getEffectiveTier(user)).activeLimit)) >= 0.8
+                    ? 'linear-gradient(to right, #f59e0b, #ef4444)'
+                    : 'linear-gradient(to right, var(--progress-from), var(--progress-to))',
+                  width: `${getTierConfig(getEffectiveTier(user)).activeLimit === Infinity ? 5 : Math.min(100, ((user?.linkUsage?.count || 0) / getTierConfig(getEffectiveTier(user)).activeLimit) * 100)}%`,
                 }}
               />
             </div>
@@ -247,40 +250,30 @@ const OverviewPage = () => {
           {/* Monthly Created (Hard Limit) */}
           <div>
             <div className="flex justify-between items-center mb-2">
-              <span className="text-gray-400 text-sm flex items-center gap-2">
+              <span className="text-sm flex items-center gap-2" style={{ color: 'var(--subtext-color)' }}>
                 <Calendar size={14} />
                 Monthly Created
                 <BadgeTooltip content="Total links created this month. Resets on the 1st of each month.">
                   <Info
                     size={18}
-                    className="text-purple-400 hover:text-purple-300 transition-colors"
+                    style={{ color: 'var(--stat-icon-color)' }}
+                    className="opacity-70 hover:opacity-100 transition-opacity"
                   />
                 </BadgeTooltip>
               </span>
-              <span className="text-white text-sm font-medium">
+              <span className="text-sm font-medium" style={{ color: 'var(--heading-color)' }}>
                 {user?.linkUsage?.hardCount || 0} /{' '}
-                {user?.subscription?.tier === 'pro'
-                  ? '2,000'
-                  : user?.subscription?.tier === 'business'
-                    ? '10,000'
-                    : 100}
+                {getTierConfig(getEffectiveTier(user)).monthlyLimit.toLocaleString()}
               </span>
             </div>
-            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+            <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--divider-color)' }}>
               <div
-                className={`h-full rounded-full transition-all ${
-                  (user?.linkUsage?.hardCount || 0) /
-                    (user?.subscription?.tier === 'pro'
-                      ? 2000
-                      : user?.subscription?.tier === 'business'
-                        ? 10000
-                        : 100) >=
-                  0.8
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-500'
-                    : 'bg-gradient-to-r from-indigo-500 to-purple-500'
-                }`}
+                className="h-full rounded-full transition-all"
                 style={{
-                  width: `${Math.min(100, ((user?.linkUsage?.hardCount || 0) / (user?.subscription?.tier === 'pro' ? 2000 : user?.subscription?.tier === 'business' ? 10000 : 100)) * 100)}%`,
+                  background: ((user?.linkUsage?.hardCount || 0) / getTierConfig(getEffectiveTier(user)).monthlyLimit) >= 0.8
+                    ? 'linear-gradient(to right, #f59e0b, #ef4444)'
+                    : 'linear-gradient(to right, var(--progress-from), var(--progress-to))',
+                  width: `${Math.min(100, ((user?.linkUsage?.hardCount || 0) / getTierConfig(getEffectiveTier(user)).monthlyLimit) * 100)}%`,
                 }}
               />
             </div>
@@ -288,14 +281,9 @@ const OverviewPage = () => {
         </div>
 
         {/* Warning for high usage */}
-        {(user?.linkUsage?.count || 0) /
-          (user?.subscription?.tier === 'pro'
-            ? 500
-            : user?.subscription?.tier === 'business'
-              ? 10000
-              : 25) >=
-          0.8 && (
-          <div className="mt-4 p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
+        {((user?.linkUsage?.count || 0) / (getTierConfig(getEffectiveTier(user)).activeLimit === Infinity ? Infinity : getTierConfig(getEffectiveTier(user)).activeLimit) >= 0.8 ||
+          (user?.linkUsage?.hardCount || 0) / getTierConfig(getEffectiveTier(user)).monthlyLimit >= 0.8) && (
+          <div className="mt-4 p-3 rounded-lg border" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
             <p className="text-amber-300 text-sm flex items-center gap-2">
               <AlertTriangle size={14} />
               You're approaching your link limit. Consider upgrading for more capacity.
@@ -307,13 +295,13 @@ const OverviewPage = () => {
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Links */}
-        <div className="glass-dark rounded-2xl border border-gray-700/50 overflow-hidden">
-          <div className="p-5 border-b border-gray-700/50 flex items-center justify-between">
+        <div className="rounded-2xl overflow-hidden transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+          <div className="p-5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--divider-color)' }}>
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500/20 rounded-lg">
-                <Clock size={18} className="text-blue-400" />
+              <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--stat-icon-bg)' }}>
+                <Clock size={18} style={{ color: 'var(--stat-icon-color)' }} />
               </div>
-              <h2 className="text-lg font-semibold text-white">Recent Links</h2>
+              <h2 className="text-lg font-semibold" style={{ color: 'var(--heading-color)' }}>Recent Links</h2>
             </div>
             <Link
               to="/dashboard/links"
@@ -371,13 +359,13 @@ const OverviewPage = () => {
         </div>
 
         {/* Top Performing Links */}
-        <div className="glass-dark rounded-2xl border border-gray-700/50 overflow-hidden">
-          <div className="p-5 border-b border-gray-700/50 flex items-center justify-between">
+        <div className="rounded-2xl overflow-hidden transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+          <div className="p-5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--divider-color)' }}>
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-500/20 rounded-lg">
-                <TrendingUp size={18} className="text-purple-400" />
+              <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--stat-icon-bg)' }}>
+                <TrendingUp size={18} style={{ color: 'var(--stat-icon-color)' }} />
               </div>
-              <h2 className="text-lg font-semibold text-white">Top Performers</h2>
+              <h2 className="text-lg font-semibold" style={{ color: 'var(--heading-color)' }}>Top Performers</h2>
             </div>
             <Link
               to="/dashboard/analytics"
@@ -416,9 +404,9 @@ const OverviewPage = () => {
                         /{link.customAlias || link.shortId}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 bg-purple-500/10 px-3 py-1.5 rounded-lg">
-                      <BarChart2 size={14} className="text-purple-400" />
-                      <span className="text-purple-400 font-semibold text-sm">{link.clicks}</span>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ backgroundColor: 'var(--stat-icon-bg)' }}>
+                      <BarChart2 size={14} style={{ color: 'var(--stat-icon-color)' }} />
+                      <span className="font-semibold text-sm" style={{ color: 'var(--stat-icon-color)' }}>{link.clicks}</span>
                     </div>
                   </div>
                 </div>
@@ -429,24 +417,24 @@ const OverviewPage = () => {
       </div>
 
       {/* Quick Tips */}
-      <div className="glass-dark rounded-2xl border border-gray-700/50 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">💡 Quick Tips</h2>
+      <div className="rounded-2xl p-6 transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+        <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--heading-color)' }}>💡 Quick Tips</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="p-4 bg-blue-500/5 rounded-xl border border-blue-500/20">
-            <h3 className="text-blue-400 font-medium mb-1">Custom Aliases</h3>
-            <p className="text-gray-400 text-sm">
+          <div className="p-4 rounded-xl transition-colors duration-300" style={{ backgroundColor: 'var(--stat-icon-bg)', border: '1px solid var(--glass-border)' }}>
+            <h3 className="font-medium mb-1" style={{ color: 'var(--heading-color)' }}>Custom Aliases</h3>
+            <p className="text-sm" style={{ color: 'var(--subtext-color)' }}>
               Use memorable custom aliases for branded links that are easy to share.
             </p>
           </div>
-          <div className="p-4 bg-purple-500/5 rounded-xl border border-purple-500/20">
-            <h3 className="text-purple-400 font-medium mb-1">Track Performance</h3>
-            <p className="text-gray-400 text-sm">
+          <div className="p-4 rounded-xl transition-colors duration-300" style={{ backgroundColor: 'var(--stat-icon-bg)', border: '1px solid var(--glass-border)' }}>
+            <h3 className="font-medium mb-1" style={{ color: 'var(--heading-color)' }}>Track Performance</h3>
+            <p className="text-sm" style={{ color: 'var(--subtext-color)' }}>
               Check analytics to see which links perform best and when.
             </p>
           </div>
-          <div className="p-4 bg-green-500/5 rounded-xl border border-green-500/20">
-            <h3 className="text-green-400 font-medium mb-1">QR Codes</h3>
-            <p className="text-gray-400 text-sm">
+          <div className="p-4 rounded-xl transition-colors duration-300" style={{ backgroundColor: 'var(--stat-icon-bg)', border: '1px solid var(--glass-border)' }}>
+            <h3 className="font-medium mb-1" style={{ color: 'var(--heading-color)' }}>QR Codes</h3>
+            <p className="text-sm" style={{ color: 'var(--subtext-color)' }}>
               Download QR codes for your links to use in print materials.
             </p>
           </div>

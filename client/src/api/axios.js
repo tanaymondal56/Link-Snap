@@ -120,8 +120,8 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Skip refresh logic for auth endpoints to avoid loops
-    const isAuthEndpoint = originalRequest.url.includes('/auth/');
+    // Skip refresh logic for auth endpoints to avoid loops, EXCEPT for /auth/me which is a normal protected route
+    const isAuthEndpoint = originalRequest.url.includes('/auth/') && !originalRequest.url.includes('/auth/me');
 
     // If error is 401 (Unauthorized) and we haven't tried to refresh yet
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {

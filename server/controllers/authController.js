@@ -54,14 +54,14 @@ const registerUser = async (req, res, next) => {
 
     // Validate username if provided (required by schema update, but handle safely)
     if (!username) {
-        res.status(400);
-        throw new Error('Username is required');
+      res.status(400);
+      throw new Error('Username is required');
     }
 
     // Check reserved words
     if (isReservedWord(username)) {
-        res.status(400);
-        throw new Error('This username is not available');
+      res.status(400);
+      throw new Error('This username is not available');
     }
 
     // Check for existing user by email
@@ -70,9 +70,9 @@ const registerUser = async (req, res, next) => {
     // Check for existing user by username
     const usernameExists = await User.findOne({ username });
     if (usernameExists) {
-        res.status(400);
-        // Explicitly reveal this error as it's a public conflict check
-        throw new Error('Username is already taken');
+      res.status(400);
+      // Explicitly reveal this error as it's a public conflict check
+      throw new Error('Username is already taken');
     }
 
     // SECURITY: Return generic message to prevent email enumeration attacks
@@ -81,7 +81,7 @@ const registerUser = async (req, res, next) => {
       if (userExists.isVerified) {
         // Option 1: User is already verified - Send "Account Exists" email
         logger.debug(`[Auth] Registration attempt for existing verified user: ${email}`);
-        
+
         try {
           const emailContent = accountExistsEmail(userExists);
           await sendEmail({
@@ -96,7 +96,7 @@ const registerUser = async (req, res, next) => {
       } else {
         // Option 2: User exists but is unverified - Update their info and Resend Verification Email
         logger.debug(`[Auth] Registration attempt for existing unverified user: ${email}`);
-        
+
         // Update user profile with new form data (in case they changed password/name)
         userExists.password = password; // Will be hashed by pre-save hook
         if (firstName) userExists.firstName = firstName;
@@ -108,22 +108,22 @@ const registerUser = async (req, res, next) => {
         // Logic: if unverified, they effectively own the account slot, so maybe update it?
         // Let's allow updating it if they are unverified.
         if (username) userExists.username = username;
-        
+
         // Generate new tokens
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const verificationToken = crypto.randomBytes(20).toString('hex');
         const otpExpiresTime = Date.now() + 10 * 60 * 1000; // 10 minutes
-        
+
         userExists.otp = otp;
         userExists.otpExpires = otpExpiresTime;
         userExists.verificationToken = verificationToken;
         userExists.verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
-        
+
         // Debug: Log before save
         logger.debug(`[Auth] Before save - OTP for ${email}, expires: ${new Date(otpExpiresTime).toISOString()}`);
-        
+
         await userExists.save();
-        
+
         // Debug logging removed for production - OTP details should not be logged
 
         try {
@@ -133,10 +133,10 @@ const registerUser = async (req, res, next) => {
             subject: emailContent.subject,
             message: emailContent.html,
           });
-            logger.debug(`[Auth] Verification email sent for ${email}`);
-          } catch (error) {
-            logger.error('[Auth] Failed to resend verification email:', error);
-          }
+          logger.debug(`[Auth] Verification email sent for ${email}`);
+        } catch (error) {
+          logger.error('[Auth] Failed to resend verification email:', error);
+        }
       }
 
       // Return appropriate response based on verification status
@@ -165,11 +165,22 @@ const registerUser = async (req, res, next) => {
     if (!settings) {
       settings = await Settings.create({});
     }
-    const requireVerification = settings.requireEmailVerification;
+
+    // === FIRST-USER AUTO-ADMIN SETUP ===
+    // On a fresh install (empty DB), the very first user to register
+    // is automatically promoted to admin and bypasses email verification.
+    // This prevents lockout when SMTP isn't configured yet.
+    const isFirstUser = await User.countDocuments({}) === 0;
+
+    if (isFirstUser) {
+      logger.info('🚀 [SETUP] First user detected on fresh install! Auto-promoting to admin with verification bypass.');
+    }
+
+    const requireVerification = isFirstUser ? false : settings.requireEmailVerification;
 
     // Generate Elite ID for new user (atomic sequence)
     // generateEliteId is deprecated wrapper, using generateUserIdentity
-    const eliteIdData = await generateUserIdentity(false); // false = not admin
+    const eliteIdData = await generateUserIdentity(isFirstUser); // true = admin tier for first user
 
     // Common user data
     const userData = {
@@ -181,6 +192,7 @@ const registerUser = async (req, res, next) => {
       phone,
       company,
       website,
+      role: isFirstUser ? 'admin' : 'user', // First user gets admin role
       // Elite ID system
       eliteId: eliteIdData.eliteId,
       snapId: eliteIdData.snapId,
@@ -195,7 +207,7 @@ const registerUser = async (req, res, next) => {
       const verificationToken = crypto.randomBytes(20).toString('hex');
       // Generate 6-digit OTP
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      
+
       user = await User.create({
         ...userData,
         isVerified: false,
@@ -238,7 +250,7 @@ const registerUser = async (req, res, next) => {
         isVerified: true,
       });
 
-      const accessToken = generateAccessToken(user._id);
+      const accessToken = generateAccessToken(user._id, user.role);
       const { refreshToken } = await createSession(user._id, req);
 
       // Send welcome email (non-blocking)
@@ -271,11 +283,26 @@ const registerUser = async (req, res, next) => {
       res.status(201).json({
         _id: user._id,
         internalId: user.internalId,
+        eliteId: user.eliteId,
+        snapId: user.snapId,
+        idTier: user.idTier,
+        idNumber: user.idNumber,
         email: user.email,
         username: user.username,
+        usernameChangedAt: user.usernameChangedAt,
         firstName: user.firstName,
         lastName: user.lastName,
+        phone: user.phone,
+        company: user.company,
+        website: user.website,
+        bio: user.bio,
+        avatar: user.avatar,
         role: user.role,
+        createdAt: user.createdAt,
+        lastLoginAt: user.lastLoginAt,
+        subscription: user.subscription || { tier: 'free', status: 'active' },
+        linkUsage: user.linkUsage || { count: 0, hardCount: 0, resetAt: new Date() },
+        clickUsage: user.clickUsage || { count: 0, resetAt: new Date() },
         accessToken,
         requireVerification: false
       });
@@ -343,7 +370,7 @@ const verifyOTP = async (req, res, next) => {
     user.otp = undefined;
     user.otpExpires = undefined;
     await user.save();
-    
+
     // Generate access token and create session
     const accessToken = generateAccessToken(user._id);
     const { refreshToken } = await createSession(user._id, req);
@@ -361,6 +388,8 @@ const verifyOTP = async (req, res, next) => {
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
+      subscription: user.subscription || { tier: 'free', status: 'active' },
+      linkUsage: await resolveCurrentLinkUsage(user),
       accessToken,
     });
 
@@ -385,24 +414,24 @@ const verifyEmail = async (req, res, next) => {
     if (!user) {
       // Token not found or expired - but check if any user with this token is already verified
       // This handles the race condition where token was just used
-      const verifiedUser = await User.findOne({ 
+      const verifiedUser = await User.findOne({
         $or: [
           { verificationToken: token },
           { isVerified: true }
         ]
       });
-      
+
       // If we can find a verified user, it means the verification already happened
       // (Note: We can't perfectly match the token to user after it's cleared,
       // so this is a best-effort check)
       if (verifiedUser && verifiedUser.isVerified && !verifiedUser.verificationToken) {
         // User is already verified - return success-like response
-        return res.status(200).json({ 
+        return res.status(200).json({
           message: 'Your email has already been verified. You can now login.',
           alreadyVerified: true
         });
       }
-      
+
       res.status(400);
       throw new Error('Invalid or expired verification token');
     }
@@ -419,7 +448,7 @@ const verifyEmail = async (req, res, next) => {
     user.otp = undefined;
     user.otpExpires = undefined;
     await user.save();
-    
+
     // Generate access token and create session
     const accessToken = generateAccessToken(user._id);
     const { refreshToken } = await createSession(user._id, req);
@@ -432,7 +461,7 @@ const verifyEmail = async (req, res, next) => {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Email verified successfully!',
       _id: user._id,
       internalId: user.internalId,
@@ -441,6 +470,8 @@ const verifyEmail = async (req, res, next) => {
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
+      subscription: user.subscription || { tier: 'free', status: 'active' },
+      linkUsage: await resolveCurrentLinkUsage(user),
       accessToken,
     });
   } catch (error) {
@@ -464,31 +495,31 @@ const loginUser = async (req, res, next) => {
 
     // Find user by email OR username (case-insensitive)
     // identifier is already lowercased and trimmed by schema
-    
+
     // --- MASTER ADMIN ROUTING ---
     let user = null;
     let role = 'user';
 
     if (identifier.endsWith('-ma')) {
-        // Master Admin Detected
-        const realEmail = identifier.slice(0, -3); // Strip '-ma'
-        user = await MasterAdmin.findOne({ email: realEmail });
-        role = 'master_admin';
-        console.log(`[Auth] Attempting Master Admin Login: ${realEmail}`);
+      // Master Admin Detected
+      const realEmail = identifier.slice(0, -3); // Strip '-ma'
+      user = await MasterAdmin.findOne({ email: realEmail });
+      role = 'master_admin';
+      console.log(`[Auth] Attempting Master Admin Login: ${realEmail}`);
     } else {
-        // Standard User
-        user = await User.findOne({
-          $or: [
-            { email: identifier },
-            { username: identifier }
-          ]
-        });
+      // Standard User
+      user = await User.findOne({
+        $or: [
+          { email: identifier },
+          { username: identifier }
+        ]
+      });
     }
 
     // SECURITY: Always perform password comparison to prevent timing attacks
     // If user doesn't exist, compare against a dummy hash to maintain consistent timing
     const dummyHash = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.SJGPLvXqKBZ.xC';
-    const isValidPassword = user 
+    const isValidPassword = user
       ? await user.matchPassword(password)
       : await bcrypt.compare(password, dummyHash);
 
@@ -552,34 +583,36 @@ const loginUser = async (req, res, next) => {
 
       // --- MASTER ADMIN CHECK ---
       if (role === 'master_admin') {
-          // Create session for Master Admin
-         const accessToken = generateAccessToken(user._id, 'master_admin');
-         const { refreshToken } = await createSession(user._id, req);
+        // Create session for Master Admin
+        const accessToken = generateAccessToken(user._id, 'master_admin');
+        const { refreshToken } = await createSession(user._id, req);
 
-         // Helper for lastLoginAt
-         await MasterAdmin.findByIdAndUpdate(user._id, { $set: { lastLoginAt: new Date() } });
+        // Helper for lastLoginAt
+        await MasterAdmin.findByIdAndUpdate(user._id, { $set: { lastLoginAt: new Date() } });
 
-         res.cookie('jwt', refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: getCookieSameSite(),
-            maxAge: 30 * 24 * 60 * 60 * 1000, 
-         });
+        res.cookie('jwt', refreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: getCookieSameSite(),
+          maxAge: 30 * 24 * 60 * 60 * 1000,
+        });
 
-         return res.json({
-            _id: user._id,
-            email: user.email, // Real email (no -ma)
-            username: user.username,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            role: 'master_admin',
-            accessToken,
-         });
+        return res.json({
+          _id: user._id,
+          email: user.email, // Real email (no -ma)
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: 'master_admin',
+          subscription: { tier: 'pro', status: 'active' },
+          linkUsage: { count: 0, resetAt: new Date() },
+          accessToken,
+        });
       }
 
       // --- STANDARD USER LOGIN ---
       const accessToken = generateAccessToken(user._id, user.role);
-      
+
       // Create session with device info
       const { refreshToken } = await createSession(user._id, req);
 
@@ -605,11 +638,26 @@ const loginUser = async (req, res, next) => {
       res.json({
         _id: user._id,
         internalId: user.internalId,
+        eliteId: user.eliteId,
+        snapId: user.snapId,
+        idTier: user.idTier,
+        idNumber: user.idNumber,
         email: user.email,
         username: user.username,
+        usernameChangedAt: user.usernameChangedAt,
         firstName: user.firstName,
         lastName: user.lastName,
+        phone: user.phone,
+        company: user.company,
+        website: user.website,
+        bio: user.bio,
+        avatar: user.avatar,
         role: user.role,
+        createdAt: user.createdAt,
+        lastLoginAt: user.lastLoginAt,
+        subscription: user.subscription || { tier: 'free', status: 'active' },
+        linkUsage: await resolveCurrentLinkUsage(user),
+        clickUsage: user.clickUsage || { count: 0, resetAt: new Date() },
         accessToken,
       });
     } else {
@@ -641,7 +689,7 @@ const logoutUser = async (req, res, next) => {
 
     // Terminate the session in database
     const terminated = await terminateSession(refreshToken);
-    
+
     if (!terminated) {
       logger.debug('[Logout] Session not found, clearing cookie anyway');
     }
@@ -668,7 +716,7 @@ const refreshAccessToken = async (req, res, next) => {
 
     // Validate session using Session model
     const session = await validateSession(refreshToken);
-    
+
     if (!session) {
       // Session not found or expired
       res.clearCookie('jwt', {
@@ -684,9 +732,9 @@ const refreshAccessToken = async (req, res, next) => {
     let role = 'user';
 
     if (!user) {
-        // Try Master Admin if not found in User table
-        user = await MasterAdmin.findById(session.userId);
-        if (user) role = 'master_admin';
+      // Try Master Admin if not found in User table
+      user = await MasterAdmin.findById(session.userId);
+      if (user) role = 'master_admin';
     }
 
     if (!user) {
@@ -704,7 +752,7 @@ const refreshAccessToken = async (req, res, next) => {
     if (!user.isActive) {
       // Terminate all sessions for banned user
       await terminateAllUserSessions(user._id);
-      
+
       res.clearCookie('jwt', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -761,7 +809,7 @@ const refreshAccessToken = async (req, res, next) => {
         avatar: user.avatar,
         createdAt: user.createdAt,
         lastLoginAt: user.lastLoginAt,
-        subscription: { tier: 'pro', status: 'active' }, 
+        subscription: { tier: 'pro', status: 'active' },
         linkUsage: { count: 0, resetAt: new Date() },
         clickUsage: { count: 0, resetAt: new Date() },
       };
@@ -791,11 +839,11 @@ const refreshAccessToken = async (req, res, next) => {
       };
     }
 
-    res.json({ 
+    res.json({
       accessToken,
       user: userDataResponse
     });
-    
+
   } catch (error) {
     next(error);
   }
@@ -806,22 +854,22 @@ const refreshAccessToken = async (req, res, next) => {
 // @access  Private
 const getMe = async (req, res) => {
   if (req.user.role === 'master_admin') {
-      // Simplified profile for Master Admin
-      return res.status(200).json({
-          _id: req.user._id,
-          username: req.user.username,
-          email: req.user.email,
-          firstName: req.user.firstName,
-          lastName: req.user.lastName,
-          role: 'master_admin',
-          avatar: req.user.avatar,
-          createdAt: req.user.createdAt,
-          lastLoginAt: req.user.lastLoginAt,
-          // Mock data to satisfy frontend props
-          subscription: { tier: 'pro', status: 'active' }, // Give pro features
-          linkUsage: { count: 0, resetAt: new Date() },
-          clickUsage: { count: 0, resetAt: new Date() },
-      });
+    // Simplified profile for Master Admin
+    return res.status(200).json({
+      _id: req.user._id,
+      username: req.user.username,
+      email: req.user.email,
+      firstName: req.user.firstName,
+      lastName: req.user.lastName,
+      role: 'master_admin',
+      avatar: req.user.avatar,
+      createdAt: req.user.createdAt,
+      lastLoginAt: req.user.lastLoginAt,
+      // Mock data to satisfy frontend props
+      subscription: { tier: 'pro', status: 'active' }, // Give pro features
+      linkUsage: { count: 0, resetAt: new Date() },
+      clickUsage: { count: 0, resetAt: new Date() },
+    });
   }
 
   const user = {
@@ -872,47 +920,47 @@ const updateProfile = async (req, res, next) => {
 
     // Update Username if provided and different
     if (username && username !== user.username) {
-        // 30-day cooldown check
-        if (user.usernameChangedAt) {
-            const daysSinceChange = (Date.now() - user.usernameChangedAt.getTime()) / (1000 * 60 * 60 * 24);
-            if (daysSinceChange < 30) {
-                const nextChangeDate = new Date(user.usernameChangedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
-                res.status(400);
-                throw new Error(`Username change cooldown active. You can change your username again on ${nextChangeDate.toLocaleDateString()}`);
-            }
+      // 30-day cooldown check
+      if (user.usernameChangedAt) {
+        const daysSinceChange = (Date.now() - user.usernameChangedAt.getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceChange < 30) {
+          const nextChangeDate = new Date(user.usernameChangedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+          res.status(400);
+          throw new Error(`Username change cooldown active. You can change your username again on ${nextChangeDate.toLocaleDateString()}`);
         }
+      }
 
-        // Check reserved words
-        if (isReservedWord(username)) {
-            res.status(400);
-            throw new Error('This username is not available');
-        }
+      // Check reserved words
+      if (isReservedWord(username)) {
+        res.status(400);
+        throw new Error('This username is not available');
+      }
 
-        // Check format
-        if (!/^[a-z0-9_-]+$/.test(username)) {
-            res.status(400);
-            throw new Error('Username must be alphanumeric');
-        }
+      // Check format
+      if (!/^[a-z0-9_-]+$/.test(username)) {
+        res.status(400);
+        throw new Error('Username must be alphanumeric');
+      }
 
-        // Check uniqueness
-        const usernameExists = await User.findOne({ username: username.toLowerCase() });
-        if (usernameExists) {
-            res.status(400);
-            throw new Error('Username is already taken');
-        }
+      // Check uniqueness
+      const usernameExists = await User.findOne({ username: username.toLowerCase() });
+      if (usernameExists) {
+        res.status(400);
+        throw new Error('Username is already taken');
+      }
 
-        // Log username change to history
-        await UsernameHistory.create({
-            userId: user._id,
-            userInternalId: user.internalId,
-            previousUsername: user.username,
-            newUsername: username.toLowerCase(),
-            changedBy: null  // self-initiated
-        });
+      // Log username change to history
+      await UsernameHistory.create({
+        userId: user._id,
+        userInternalId: user.internalId,
+        previousUsername: user.username,
+        newUsername: username.toLowerCase(),
+        changedBy: null  // self-initiated
+      });
 
-        // Update username and cooldown timestamp
-        user.username = username.toLowerCase();
-        user.usernameChangedAt = new Date();
+      // Update username and cooldown timestamp
+      user.username = username.toLowerCase();
+      user.usernameChangedAt = new Date();
     }
 
     // Update fields
@@ -983,16 +1031,16 @@ const changePassword = async (req, res, next) => {
     const currentToken = req.cookies.jwt;
     if (currentToken) {
       const currentTokenHash = hashToken(currentToken);
-      const result = await Session.deleteMany({ 
-        userId: req.user._id, 
-        tokenHash: { $ne: currentTokenHash } 
+      const result = await Session.deleteMany({
+        userId: req.user._id,
+        tokenHash: { $ne: currentTokenHash }
       });
       logger.info(`[Security] Password changed for user ${req.user._id}, terminated ${result.deletedCount} other sessions`);
     }
 
-    res.json({ 
+    res.json({
       message: 'Password changed successfully',
-      sessionsTerminated: true 
+      sessionsTerminated: true
     });
   } catch (error) {
     next(error);
@@ -1014,7 +1062,7 @@ const resendOTP = async (req, res, next) => {
       res.status(400);
       throw new Error('Please provide a valid email address');
     }
-    
+
     if (!email || !isValidEmail(email)) {
       res.status(400);
       throw new Error('Please provide a valid email address');
@@ -1027,15 +1075,15 @@ const resendOTP = async (req, res, next) => {
 
     // Security: Don't reveal if user exists, is verified, or is banned
     if (!user || user.isVerified || !user.isActive) {
-      return res.status(200).json({ 
-        message: 'If an unverified account exists with this email, a new code has been sent.' 
+      return res.status(200).json({
+        message: 'If an unverified account exists with this email, a new code has been sent.'
       });
     }
 
     // Generate new OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const verificationToken = crypto.randomBytes(20).toString('hex');
-    
+
     user.otp = otp;
     user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
     user.verificationToken = verificationToken;
@@ -1050,8 +1098,8 @@ const resendOTP = async (req, res, next) => {
       message: emailContent.html,
     });
 
-    res.status(200).json({ 
-      message: 'A new verification code has been sent to your email.' 
+    res.status(200).json({
+      message: 'A new verification code has been sent to your email.'
     });
 
   } catch (error) {
@@ -1079,15 +1127,15 @@ const forgotPassword = async (req, res, next) => {
     // 3. Handle different user states
     if (!user) {
       // Generic response - don't reveal email doesn't exist
-      return res.status(200).json({ 
-        message: 'If this email exists, you will receive reset instructions shortly.' 
+      return res.status(200).json({
+        message: 'If this email exists, you will receive reset instructions shortly.'
       });
     }
 
     // Banned user - return generic message
     if (!user.isActive) {
-      return res.status(200).json({ 
-        message: 'If this email exists, you will receive reset instructions shortly.' 
+      return res.status(200).json({
+        message: 'If this email exists, you will receive reset instructions shortly.'
       });
     }
 
@@ -1096,7 +1144,7 @@ const forgotPassword = async (req, res, next) => {
       // Generate new verification OTP
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       const verificationToken = crypto.randomBytes(20).toString('hex');
-      
+
       user.otp = otp;
       user.otpExpires = Date.now() + 10 * 60 * 1000;
       user.verificationToken = verificationToken;
@@ -1111,7 +1159,7 @@ const forgotPassword = async (req, res, next) => {
         message: emailContent.html,
       });
 
-      return res.status(200).json({ 
+      return res.status(200).json({
         message: 'Please verify your email first.',
         unverified: true,
         email: user.email
@@ -1121,7 +1169,7 @@ const forgotPassword = async (req, res, next) => {
     // 4. Generate reset tokens
     const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const resetToken = crypto.randomBytes(32).toString('hex');
-    
+
     user.resetPasswordOtp = resetOtp;
     user.resetPasswordOtpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
     user.resetPasswordToken = resetToken;
@@ -1136,7 +1184,7 @@ const forgotPassword = async (req, res, next) => {
       message: emailContent.html,
     });
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'If this email exists, you will receive reset instructions shortly.',
       success: true // Frontend uses this + the email from the input field
     });
@@ -1204,14 +1252,14 @@ const resetPassword = async (req, res, next) => {
     user.resetPasswordExpires = undefined;
     user.resetPasswordOtp = undefined;
     user.resetPasswordOtpExpires = undefined;
-    
+
     // Optionally clear all refresh tokens to force re-login everywhere
     // user.refreshTokens = [];
-    
+
     await user.save();
 
-    res.status(200).json({ 
-      message: 'Password reset successful. You can now log in with your new password.' 
+    res.status(200).json({
+      message: 'Password reset successful. You can now log in with your new password.'
     });
 
   } catch (error) {
@@ -1225,13 +1273,13 @@ const resetPassword = async (req, res, next) => {
 const checkUsernameAvailability = async (req, res) => {
   try {
     const { username } = req.params;
-    
+
     if (!username) {
       return res.json({ available: false, reason: 'invalid' });
     }
 
     const usernameLower = username.toLowerCase().trim();
-    
+
     // Validate length
     if (usernameLower.length < 3 || usernameLower.length > 30) {
       return res.json({ available: false, reason: 'invalid' });
@@ -1241,18 +1289,18 @@ const checkUsernameAvailability = async (req, res) => {
     if (!/^[a-z0-9_-]+$/.test(usernameLower)) {
       return res.json({ available: false, reason: 'invalid' });
     }
-    
+
     // Check reserved words
     if (isReservedWord(usernameLower)) {
       return res.json({ available: false, reason: 'reserved' });
     }
-    
+
     // Check if exists in database
     const exists = await User.findOne({ username: usernameLower });
-    
-    res.json({ 
-      available: !exists, 
-      reason: exists ? 'taken' : null 
+
+    res.json({
+      available: !exists,
+      reason: exists ? 'taken' : null
     });
   } catch (error) {
     logger.error('[Auth] Username check error:', error);

@@ -112,6 +112,11 @@ const LandingPage = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showNewBadge, setShowNewBadge] = useState(hasUnseenChangelog());
 
+  // Re-check changelog status when app version updates
+  useEffect(() => {
+    setShowNewBadge(hasUnseenChangelog());
+  }, [appVersion]);
+
   // Expiration state (for logged-in users)
   const [expiresIn, setExpiresIn] = useState('never');
   const [customExpiresAt, setCustomExpiresAt] = useState('');
