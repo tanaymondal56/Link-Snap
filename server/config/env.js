@@ -13,9 +13,9 @@ const serverEnvPath = path.resolve(__dirname, '../.env');
 const rootEnvPath = path.resolve(__dirname, '../../.env');
 
 // Try server/.env first, then root/.env
-let envResult = dotenv.config({ path: serverEnvPath });
+const envResult = dotenv.config({ path: serverEnvPath });
 if (envResult.error) {
-  envResult = dotenv.config({ path: rootEnvPath });
+  dotenv.config({ path: rootEnvPath });
 }
 
 // Define required environment variables for each category
