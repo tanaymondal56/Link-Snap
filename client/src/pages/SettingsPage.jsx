@@ -49,7 +49,7 @@ const SubscriptionCard = lazy(() => import('../components/subscription/Subscript
 import { getEffectiveTier } from '../utils/subscriptionUtils';
 
 const SettingsPage = () => {
-  const { refreshUser } = useAuth();
+  const { setUser } = useAuth();
   const location = useLocation();
   const getInitialTab = () => {
     const searchParams = new URLSearchParams(location.search);
@@ -164,15 +164,16 @@ const SettingsPage = () => {
         website: data.website || '',
         bio: data.bio || '',
       });
-      // Force a global context refresh to synchronize the Dashboard tierTheme CSS variables
-      if (refreshUser) refreshUser();
+      // Sync auth context directly from /auth/me data to update tier theme CSS vars
+      // without triggering a separate /auth/refresh cycle (prevents API flooding)
+      setUser(data);
     } catch (error) {
       console.error('Failed to fetch profile:', error);
       handleApiError(error, 'Failed to load profile');
     } finally {
       setIsLoading(false);
     }
-  }, [refreshUser]);
+  }, [setUser]);
 
   useEffect(() => {
     fetchProfile();

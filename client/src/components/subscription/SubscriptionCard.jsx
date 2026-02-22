@@ -241,7 +241,7 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
 
         {/* Membership Card (Current Plan) */}
         <div 
-            className="rounded-3xl p-8 relative overflow-hidden shadow-2xl transition-all duration-700 hover:scale-[1.01] mt-2 group"
+            className="rounded-3xl p-4 sm:p-6 lg:p-8 relative overflow-hidden shadow-2xl transition-all duration-700 hover:scale-[1.01] mt-2 group"
             style={{ 
                 background: `linear-gradient(135deg, var(--glass-bg) 0%, rgba(0,0,0,0.8) 100%)`, 
                 border: '1px solid var(--glass-border)',
@@ -259,18 +259,18 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
             />
             
             {/* Card Watermark */}
-            <div className="absolute top-1/2 right-4 -translate-y-1/2 opacity-5 pointer-events-none transform rotate-12 transition-transform duration-700 group-hover:scale-110 group-hover:rotate-[15deg]">
+            <div className="absolute top-1/2 right-4 -translate-y-1/2 opacity-5 pointer-events-none transform rotate-12 transition-transform duration-700 group-hover:scale-110 group-hover:rotate-[15deg] hidden sm:block">
                 <Zap size={220} style={{ color: 'var(--accent-to)' }} />
             </div>
             
-            <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-white/5 pb-6 gap-6">
+            <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center mb-4 sm:mb-8 border-b border-white/5 pb-4 sm:pb-6 gap-4 sm:gap-6">
                  <div>
                      <h3 className="text-xs font-bold uppercase tracking-[0.2em] mb-2 opacity-80" style={{ color: 'var(--subtext-color)' }}>
                          Membership Status
                      </h3>
-                     <div className="flex items-center gap-4">
+                     <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
                          <span 
-                            className="text-5xl md:text-6xl font-black capitalize tracking-tight"
+                            className="text-3xl sm:text-5xl md:text-6xl font-black capitalize tracking-tight"
                             style={{ 
                                 color: 'var(--heading-color)',
                                 textShadow: '0 0 40px var(--cta-shadow)'
@@ -295,20 +295,21 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                          )}
                      </div>
                  </div>
-                 <div className="p-4 rounded-2xl backdrop-blur-md border shadow-2xl" style={{ backgroundColor: 'var(--stat-icon-bg)', borderColor: 'var(--glass-border)' }}>
-                     <CreditCard size={32} style={{ color: 'var(--stat-icon-color)' }} />
+                 <div className="p-3 sm:p-4 rounded-2xl backdrop-blur-md border shadow-2xl" style={{ backgroundColor: 'var(--stat-icon-bg)', borderColor: 'var(--glass-border)' }}>
+                     <CreditCard size={24} className="sm:hidden" style={{ color: 'var(--stat-icon-color)' }} />
+                     <CreditCard size={32} className="hidden sm:block" style={{ color: 'var(--stat-icon-color)' }} />
                  </div>
             </div>
             
-            <div className="relative z-10 flex flex-col md:flex-row gap-8 justify-between items-end">
-                <div className="flex-1">
-                    <p className="font-medium text-xl mb-2" style={{ color: 'var(--heading-color)' }}>
+            <div className="relative z-10 flex flex-col md:flex-row gap-4 sm:gap-8 justify-between items-end">
+                <div className="flex-1 w-full">
+                    <p className="font-medium text-lg sm:text-xl mb-2" style={{ color: 'var(--heading-color)' }}>
                         {profile?.subscription?.tier === 'free' 
                             ? 'Free Tier Benefits' 
                             : 'Premium Membership Active'
                         }
                     </p>
-                    <p className="text-sm md:text-base opacity-80 mb-8 max-w-xl leading-relaxed" style={{ color: 'var(--subtext-color)' }}>
+                    <p className="text-sm md:text-base opacity-80 mb-4 sm:mb-8 max-w-xl leading-relaxed" style={{ color: 'var(--subtext-color)' }}>
                         {profile?.subscription?.tier === 'free' 
                             ? 'Upgrade to Pro for more links, custom aliases, and advanced analytics.' 
                             : profile?.subscription?.billingCycle === 'lifetime'
@@ -319,11 +320,11 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                         }
                     </p>
                     
-                    <div className="flex flex-wrap gap-4">
+                    <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4">
                         {profile?.subscription?.tier === 'free' ? (
                             <button 
                                 onClick={() => navigate('/pricing')}
-                                className="px-8 py-3.5 text-white font-bold rounded-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                                className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 text-white font-bold rounded-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
                                 style={{
                                     background: 'linear-gradient(to right, var(--accent-from), var(--accent-to))',
                                     boxShadow: '0 8px 25px var(--cta-shadow)'
@@ -344,7 +345,7 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                                                 showToast.error("Billing portal unavailable");
                                             }
                                         }}
-                                    className="px-8 py-3.5 backdrop-blur-md font-bold rounded-xl transition-all hover:bg-white/10 active:scale-95 shadow-xl hover:shadow-2xl"
+                                    className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 backdrop-blur-md font-bold rounded-xl transition-all hover:bg-white/10 active:scale-95 shadow-xl hover:shadow-2xl"
                                     style={{
                                         backgroundColor: 'var(--stat-icon-bg)',
                                         color: 'var(--heading-color)',
@@ -361,7 +362,7 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                           <button
                             onClick={handleSync}
                             disabled={syncing}
-                            className="px-6 py-3.5 backdrop-blur-md font-medium rounded-xl transition-all hover:bg-white/10 disabled:opacity-50 flex items-center justify-center gap-2"
+                            className="w-full sm:w-auto px-5 sm:px-6 py-3 sm:py-3.5 backdrop-blur-md font-medium rounded-xl transition-all hover:bg-white/10 disabled:opacity-50 flex items-center justify-center gap-2"
                             style={{
                                 backgroundColor: 'rgba(0,0,0,0.2)',
                                 color: 'var(--subtext-color)',
@@ -379,13 +380,13 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
         </div>
         
         {/* Usage Stats - Matches Overview Page */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-4 sm:mt-6">
             {/* Links Created */}
-            <div className="rounded-2xl p-6 transition-colors duration-300 relative overflow-hidden group" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+            <div className="rounded-2xl p-4 sm:p-6 transition-colors duration-300 relative overflow-hidden group" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
                 {/* Subtle Hover Glow */}
                 <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                 
-                <div className="flex justify-between items-center mb-6 relative z-10">
+                <div className="flex justify-between items-center mb-4 sm:mb-6 relative z-10">
                     <div className="flex items-center gap-3">
                         <div className="p-2.5 rounded-xl" style={{ backgroundColor: 'var(--stat-icon-bg)' }}>
                             <Zap size={20} style={{ color: 'var(--stat-icon-color)' }} />
@@ -409,7 +410,7 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                     return (
                         <div className="relative z-10">
                             <div className="flex justify-between text-base mb-3 items-end">
-                                <span className="font-bold text-3xl tracking-tight" style={{ color: 'var(--heading-color)' }}>{count}</span>
+                                <span className="font-bold text-2xl sm:text-3xl tracking-tight" style={{ color: 'var(--heading-color)' }}>{count}</span>
                                 <span className="font-medium mb-1" style={{ color: 'var(--subtext-color)' }}>/ {tier === 'business' ? '∞' : limit.toLocaleString()} max</span>
                             </div>
                             <div className="h-3 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--divider-color)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)' }}>
@@ -429,11 +430,11 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
             </div>
                 
             {/* Monthly Created */}
-            <div className="rounded-2xl p-6 transition-colors duration-300 relative overflow-hidden group" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+            <div className="rounded-2xl p-4 sm:p-6 transition-colors duration-300 relative overflow-hidden group" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
                 {/* Subtle Hover Glow */}
                 <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                 
-                <div className="flex justify-between items-center mb-6 relative z-10">
+                <div className="flex justify-between items-center mb-4 sm:mb-6 relative z-10">
                     <div className="flex items-center gap-3">
                         <div className="p-2.5 rounded-xl" style={{ backgroundColor: 'var(--stat-icon-bg)' }}>
                             <BarChart3 size={20} style={{ color: 'var(--stat-icon-color)' }} />
@@ -466,7 +467,7 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                     return (
                         <div className="relative z-10">
                             <div className="flex justify-between text-base mb-3 items-end">
-                                <span className="font-bold text-3xl tracking-tight" style={{ color: 'var(--heading-color)' }}>{count.toLocaleString()}</span>
+                                <span className="font-bold text-2xl sm:text-3xl tracking-tight" style={{ color: 'var(--heading-color)' }}>{count.toLocaleString()}</span>
                                 <span className="font-medium mb-1" style={{ color: 'var(--subtext-color)' }}>/ {limit.toLocaleString()} limit</span>
                             </div>
                             <div className="h-3 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--divider-color)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)' }}>
@@ -487,20 +488,20 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
         </div>
         
         {/* Redeem Code Section */}
-        <div className="rounded-2xl p-6 mt-6 transition-colors duration-300 relative overflow-hidden group" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
-          <h4 className="font-semibold text-lg flex items-center gap-3 mb-5" style={{ color: 'var(--heading-color)' }}>
+        <div className="rounded-2xl p-4 sm:p-6 mt-4 sm:mt-6 transition-colors duration-300 relative overflow-hidden group" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+          <h4 className="font-semibold text-lg flex items-center gap-3 mb-4 sm:mb-5" style={{ color: 'var(--heading-color)' }}>
             <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--stat-icon-bg)' }}>
                  <Gift size={20} style={{ color: 'var(--stat-icon-color)' }} />
             </div>
             Have a promo code?
           </h4>
-          <form onSubmit={handleCheckCode} className="flex flex-col sm:flex-row gap-4 relative z-10 w-full max-w-2xl">
+          <form onSubmit={handleCheckCode} className="flex flex-col sm:flex-row gap-3 sm:gap-4 relative z-10 w-full max-w-2xl">
             <input
               type="text"
               value={redeemCode}
               onChange={(e) => setRedeemCode(e.target.value.toUpperCase())}
               placeholder="Enter code (e.g., PRO-1Y-ABC123)"
-              className="flex-1 rounded-xl px-5 py-4 font-mono text-base transition-all focus:outline-none"
+              className="flex-1 rounded-xl px-4 sm:px-5 py-3 sm:py-4 font-mono text-sm sm:text-base transition-all focus:outline-none"
               style={{
                   backgroundColor: 'var(--topbar-bg)',
                   border: '1px solid var(--input-border)',
@@ -513,7 +514,7 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
             <button
               type="submit"
               disabled={validating || !redeemCode.trim()}
-              className="px-8 py-4 font-bold rounded-xl transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 font-bold rounded-xl transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
               style={{
                   background: 'linear-gradient(to right, var(--accent-from), var(--accent-to))',
                   color: 'white',
