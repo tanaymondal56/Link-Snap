@@ -149,27 +149,7 @@ const SettingsPage = () => {
   });
   const [changingPassword, setChangingPassword] = useState(false);
 
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
-
-  useEffect(() => {
-    if (activeTab === 'sessions') {
-      fetchSessions();
-    }
-  }, [activeTab]);
-
-  // Close confirmation modal on Escape key
-  useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === 'Escape' && confirmModal.isOpen) {
-        setConfirmModal({ isOpen: false, sessionId: null, sessionName: '', action: null });
-      }
-    };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [confirmModal.isOpen]);
-
+  // Define fetchProfile BEFORE the useEffect that depends on it (const is not hoisted)
   const fetchProfile = useCallback(async () => {
     try {
       const { data } = await api.get('/auth/me');
@@ -193,6 +173,27 @@ const SettingsPage = () => {
       setIsLoading(false);
     }
   }, [refreshUser]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  useEffect(() => {
+    if (activeTab === 'sessions') {
+      fetchSessions();
+    }
+  }, [activeTab]);
+
+  // Close confirmation modal on Escape key
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && confirmModal.isOpen) {
+        setConfirmModal({ isOpen: false, sessionId: null, sessionName: '', action: null });
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [confirmModal.isOpen]);
 
   // Calculate if username change is allowed (30-day cooldown)
   const canChangeUsername =

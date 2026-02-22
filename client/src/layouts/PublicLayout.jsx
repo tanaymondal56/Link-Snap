@@ -12,11 +12,11 @@ const PublicLayout = () => {
   const { user, loading, logout, openAuthModal, isAdmin } = useAuth();
   const appVersion = useAppVersion();
   const [isWhitelistedIP, setIsWhitelistedIP] = useState(false);
-  const [showNewBadge, setShowNewBadge] = useState(hasUnseenChangelog());
+  const [showNewBadge, setShowNewBadge] = useState(() => hasUnseenChangelog(appVersion));
 
-  // Re-check changelog status when app version updates
+  // Re-check changelog status when the live API version updates
   useEffect(() => {
-    setShowNewBadge(hasUnseenChangelog());
+    setShowNewBadge(hasUnseenChangelog(appVersion));
   }, [appVersion]);
 
   // Check if current IP is whitelisted for admin access (only when not logged in)
@@ -101,7 +101,7 @@ const PublicLayout = () => {
               <Link
                 to="/changelog"
                 onClick={() => {
-                  markChangelogAsSeen();
+                  markChangelogAsSeen(appVersion);
                   setShowNewBadge(false);
                 }}
                 className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300 transition-all text-xs font-medium group relative"

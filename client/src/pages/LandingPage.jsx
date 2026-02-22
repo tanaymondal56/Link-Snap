@@ -110,11 +110,11 @@ const LandingPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showNewBadge, setShowNewBadge] = useState(hasUnseenChangelog());
+  const [showNewBadge, setShowNewBadge] = useState(() => hasUnseenChangelog(appVersion));
 
-  // Re-check changelog status when app version updates
+  // Re-check changelog status when the live API version updates
   useEffect(() => {
-    setShowNewBadge(hasUnseenChangelog());
+    setShowNewBadge(hasUnseenChangelog(appVersion));
   }, [appVersion]);
 
   // Expiration state (for logged-in users)
@@ -361,7 +361,7 @@ const LandingPage = () => {
               <Link
                 to="/changelog"
                 onClick={() => {
-                  markChangelogAsSeen();
+                  markChangelogAsSeen(appVersion);
                   setShowNewBadge(false);
                 }}
                 className="sm:hidden inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300 transition-all text-xs font-medium relative"
