@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 import { invalidateCache } from '../services/cacheService.js';
 import { isReservedWord } from '../config/reservedWords.js';
 import { incrementLinkUsage } from '../middleware/subscriptionMiddleware.js';
-import { hasFeature } from '../services/subscriptionService.js';
+import { hasFeature, getUpgradeMessage } from '../services/subscriptionService.js';
 import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
 import { trackVisit } from '../services/analyticsService.js';
 import Settings from '../models/Settings.js';
@@ -152,7 +152,7 @@ const createShortUrl = async (req, res, next) => {
         if (customAlias) {
              if (req.user && !hasFeature(req.user, 'custom_alias')) {
                  res.status(403);
-                 throw new Error('Custom aliases are available on Pro plan');
+                 throw new Error(getUpgradeMessage('custom_alias'));
              }
              if (!req.user && customAlias) {
                   // For public/anon users? Usually not allowed or limited.
@@ -172,7 +172,7 @@ const createShortUrl = async (req, res, next) => {
        if (expiresIn || expiresAt) {
             if (req.user && !hasFeature(req.user, 'link_expiration')) {
                  res.status(403);
-                 throw new Error('Link expiration is available on Pro plan');
+                 throw new Error(getUpgradeMessage('link_expiration'));
             }
        }
 
@@ -203,7 +203,7 @@ const createShortUrl = async (req, res, next) => {
         if (password && password.length >= 4) {
             if (req.user && !hasFeature(req.user, 'password_protection')) {
                  res.status(403);
-                 throw new Error('Password protection is available on Pro plan');
+                 throw new Error(getUpgradeMessage('password_protection'));
             }
             const salt = await bcrypt.genSalt(10);
             passwordHash = await bcrypt.hash(password, salt);
@@ -589,7 +589,7 @@ const updateUrl = async (req, res, next) => {
             // Check feature access for custom alias
             if (!hasFeature(req.user, 'custom_alias')) {
                 res.status(403);
-                throw new Error('Custom aliases are available on Pro plan');
+                throw new Error(getUpgradeMessage('custom_alias'));
             }
             
             // Reserved words check
@@ -644,7 +644,7 @@ const updateUrl = async (req, res, next) => {
             // Check feature access for expiration
             if (!hasFeature(req.user, 'link_expiration')) {
                 res.status(403);
-                throw new Error('Link expiration is available on Pro plan');
+                throw new Error(getUpgradeMessage('link_expiration'));
             }
             const newExpiresAt = new Date(expiresAt);
             if (newExpiresAt <= new Date()) {
@@ -658,7 +658,7 @@ const updateUrl = async (req, res, next) => {
             // Check feature access for expiration
             if (!hasFeature(req.user, 'link_expiration')) {
                 res.status(403);
-                throw new Error('Link expiration is available on Pro plan');
+                throw new Error(getUpgradeMessage('link_expiration'));
             }
             updateFields.expiresAt = calculateExpiresAt(expiresIn);
             invalidateCache(url.shortId);
@@ -675,7 +675,7 @@ const updateUrl = async (req, res, next) => {
             // Check feature access for password protection
             if (!hasFeature(req.user, 'password_protection')) {
                 res.status(403);
-                throw new Error('Password protection is available on Pro plan');
+                throw new Error(getUpgradeMessage('password_protection'));
             }
             const salt = await bcrypt.genSalt(10);
             updateFields.passwordHash = await bcrypt.hash(password, salt);

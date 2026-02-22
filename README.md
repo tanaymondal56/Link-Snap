@@ -3,7 +3,7 @@
 > **Advanced URL Shortening, Analytics, & Bio-Link Platform with Stealth Security.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-0.6.3-blue.svg)](package.json)
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
 [![Docker](https://img.shields.io/badge/docker-tanaymondal%2Flinksnap-blue?logo=docker)](https://hub.docker.com/repository/docker/tanaymondal/linksnap/)
 
@@ -86,6 +86,14 @@
     ```
     *   Frontend: `http://localhost:3000`
     *   Backend: `http://localhost:5000`
+
+5.  **First Run Setup**
+    
+    On a **fresh installation** (empty database), the **first user** to register via the frontend is automatically:
+    - Promoted to **Admin** role
+    - Verified instantly (no email/OTP required)
+    
+    This lets you immediately access the Admin Panel to configure SMTP and other settings. Subsequent users follow the normal registration flow.
 
 ---
 

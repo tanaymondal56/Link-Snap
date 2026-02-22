@@ -70,23 +70,33 @@ export const createCheckoutSession = async (req, res) => {
       }
       
       
-      // Validate Variant ID belongs to our config
+      // Validate Variant ID belongs to our config (Pro + Business)
       const validVariantIds = [
           process.env.LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID,
-          process.env.LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID
-      ];
+          process.env.LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID,
+          process.env.LEMONSQUEEZY_BUSINESS_MONTHLY_VARIANT_ID,
+          process.env.LEMONSQUEEZY_BUSINESS_YEARLY_VARIANT_ID,
+      ].filter(Boolean); // filter(Boolean) removes undefined env vars gracefully
       
       if (!validVariantIds.includes(variantId.toString())) {
           return res.status(400).json({ message: 'Invalid subscription variant' });
       }
+      // Dynamically resolve tier from variant ID
+      const variantIdStr = variantId.toString();
+      let tierName = 'pro'; // default
+      if (variantIdStr === process.env.LEMONSQUEEZY_BUSINESS_MONTHLY_VARIANT_ID ||
+          variantIdStr === process.env.LEMONSQUEEZY_BUSINESS_YEARLY_VARIANT_ID) {
+        tierName = 'business';
+      }
+
       const payload = {
           data: {
               type: "checkouts",
               attributes: {
                   checkout_data: {
                       custom: {
-                          user_id: user.snapId || user._id.toString(), // Use SnapID if available
-                          tier_name: "pro" // For now only Pro is available
+                          user_id: user.snapId || user._id.toString(),
+                          tier_name: tierName
                       }
                   },
                   product_options: {

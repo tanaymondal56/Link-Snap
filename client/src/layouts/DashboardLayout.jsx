@@ -14,6 +14,8 @@ import {
   Lock,
 } from 'lucide-react';
 import { cn } from '../utils/cn';
+import { getEffectiveTier } from '../utils/subscriptionUtils';
+import { applyTierTheme, TIER_BADGES } from '../utils/tierTheme';
 
 import { Loader2 } from 'lucide-react';
 
@@ -23,7 +25,7 @@ const CreateLinkModal = lazy(() => import('../components/CreateLinkModal'));
 const LinkSuccessModal = lazy(() => import('../components/LinkSuccessModal'));
 
 const DashboardLayout = () => {
-  const { user, logout, loading, isAdmin } = useAuth();
+  const { user, logout, loading, isAuthChecking, isAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -31,6 +33,8 @@ const DashboardLayout = () => {
 
   const [createdLink, setCreatedLink] = useState(null);
   const adminTriggerTimer = useRef(null); // For hidden admin recovery trigger
+  const prevTierRef = useRef(null); // Track previous tier for upgrade celebration
+  const userCardRef = useRef(null); // Ref for upgrade glow animation target
 
   // Set meta robots to noindex for dashboard pages (SEO)
   useEffect(() => {
@@ -74,10 +78,35 @@ const DashboardLayout = () => {
     }
   }, [loading, user, navigate]);
 
+  // Check if user has Pro/Business tier
+  const userTier = user?.role === 'master_admin' ? 'master' : getEffectiveTier(user);
+  const tierBadge = TIER_BADGES[userTier] || null;
+
+  // ─── Apply Tier Theme ───────────────────────────────────────────────────
+  // Runs whenever user data changes. CSS @property transitions handle the
+  // smooth color interpolation automatically — no JS animation needed.
+  useEffect(() => {
+    applyTierTheme(userTier);
+
+    // Upgrade celebration: if tier increased, briefly glow the sidebar card
+    const TIER_RANK = { free: 0, pro: 1, business: 2, master: 3 };
+    if (prevTierRef.current !== null &&
+        TIER_RANK[userTier] > TIER_RANK[prevTierRef.current] &&
+        userCardRef.current) {
+      userCardRef.current.classList.add('upgrade-celebrate');
+      const timer = setTimeout(() => {
+        userCardRef.current?.classList.remove('upgrade-celebrate');
+      }, 2000);
+      prevTierRef.current = userTier;
+      return () => clearTimeout(timer);
+    }
+    prevTierRef.current = userTier;
+  }, [userTier]);
+
   // Check if there's a cached user but user isn't set yet (still loading)
-  // This prevents redirect to home when refreshing while logged in
+  // Or if we are currently running the background token validation
   const hasCachedUser = typeof window !== 'undefined' && localStorage.getItem('ls_auth_user');
-  const isStillLoading = loading || (hasCachedUser && !user);
+  const isStillLoading = loading || isAuthChecking || (hasCachedUser && !user);
 
   if (isStillLoading)
     return (
@@ -86,7 +115,8 @@ const DashboardLayout = () => {
       </div>
     );
 
-  if (!user) return null; // Will redirect via useEffect
+  // If user is null and not loading, the useEffect will redirect them. Avoid rendering layout.
+  if (!user) return null; 
 
   const navigation = [
     { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
@@ -105,16 +135,13 @@ const DashboardLayout = () => {
     });
   }
 
-  // Check if user has Pro/Business tier
-  const userTier = user?.subscription?.tier || 'free';
-
   // Add admin panel link for admin users
   if (isAdmin) {
     navigation.push({ name: 'Admin Panel', href: '/admin', icon: Shield, isAdmin: true });
   }
 
   return (
-    <div className="h-screen bg-gray-950 text-white flex font-sans selection:bg-purple-500/30 overflow-hidden">
+    <div className="h-screen bg-gray-950 text-white flex font-sans overflow-hidden" style={{ '--tw-selection': 'var(--selection)' }}>
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div
@@ -126,14 +153,18 @@ const DashboardLayout = () => {
       {/* Sidebar - Fixed */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-gray-900/95 backdrop-blur-xl border-r border-white/5 flex flex-col shadow-2xl lg:shadow-none will-change-transform',
+          'fixed inset-y-0 left-0 z-50 w-64 backdrop-blur-xl flex flex-col shadow-2xl lg:shadow-none will-change-transform',
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
           'transition-transform duration-300 ease-out'
         )}
+        style={{ borderRight: '1px solid var(--sidebar-border)', backgroundColor: 'var(--sidebar-bg)' }}
       >
-        <div className="h-20 flex items-center px-6 border-b border-white/5">
+        <div className="h-20 flex items-center px-6" style={{ borderBottom: '1px solid var(--divider-color)' }}>
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-all">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center shadow-lg transition-all"
+              style={{ background: `linear-gradient(to bottom right, var(--accent-from), var(--accent-to))`, boxShadow: `0 4px 12px var(--cta-shadow)` }}
+            >
               <LinkIcon size={18} className="text-white" />
             </div>
             <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
@@ -155,7 +186,11 @@ const DashboardLayout = () => {
               setIsCreateModalOpen(true);
               setIsSidebarOpen(false); // Close sidebar on mobile when clicked
             }}
-            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white py-3 px-4 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+            className="w-full text-white py-3 px-4 rounded-xl font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+            style={{
+              background: `linear-gradient(to right, var(--accent-from), var(--accent-to))`,
+              boxShadow: `0 4px 12px var(--cta-shadow)`,
+            }}
           >
             <LinkIcon size={18} />
             <span>New Link</span>
@@ -175,11 +210,16 @@ const DashboardLayout = () => {
                   isActive
                     ? item.isAdmin
                       ? 'bg-amber-500/20 text-amber-300 shadow-inner border border-amber-500/30'
-                      : 'bg-white/10 text-white shadow-inner border border-white/5'
+                      : 'shadow-inner border'
                     : item.isAdmin
                       ? 'text-amber-400/70 hover:bg-amber-500/10 hover:text-amber-300 hover:translate-x-1'
                       : 'text-gray-400 hover:bg-white/5 hover:text-white hover:translate-x-1'
                 )}
+                style={isActive && !item.isAdmin ? {
+                  backgroundColor: 'var(--nav-active-bg)',
+                  color: 'var(--nav-active-text)',
+                  borderColor: 'var(--card-border)',
+                } : undefined}
               >
                 <item.icon
                   size={20}
@@ -187,11 +227,12 @@ const DashboardLayout = () => {
                     isActive
                       ? item.isAdmin
                         ? 'text-amber-400'
-                        : 'text-blue-400'
+                        : ''
                       : item.isAdmin
                         ? 'text-amber-500/50'
                         : 'text-gray-500 group-hover:text-gray-300'
                   )}
+                  style={isActive && !item.isAdmin ? { color: 'var(--nav-active-icon)' } : undefined}
                 />
                 <span className="flex items-center gap-2">
                   {item.name}
@@ -204,9 +245,16 @@ const DashboardLayout = () => {
           })}
         </nav>
 
-        <div className="p-4 border-t border-white/5 bg-black/20">
-          <div className="flex items-center gap-3 px-3 py-2 mb-3 rounded-lg bg-white/5 border border-white/5">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-bold shadow-inner">
+        <div className="p-4 bg-black/20" style={{ borderTop: '1px solid var(--divider-color)' }}>
+          <div
+            ref={userCardRef}
+            className="flex items-center gap-3 px-3 py-2 mb-3 rounded-lg bg-white/5"
+            style={{ border: '1px solid var(--card-border)' }}
+          >
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold shadow-inner"
+              style={{ background: `linear-gradient(to bottom right, var(--avatar-from), var(--avatar-to))` }}
+            >
               {user.firstName ? user.firstName[0].toUpperCase() : user.email[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
@@ -220,7 +268,14 @@ const DashboardLayout = () => {
               >
                 {user.email}
               </p>
-              <p className="text-xs text-gray-400 capitalize">{user.role}</p>
+              <p className="text-xs text-gray-400 capitalize flex items-center gap-1.5">
+                {user.role}
+                {tierBadge && (
+                  <span className={`tier-badge ${tierBadge.className}`}>
+                    {tierBadge.label}
+                  </span>
+                )}
+              </p>
             </div>
           </div>
           <button
@@ -260,9 +315,11 @@ const DashboardLayout = () => {
       </aside>
 
       {/* Main Content - With left margin for sidebar */}
-      <div className="flex-1 flex flex-col min-w-0 lg:ml-64 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-900/20 via-gray-950 to-gray-950">
+      <div className="flex-1 flex flex-col min-w-0 lg:ml-64" style={{ background: `radial-gradient(ellipse at top right, var(--bg-radial), rgb(3,7,18) 50%, rgb(3,7,18))` }}>
         {/* Topbar - Fixed */}
-        <header className="h-16 border-b border-white/5 flex items-center justify-between px-4 lg:px-8 backdrop-blur-sm bg-gray-950/80 flex-shrink-0">
+        <header className="h-16 flex items-center justify-between px-4 lg:px-8 backdrop-blur-sm flex-shrink-0 relative" style={{ borderBottom: '1px solid var(--sidebar-border)', backgroundColor: 'var(--topbar-bg)' }}>
+          {/* Topbar accent line — changes color per tier */}
+          <div className="topbar-accent-line" />
           <button
             className="lg:hidden text-gray-400 hover:text-white p-3 -m-1 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-white/5 rounded-lg transition-colors active:scale-95"
             onClick={() => setIsSidebarOpen(true)}

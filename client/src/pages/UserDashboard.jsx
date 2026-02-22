@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { getTierConfig } from '../config/subscriptionTiers';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
@@ -45,8 +45,14 @@ const CreateLinkModal = lazy(() => import('../components/CreateLinkModal'));
 const EditLinkModal = lazy(() => import('../components/EditLinkModal'));
 import LinkSuccessModal from '../components/LinkSuccessModal';
 import { cacheLinks, getCachedLinks, getCacheAge } from '../utils/offlineCache';
+import { getEffectiveTier } from '../utils/subscriptionUtils';
 import { useScrollLock } from '../hooks/useScrollLock';
 import BadgeTooltip from '../components/ui/BadgeTooltip';
+import { useQrWorker } from '../hooks/useQrWorker';
+import { exportQrCode } from '../utils/qrExport';
+import { useVirtualizer } from '@tanstack/react-virtual';
+
+const VIRTUAL_SCROLL_THRESHOLD = 30; // Only virtualize when list exceeds this count
 
 const UserDashboard = () => {
   const { user, isAuthChecking } = useAuth();
@@ -70,6 +76,26 @@ const UserDashboard = () => {
 
   // Scroll Lock for QR Modal
   useScrollLock(!!qrModalLink);
+  const { exportToPng } = useQrWorker();
+
+  // Virtual scrolling refs and setup
+  const scrollContainerRef = useRef(null);
+  const useVirtual = showAll && filteredLinks.length > VIRTUAL_SCROLL_THRESHOLD;
+
+  const virtualizer = useVirtualizer({
+    count: useVirtual ? filteredLinks.length : 0,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: useCallback(() => 200, []), // Estimated card height — measureElement refines it
+    overscan: 5,
+    enabled: useVirtual,
+  });
+
+  // Scroll to top when search term changes (prevents blank screen in virtual list)
+  useEffect(() => {
+    if (useVirtual && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [searchTerm, useVirtual]);
 
   useEffect(() => {
     // Wait for auth check to complete (ensure token is ready)
@@ -264,7 +290,7 @@ const UserDashboard = () => {
         </div>
 
         {/* Usage Stats */}
-        <div className="glass-dark p-4 rounded-xl border border-gray-700/50">
+        <div className="p-4 rounded-xl transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Links Usage */}
             {/* Links Usage Stats - Active & Monthly */}
@@ -283,24 +309,24 @@ const UserDashboard = () => {
                   </span>
                   <span className="text-white text-xs font-medium">
                     {user?.linkUsage?.count || 0}/
-                    {getTierConfig(user?.subscription?.tier).activeLimit === Infinity
+                    {getTierConfig(getEffectiveTier(user)).activeLimit === Infinity
                       ? '∞'
-                      : getTierConfig(user?.subscription?.tier).activeLimit}
+                      : getTierConfig(getEffectiveTier(user)).activeLimit}
                   </span>
                 </div>
                 <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
                       (user?.linkUsage?.count || 0) /
-                        (getTierConfig(user?.subscription?.tier).activeLimit === Infinity
+                        (getTierConfig(getEffectiveTier(user)).activeLimit === Infinity
                           ? 10000
-                          : getTierConfig(user?.subscription?.tier).activeLimit) >=
+                          : getTierConfig(getEffectiveTier(user)).activeLimit) >=
                       0.9
                         ? 'bg-red-500'
                         : 'bg-blue-500'
                     }`}
                     style={{
-                      width: `${getTierConfig(user?.subscription?.tier).activeLimit === Infinity ? 5 : Math.min(100, ((user?.linkUsage?.count || 0) / getTierConfig(user?.subscription?.tier).activeLimit) * 100)}%`,
+                      width: `${getTierConfig(getEffectiveTier(user)).activeLimit === Infinity ? 5 : Math.min(100, ((user?.linkUsage?.count || 0) / getTierConfig(getEffectiveTier(user)).activeLimit) * 100)}%`,
                     }}
                   />
                 </div>
@@ -320,20 +346,20 @@ const UserDashboard = () => {
                   </span>
                   <span className="text-white text-xs font-medium">
                     {user?.linkUsage?.hardCount || 0}/
-                    {getTierConfig(user?.subscription?.tier).monthlyLimit.toLocaleString()}
+                    {getTierConfig(getEffectiveTier(user)).monthlyLimit.toLocaleString()}
                   </span>
                 </div>
                 <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
                       (user?.linkUsage?.hardCount || 0) /
-                        getTierConfig(user?.subscription?.tier).monthlyLimit >=
+                        getTierConfig(getEffectiveTier(user)).monthlyLimit >=
                       0.9
                         ? 'bg-amber-500'
                         : 'bg-indigo-500'
                     }`}
                     style={{
-                      width: `${Math.min(100, ((user?.linkUsage?.hardCount || 0) / getTierConfig(user?.subscription?.tier).monthlyLimit) * 100)}%`,
+                      width: `${Math.min(100, ((user?.linkUsage?.hardCount || 0) / getTierConfig(getEffectiveTier(user)).monthlyLimit) * 100)}%`,
                     }}
                   />
                 </div>
@@ -341,7 +367,7 @@ const UserDashboard = () => {
             </div>
 
             {/* Upgrade Button for Free Users */}
-            {(!user?.subscription?.tier || user?.subscription?.tier === 'free') && (
+            {getEffectiveTier(user) === 'free' && (
               <a
                 href="/pricing"
                 className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-400 rounded-lg text-xs font-medium transition-all self-center"
@@ -355,7 +381,11 @@ const UserDashboard = () => {
 
         <button
           onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white py-2.5 px-5 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 w-full sm:w-auto sm:self-start"
+          className="flex items-center justify-center gap-2 text-white py-2.5 px-6 rounded-xl font-bold transition-all hover:scale-105 active:scale-95 w-full sm:w-auto sm:self-start border border-white/10"
+          style={{
+              background: 'linear-gradient(to right, var(--accent-from), var(--accent-to))',
+              boxShadow: '0 8px 20px var(--cta-shadow)'
+          }}
         >
           <Plus size={18} />
           <span className="sm:hidden">Create Link</span>
@@ -373,27 +403,48 @@ const UserDashboard = () => {
           <input
             type="text"
             placeholder="Search links..."
-            className="w-full bg-gray-800/50 border border-gray-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+            className="w-full rounded-xl pl-10 pr-4 py-3 text-sm transition-all focus:outline-none"
+            style={{
+                backgroundColor: 'var(--topbar-bg)',
+                border: '1px solid var(--input-border)',
+                color: 'var(--heading-color)'
+            }}
+            onFocus={(e) => e.target.style.borderColor = 'var(--input-focus)'}
+            onBlur={(e) => e.target.style.borderColor = 'var(--input-border)'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
       </div>
 
-      {/* Links Card View */}
-      <div className="space-y-4">
-        {filteredLinks.length === 0 ? (
-          <div className="glass-dark rounded-xl border border-gray-800 p-12 text-center">
-            <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-600">
-              <LinkIcon size={32} />
-            </div>
-            <p className="text-gray-300 font-medium text-lg">No links found</p>
-            <p className="text-gray-500 text-sm mt-1">Create a new link above to get started</p>
+      {/* Links Card View — shared render function used by both virtual and normal paths */}
+      {filteredLinks.length === 0 ? (
+        <div className="rounded-2xl p-12 text-center transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'var(--stat-icon-bg)', color: 'var(--stat-icon-color)' }}>
+            <LinkIcon size={32} />
           </div>
-        ) : (
-          filteredLinks.map((link) => {
-            // Check if this link is effectively disabled (owner banned or link disabled)
-            const isLinkDisabled = link.ownerBanned || !link.isActive;
+          <p className="font-medium text-lg" style={{ color: 'var(--heading-color)' }}>No links found</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--subtext-color)' }}>Create a new link above to get started</p>
+        </div>
+      ) : useVirtual ? (
+        /* ── VIRTUAL SCROLLING MODE (View All with many links) ── */
+        <div
+          ref={scrollContainerRef}
+          className="overflow-auto"
+          style={{ height: 'calc(100vh - 340px)', minHeight: '400px' }}
+          role="list"
+          aria-label="Links list"
+        >
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const link = filteredLinks[virtualRow.index];
+              const isLinkDisabled = link.ownerBanned || !link.isActive;
 
             // Check expiration status
             const isExpired = link.expiresAt && new Date(link.expiresAt) < new Date();
@@ -433,15 +484,31 @@ const UserDashboard = () => {
             };
 
             return (
-              <div key={link._id}>
+              <div
+                key={link._id}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start}px)`,
+                  paddingBottom: '16px', // gap between cards
+                }}
+                role="listitem"
+                aria-setsize={filteredLinks.length}
+                aria-posinset={virtualRow.index + 1}
+              >
                 <div
-                  className={`glass-dark rounded-xl border overflow-hidden transition-colors ${
+                  className={`rounded-2xl transition-colors duration-300 overflow-hidden border ${
                     isFlagged
                       ? 'border-red-500/40 bg-red-500/5'
                       : isLinkDisabled
                         ? 'border-orange-500/30 bg-orange-500/5'
-                        : 'border-gray-800 hover:border-gray-700'
+                        : 'hover:bg-white/5'
                   }`}
+                  style={!isFlagged && !isLinkDisabled ? { backgroundColor: 'var(--glass-bg)', borderColor: 'var(--glass-border)' } : {}}
                 >
                   {/* Flagged Link Banner */}
                   {isFlagged && (
@@ -796,7 +863,7 @@ const UserDashboard = () => {
                     </div>
 
                     {/* Actions Bar */}
-                    <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-800">
+                    <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t" style={{ borderTopColor: 'var(--divider-color)' }}>
                       <div className="flex items-center gap-0.5 sm:gap-1">
                         <button
                           onClick={() => setEditingLink(link)}
@@ -1192,11 +1259,229 @@ const UserDashboard = () => {
                 </div>
               </div>
             );
-          })
-        )}
-      </div>
+          })}
+          </div>
+        </div>
+      ) : (
+        /* ── NORMAL MODE (Paginated / small list) ── */
+        <div className="space-y-4">
+          {filteredLinks.map((link) => {
+            const isLinkDisabled = link.ownerBanned || !link.isActive;
+            const isExpired = link.expiresAt && new Date(link.expiresAt) < new Date();
+            const isExpiringSoon =
+              link.expiresAt &&
+              !isExpired &&
+              new Date(link.expiresAt) - new Date() < 24 * 60 * 60 * 1000;
+            const getExpirationText = () => {
+              if (!link.expiresAt) return null;
+              if (isExpired) return 'Expired';
+              const diff = new Date(link.expiresAt) - new Date();
+              const hours = Math.floor(diff / (1000 * 60 * 60));
+              const days = Math.floor(hours / 24);
+              if (days > 0) return `${days}d left`;
+              if (hours > 0) return `${hours}h left`;
+              return 'Less than 1h';
+            };
+            const isFlagged =
+              link.safetyStatus === 'malware' ||
+              link.safetyStatus === 'phishing' ||
+              link.safetyStatus === 'unwanted';
+            const getSafetyLabel = () => {
+              switch (link.safetyStatus) {
+                case 'malware': return 'Flagged: Malware Detected';
+                case 'phishing': return 'Flagged: Phishing Detected';
+                case 'unwanted': return 'Flagged: Unwanted Software';
+                default: return 'Flagged';
+              }
+            };
 
-      {/* Pagination Controls */}
+            return (
+              <div key={link._id}>
+                <div
+                  className={`rounded-2xl transition-colors duration-300 overflow-hidden border ${
+                    isFlagged
+                      ? 'border-red-500/40 bg-red-500/5'
+                      : isLinkDisabled
+                        ? 'border-orange-500/30 bg-orange-500/5'
+                        : 'hover:bg-white/5'
+                  }`}
+                  style={!isFlagged && !isLinkDisabled ? { backgroundColor: 'var(--glass-bg)', borderColor: 'var(--glass-border)' } : {}}
+                >
+                  {isFlagged && (
+                    <div className="bg-red-500/10 border-b border-red-500/20 px-5 py-2 flex items-center gap-2">
+                      <ShieldAlert size={14} className="text-red-400" />
+                      <span className="text-red-300 text-xs font-medium">{getSafetyLabel()}</span>
+                      <span className="text-red-400/70 text-xs ml-auto">This link may not redirect until reviewed</span>
+                    </div>
+                  )}
+                  {isLinkDisabled && !isFlagged && (
+                    <div className="bg-orange-500/10 border-b border-orange-500/20 px-5 py-2 flex items-center gap-2">
+                      <Ban size={14} className="text-orange-400" />
+                      <span className="text-orange-300 text-xs font-medium">{link.ownerBanned ? 'Disabled (Account Suspended)' : 'Link Disabled'}</span>
+                    </div>
+                  )}
+                  <div className="p-3 sm:p-5">
+                    <div className="flex flex-col lg:flex-row lg:items-start gap-3 sm:gap-4">
+                      <button onClick={() => setQrModalLink(link)} className={`p-1.5 sm:p-2 rounded-lg sm:rounded-xl shadow-lg transition-transform cursor-pointer self-center lg:self-start shrink-0 ${isLinkDisabled ? 'bg-gray-200 opacity-60' : 'bg-white hover:scale-105'}`} title="Click to view QR code">
+                        <QRCodeSVG value={getShortUrl(link.customAlias || link.shortId)} size={60} level="H" className="sm:w-20 sm:h-20" />
+                      </button>
+                      <div className="flex-1 min-w-0 space-y-2 sm:space-y-3">
+                        <div className="text-center lg:text-left">
+                          <h3 className={`font-semibold text-base sm:text-lg truncate ${isLinkDisabled ? 'text-gray-400' : 'text-white'}`}>{link.title || 'Untitled Link'}</h3>
+                          <p className="text-gray-500 text-xs sm:text-sm truncate" title={link.originalUrl}>→ {link.originalUrl}</p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-row gap-2 sm:gap-3">
+                          {link.customAlias && (
+                            <div className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 ${isLinkDisabled ? 'bg-gray-800/30 border border-gray-700/30' : 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20'}`}>
+                              <Sparkles size={12} className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-500 shrink-0' : 'text-purple-400 shrink-0'}`} />
+                              <span className={`font-mono text-xs sm:text-sm truncate ${isLinkDisabled ? 'text-gray-500 cursor-not-allowed' : 'text-purple-400 cursor-pointer hover:underline'}`} onClick={() => !isLinkDisabled && copyToClipboard(link.customAlias)}>/{link.customAlias}</span>
+                              <button onClick={() => !isLinkDisabled && copyToClipboard(link.customAlias)} className={`p-0.5 sm:p-1 rounded transition-colors shrink-0 ${isLinkDisabled ? 'text-gray-600 cursor-not-allowed' : 'hover:bg-purple-500/20'}`} disabled={isLinkDisabled}>
+                                {copiedId === link.customAlias ? <Check size={12} className="sm:w-[14px] sm:h-[14px] text-green-400" /> : <Copy size={12} className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-600' : 'text-purple-400'}`} />}
+                              </button>
+                              {!isLinkDisabled && (<a href={getShortUrl(link.customAlias)} target="_blank" rel="noopener noreferrer" className="p-0.5 sm:p-1 hover:bg-purple-500/20 rounded transition-colors shrink-0"><ExternalLink size={12} className="sm:w-[14px] sm:h-[14px] text-purple-400" /></a>)}
+                            </div>
+                          )}
+                          <div className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 ${isLinkDisabled ? 'bg-gray-800/30 border border-gray-700/30' : 'bg-gray-800/50 border border-gray-700/50'}`}>
+                            <LinkIcon size={12} className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-500 shrink-0' : 'text-blue-400 shrink-0'}`} />
+                            <span className={`font-mono text-xs sm:text-sm truncate ${isLinkDisabled ? 'text-gray-500 cursor-not-allowed' : 'text-blue-400 cursor-pointer hover:underline'}`} onClick={() => !isLinkDisabled && copyToClipboard(link.shortId)}>/{link.shortId}</span>
+                            <button onClick={() => !isLinkDisabled && copyToClipboard(link.shortId)} className={`p-0.5 sm:p-1 rounded transition-colors shrink-0 ${isLinkDisabled ? 'text-gray-600 cursor-not-allowed' : 'hover:bg-blue-500/20'}`} disabled={isLinkDisabled}>
+                              {copiedId === link.shortId ? <Check size={12} className="sm:w-[14px] sm:h-[14px] text-green-400" /> : <Copy size={12} className={`sm:w-[14px] sm:h-[14px] ${isLinkDisabled ? 'text-gray-600' : 'text-blue-400'}`} />}
+                            </button>
+                            {!isLinkDisabled && (<a href={getShortUrl(link.shortId)} target="_blank" rel="noopener noreferrer" className="p-0.5 sm:p-1 hover:bg-blue-500/20 rounded transition-colors shrink-0"><ExternalLink size={12} className="sm:w-[14px] sm:h-[14px] text-blue-400" /></a>)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-center lg:justify-end gap-2 mt-2 sm:mt-0">
+                        <BadgeTooltip content={`${link.clicks} total clicks on this link`}>
+                          <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${isLinkDisabled ? 'bg-gray-800/30 border border-gray-700/30' : 'bg-purple-500/10 border border-purple-500/20'}`}>
+                            <BarChart2 size={14} className={isLinkDisabled ? 'text-gray-500' : 'text-purple-400'} />
+                            <span className={`font-medium text-xs ${isLinkDisabled ? 'text-gray-500' : 'text-purple-400'}`}>{link.clicks}</span>
+                          </div>
+                        </BadgeTooltip>
+                        {link.expiresAt && (
+                          <BadgeTooltip content={isExpired ? `Expired on ${new Date(link.expiresAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}` : `Expires ${new Date(link.expiresAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`}>
+                            <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${isExpired ? 'bg-red-500/10 border border-red-500/20' : isExpiringSoon ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-gray-800/30 border border-gray-700/30'}`}>
+                              <Clock size={14} className={isExpired ? 'text-red-400' : isExpiringSoon ? 'text-amber-400' : 'text-gray-400'} />
+                              <span className={`font-medium text-xs hidden sm:inline ${isExpired ? 'text-red-400' : isExpiringSoon ? 'text-amber-400' : 'text-gray-400'}`}>{getExpirationText()}</span>
+                            </div>
+                          </BadgeTooltip>
+                        )}
+                        {link.isPasswordProtected && (
+                          <BadgeTooltip content="This link requires a password to access">
+                            <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 bg-purple-500/10 border border-purple-500/20 cursor-default">
+                              <Lock size={14} className="text-purple-400" />
+                              <span className="font-medium text-xs text-purple-400 hidden sm:inline">Protected</span>
+                            </div>
+                          </BadgeTooltip>
+                        )}
+                        {link.deviceRedirects?.enabled && link.deviceRedirects?.rules?.length > 0 && (
+                          <BadgeTooltip content={`${link.deviceRedirects.rules.length} device rule${link.deviceRedirects.rules.length > 1 ? 's' : ''} configured`}>
+                            <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 bg-cyan-500/10 border border-cyan-500/20 cursor-default">
+                              <Target size={14} className="text-cyan-400" />
+                              <span className="font-medium text-xs text-cyan-400 hidden sm:inline">{link.deviceRedirects.rules.length}</span>
+                            </div>
+                          </BadgeTooltip>
+                        )}
+                        {link.timeRedirects?.enabled && link.timeRedirects?.rules?.length > 0 && (
+                          <BadgeTooltip content={`${link.timeRedirects.rules.length} time schedule${link.timeRedirects.rules.length > 1 ? 's' : ''} configured`}>
+                            <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 bg-violet-500/10 border border-violet-500/20 cursor-default">
+                              <Timer size={14} className="text-violet-400" />
+                              <span className="font-medium text-xs text-violet-400 hidden sm:inline">{link.timeRedirects.rules.length}</span>
+                            </div>
+                          </BadgeTooltip>
+                        )}
+                        {link.activeStartTime && (
+                          <BadgeTooltip content={new Date(link.activeStartTime) > new Date() ? `Link will activate on ${new Date(link.activeStartTime).toLocaleString()}` : `Link became active on ${new Date(link.activeStartTime).toLocaleString()}`}>
+                            <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 cursor-default ${new Date(link.activeStartTime) > new Date() ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-emerald-500/10 border border-emerald-500/20'}`}>
+                              <CalendarClock size={14} className={new Date(link.activeStartTime) > new Date() ? 'text-amber-400' : 'text-emerald-400'} />
+                            </div>
+                          </BadgeTooltip>
+                        )}
+                        <span className="text-gray-500 text-xs ml-1">{formatDate(link.createdAt)}</span>
+                      </div>
+                    </div>
+                    {/* Actions Bar */}
+                    <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t" style={{ borderTopColor: 'var(--divider-color)' }}>
+                      <div className="flex items-center gap-0.5 sm:gap-1">
+                        <button onClick={() => setEditingLink(link)} className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors text-xs sm:text-sm" title="Edit link">
+                          <Edit3 size={14} className="sm:w-4 sm:h-4" /><span className="hidden sm:inline">Edit</span>
+                        </button>
+                        <Link to={`/dashboard/analytics/${link.shortId}`} className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors text-xs sm:text-sm" title="View analytics">
+                          <BarChart2 size={14} className="sm:w-4 sm:h-4" /><span className="hidden sm:inline">Analytics</span>
+                        </Link>
+                        <button onClick={() => setQrModalLink(link)} className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-green-400 hover:bg-green-500/10 rounded-lg transition-colors text-xs sm:text-sm" title="View QR codes">
+                          <QrCode size={14} className="sm:w-4 sm:h-4" /><span className="hidden sm:inline">QR</span>
+                        </button>
+                        <button onClick={() => setExpandedLinkId(expandedLinkId === link._id ? null : link._id)} className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm ${expandedLinkId === link._id ? 'text-cyan-400 bg-cyan-500/10' : 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10'}`} title="View details">
+                          <Eye size={14} className="sm:w-4 sm:h-4" /><span className="hidden sm:inline">Details</span>
+                          <ChevronDown size={12} className={`transition-transform duration-200 ${expandedLinkId === link._id ? 'rotate-180' : ''}`} />
+                        </button>
+                      </div>
+                      <button onClick={() => handleDelete(link._id)} className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-xs sm:text-sm" title="Delete link">
+                        <Trash2 size={14} className="sm:w-4 sm:h-4" /><span className="hidden sm:inline">Delete</span>
+                      </button>
+                    </div>
+
+                    {/* Expandable Details Panel */}
+                    {expandedLinkId === link._id && (
+                      <div className="mt-3 pt-3 border-t border-gray-700/50 animate-in slide-in-from-top-2 duration-200">
+                        <div className="flex gap-1.5 sm:gap-2 mb-3">
+                          <button onClick={() => copyToClipboard(link.customAlias || link.shortId)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-[10px] sm:text-xs font-medium transition-colors">
+                            {copiedId === (link.customAlias || link.shortId) ? <Check size={12} /> : <Copy size={12} />}
+                            <span className="hidden xs:inline sm:inline">{copiedId === (link.customAlias || link.shortId) ? 'Copied!' : 'Copy'}</span>
+                          </button>
+                          <a href={getShortUrl(link.customAlias || link.shortId)} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-lg text-[10px] sm:text-xs font-medium transition-colors">
+                            <ExternalLink size={12} /><span className="hidden xs:inline sm:inline">Short</span>
+                          </a>
+                          <a href={link.originalUrl} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-gray-700/50 hover:bg-gray-700 text-gray-300 rounded-lg text-[10px] sm:text-xs font-medium transition-colors">
+                            <ExternalLink size={12} /><span className="hidden xs:inline sm:inline">Original</span>
+                          </a>
+                        </div>
+                        <div className="bg-gray-800/50 rounded-lg p-2 sm:p-3 mb-3">
+                          <div className="flex items-center gap-1 text-gray-500 mb-1 text-[10px] sm:text-xs"><LinkIcon size={10} /> Destination</div>
+                          <p className="text-blue-400 break-all text-[10px] sm:text-xs leading-relaxed line-clamp-2 sm:line-clamp-3">{link.originalUrl}</p>
+                        </div>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
+                          <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                            <Lock size={12} className="mx-auto mb-0.5 text-gray-500" />
+                            <div className={`text-[10px] sm:text-xs ${link.isPasswordProtected ? 'text-purple-400' : 'text-gray-600'}`}>{link.isPasswordProtected ? '🔒' : '—'}</div>
+                          </div>
+                          <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                            <Timer size={12} className="mx-auto mb-0.5 text-gray-500" />
+                            <div className={`text-[10px] sm:text-xs truncate ${link.expiresAt ? (new Date(link.expiresAt) < new Date() ? 'text-red-400' : 'text-amber-400') : 'text-gray-600'}`}>
+                              {link.expiresAt ? new Date(link.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                            </div>
+                          </div>
+                          <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                            <CalendarClock size={12} className="mx-auto mb-0.5 text-gray-500" />
+                            <div className={`text-[10px] sm:text-xs truncate ${link.activeStartTime ? 'text-blue-400' : 'text-gray-600'}`}>
+                              {link.activeStartTime ? new Date(link.activeStartTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                            </div>
+                          </div>
+                          <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                            <Smartphone size={12} className="mx-auto mb-0.5 text-gray-500" />
+                            <div className={`text-[10px] sm:text-xs ${link.deviceRedirects?.enabled ? 'text-cyan-400' : 'text-gray-600'}`}>{link.deviceRedirects?.enabled ? link.deviceRedirects.rules?.length || 0 : '—'}</div>
+                          </div>
+                          <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                            <Clock size={12} className="mx-auto mb-0.5 text-gray-500" />
+                            <div className={`text-[10px] sm:text-xs ${link.timeRedirects?.enabled ? 'text-indigo-400' : 'text-gray-600'}`}>{link.timeRedirects?.enabled ? link.timeRedirects.rules?.length || 0 : '—'}</div>
+                          </div>
+                          <div className="bg-gray-800/50 rounded-lg p-1.5 sm:p-2 text-center">
+                            <ShieldAlert size={12} className="mx-auto mb-0.5 text-gray-500" />
+                            <div className={`text-[10px] sm:text-xs ${link.safetyStatus === 'safe' ? 'text-green-400' : link.safetyStatus === 'malware' || link.safetyStatus === 'phishing' ? 'text-red-400' : 'text-gray-500'}`}>
+                              {link.safetyStatus === 'safe' ? '✅' : link.safetyStatus === 'malware' || link.safetyStatus === 'phishing' || link.safetyStatus === 'unwanted' ? '⚠️' : link.safetyStatus === 'pending' ? '⏳' : '—'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {totalPages > 1 && !showAll && (
         <div className="flex justify-center items-center gap-4 mt-6">
           <button
@@ -1318,33 +1603,11 @@ const UserDashboard = () => {
                           {copiedId === 'primary-url' ? 'Copied!' : 'Copy Link'}
                         </button>
                         <button
-                          onClick={() => {
-                            const svg = document.querySelector('#primary-qr svg');
-                            if (!svg) return;
-                            const canvas = document.createElement('canvas');
-                            const ctx = canvas.getContext('2d');
-                            const data = new XMLSerializer().serializeToString(svg);
-                            const img = new Image();
-                            const svgBlob = new Blob([data], {
-                              type: 'image/svg+xml;charset=utf-8',
-                            });
-                            const url = URL.createObjectURL(svgBlob);
-                            img.onload = () => {
-                              canvas.width = img.width * 3;
-                              canvas.height = img.height * 3;
-                              ctx.scale(3, 3);
-                              ctx.fillStyle = 'white';
-                              ctx.fillRect(0, 0, canvas.width, canvas.height);
-                              ctx.drawImage(img, 0, 0);
-                              URL.revokeObjectURL(url);
-                              const pngUrl = canvas.toDataURL('image/png');
-                              const downloadLink = document.createElement('a');
-                              downloadLink.href = pngUrl;
-                              downloadLink.download = `qr-${qrModalLink.customAlias || qrModalLink.shortId}.png`;
-                              downloadLink.click();
-                            };
-                            img.src = url;
-                          }}
+                          onClick={() => exportQrCode({
+                            exportToPng,
+                            selector: '#primary-qr',
+                            filename: `qr-${qrModalLink.customAlias || qrModalLink.shortId}.png`,
+                          })}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-gray-900 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors"
                         >
                           <Download size={14} />
@@ -1397,33 +1660,11 @@ const UserDashboard = () => {
                             Copy
                           </button>
                           <button
-                            onClick={() => {
-                              const svg = document.querySelector('#secondary-qr svg');
-                              if (!svg) return;
-                              const canvas = document.createElement('canvas');
-                              const ctx = canvas.getContext('2d');
-                              const data = new XMLSerializer().serializeToString(svg);
-                              const img = new Image();
-                              const svgBlob = new Blob([data], {
-                                type: 'image/svg+xml;charset=utf-8',
-                              });
-                              const url = URL.createObjectURL(svgBlob);
-                              img.onload = () => {
-                                canvas.width = img.width * 3;
-                                canvas.height = img.height * 3;
-                                ctx.scale(3, 3);
-                                ctx.fillStyle = 'white';
-                                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                                ctx.drawImage(img, 0, 0);
-                                URL.revokeObjectURL(url);
-                                const pngUrl = canvas.toDataURL('image/png');
-                                const downloadLink = document.createElement('a');
-                                downloadLink.href = pngUrl;
-                                downloadLink.download = `qr-${qrModalLink.shortId}.png`;
-                                downloadLink.click();
-                              };
-                              img.src = url;
-                            }}
+                            onClick={() => exportQrCode({
+                              exportToPng,
+                              selector: '#secondary-qr',
+                              filename: `qr-${qrModalLink.shortId}.png`,
+                            })}
                             className="flex items-center gap-1 px-2 py-1 bg-gray-700/50 text-gray-400 hover:text-white hover:bg-gray-700 rounded text-xs transition-colors"
                           >
                             <Download size={12} />

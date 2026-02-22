@@ -239,40 +239,76 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
             </div>
         )}
 
-        {/* Current Plan Card */}
-        <div className="glass-dark rounded-2xl border border-gray-700/50 p-6 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-3 opacity-10">
-                <Zap size={120} />
+        {/* Membership Card (Current Plan) */}
+        <div 
+            className="rounded-3xl p-8 relative overflow-hidden shadow-2xl transition-all duration-700 hover:scale-[1.01] mt-2 group"
+            style={{ 
+                background: `linear-gradient(135deg, var(--glass-bg) 0%, rgba(0,0,0,0.8) 100%)`, 
+                border: '1px solid var(--glass-border)',
+                boxShadow: '0 20px 40px -10px var(--cta-shadow)'
+            }}
+        >
+            {/* Glowing Orbs inside the card */}
+            <div 
+                className="absolute -top-32 -right-32 w-80 h-80 rounded-full blur-3xl opacity-30 pointer-events-none transition-transform duration-1000 group-hover:scale-110" 
+                style={{ background: 'var(--accent-from)' }} 
+            />
+            <div 
+                className="absolute -bottom-32 -left-32 w-64 h-64 rounded-full blur-3xl opacity-20 pointer-events-none transition-transform duration-1000 group-hover:scale-110" 
+                style={{ background: 'var(--accent-to)' }} 
+            />
+            
+            {/* Card Watermark */}
+            <div className="absolute top-1/2 right-4 -translate-y-1/2 opacity-5 pointer-events-none transform rotate-12 transition-transform duration-700 group-hover:scale-110 group-hover:rotate-[15deg]">
+                <Zap size={220} style={{ color: 'var(--accent-to)' }} />
             </div>
             
-            <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2 relative z-10">
-                <CreditCard size={20} className="text-purple-400" />
-                Current Plan
-            </h3>
+            <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-white/5 pb-6 gap-6">
+                 <div>
+                     <h3 className="text-xs font-bold uppercase tracking-[0.2em] mb-2 opacity-80" style={{ color: 'var(--subtext-color)' }}>
+                         Membership Status
+                     </h3>
+                     <div className="flex items-center gap-4">
+                         <span 
+                            className="text-5xl md:text-6xl font-black capitalize tracking-tight"
+                            style={{ 
+                                color: 'var(--heading-color)',
+                                textShadow: '0 0 40px var(--cta-shadow)'
+                            }}
+                         >
+                             {profile?.subscription?.tier || 'Free'}
+                         </span>
+                         {profile?.subscription?.status === 'active' && (
+                         <span className="px-3 py-1.5 bg-green-500/20 text-green-400 text-xs font-bold rounded-lg uppercase tracking-wider border border-green-500/30 backdrop-blur-md">
+                             Active
+                         </span>
+                         )}
+                         {profile?.subscription?.status === 'past_due' && (
+                         <span className="px-3 py-1.5 bg-red-500/20 text-red-500 text-xs font-bold rounded-lg uppercase tracking-wider border border-red-500/30 backdrop-blur-md">
+                             Past Due
+                         </span>
+                         )}
+                         {profile?.subscription?.status === 'paused' && (
+                         <span className="px-3 py-1.5 bg-yellow-500/20 text-yellow-500 text-xs font-bold rounded-lg uppercase tracking-wider border border-yellow-500/30 backdrop-blur-md">
+                             Paused
+                         </span>
+                         )}
+                     </div>
+                 </div>
+                 <div className="p-4 rounded-2xl backdrop-blur-md border shadow-2xl" style={{ backgroundColor: 'var(--stat-icon-bg)', borderColor: 'var(--glass-border)' }}>
+                     <CreditCard size={32} style={{ color: 'var(--stat-icon-color)' }} />
+                 </div>
+            </div>
             
-            <div className="flex flex-col md:flex-row gap-8 relative z-10">
+            <div className="relative z-10 flex flex-col md:flex-row gap-8 justify-between items-end">
                 <div className="flex-1">
-                    <div className="flex items-baseline gap-4 mb-2">
-                        <span className="text-3xl font-bold text-white capitalize">
-                            {profile?.subscription?.tier || 'Free'}
-                        </span>
-                            {profile?.subscription?.status === 'active' && (
-                            <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs font-bold rounded uppercase border border-green-500/30">
-                                Active
-                            </span>
-                            )}
-                            {profile?.subscription?.status === 'past_due' && (
-                            <span className="px-2 py-1 bg-red-500/20 text-red-400 text-xs font-bold rounded uppercase border border-red-500/30">
-                                Past Due
-                            </span>
-                            )}
-                            {profile?.subscription?.status === 'paused' && (
-                            <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs font-bold rounded uppercase border border-yellow-500/30">
-                                Paused
-                            </span>
-                            )}
-                    </div>
-                    <p className="text-gray-400 text-sm mb-6">
+                    <p className="font-medium text-xl mb-2" style={{ color: 'var(--heading-color)' }}>
+                        {profile?.subscription?.tier === 'free' 
+                            ? 'Free Tier Benefits' 
+                            : 'Premium Membership Active'
+                        }
+                    </p>
+                    <p className="text-sm md:text-base opacity-80 mb-8 max-w-xl leading-relaxed" style={{ color: 'var(--subtext-color)' }}>
                         {profile?.subscription?.tier === 'free' 
                             ? 'Upgrade to Pro for more links, custom aliases, and advanced analytics.' 
                             : profile?.subscription?.billingCycle === 'lifetime'
@@ -283,12 +319,17 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                         }
                     </p>
                     
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-wrap gap-4">
                         {profile?.subscription?.tier === 'free' ? (
                             <button 
                                 onClick={() => navigate('/pricing')}
-                                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all"
+                                className="px-8 py-3.5 text-white font-bold rounded-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                                style={{
+                                    background: 'linear-gradient(to right, var(--accent-from), var(--accent-to))',
+                                    boxShadow: '0 8px 25px var(--cta-shadow)'
+                                }}
                             >
+                                <Zap size={18} fill="currentColor" />
                                 Upgrade Plan
                             </button>
                         ) : (
@@ -303,23 +344,33 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                                                 showToast.error("Billing portal unavailable");
                                             }
                                         }}
-                                    className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-xl border border-gray-600 transition-all"
+                                    className="px-8 py-3.5 backdrop-blur-md font-bold rounded-xl transition-all hover:bg-white/10 active:scale-95 shadow-xl hover:shadow-2xl"
+                                    style={{
+                                        backgroundColor: 'var(--stat-icon-bg)',
+                                        color: 'var(--heading-color)',
+                                        border: '1px solid var(--glass-border)'
+                                    }}
                                 >
                                     Manage Subscription
                                 </button>
                              )
                         )}
                         
-                        {/* Sync Button - Only show if we actually have an external subscription ID */}
+                        {/* Sync Button */}
                         {profile?.subscription?.subscriptionId && ['monthly', 'yearly'].includes(profile?.subscription?.billingCycle || 'monthly') && (
                           <button
                             onClick={handleSync}
                             disabled={syncing}
-                            className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-xl border border-gray-600 transition-all flex items-center gap-2 disabled:opacity-50"
-                            title="Sync subscription status with payment provider"
+                            className="px-6 py-3.5 backdrop-blur-md font-medium rounded-xl transition-all hover:bg-white/10 disabled:opacity-50 flex items-center justify-center gap-2"
+                            style={{
+                                backgroundColor: 'rgba(0,0,0,0.2)',
+                                color: 'var(--subtext-color)',
+                                border: '1px solid var(--glass-border)'
+                            }}
+                            title="Force sync subscription status"
                           >
-                            <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
-                            {syncing ? 'Syncing...' : 'Sync'}
+                            <RefreshCw size={18} className={syncing ? 'animate-spin' : ''} />
+                            {syncing ? 'Syncing...' : 'Force Sync'}
                           </button>
                         )}
                     </div>
@@ -328,17 +379,26 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
         </div>
         
         {/* Usage Stats - Matches Overview Page */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6">
             {/* Links Created */}
-            <div className="glass-dark rounded-2xl border border-gray-700/50 p-6">
-                <div className="flex justify-between items-center mb-4">
-                    <h4 className="font-medium text-white flex items-center gap-2">
-                        <Zap size={18} className="text-blue-400" />
-                        Links Created
-                        <BadgeTooltip content="Links currently active in your account. Delete links to free up space.">
-                            <HelpCircle size={18} className="text-blue-400 hover:text-blue-300 transition-colors" />
-                        </BadgeTooltip>
-                    </h4>
+            <div className="rounded-2xl p-6 transition-colors duration-300 relative overflow-hidden group" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+                {/* Subtle Hover Glow */}
+                <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                
+                <div className="flex justify-between items-center mb-6 relative z-10">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl" style={{ backgroundColor: 'var(--stat-icon-bg)' }}>
+                            <Zap size={20} style={{ color: 'var(--stat-icon-color)' }} />
+                        </div>
+                        <h4 className="font-semibold text-lg" style={{ color: 'var(--heading-color)' }}>
+                            Links Created
+                        </h4>
+                    </div>
+                    <BadgeTooltip content="Links currently active in your account. Delete links to free up space.">
+                        <div className="p-2 rounded-full hover:bg-white/5 transition-colors cursor-help">
+                            <HelpCircle size={18} style={{ color: 'var(--subtext-color)' }} />
+                        </div>
+                    </BadgeTooltip>
                 </div>
                 {(() => {
                     const tier = profile?.subscription?.tier || 'free';
@@ -347,16 +407,21 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                     const percent = tier === 'business' ? 5 : Math.min((count / limit) * 100, 100);
                     
                     return (
-                        <div>
-                            <div className="flex justify-between text-sm mb-2">
-                                <span className="text-white font-bold">{count}</span>
-                                <span className="text-gray-400">/ {tier === 'business' ? '∞' : limit.toLocaleString()}</span>
+                        <div className="relative z-10">
+                            <div className="flex justify-between text-base mb-3 items-end">
+                                <span className="font-bold text-3xl tracking-tight" style={{ color: 'var(--heading-color)' }}>{count}</span>
+                                <span className="font-medium mb-1" style={{ color: 'var(--subtext-color)' }}>/ {tier === 'business' ? '∞' : limit.toLocaleString()} max</span>
                             </div>
-                            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div className="h-3 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--divider-color)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)' }}>
                                 <div 
-                                    className={`h-full rounded-full transition-all ${percent >= 80 ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-blue-500 to-purple-500'}`} 
-                                    style={{ width: `${percent}%` }}
-                                ></div>
+                                    className="h-full rounded-full transition-all duration-1000 ease-out relative"
+                                    style={{ 
+                                        width: `${percent}%`,
+                                        background: percent >= 80 ? 'linear-gradient(to right, #f59e0b, #ef4444)' : 'linear-gradient(to right, var(--progress-from), var(--progress-to))'
+                                    }}
+                                >
+                                    <div className="absolute inset-0 bg-white/20 w-full h-full animate-[shimmer_2s_infinite] -skew-x-12 translate-x-[-100%]" />
+                                </div>
                             </div>
                         </div>
                     );
@@ -364,22 +429,33 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
             </div>
                 
             {/* Monthly Created */}
-            <div className="glass-dark rounded-2xl border border-gray-700/50 p-6">
-                <div className="flex justify-between items-center mb-4">
-                    <h4 className="font-medium text-white flex items-center gap-2">
-                        <BarChart3 size={18} className="text-purple-400" />
-                        Monthly Created
-                        <BadgeTooltip content="Total links created this month. Resets on the 1st of each month.">
-                            <HelpCircle size={18} className="text-purple-400 hover:text-purple-300 transition-colors" />
-                        </BadgeTooltip>
-                    </h4>
-                    <span className="text-xs text-gray-400">
-                        Resets on {(() => {
-                            const now = new Date();
-                            const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                            return nextMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                        })()}
-                    </span>
+            <div className="rounded-2xl p-6 transition-colors duration-300 relative overflow-hidden group" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+                {/* Subtle Hover Glow */}
+                <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                
+                <div className="flex justify-between items-center mb-6 relative z-10">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl" style={{ backgroundColor: 'var(--stat-icon-bg)' }}>
+                            <BarChart3 size={20} style={{ color: 'var(--stat-icon-color)' }} />
+                        </div>
+                        <div>
+                            <h4 className="font-semibold text-lg leading-tight" style={{ color: 'var(--heading-color)' }}>
+                                Monthly Usage
+                            </h4>
+                            <span className="text-xs mt-0.5 block" style={{ color: 'var(--subtext-color)' }}>
+                                Resets {(() => {
+                                    const now = new Date();
+                                    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                                    return nextMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                })()}
+                            </span>
+                        </div>
+                    </div>
+                    <BadgeTooltip content="Total links created this month. Resets on the 1st of each month.">
+                        <div className="p-2 rounded-full hover:bg-white/5 transition-colors cursor-help">
+                            <HelpCircle size={18} style={{ color: 'var(--subtext-color)' }} />
+                        </div>
+                    </BadgeTooltip>
                 </div>
                 {(() => {
                     const tier = profile?.subscription?.tier || 'free';
@@ -388,16 +464,21 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                     const percent = Math.min((count / limit) * 100, 100);
                     
                     return (
-                        <div>
-                            <div className="flex justify-between text-sm mb-2">
-                                <span className="text-white font-bold">{count}</span>
-                                <span className="text-gray-400">/ {limit.toLocaleString()}</span>
+                        <div className="relative z-10">
+                            <div className="flex justify-between text-base mb-3 items-end">
+                                <span className="font-bold text-3xl tracking-tight" style={{ color: 'var(--heading-color)' }}>{count.toLocaleString()}</span>
+                                <span className="font-medium mb-1" style={{ color: 'var(--subtext-color)' }}>/ {limit.toLocaleString()} limit</span>
                             </div>
-                            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div className="h-3 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--divider-color)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)' }}>
                                 <div 
-                                    className={`h-full rounded-full transition-all ${percent >= 80 ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-indigo-500 to-purple-500'}`} 
-                                    style={{ width: `${percent}%` }}
-                                ></div>
+                                    className="h-full rounded-full transition-all duration-1000 ease-out relative"
+                                    style={{ 
+                                        width: `${percent}%`,
+                                        background: percent >= 80 ? 'linear-gradient(to right, #f59e0b, #ef4444)' : 'linear-gradient(to right, var(--progress-from), var(--progress-to))'
+                                    }}
+                                >
+                                    <div className="absolute inset-0 bg-white/20 w-full h-full animate-[shimmer_2s_infinite] -skew-x-12 translate-x-[-100%]" />
+                                </div>
                             </div>
                         </div>
                     );
@@ -406,32 +487,46 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
         </div>
         
         {/* Redeem Code Section */}
-          <div className="glass-dark rounded-2xl border border-gray-700/50 p-6">
-          <h4 className="font-medium text-white flex items-center gap-2 mb-4">
-            <Gift size={18} className="text-amber-400" />
+        <div className="rounded-2xl p-6 mt-6 transition-colors duration-300 relative overflow-hidden group" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+          <h4 className="font-semibold text-lg flex items-center gap-3 mb-5" style={{ color: 'var(--heading-color)' }}>
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--stat-icon-bg)' }}>
+                 <Gift size={20} style={{ color: 'var(--stat-icon-color)' }} />
+            </div>
             Have a promo code?
           </h4>
-          <form onSubmit={handleCheckCode} className="flex gap-3">
+          <form onSubmit={handleCheckCode} className="flex flex-col sm:flex-row gap-4 relative z-10 w-full max-w-2xl">
             <input
               type="text"
               value={redeemCode}
               onChange={(e) => setRedeemCode(e.target.value.toUpperCase())}
               placeholder="Enter code (e.g., PRO-1Y-ABC123)"
-              className="flex-1 bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-amber-500 focus:outline-none transition-colors font-mono"
+              className="flex-1 rounded-xl px-5 py-4 font-mono text-base transition-all focus:outline-none"
+              style={{
+                  backgroundColor: 'var(--topbar-bg)',
+                  border: '1px solid var(--input-border)',
+                  color: 'var(--heading-color)'
+              }}
+              onFocus={(e) => e.target.style.borderColor = 'var(--input-focus)'}
+              onBlur={(e) => e.target.style.borderColor = 'var(--input-border)'}
               maxLength={20}
             />
             <button
               type="submit"
               disabled={validating || !redeemCode.trim()}
-              className="px-6 py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all flex items-center gap-2"
+              className="px-8 py-4 font-bold rounded-xl transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
+              style={{
+                  background: 'linear-gradient(to right, var(--accent-from), var(--accent-to))',
+                  color: 'white',
+                  boxShadow: '0 8px 20px var(--cta-shadow)'
+              }}
             >
               {validating ? (
                 <>
-                  <Loader2 size={18} className="animate-spin" />
+                  <Loader2 size={20} className="animate-spin" />
                   checking...
                 </>
               ) : (
-                'Redeem'
+                'Redeem Code'
               )}
             </button>
           </form>

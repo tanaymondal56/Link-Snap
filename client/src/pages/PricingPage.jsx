@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../context/AuthContext';
-import { Check, X, Shield, Zap, Globe, Lock, Hammer, Star } from 'lucide-react';
-import ComingSoonFeature from '../components/subscription/ComingSoonFeature';
+import { Check, X, Shield, Zap, Globe, Lock, Hammer, Star, Building2, Users, KeyRound, Webhook, HeadsetIcon, BarChart3, FlaskConical, QrCode, Crown } from 'lucide-react';
 import api from '../api/axios';
 import { useNavigate } from 'react-router-dom';
 import showToast from '../utils/toastUtils';
@@ -119,58 +118,72 @@ const PricingPage = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* FREE TIER */}
-          <div className="relative p-8 bg-gray-900/50 border border-white/10 rounded-2xl flex flex-col">
+          <div className="relative p-8 bg-gray-900/50 border border-white/10 rounded-2xl flex flex-col group hover:border-emerald-500/30 transition-all duration-300">
+            {/* Subtle top accent */}
+            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-500/0 via-emerald-500/60 to-emerald-500/0 rounded-t-2xl" />
             <div className="mb-4">
-                <h3 className="text-xl font-bold text-white">Free</h3>
-                <p className="text-gray-400 text-sm">For individuals getting started</p>
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <div className="p-1.5 bg-emerald-500/10 rounded-lg"><Zap size={16} className="text-emerald-400" /></div>
+                    Free
+                </h3>
+                <p className="text-gray-400 text-sm mt-1">Perfect for getting started</p>
             </div>
             <div className="mb-6">
-                <span className="text-4xl font-bold">$0</span>
-                <span className="text-gray-500">/forever</span>
+                <span className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-300">$0</span>
+                <span className="text-gray-500 ml-1">/forever</span>
             </div>
             <button 
                 onClick={user?.subscription?.tier === 'pro' && user?.subscription?.status === 'active' ? handleManage : undefined}
                 disabled={isCurrentPlan('free') && !(user?.subscription?.tier === 'pro' && user?.subscription?.status === 'active')}
-                className={`w-full py-3 rounded-xl font-semibold mb-8 transition-colors ${
+                className={`w-full py-3 rounded-xl font-semibold mb-8 transition-all duration-200 ${
                     isCurrentPlan('free') 
-                    ? 'bg-gray-800 text-gray-400 cursor-default' 
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 cursor-default' 
                     : (user?.subscription?.tier === 'pro' && user?.subscription?.status === 'active'
                         ? 'bg-gray-800 hover:bg-gray-700 text-white shadow-lg'
-                        : 'bg-white/10 hover:bg-white/20 text-white')
+                        : 'bg-white/10 hover:bg-white/20 text-white border border-white/10 hover:border-white/20')
                 }`}
             >
-                {isCurrentPlan('free') ? 'Current Plan' : (user?.subscription?.tier === 'pro' && user?.subscription?.status === 'active' ? 'Manage Subscription' : 'Get Started')}
+                {isCurrentPlan('free') ? '✓ Current Plan' : (user?.subscription?.tier === 'pro' && user?.subscription?.status === 'active' ? 'Manage Subscription' : 'Get Started — Free')}
             </button>
             <ul className="space-y-3 flex-1">
-                <li className="text-xs text-gray-500 uppercase tracking-wider mb-2">Included:</li>
+                <li className="text-xs text-emerald-400/70 uppercase tracking-wider mb-2 font-semibold">What's included</li>
                 <li className="flex items-center gap-3 text-sm text-gray-300">
-                    <Check size={18} className="text-green-400 flex-shrink-0" /> 25 Links / month
+                    <div className="p-0.5 bg-emerald-500/10 rounded-full"><Check size={14} className="text-emerald-400" /></div>
+                    <span><strong className="text-white">25</strong> Links / month</span>
                 </li>
                 <li className="flex items-center gap-3 text-sm text-gray-300">
-                    <Check size={18} className="text-green-400 flex-shrink-0" /> 1,000 Clicks / month
+                    <div className="p-0.5 bg-emerald-500/10 rounded-full"><Check size={14} className="text-emerald-400" /></div>
+                    <span><strong className="text-white">1,000</strong> Clicks / month</span>
                 </li>
                 <li className="flex items-center gap-3 text-sm text-gray-300">
-                    <Check size={18} className="text-green-400 flex-shrink-0" /> 30-day Analytics History
+                    <div className="p-0.5 bg-emerald-500/10 rounded-full"><Check size={14} className="text-emerald-400" /></div>
+                    30-day Analytics
                 </li>
                 <li className="flex items-center gap-3 text-sm text-gray-300">
-                    <Check size={18} className="text-green-400 flex-shrink-0" /> Basic QR Codes
+                    <div className="p-0.5 bg-emerald-500/10 rounded-full"><Check size={14} className="text-emerald-400" /></div>
+                    Basic QR Codes
                 </li>
                 <li className="flex items-center gap-3 text-sm text-gray-300">
-                    <Check size={18} className="text-green-400 flex-shrink-0" /> Random Short IDs
+                    <div className="p-0.5 bg-emerald-500/10 rounded-full"><Check size={14} className="text-emerald-400" /></div>
+                    Click Analytics & Referrers
+                </li>
+                <li className="flex items-center gap-3 text-sm text-gray-300">
+                    <div className="p-0.5 bg-emerald-500/10 rounded-full"><Check size={14} className="text-emerald-400" /></div>
+                    Random Short IDs
                 </li>
                 
-                <li className="text-xs text-gray-500 uppercase tracking-wider mb-2 mt-4">Not Included:</li>
-                <li className="flex items-center gap-3 text-sm text-gray-500">
-                    <X size={18} className="text-gray-600 flex-shrink-0" /> Custom Aliases
+                <li className="text-xs text-gray-600 uppercase tracking-wider mb-2 mt-5 font-semibold">Pro only</li>
+                <li className="flex items-center gap-3 text-sm text-gray-500/70">
+                    <X size={15} className="text-gray-700 flex-shrink-0" /> Custom Aliases
                 </li>
-                <li className="flex items-center gap-3 text-sm text-gray-500">
-                    <X size={18} className="text-gray-600 flex-shrink-0" /> Link Expiration
+                <li className="flex items-center gap-3 text-sm text-gray-500/70">
+                    <X size={15} className="text-gray-700 flex-shrink-0" /> Link Expiration
                 </li>
-                <li className="flex items-center gap-3 text-sm text-gray-500">
-                    <X size={18} className="text-gray-600 flex-shrink-0" /> Password Protection
+                <li className="flex items-center gap-3 text-sm text-gray-500/70">
+                    <X size={15} className="text-gray-700 flex-shrink-0" /> Password Protection
                 </li>
-                <li className="flex items-center gap-3 text-sm text-gray-500">
-                    <X size={18} className="text-gray-600 flex-shrink-0" /> Geo-Analytics
+                <li className="flex items-center gap-3 text-sm text-gray-500/70">
+                    <X size={15} className="text-gray-700 flex-shrink-0" /> Geo-Analytics & Device Targeting
                 </li>
             </ul>
           </div>
@@ -241,6 +254,18 @@ const PricingPage = () => {
                     <div className="p-1 bg-blue-500/20 rounded-full"><Zap size={14} className="text-blue-400" /></div>
                     <strong>1-Year</strong> Analytics History
                 </li>
+                <li className="flex items-center gap-3 text-sm text-white">
+                    <div className="p-1 bg-rose-500/20 rounded-full"><Zap size={14} className="text-rose-400" /></div>
+                    <strong>Device Targeting</strong> (redirect by OS)
+                </li>
+                <li className="flex items-center gap-3 text-sm text-white">
+                    <div className="p-1 bg-orange-500/20 rounded-full"><Zap size={14} className="text-orange-400" /></div>
+                    <strong>Time-Based Redirects</strong>
+                </li>
+                <li className="flex items-center gap-3 text-sm text-white">
+                    <div className="p-1 bg-violet-500/20 rounded-full"><Globe size={14} className="text-violet-400" /></div>
+                    <strong>Link-in-Bio Pages</strong>
+                </li>
             </ul>
             
             {/* Upcoming Features */}
@@ -248,16 +273,19 @@ const PricingPage = () => {
                 <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Coming Soon:</p>
                 <ul className="space-y-2">
                     <li className="flex items-center gap-2 text-xs text-gray-400">
-                        <Hammer size={12} className="text-amber-400" /> Time-Based Redirects
-                    </li>
-                    <li className="flex items-center gap-2 text-xs text-gray-400">
                         <Hammer size={12} className="text-amber-400" /> Click Limits
                     </li>
                     <li className="flex items-center gap-2 text-xs text-gray-400">
-                        <Hammer size={12} className="text-amber-400" /> Link Rotation
+                        <Hammer size={12} className="text-amber-400" /> Link Rotation (A/B Testing)
                     </li>
                     <li className="flex items-center gap-2 text-xs text-gray-400">
-                        <Hammer size={12} className="text-amber-400" /> Custom QR Code Styles
+                        <Hammer size={12} className="text-amber-400" /> UTM Builder
+                    </li>
+                    <li className="flex items-center gap-2 text-xs text-gray-400">
+                        <Hammer size={12} className="text-amber-400" /> Custom QR Styles
+                    </li>
+                    <li className="flex items-center gap-2 text-xs text-gray-400">
+                        <Hammer size={12} className="text-amber-400" /> API Access
                     </li>
                 </ul>
                 <a 
@@ -272,30 +300,97 @@ const PricingPage = () => {
             </p>
           </div>
 
-          {/* BUSINESS TIER (Coming Soon) */}
-          <div className="relative p-8 bg-gray-900/50 border border-white/10 rounded-2xl flex flex-col opacity-80 hover:opacity-100 transition-opacity">
-            <div className="mb-4">
-                <h3 className="text-xl font-bold text-white">Business</h3>
-                <p className="text-gray-400 text-sm">For teams and high volume</p>
+          {/* BUSINESS TIER (Coming Soon — Extraordinary disabled card) */}
+          <div className="relative p-8 rounded-2xl flex flex-col overflow-hidden group">
+            {/* Animated gradient border */}
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-amber-500/20 via-orange-500/10 to-rose-500/20 opacity-60 group-hover:opacity-80 transition-opacity duration-500" />
+            <div className="absolute inset-[1px] rounded-2xl bg-gradient-to-b from-gray-900 via-gray-900/98 to-gray-950" />
+            
+            {/* Decorative corner glow */}
+            <div className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/8 rounded-full blur-3xl" />
+            <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-rose-500/8 rounded-full blur-3xl" />
+
+            {/* COMING SOON ribbon */}
+            <div className="absolute top-5 -right-8 rotate-45 bg-gradient-to-r from-amber-600 to-orange-600 text-white text-[10px] font-bold uppercase tracking-widest px-10 py-1 shadow-lg z-10">
+                Coming Soon
             </div>
-            <div className="mb-6 flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-gray-500">Coming Soon</span>
+
+            {/* Content */}
+            <div className="relative z-[1]">
+              <div className="mb-4">
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                      <div className="p-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                        <Crown size={16} className="text-amber-400" />
+                      </div>
+                      Business
+                  </h3>
+                  <p className="text-gray-400 text-sm mt-1">For teams & enterprise scale</p>
+              </div>
+              <div className="mb-6">
+                  <span className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-300 to-orange-400">
+                      {billingInterval === 'yearly' ? '$490' : '$49'}
+                  </span>
+                  <span className="text-gray-500 ml-1">/{billingInterval === 'yearly' ? 'yr' : 'mo'}</span>
+              </div>
+              
+              <button 
+                  disabled
+                  className="w-full py-3 rounded-xl font-bold mb-8 bg-gradient-to-r from-amber-600/20 to-orange-600/20 text-amber-400/70 border border-amber-500/20 cursor-not-allowed"
+              >
+                  Coming Soon
+              </button>
+
+              <ul className="space-y-3 flex-1">
+                  <li className="text-xs text-amber-400/50 uppercase tracking-wider mb-2 font-semibold">Everything in Pro, plus:</li>
+                  <li className="flex items-center gap-3 text-sm text-gray-400">
+                      <div className="p-1 bg-amber-500/10 rounded-full"><Zap size={14} className="text-amber-500/60" /></div>
+                      <strong className="text-gray-300">Unlimited</strong>&nbsp;Links & Clicks
+                  </li>
+                  <li className="flex items-center gap-3 text-sm text-gray-400">
+                      <div className="p-1 bg-purple-500/10 rounded-full"><Globe size={14} className="text-purple-400/60" /></div>
+                      <strong className="text-gray-300">Custom Domains</strong>&nbsp;(your-brand.co)
+                  </li>
+                  <li className="flex items-center gap-3 text-sm text-gray-400">
+                      <div className="p-1 bg-blue-500/10 rounded-full"><Users size={14} className="text-blue-400/60" /></div>
+                      <strong className="text-gray-300">Team Collaboration</strong>&nbsp;(5 seats)
+                  </li>
+                  <li className="flex items-center gap-3 text-sm text-gray-400">
+                      <div className="p-1 bg-cyan-500/10 rounded-full"><KeyRound size={14} className="text-cyan-400/60" /></div>
+                      SSO / SAML Authentication
+                  </li>
+                  <li className="flex items-center gap-3 text-sm text-gray-400">
+                      <div className="p-1 bg-green-500/10 rounded-full"><Webhook size={14} className="text-green-400/60" /></div>
+                      API & Webhooks
+                  </li>
+                  <li className="flex items-center gap-3 text-sm text-gray-400">
+                      <div className="p-1 bg-rose-500/10 rounded-full"><HeadsetIcon size={14} className="text-rose-400/60" /></div>
+                      Priority Support
+                  </li>
+                  <li className="flex items-center gap-3 text-sm text-gray-400">
+                      <div className="p-1 bg-indigo-500/10 rounded-full"><BarChart3 size={14} className="text-indigo-400/60" /></div>
+                      Advanced Analytics & Reports
+                  </li>
+                  <li className="flex items-center gap-3 text-sm text-gray-400">
+                      <div className="p-1 bg-orange-500/10 rounded-full"><FlaskConical size={14} className="text-orange-400/60" /></div>
+                      A/B Testing & Link Rotation
+                  </li>
+                  <li className="flex items-center gap-3 text-sm text-gray-400">
+                      <div className="p-1 bg-teal-500/10 rounded-full"><QrCode size={14} className="text-teal-400/60" /></div>
+                      White-Label QR Codes
+                  </li>
+                  <li className="flex items-center gap-3 text-sm text-gray-400">
+                      <div className="p-1 bg-emerald-500/10 rounded-full"><Shield size={14} className="text-emerald-400/60" /></div>
+                      99.9% Uptime SLA
+                  </li>
+              </ul>
+
+              {/* frosted footer */}
+              <div className="mt-6 pt-4 border-t border-white/5">
+                <p className="text-xs text-gray-500 text-center">
+                  Interested? <a href="/roadmap" className="text-amber-400/70 hover:text-amber-300 transition-colors">View our roadmap</a> for launch timeline.
+                </p>
+              </div>
             </div>
-            <ComingSoonFeature 
-                title="Business Suite" 
-                description="Team management, SSO, Custom Domains, and API Webhooks." 
-            />
-             <ul className="space-y-4 flex-1 mt-8 grayscale opacity-70">
-                <li className="flex items-center gap-3 text-sm text-gray-300">
-                     <Check size={18} className="text-gray-500 flex-shrink-0" /> Unlimited Links
-                </li>
-                <li className="flex items-center gap-3 text-sm text-gray-300">
-                     <Check size={18} className="text-gray-500 flex-shrink-0" /> Custom Domains
-                </li>
-                 <li className="flex items-center gap-3 text-sm text-gray-300">
-                     <Check size={18} className="text-gray-500 flex-shrink-0" /> Team Collaboration
-                </li>
-            </ul>
           </div>
         </div>
       </div>

@@ -1,5 +1,116 @@
 @import "tailwindcss";
 
+/* ─── Tier Theme: CSS Custom Property Defaults ────────────────────────────── */
+/* These are the Free tier defaults. applyTierTheme() in tierTheme.js
+   overwrites them at runtime for Pro / Business / Master tiers.
+   Transition below ensures smooth color animation on tier change.        */
+:root {
+  --orb-1: #4f46e5;
+  --orb-2: #7c3aed;
+  --orb-3: #db2777;
+  --accent-from: #3b82f6;
+  --accent-to: #9333ea;
+  --nav-active-bg: rgba(255,255,255,0.1);
+  --nav-active-text: #ffffff;
+  --nav-active-icon: #60a5fa;
+  --card-border: rgba(255,255,255,0.05);
+  --sidebar-border: rgba(255,255,255,0.05);
+  --avatar-from: #3b82f6;
+  --avatar-to: #9333ea;
+  --selection: rgba(168,85,247,0.3);
+  --bg-radial: rgba(30,58,138,0.2);
+  --scrollbar: rgb(55,65,81);
+  --cta-shadow: rgba(59,130,246,0.2);
+  --topbar-accent: transparent;
+  --theme-transition-duration: 0.8s;
+
+  /* ─── Extended tokens for full-page theming ───── */
+  --glass-bg: rgba(17,24,39,0.6);          /* glass-dark panel bg */
+  --glass-border: rgba(255,255,255,0.05);  /* glass-dark border */
+  --card-hover-bg: rgba(31,41,55,0.5);     /* card hover state */
+  --stat-icon-bg: rgba(59,130,246,0.2);    /* stat card icon bg */
+  --stat-icon-color: #60a5fa;              /* stat card icon color */
+  --progress-from: #3b82f6;               /* progress bar start */
+  --progress-to: #9333ea;                 /* progress bar end */
+  --heading-color: #ffffff;               /* h1/h2 text */
+  --subtext-color: #9ca3af;               /* secondary text */
+  --sidebar-bg: rgba(17,24,39,0.95);      /* sidebar background */
+  --sidebar-logo-text: linear-gradient(to right, #ffffff, #9ca3af);
+  --topbar-bg: rgba(3,7,18,0.8);          /* topbar background */
+  --divider-color: rgba(255,255,255,0.05); /* dividers */
+  --input-border: rgba(55,65,81,1);       /* input borders */
+  --input-focus: rgba(59,130,246,0.5);    /* input focus ring */
+}
+
+/* ─── @property Registrations (enables smooth color transitions) ──────── */
+/* Without @property, custom property changes snap instantly.
+   With it, browsers interpolate the color over the transition duration.   */
+@property --orb-1     { syntax: '<color>'; inherits: true; initial-value: #4f46e5; }
+@property --orb-2     { syntax: '<color>'; inherits: true; initial-value: #7c3aed; }
+@property --orb-3     { syntax: '<color>'; inherits: true; initial-value: #db2777; }
+@property --accent-from { syntax: '<color>'; inherits: true; initial-value: #3b82f6; }
+@property --accent-to   { syntax: '<color>'; inherits: true; initial-value: #9333ea; }
+@property --nav-active-bg   { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.1); }
+@property --nav-active-text { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --nav-active-icon { syntax: '<color>'; inherits: true; initial-value: #60a5fa; }
+@property --card-border     { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.05); }
+@property --sidebar-border  { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.05); }
+@property --avatar-from { syntax: '<color>'; inherits: true; initial-value: #3b82f6; }
+@property --avatar-to   { syntax: '<color>'; inherits: true; initial-value: #9333ea; }
+@property --selection   { syntax: '<color>'; inherits: true; initial-value: rgba(168,85,247,0.3); }
+@property --bg-radial   { syntax: '<color>'; inherits: true; initial-value: rgba(30,58,138,0.2); }
+@property --scrollbar   { syntax: '<color>'; inherits: true; initial-value: rgb(55,65,81); }
+@property --cta-shadow  { syntax: '<color>'; inherits: true; initial-value: rgba(59,130,246,0.2); }
+@property --glass-bg        { syntax: '<color>'; inherits: true; initial-value: rgba(17,24,39,0.6); }
+@property --glass-border    { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.05); }
+@property --card-hover-bg   { syntax: '<color>'; inherits: true; initial-value: rgba(31,41,55,0.5); }
+@property --stat-icon-bg    { syntax: '<color>'; inherits: true; initial-value: rgba(59,130,246,0.2); }
+@property --stat-icon-color { syntax: '<color>'; inherits: true; initial-value: #60a5fa; }
+@property --progress-from   { syntax: '<color>'; inherits: true; initial-value: #3b82f6; }
+@property --progress-to     { syntax: '<color>'; inherits: true; initial-value: #9333ea; }
+@property --heading-color   { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --subtext-color   { syntax: '<color>'; inherits: true; initial-value: #9ca3af; }
+@property --sidebar-bg      { syntax: '<color>'; inherits: true; initial-value: rgba(17,24,39,0.95); }
+@property --topbar-bg       { syntax: '<color>'; inherits: true; initial-value: rgba(3,7,18,0.8); }
+@property --divider-color   { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.05); }
+@property --input-border    { syntax: '<color>'; inherits: true; initial-value: rgba(55,65,81,1); }
+@property --input-focus     { syntax: '<color>'; inherits: true; initial-value: rgba(59,130,246,0.5); }
+
+/* Smooth transition on all registered properties */
+:root {
+  transition:
+    --orb-1 var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --orb-2 var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --orb-3 var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --accent-from var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --accent-to var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --nav-active-bg var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --nav-active-text var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --nav-active-icon var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --card-border var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --sidebar-border var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --avatar-from var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --avatar-to var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --selection var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --bg-radial var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --scrollbar var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --cta-shadow var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --glass-bg var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --glass-border var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --card-hover-bg var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --stat-icon-bg var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --stat-icon-color var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --progress-from var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --progress-to var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --heading-color var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --subtext-color var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --sidebar-bg var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --topbar-bg var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --divider-color var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --input-border var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1),
+    --input-focus var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 
 @layer utilities {
   .glass {
@@ -71,7 +182,7 @@
   left: -10%;
   width: 50vw;
   height: 50vw;
-  background: #4f46e5;
+  background: var(--orb-1);
   animation-delay: 0s;
 }
 
@@ -80,7 +191,7 @@
   right: -10%;
   width: 50vw;
   height: 50vw;
-  background: #7c3aed;
+  background: var(--orb-2);
   animation-delay: -5s;
 }
 
@@ -89,20 +200,11 @@
   left: 40%;
   width: 30vw;
   height: 30vw;
-  background: #db2777;
+  background: var(--orb-3);
   animation-delay: -10s;
 }
 
-/* Master Admin Theme Overrides (Crimson/Gold/Orange) */
-.master-theme .orb-1 {
-  background: #dc2626; /* Red-600 */
-}
-.master-theme .orb-2 {
-  background: #ea580c; /* Orange-600 */
-}
-.master-theme .orb-3 {
-  background: #ca8a04; /* Yellow-600 */
-}
+/* Master Admin orb overrides now handled by tierTheme.js (master entry) */
 
 @keyframes float {
   0% {
@@ -398,4 +500,89 @@ input[type='datetime-local'] {
     padding-left: 12px;
     padding-right: 12px;
   }
+}
+
+/* ─── Tier Badge Styles ───────────────────────────────────────────────────── */
+/* To restyle a badge: change the gradient + shadow here.                     */
+
+.tier-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* Shimmer sweep (shared by all tiers) */
+.tier-badge::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.25) 50%,
+    transparent 100%
+  );
+  animation: badge-shimmer 3s ease-in-out infinite;
+}
+
+@keyframes badge-shimmer {
+  0%   { left: -100%; }
+  50%  { left: 100%; }
+  100% { left: 100%; }
+}
+
+/* Pro badge — Violet */
+.badge-pro {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  color: #e9d5ff;
+  box-shadow: 0 0 8px rgba(124,58,237,0.4);
+}
+
+/* Business badge — Gold */
+.badge-business {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  color: #fef3c7;
+  box-shadow: 0 0 8px rgba(217,119,6,0.4);
+}
+
+/* Master Admin badge — Crimson */
+.badge-master {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: #fecaca;
+  box-shadow: 0 0 8px rgba(220,38,38,0.4);
+}
+
+/* ─── Upgrade Celebration Glow ────────────────────────────────────────────── */
+/* Applied briefly to the sidebar user card on tier upgrade.                  */
+
+@keyframes tier-upgrade-glow {
+  0%   { box-shadow: 0 0 0  rgba(var(--accent-from), 0); }
+  30%  { box-shadow: 0 0 20px var(--accent-from), 0 0 40px var(--accent-to); }
+  100% { box-shadow: 0 0 0  rgba(var(--accent-from), 0); }
+}
+
+.upgrade-celebrate {
+  animation: tier-upgrade-glow 2s ease-out forwards;
+}
+
+/* Topbar accent line — visible only for paid tiers */
+.topbar-accent-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--topbar-accent);
+  transition: background var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1);
 }

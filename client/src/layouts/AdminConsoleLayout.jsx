@@ -16,6 +16,7 @@ import {
 import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import LazyPullToRefresh from '../components/LazyPullToRefresh';
 import OfflineIndicator from '../components/OfflineIndicator';
+import { applyTierTheme } from '../utils/tierTheme';
 const NotificationDropdown = lazy(() => import('../components/admin-console/NotificationDropdown'));
 
 const AdminConsoleLayout = () => {
@@ -41,6 +42,12 @@ const AdminConsoleLayout = () => {
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [profileOpen]);
+
+  // Apply master theme for master_admin, regular admin gets default
+  useEffect(() => {
+    const tier = user?.role === 'master_admin' ? 'master' : 'free';
+    applyTierTheme(tier);
+  }, [user?.role]);
 
   if (loading) {
     return (
@@ -72,7 +79,7 @@ const AdminConsoleLayout = () => {
 
   return (
     <div
-      className={`min-h-screen relative font-sans text-gray-100 overflow-x-hidden ${user.role === 'master_admin' ? 'master-theme' : ''}`}
+      className="min-h-screen relative font-sans text-gray-100 overflow-x-hidden"
     >
       {/* Mesh Gradient Background Layer */}
       <div className="mesh-gradient-bg">
