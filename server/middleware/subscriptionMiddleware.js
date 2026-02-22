@@ -1,5 +1,5 @@
 import User from '../models/User.js';
-import { TIERS, getEffectiveTier } from '../services/subscriptionService.js';
+import { TIERS, FEATURE_METADATA, getEffectiveTier } from '../services/subscriptionService.js';
 import logger from '../utils/logger.js';
 import AnonUsage from '../models/AnonUsage.js';
 import { getAnonFingerprint } from '../utils/fingerprint.js';
@@ -105,18 +105,14 @@ export const checkLinkLimit = async (req, res, next) => {
         const currentActive = user.linkUsage?.count || 0;
 
         // CHECK HARD LIMIT (Total created)
-        if (currentHard >= hardLimit) {
-            if (tier === 'business' && currentHard < hardLimit * 1.2) {
-                logger.warn(`[Soft Cap] Business User ${user.snapId || user._id} exceeded hard limit: ${currentHard}/${hardLimit}`);
-                return next();
-            }
-
+        // Skip check entirely for unlimited tiers (Business)
+        if (hardLimit !== Infinity && currentHard >= hardLimit) {
             return res.status(403).json({
                 type: 'hard_limit',
                 message: `You've hit your monthly cap of ${hardLimit} links. Upgrade to Pro for more capacity!`,
                 limit: hardLimit,
                 current: currentHard,
-                resetsAt: currentPeriodStart || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000), // Approx
+                resetsAt: currentPeriodStart || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
                 tier: tier
             });
         }
@@ -162,8 +158,17 @@ export const checkFeature = (featureKeys) => {
         const hasAccess = keys.every(k => allowedFeatures.includes(k));
 
         if (!hasAccess) {
+            // Find the minimum tier required for this feature using FEATURE_METADATA
+            const requiredTierName = keys.reduce((name, key) => {
+                const meta = FEATURE_METADATA[key];
+                if (!meta) return name;
+                // Prefer the higher tier name if multiple features are checked
+                if (meta.tier === 'business') return TIERS.business.name;
+                return name;
+            }, TIERS.pro.name);
+
             return res.status(403).json({
-                message: `This feature requires the ${TIERS.pro.name} plan.`,
+                message: `This feature requires the ${requiredTierName} plan.`,
                 upgradeRequired: true
             });
         }
@@ -249,7 +254,7 @@ export const resolveCurrentLinkUsage = async (user) => {
                 { 'linkUsage.resetAt': null },
                 { 'linkUsage.resetAt': { $exists: false } }
             ]
-          };
+        };
 
     const updated = await User.findOneAndUpdate(
         condition,
@@ -331,13 +336,13 @@ export const checkAndIncrementClickUsage = async (userId) => {
             resetPerformed = !!resetResult;
         }
     } else {
-        // For free tier, reset monthly (atomic with 30-day check)
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        // For free tier, reset on the 1st of each calendar month (matches UI and link creation logic)
+        const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const resetResult = await User.findOneAndUpdate(
             {
                 _id: user._id,
                 $or: [
-                    { 'clickUsage.resetAt': { $lt: thirtyDaysAgo } },
+                    { 'clickUsage.resetAt': { $lt: startOfCurrentMonth } },
                     { 'clickUsage.resetAt': null },
                     { 'clickUsage.resetAt': { $exists: false } }
                 ]
@@ -361,6 +366,10 @@ export const checkAndIncrementClickUsage = async (userId) => {
     }
 
     // Soft Cap for Business (Allow up to 120%)
+    // Fast path: if limit is Infinity (Business), immediately allow without math/checks
+    if (limit === Infinity) {
+        return { allowed: true };
+    }
     const effectiveLimit = tier === 'business' ? Math.floor(limit * 1.2) : limit;
 
     // Defensive check for clickUsage existence

@@ -32,22 +32,28 @@ export const getUrlAnalytics = async (req, res) => {
         const tier = isAdmin ? 'business' : getEffectiveTier(req.user);
         const retentionDays = TIERS[tier]?.analyticsRetention || TIERS.free.analyticsRetention;
         
-        const retentionDate = new Date();
-        // If Infinity (Business), set to very old date (e.g., 2000) or handle differently
-        // Since Mongo doesn't handle Infinity well in date math, we use a large number if Infinity
-        if (retentionDays === Infinity) {
-             retentionDate.setFullYear(2000); // Effectively all history
-        } else {
+        let retentionDate = null;
+        if (retentionDays !== Infinity) {
+             retentionDate = new Date();
              retentionDate.setDate(retentionDate.getDate() - retentionDays);
         }
+        
+        // Helper to build match stage dynamically (saves DB overhead when retention is Infinity)
+        const matchStage = (extraConditions = {}) => {
+             const conditions = { urlId: url._id, ...extraConditions };
+             if (retentionDate) {
+                 conditions.timestamp = { $gte: retentionDate };
+             }
+             return { $match: conditions };
+        };
         
         // 3. Aggregate Data
         // We filter by timestamp > retentionDate
 
         const [clicksByDate, clicksByDevice, clicksByLocation, clicksByBrowser, clicksByDeviceMatch] = await Promise.all([
-            // Clicks by Date (Last 30 Days)
+            // Clicks by Date (Last 30 Days or all history)
             Analytics.aggregate([
-                { $match: { urlId: url._id, timestamp: { $gte: retentionDate } } },
+                matchStage(),
                 {
                     $group: {
                         _id: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
@@ -59,7 +65,7 @@ export const getUrlAnalytics = async (req, res) => {
 
             // Clicks by Device (Retention filtered)
             Analytics.aggregate([
-                { $match: { urlId: url._id, timestamp: { $gte: retentionDate } } },
+                matchStage(),
                 { $group: { _id: "$device", count: { $sum: 1 } } },
                 { $sort: { count: -1 } },
                 { $limit: 5 }
@@ -67,7 +73,7 @@ export const getUrlAnalytics = async (req, res) => {
 
             // Clicks by Location (Country) (Retention filtered)
             Analytics.aggregate([
-                { $match: { urlId: url._id, timestamp: { $gte: retentionDate } } },
+                matchStage(),
                 { $group: { _id: "$country", count: { $sum: 1 } } },
                 { $sort: { count: -1 } },
                 { $limit: 10 }
@@ -75,7 +81,7 @@ export const getUrlAnalytics = async (req, res) => {
 
             // Clicks by Browser (Retention filtered)
             Analytics.aggregate([
-                { $match: { urlId: url._id, timestamp: { $gte: retentionDate } } },
+                matchStage(),
                 { $group: { _id: "$browser", count: { $sum: 1 } } },
                 { $sort: { count: -1 } },
                 { $limit: 5 }
@@ -83,7 +89,7 @@ export const getUrlAnalytics = async (req, res) => {
 
             // Clicks by Device Match Type (Pro/Business feature - shows device targeting effectiveness)
             Analytics.aggregate([
-                { $match: { urlId: url._id, timestamp: { $gte: retentionDate }, deviceMatchType: { $ne: null } } },
+                matchStage({ deviceMatchType: { $ne: null } }),
                 { $group: { _id: "$deviceMatchType", count: { $sum: 1 } } },
                 { $sort: { count: -1 } }
             ])

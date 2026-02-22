@@ -45,6 +45,7 @@ const CreateLinkModal = lazy(() => import('../components/CreateLinkModal'));
 const EditLinkModal = lazy(() => import('../components/EditLinkModal'));
 import LinkSuccessModal from '../components/LinkSuccessModal';
 import { cacheLinks, getCachedLinks, getCacheAge } from '../utils/offlineCache';
+import { getEffectiveTier } from '../utils/subscriptionUtils';
 import { useScrollLock } from '../hooks/useScrollLock';
 import BadgeTooltip from '../components/ui/BadgeTooltip';
 import { useQrWorker } from '../hooks/useQrWorker';
@@ -289,7 +290,7 @@ const UserDashboard = () => {
         </div>
 
         {/* Usage Stats */}
-        <div className="glass-dark p-4 rounded-xl border border-gray-700/50">
+        <div className="p-4 rounded-xl transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Links Usage */}
             {/* Links Usage Stats - Active & Monthly */}
@@ -308,24 +309,24 @@ const UserDashboard = () => {
                   </span>
                   <span className="text-white text-xs font-medium">
                     {user?.linkUsage?.count || 0}/
-                    {getTierConfig(user?.subscription?.tier).activeLimit === Infinity
+                    {getTierConfig(getEffectiveTier(user)).activeLimit === Infinity
                       ? '∞'
-                      : getTierConfig(user?.subscription?.tier).activeLimit}
+                      : getTierConfig(getEffectiveTier(user)).activeLimit}
                   </span>
                 </div>
                 <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
                       (user?.linkUsage?.count || 0) /
-                        (getTierConfig(user?.subscription?.tier).activeLimit === Infinity
+                        (getTierConfig(getEffectiveTier(user)).activeLimit === Infinity
                           ? 10000
-                          : getTierConfig(user?.subscription?.tier).activeLimit) >=
+                          : getTierConfig(getEffectiveTier(user)).activeLimit) >=
                       0.9
                         ? 'bg-red-500'
                         : 'bg-blue-500'
                     }`}
                     style={{
-                      width: `${getTierConfig(user?.subscription?.tier).activeLimit === Infinity ? 5 : Math.min(100, ((user?.linkUsage?.count || 0) / getTierConfig(user?.subscription?.tier).activeLimit) * 100)}%`,
+                      width: `${getTierConfig(getEffectiveTier(user)).activeLimit === Infinity ? 5 : Math.min(100, ((user?.linkUsage?.count || 0) / getTierConfig(getEffectiveTier(user)).activeLimit) * 100)}%`,
                     }}
                   />
                 </div>
@@ -345,20 +346,20 @@ const UserDashboard = () => {
                   </span>
                   <span className="text-white text-xs font-medium">
                     {user?.linkUsage?.hardCount || 0}/
-                    {getTierConfig(user?.subscription?.tier).monthlyLimit.toLocaleString()}
+                    {getTierConfig(getEffectiveTier(user)).monthlyLimit.toLocaleString()}
                   </span>
                 </div>
                 <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
                       (user?.linkUsage?.hardCount || 0) /
-                        getTierConfig(user?.subscription?.tier).monthlyLimit >=
+                        getTierConfig(getEffectiveTier(user)).monthlyLimit >=
                       0.9
                         ? 'bg-amber-500'
                         : 'bg-indigo-500'
                     }`}
                     style={{
-                      width: `${Math.min(100, ((user?.linkUsage?.hardCount || 0) / getTierConfig(user?.subscription?.tier).monthlyLimit) * 100)}%`,
+                      width: `${Math.min(100, ((user?.linkUsage?.hardCount || 0) / getTierConfig(getEffectiveTier(user)).monthlyLimit) * 100)}%`,
                     }}
                   />
                 </div>
@@ -366,7 +367,7 @@ const UserDashboard = () => {
             </div>
 
             {/* Upgrade Button for Free Users */}
-            {(!user?.subscription?.tier || user?.subscription?.tier === 'free') && (
+            {getEffectiveTier(user) === 'free' && (
               <a
                 href="/pricing"
                 className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-400 rounded-lg text-xs font-medium transition-all self-center"
@@ -380,7 +381,11 @@ const UserDashboard = () => {
 
         <button
           onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white py-2.5 px-5 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 w-full sm:w-auto sm:self-start"
+          className="flex items-center justify-center gap-2 text-white py-2.5 px-6 rounded-xl font-bold transition-all hover:scale-105 active:scale-95 w-full sm:w-auto sm:self-start border border-white/10"
+          style={{
+              background: 'linear-gradient(to right, var(--accent-from), var(--accent-to))',
+              boxShadow: '0 8px 20px var(--cta-shadow)'
+          }}
         >
           <Plus size={18} />
           <span className="sm:hidden">Create Link</span>
@@ -398,7 +403,14 @@ const UserDashboard = () => {
           <input
             type="text"
             placeholder="Search links..."
-            className="w-full bg-gray-800/50 border border-gray-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+            className="w-full rounded-xl pl-10 pr-4 py-3 text-sm transition-all focus:outline-none"
+            style={{
+                backgroundColor: 'var(--topbar-bg)',
+                border: '1px solid var(--input-border)',
+                color: 'var(--heading-color)'
+            }}
+            onFocus={(e) => e.target.style.borderColor = 'var(--input-focus)'}
+            onBlur={(e) => e.target.style.borderColor = 'var(--input-border)'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -407,12 +419,12 @@ const UserDashboard = () => {
 
       {/* Links Card View — shared render function used by both virtual and normal paths */}
       {filteredLinks.length === 0 ? (
-        <div className="glass-dark rounded-xl border border-gray-800 p-12 text-center">
-          <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-600">
+        <div className="rounded-2xl p-12 text-center transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'var(--stat-icon-bg)', color: 'var(--stat-icon-color)' }}>
             <LinkIcon size={32} />
           </div>
-          <p className="text-gray-300 font-medium text-lg">No links found</p>
-          <p className="text-gray-500 text-sm mt-1">Create a new link above to get started</p>
+          <p className="font-medium text-lg" style={{ color: 'var(--heading-color)' }}>No links found</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--subtext-color)' }}>Create a new link above to get started</p>
         </div>
       ) : useVirtual ? (
         /* ── VIRTUAL SCROLLING MODE (View All with many links) ── */
@@ -489,13 +501,14 @@ const UserDashboard = () => {
                 aria-posinset={virtualRow.index + 1}
               >
                 <div
-                  className={`glass-dark rounded-xl border overflow-hidden transition-colors ${
+                  className={`rounded-2xl transition-colors duration-300 overflow-hidden border ${
                     isFlagged
                       ? 'border-red-500/40 bg-red-500/5'
                       : isLinkDisabled
                         ? 'border-orange-500/30 bg-orange-500/5'
-                        : 'border-gray-800 hover:border-gray-700'
+                        : 'hover:bg-white/5'
                   }`}
+                  style={!isFlagged && !isLinkDisabled ? { backgroundColor: 'var(--glass-bg)', borderColor: 'var(--glass-border)' } : {}}
                 >
                   {/* Flagged Link Banner */}
                   {isFlagged && (
@@ -850,7 +863,7 @@ const UserDashboard = () => {
                     </div>
 
                     {/* Actions Bar */}
-                    <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-800">
+                    <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t" style={{ borderTopColor: 'var(--divider-color)' }}>
                       <div className="flex items-center gap-0.5 sm:gap-1">
                         <button
                           onClick={() => setEditingLink(link)}
@@ -1285,13 +1298,14 @@ const UserDashboard = () => {
             return (
               <div key={link._id}>
                 <div
-                  className={`glass-dark rounded-xl border overflow-hidden transition-colors ${
+                  className={`rounded-2xl transition-colors duration-300 overflow-hidden border ${
                     isFlagged
                       ? 'border-red-500/40 bg-red-500/5'
                       : isLinkDisabled
                         ? 'border-orange-500/30 bg-orange-500/5'
-                        : 'border-gray-800 hover:border-gray-700'
+                        : 'hover:bg-white/5'
                   }`}
+                  style={!isFlagged && !isLinkDisabled ? { backgroundColor: 'var(--glass-bg)', borderColor: 'var(--glass-border)' } : {}}
                 >
                   {isFlagged && (
                     <div className="bg-red-500/10 border-b border-red-500/20 px-5 py-2 flex items-center gap-2">
@@ -1387,7 +1401,7 @@ const UserDashboard = () => {
                       </div>
                     </div>
                     {/* Actions Bar */}
-                    <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-800">
+                    <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t" style={{ borderTopColor: 'var(--divider-color)' }}>
                       <div className="flex items-center gap-0.5 sm:gap-1">
                         <button onClick={() => setEditingLink(link)} className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors text-xs sm:text-sm" title="Edit link">
                           <Edit3 size={14} className="sm:w-4 sm:h-4" /><span className="hidden sm:inline">Edit</span>

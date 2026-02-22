@@ -15,7 +15,7 @@ export const isWithinGracePeriod = (sub) => {
 export const hasFeature = (user, feature) => {
     const sub = user?.subscription;
     const tier = sub?.tier || 'free';
-    const status = sub?.status;
+    const status = sub?.status || 'active';
     
 
     // Simple check for valid subscription status
@@ -35,8 +35,8 @@ export const getEffectiveTier = (user) => {
     
     const sub = user.subscription;
     if (!sub) return 'free';
-    
-    const status = sub.status;
+    // Provide 'active' as a fallback for manually assigned or legacy accounts missing the field
+    const status = sub.status || 'active';
     const tier = sub.tier || 'free';
     
     // Active / Trial
@@ -74,4 +74,19 @@ export const shouldShowPricingBanner = (user) => {
     if (!user) return true; // Not logged in
     const tier = getEffectiveTier(user);
     return tier === 'free'; // Show only for free tier (admins on free will see it)
+};
+
+// Check if user is a Business subscriber
+export const isBusinessTier = (user) => {
+    return getEffectiveTier(user) === 'business';
+};
+
+// Get dynamic upgrade text based on feature's required tier
+// Returns 'Upgrade to Pro' or 'Upgrade to Business' as appropriate
+export const getUpgradeText = (feature) => {
+    // Features that require Business tier
+    const businessFeatures = new Set([
+        'ab_testing', 'device_redirects', 'team', 'webhooks', 'custom_domains'
+    ]);
+    return businessFeatures.has(feature) ? 'Upgrade to Business' : 'Upgrade to Pro';
 };

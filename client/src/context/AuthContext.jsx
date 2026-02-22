@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const cached = localStorage.getItem('ls_auth_user');
       const cachedAt = localStorage.getItem('ls_auth_cached_at');
-      
+
       if (cached && cachedAt) {
         const age = Date.now() - parseInt(cachedAt, 10);
         // Only use cache if within max age
@@ -28,10 +28,12 @@ export const AuthProvider = ({ children }) => {
           localStorage.removeItem('ls_auth_cached_at');
         }
       }
-    } catch { /* ignore parse errors */ }
+    } catch {
+      /* ignore parse errors */
+    }
     return null;
   });
-  
+
   // Loading only true if we have no valid cached state to show
   const [loading, setLoading] = useState(() => {
     try {
@@ -58,7 +60,9 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('ls_auth_user');
         localStorage.removeItem('ls_auth_cached_at');
       }
-    } catch { /* ignore storage errors */ }
+    } catch {
+      /* ignore storage errors */
+    }
   }, [user]);
 
   // Track if background auth check is in progress
@@ -72,7 +76,7 @@ export const AuthProvider = ({ children }) => {
       try {
         // Attempt to get a new access token using the refresh token cookie
         const { data: refreshData } = await api.get('/auth/refresh');
-        
+
         // If successful, set the token in memory
         setAccessToken(refreshData.accessToken);
 
@@ -144,24 +148,46 @@ export const AuthProvider = ({ children }) => {
   const login = async (identifier, password) => {
     try {
       const { data } = await api.post('/auth/login', { identifier, password });
-      
+
       // Update memory token
       setAccessToken(data.accessToken);
-      
+
       const userData = {
         _id: data._id,
         internalId: data.internalId,
+        eliteId: data.eliteId,
+        snapId: data.snapId,
+        idTier: data.idTier,
+        idNumber: data.idNumber,
         email: data.email,
         username: data.username,
+        usernameChangedAt: data.usernameChangedAt,
         firstName: data.firstName,
         lastName: data.lastName,
+        phone: data.phone,
+        company: data.company,
+        website: data.website,
+        bio: data.bio,
+        avatar: data.avatar,
         role: data.role,
+        createdAt: data.createdAt,
+        lastLoginAt: data.lastLoginAt,
+        subscription: data.subscription,
+        linkUsage: data.linkUsage,
+        clickUsage: data.clickUsage,
       };
       setUser(userData);
       showToast.success(
         data.firstName ? `Welcome back, ${data.firstName}!` : 'Welcome back!',
         'Logged In'
       );
+
+      // Background refresh: immediately fetch comprehensive user data from /auth/refresh
+      // The login response has a subset of fields; the refresh endpoint returns the full
+      // user object including subscription details. This prevents stale tier display when
+      // the login response or localStorage cache has outdated subscription data.
+      checkAuth();
+
       return { success: true, user: userData };
     } catch (error) {
       const errorData = error.response?.data;
@@ -219,17 +245,37 @@ export const AuthProvider = ({ children }) => {
 
       // Update memory token
       setAccessToken(data.accessToken);
-      
+
       const userData = {
         _id: data._id,
+        internalId: data.internalId,
+        eliteId: data.eliteId,
+        snapId: data.snapId,
+        idTier: data.idTier,
+        idNumber: data.idNumber,
         email: data.email,
         username: data.username,
+        usernameChangedAt: data.usernameChangedAt,
         firstName: data.firstName,
         lastName: data.lastName,
+        phone: data.phone,
+        company: data.company,
+        website: data.website,
+        bio: data.bio,
+        avatar: data.avatar,
         role: data.role,
+        createdAt: data.createdAt,
+        lastLoginAt: data.lastLoginAt,
+        subscription: data.subscription,
+        linkUsage: data.linkUsage,
+        clickUsage: data.clickUsage,
       };
       setUser(userData);
       showToast.success('Your account is ready!', 'Welcome');
+
+      // Background refresh: fetch comprehensive user data
+      checkAuth();
+
       return { success: true, user: userData };
     } catch (error) {
       showToast.error(error.response?.data?.message || 'Registration failed');
@@ -240,23 +286,35 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await api.post('/auth/logout');
-      setAccessToken(null);
-      setUser(null);
       // Clear bio auth timestamp (24h re-auth policy)
       try {
         localStorage.removeItem('ls_bio_auth_at');
-      } catch { /* ignore */ }
-      showToast.info('See you next time!', 'Logged Out');
-      // Redirect to home page
-      window.location.href = '/';
+      } catch {
+        /* ignore */
+      }
+
+      // Redirect FIRST before clearing state to prevent ErrorBoundary flashes
+      window.location.replace('/');
+
+      setTimeout(() => {
+        setAccessToken(null);
+        setUser(null);
+      }, 0);
     } catch {
       // Logout error - still clear local state and redirect
-      setAccessToken(null);
-      setUser(null);
       try {
         localStorage.removeItem('ls_bio_auth_at');
-      } catch { /* ignore */ }
-      window.location.href = '/';
+      } catch {
+        /* ignore */
+      }
+
+      // Redirect FIRST before clearing state to prevent ErrorBoundary flashes
+      window.location.replace('/');
+
+      setTimeout(() => {
+        setAccessToken(null);
+        setUser(null);
+      }, 0);
     }
   };
 

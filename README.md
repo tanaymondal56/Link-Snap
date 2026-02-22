@@ -87,6 +87,14 @@
     *   Frontend: `http://localhost:3000`
     *   Backend: `http://localhost:5000`
 
+5.  **First Run Setup**
+    
+    On a **fresh installation** (empty database), the **first user** to register via the frontend is automatically:
+    - Promoted to **Admin** role
+    - Verified instantly (no email/OTP required)
+    
+    This lets you immediately access the Admin Panel to configure SMTP and other settings. Subsequent users follow the normal registration flow.
+
 ---
 
 ## 🛡️ Security Architecture

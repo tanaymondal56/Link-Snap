@@ -123,7 +123,7 @@ const AnalyticsPage = () => {
           </a>
         </div>
         <div className="flex items-center gap-4">
-          <div className="glass-dark px-4 py-2 rounded-xl border border-white/10 flex items-center gap-3">
+          <div className="px-4 py-2 rounded-xl flex items-center gap-3 transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
             <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400">
               <LinkIcon size={20} />
             </div>
@@ -138,7 +138,7 @@ const AnalyticsPage = () => {
       </div>
 
       {/* Main Chart */}
-      <div className="glass-dark p-6 rounded-2xl border border-white/5">
+      <div className="p-6 rounded-2xl transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
         <div className="flex items-center gap-2 mb-6">
           <Calendar className="text-blue-400" size={20} />
           <h3 className="text-lg font-semibold text-white">Clicks Over Time</h3>
@@ -157,7 +157,7 @@ const AnalyticsPage = () => {
       {/* Secondary Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Devices */}
-        <div className="glass-dark p-6 rounded-2xl border border-white/5">
+        <div className="p-6 rounded-2xl transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
           <div className="flex items-center gap-2 mb-6">
             <Smartphone className="text-purple-400" size={20} />
             <h3 className="text-lg font-semibold text-white">Devices & Browsers</h3>
@@ -191,7 +191,7 @@ const AnalyticsPage = () => {
         </div>
 
         {/* Locations */}
-        <div className="glass-dark p-6 rounded-2xl border border-white/5">
+        <div className="p-6 rounded-2xl transition-colors duration-300" style={{ backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
           <div className="flex items-center gap-2 mb-6">
             <Globe className="text-green-400" size={20} />
             <h3 className="text-lg font-semibold text-white">Top Locations</h3>

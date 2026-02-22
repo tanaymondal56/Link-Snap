@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { hasFeature } from '../utils/subscriptionUtils';
+import { hasFeature, getUpgradeText } from '../utils/subscriptionUtils';
 
 /**
  * usePremiumField - Hook to check premium field access and get status
@@ -20,7 +20,7 @@ export const usePremiumField = (feature) => {
   const canAccess = user && hasFeature(user, feature);
   const isLoggedOut = !user;
   const upgradePath = isLoggedOut ? '/register' : '/pricing';
-  const upgradeText = isLoggedOut ? 'Sign up free to unlock' : 'Upgrade to Pro';
+  const upgradeText = isLoggedOut ? 'Sign up free to unlock' : getUpgradeText(feature);
   
   return {
     isLocked: !canAccess,

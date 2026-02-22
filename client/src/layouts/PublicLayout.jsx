@@ -14,6 +14,11 @@ const PublicLayout = () => {
   const [isWhitelistedIP, setIsWhitelistedIP] = useState(false);
   const [showNewBadge, setShowNewBadge] = useState(hasUnseenChangelog());
 
+  // Re-check changelog status when app version updates
+  useEffect(() => {
+    setShowNewBadge(hasUnseenChangelog());
+  }, [appVersion]);
+
   // Check if current IP is whitelisted for admin access (only when not logged in)
   useEffect(() => {
     // Skip check if user is logged in - they'll see admin link via isAdmin
