@@ -14,11 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This release resolves a critical subscription display bug, adds dynamic tier theming, redesigns the pricing page, and improves QR code performance.
 
 ### 🐛 Critical Fixes
+
 - **Subscription Tier Display:** Fixed initial login showing "Free" tier instead of the user's actual subscription; enriched login & register server responses with the full user object (subscription, clickUsage, avatar, snapId, eliteId, idTier, bio, etc.) to match `/auth/refresh`.
 - **Stale Auth Cache:** Triggered background `checkAuth()` in AuthContext after login/register to immediately overwrite any stale localStorage cache with fresh server data — prevents the "show free → correct after tab change" race condition.
 - **SPA Route 404s:** Fixed `/roadmap`, `/pricing`, and other client-side routes returning 404 by adding them to the exact-match skip list in `redirectRoutes.js`.
 
 ### ✨ Features & UI
+
 - **Tier Theming System:** Added `tierTheme.js` with centralised colour tokens and `applyTierTheme()` — writes CSS custom properties onto `<html>` so all dashboard components inherit the active tier's theme automatically.
 - **Upgrade Celebration:** DashboardLayout detects tier upgrades and triggers a brief glow animation on the sidebar user card.
 - **Pricing Page Redesign:** Rebuilt Free, Pro, and Business tier cards with corrected yearly pricing for Business.
@@ -28,15 +30,22 @@ This release resolves a critical subscription display bug, adds dynamic tier the
 - **Public Changelog Page:** Updated with enhanced filtering and search across releases.
 
 ### 🚀 Performance
+
 - **QR Code Web Worker:** Offloaded QR code generation to a dedicated Web Worker (`qrWorker.js`) for non-blocking rendering.
 - **QR Export Utility:** Added `qrExport.js` for high-resolution PNG export from QR SVGs.
 - **Virtual Scrolling for Links:** UserDashboard link list now uses `@tanstack/react-virtual` for smooth performance with large collections.
 
-### 🛡️ Code Quality & Lint
-- Removed unused `tierLabel` in `subscriptionMiddleware.js`.
-- Wrapped `fetchProfile` in `useCallback` with correct dependency array in `SettingsPage.jsx`.
-- Various improvements to analytics, URL, and subscription controllers.
-- Expanded `subscriptionService.js` with additional tier helpers.
+### 🔒 Security
+
+- **Dependency hardening:** Removed unused direct `fstream` and `minimatch` deps. Upgraded `geoip-lite` to `1.4.10` — drops the vulnerable `unzip`/`fstream` transitive chain. Added `minimatch: "10.2.2"` overrides to both server and client — resolves Dependabot alerts [#17, #20, #21, #22] (ReDoS CVEs, Arbitrary File Overwrite in fstream).
+- **Everything updated to latest:** All server and client packages bumped to their latest versions including ESLint 10, nodemon 3.1.14, `@simplewebauthn` 13.2.3, and all devDependencies. Zero vulnerabilities across both workspaces.
+
+### 🛡️ Code Quality
+
+- Fixed 3 `no-useless-assignment` errors surfaced by ESLint 10's new rule: `config/env.js` (fallback dotenv result), `subscriptionMiddleware.js` (redundant `needsReset` initializer), `useAppVersion.js` (redundant null-guard on ESM singleton fetch).
+- Internal lint fixes and React hook dependency corrections.
+- Expanded subscription service with additional tier helpers.
+- Improvements to analytics, URL, and subscription controllers.
 
 ---
 
@@ -47,12 +56,14 @@ This release resolves a critical subscription display bug, adds dynamic tier the
 This release automates the Docker build and push pipeline while hardening environment security and dependencies.
 
 ### 🐳 Docker CI/CD
+
 - **Automated Pipeline:** Implemented GitHub Actions workflow for automated builds and pushes to Docker Hub.
 - **Smart Tagging:** Added support for `latest`, SemVer, and Git commit SHA tagging.
 - **Build Optimization:** Reduced Docker build context by ~99% using a comprehensive `.dockerignore`.
 - **Reproducible Builds:** Pinned Docker images to `node:20-alpine` and fixed `VITE_*` build arguments for reliable production URL injection.
 
 ### 🛡️ Security & Scalability
+
 - **Dependency Hardening:** Updated `mongoose` (9.2.0) and `qs` (6.14.2) to resolve Dependabot alerts.
 - **Cleanup:** Removed orphaned `client/Dockerfile` and fixed `deploy.yml` string bugs.
 
@@ -65,6 +76,7 @@ This release automates the Docker build and push pipeline while hardening enviro
 This release focuses on significant performance optimizations, advanced security features, and UI/UX improvements.
 
 ### 🚀 Performance & Optimization
+
 - **Bundle Optimization:** Reduced CSS bundle by ~88% and JS bundle by ~70% via strict tree-shaking and code splitting.
 - **Lazy Loading:** Implemented route-based and component-based lazy loading (Admin Dashboard, QR Codes, Landing Page).
 - **PWA Enhanced:** Fixed manifest injection and improved offline caching strategies.
@@ -73,18 +85,21 @@ This release focuses on significant performance optimizations, advanced security
 - **DB Optimization:** Optimized Cosmos DB queries and indexing for faster data retrieval.
 
 ### 🛡️ Security v2
+
 - **Safe Browsing Integration:** Real-time checking of destination URLs against threat databases.
 - **Bot Protection:** Advanced bot detection (`botDetector.js`) and persistent bio-profile limiting.
 - **Security Hardening:** Fully removed known security vulnerabilities (XSS, Regex Injection).
 - **Strict Headers:** Implemented strict origin and CSP headers.
 
 ### ✨ Features & UI
+
 - **Time/Device Routing:** Enhanced routing logic with improved UI for creation/editing.
 - **UI Overhaul:** Standardized all modals with `dvh` support and better mobile gestures (Pull-to-Refresh).
 - **Admin Dashboard:** New notification system and improved user management UI.
 - **Enhanced Limits:** Updated tier limits for Bio Pages and Link creation.
 
 ### 🐛 Fixes
+
 - Fixed time-zone handling in routing logic.
 - Fixed 404 errors with PWA manifest in development.
 - Resolved various mobile scrolling and modal interaction bugs.

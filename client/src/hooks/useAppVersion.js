@@ -8,7 +8,6 @@ import { getAppVersionAsync, getAppVersion } from '../config/version';
 
 // Global state - shared across all useAppVersion instances
 let currentVersion = getAppVersion();
-let fetchPromise = null;
 const listeners = new Set();
 
 // Notify all subscribed components when version changes
@@ -25,16 +24,13 @@ const subscribe = (callback) => {
 // Snapshot function for useSyncExternalStore
 const getSnapshot = () => currentVersion;
 
-// Initialize: fetch version once on module load
-if (!fetchPromise) {
-  fetchPromise = getAppVersionAsync().then((latestVersion) => {
-    if (latestVersion && latestVersion !== currentVersion) {
-      currentVersion = latestVersion;
-      notifyListeners();
-    }
-    return latestVersion;
-  });
-}
+// Initialize: fetch version once on module load (ESM modules are singletons)
+getAppVersionAsync().then((latestVersion) => {
+  if (latestVersion && latestVersion !== currentVersion) {
+    currentVersion = latestVersion;
+    notifyListeners();
+  }
+});
 
 /**
  * React hook that returns the current app version reactively.
