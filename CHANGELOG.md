@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.3] - 2026-02-22
+
+### Subscription & Auth Fix, Tier Theming, Pricing Redesign, and QR Worker
+
+This release resolves a critical subscription display bug, adds dynamic tier theming, redesigns the pricing page, and improves QR code performance.
+
+### 🐛 Critical Fixes
+- **Subscription Tier Display:** Fixed initial login showing "Free" tier instead of the user's actual subscription; enriched login & register server responses with the full user object (subscription, clickUsage, avatar, snapId, eliteId, idTier, bio, etc.) to match `/auth/refresh`.
+- **Stale Auth Cache:** Triggered background `checkAuth()` in AuthContext after login/register to immediately overwrite any stale localStorage cache with fresh server data — prevents the "show free → correct after tab change" race condition.
+- **SPA Route 404s:** Fixed `/roadmap`, `/pricing`, and other client-side routes returning 404 by adding them to the exact-match skip list in `redirectRoutes.js`.
+
+### ✨ Features & UI
+- **Tier Theming System:** Added `tierTheme.js` with centralised colour tokens and `applyTierTheme()` — writes CSS custom properties onto `<html>` so all dashboard components inherit the active tier's theme automatically.
+- **Upgrade Celebration:** DashboardLayout detects tier upgrades and triggers a brief glow animation on the sidebar user card.
+- **Pricing Page Redesign:** Rebuilt Free, Pro, and Business tier cards with corrected yearly pricing for Business.
+- **SubscriptionCard Redesign:** Tier-aware styling with dynamic colour tokens.
+- **Overview Page Refactor:** Subscription usage section rebuilt with tier colour integration.
+- **Admin Changelog Manager:** Added JSON import capability for bulk changelog entry management.
+- **Public Changelog Page:** Updated with enhanced filtering and search across releases.
+
+### 🚀 Performance
+- **QR Code Web Worker:** Offloaded QR code generation to a dedicated Web Worker (`qrWorker.js`) for non-blocking rendering.
+- **QR Export Utility:** Added `qrExport.js` for high-resolution PNG export from QR SVGs.
+- **Virtual Scrolling for Links:** UserDashboard link list now uses `@tanstack/react-virtual` for smooth performance with large collections.
+
+### 🛡️ Code Quality & Lint
+- Removed unused `tierLabel` in `subscriptionMiddleware.js`.
+- Wrapped `fetchProfile` in `useCallback` with correct dependency array in `SettingsPage.jsx`.
+- Various improvements to analytics, URL, and subscription controllers.
+- Expanded `subscriptionService.js` with additional tier helpers.
+
+---
+
 ## [0.6.1] - 2026-02-14
 
 ### Docker CI/CD Automation & Security Update
