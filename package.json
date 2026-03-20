@@ -26,6 +26,7 @@
     "prod": "npm run start:prod --prefix server",
     "start": "cd server && npm start",
     "postinstall": "npm run build",
+    "lint": "concurrently \"npm run lint --prefix server\" \"npm run lint --prefix client\"",
     "sync:version": "node scripts/sync-version.js",
     "bump:patch": "node scripts/sync-version.js patch",
     "bump:minor": "node scripts/sync-version.js minor",

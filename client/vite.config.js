@@ -51,6 +51,7 @@ export default defineConfig(async ({ mode }) => {
           navigateFallbackDenylist: [
             /^\/api/,           // API routes
             /^\/__/,            // Internal routes
+            /^\/quiz/,          // Secondary apps
             /^\/[a-zA-Z0-9_-]{3,20}$/,  // Short URL patterns (3-20 alphanum chars)
             /^\/[a-zA-Z0-9_-]{3,20}\+$/, // Preview URL patterns (short URL + plus sign)
           ],
