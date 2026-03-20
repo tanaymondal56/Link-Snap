@@ -170,6 +170,16 @@ const reservedWords = [
     'invite',
     'invites',
     'invitation',
+    'invitations',
+    'community',
+    'forum',
+    'forums',
+    'events',
+    'event',
+    'quiz',
+    'poll',
+    'surveys',
+    'survey',
 
     // ========== Legal Pages ==========
     'terms',
@@ -200,6 +210,11 @@ const reservedWords = [
     'license',
     'licenses',
     'disclaimer',
+    'disclaimers',
+    'terms-and-conditions',
+    'termsandconditions',
+    'conditions',
+    'condition',
 
     // ========== API & System ==========
     'app',
