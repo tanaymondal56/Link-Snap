@@ -238,9 +238,9 @@ export const strictProxyGate = (req, res, next) => {
         '/api/.d/',              // Hidden device auth routes (has its own ipWhitelist)
         '/api/analytics/track',  // Internal analytics from Nginx mirror (uses X-Internal-Analytics-Secret)
     ];
-    
+
     const isPublicApi = publicApiPaths.some(path => req.path.startsWith(path));
-    
+
 
     if (isPublicApi) {
         // Still extract real user IP for rate limiting and logging
