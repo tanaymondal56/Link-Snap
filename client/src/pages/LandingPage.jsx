@@ -120,6 +120,7 @@ const LandingPage = () => {
   // Expiration state (for logged-in users)
   const [expiresIn, setExpiresIn] = useState('never');
   const [customExpiresAt, setCustomExpiresAt] = useState('');
+  const [customExpiresAtMin, setCustomExpiresAtMin] = useState('');
 
   // Password state (for logged-in users)
   const [enablePassword, setEnablePassword] = useState(false);
@@ -149,6 +150,12 @@ const LandingPage = () => {
 
   // Guest warning state
   const [showGuestWarning, setShowGuestWarning] = useState(false);
+
+  useEffect(() => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    setCustomExpiresAtMin(now.toISOString().slice(0, 16));
+  }, []);
 
   // Check alias availability
   const checkAlias = useCallback(async (alias) => {
@@ -596,9 +603,7 @@ const LandingPage = () => {
                       type="datetime-local"
                       value={customExpiresAt}
                       onChange={(e) => setCustomExpiresAt(e.target.value)}
-                      min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
-                        .toISOString()
-                        .slice(0, 16)}
+                      min={customExpiresAtMin || undefined}
                       className="block w-full py-3 px-4 mt-2 bg-gray-900/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all"
                     />
                   )}

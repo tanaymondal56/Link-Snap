@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Bell,
   Check,
@@ -69,22 +69,7 @@ const NotificationDropdown = () => {
     };
   }, [isOpen]);
 
-  // Fetch unread count on mount and periodically
-  useEffect(() => {
-    if (!notificationsAvailable) return;
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30s
-    return () => clearInterval(interval);
-  }, [notificationsAvailable]);
-
-  // Fetch notifications when dropdown opens
-  useEffect(() => {
-    if (isOpen) {
-      fetchNotifications();
-    }
-  }, [isOpen]);
-
-  const fetchUnreadCount = async () => {
+  const fetchUnreadCount = useCallback(async () => {
     if (!notificationsAvailable) return;
     try {
       const { data } = await api.get('/admin/notifications/count');
@@ -98,9 +83,9 @@ const NotificationDropdown = () => {
       }
       console.error('Failed to fetch notification count:', error);
     }
-  };
+  }, [notificationsAvailable]);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     if (!notificationsAvailable) return;
     setLoading(true);
     try {
@@ -118,7 +103,22 @@ const NotificationDropdown = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [notificationsAvailable]);
+
+  // Fetch unread count on mount and periodically
+  useEffect(() => {
+    if (!notificationsAvailable) return;
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30s
+    return () => clearInterval(interval);
+  }, [notificationsAvailable, fetchUnreadCount]);
+
+  // Fetch notifications when dropdown opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchNotifications();
+    }
+  }, [isOpen, fetchNotifications]);
 
   const markAllRead = async () => {
     if (!notificationsAvailable) return;
