@@ -17,8 +17,8 @@ const __dirname = path.dirname(__filename);
 config();
 
 // Get environment variables
-const BASE_URL = process.env.VITE_BASE_URL || 'https://linksnap.centralindia.cloudapp.azure.com';
-const DOMAIN = process.env.VITE_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com';
+const BASE_URL = process.env.VITE_BASE_URL || 'https://lksnp.qzz.io';
+const DOMAIN = process.env.VITE_DOMAIN || 'lksnp.qzz.io';
 
 // Read template
 const templatePath = path.join(__dirname, '..', 'index.template.html');

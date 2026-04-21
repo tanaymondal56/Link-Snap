@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react-swc'
+import react from '@vitejs/plugin-react'
 // import checker from 'vite-plugin-checker'
 import { VitePWA } from 'vite-plugin-pwa'
 import viteCompression from 'vite-plugin-compression'
@@ -43,6 +43,8 @@ export default defineConfig(async ({ mode }) => {
         // Use prompt mode to show mandatory update dialog
         // The new SW will wait until user clicks Update
         registerType: 'prompt',
+        // Use the hook/manual registration path only; avoid injected scripts that can trip CSP
+        injectRegister: null,
         workbox: {
           // Include index.html - required for navigateFallback to work
           globPatterns: ['**/*.{js,css,ico,png,svg,webp,html}'],
@@ -125,17 +127,30 @@ export default defineConfig(async ({ mode }) => {
       // Optimize chunk splitting for better caching
       rollupOptions: {
         output: {
-          manualChunks: {
+          manualChunks: (id) => {
             // Vendor chunks
-            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-            'ui-vendor': ['clsx', 'tailwind-merge'],
-            'chart-vendor': ['recharts'],
-            'qr-vendor': ['qrcode.react'],
+            if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-router-dom/')) {
+              return 'react-vendor'
+            }
+            if (id.includes('node_modules/clsx/') || id.includes('node_modules/tailwind-merge/')) {
+              return 'ui-vendor'
+            }
+            if (id.includes('node_modules/recharts/')) {
+              return 'chart-vendor'
+            }
+            if (id.includes('node_modules/qrcode.react/')) {
+              return 'qr-vendor'
+            }
+
             // Heavy components
-            'admin-components': [
-              './src/components/admin/ChangelogManager.jsx',
-              './src/components/admin/SystemHealthCard.jsx',
-            ],
+            if (
+              id.includes('/src/components/admin/ChangelogManager.jsx') ||
+              id.includes('/src/components/admin/SystemHealthCard.jsx')
+            ) {
+              return 'admin-components'
+            }
+
+            return undefined
           },
         },
         // Preserve tree-shaking by keeping entry signatures
@@ -143,30 +158,12 @@ export default defineConfig(async ({ mode }) => {
         treeshake: {
           moduleSideEffects: 'no-external',
           propertyReadSideEffects: false,
-          tryCatchDeoptimization: false,
         },
       },
       // Optimize chunk size warnings
       chunkSizeWarningLimit: 1000,
-      // Enable minification
-      minify: 'terser',
-      terserOptions: {
-        compress: {
-          drop_console: false, // Keep console.logs for Easter eggs
-          drop_debugger: true,
-          pure_funcs: [], // Verify if any specific functions need stripping, otherwise empty to keep logs
-          passes: 2, // Run minification twice for better results
-          unsafe_arrows: true, // Convert functions to arrow functions
-          unsafe_methods: true, // Optimize method calls
-          unsafe_proto: true, // Optimize prototype access
-        },
-        mangle: {
-          safari10: true, // Fix Safari 10/11 bugs
-        },
-        format: {
-          comments: false, // Remove all comments
-        },
-      },
+      // Use the faster default minifier to avoid terser timing overhead
+      minify: 'esbuild',
       // CSS code splitting for better caching
       cssCodeSplit: true,
       // Smaller chunk size for better parallel loading

@@ -4,7 +4,7 @@ import { RefreshCw } from 'lucide-react';
 /**
  * PullToRefresh Component - PWA Native-like
  * Works in PWA standalone mode where browser native pull-to-refresh is disabled
- * 
+ *
  * Features:
  * - Only activates in PWA standalone mode
  * - Works with nested scrollable containers
@@ -16,6 +16,7 @@ const PullToRefresh = ({ children, onRefresh, disabled = false }) => {
   const containerRef = useRef(null);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
   const startYRef = useRef(0);
   const isPullingRef = useRef(false);
   const isAtTopOnStartRef = useRef(false); // Track if was at top when touch started
@@ -28,9 +29,10 @@ const PullToRefresh = ({ children, onRefresh, disabled = false }) => {
 
   // Detect if running as PWA standalone
   useEffect(() => {
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
-                         window.navigator.standalone === true ||
-                         document.referrer.includes('android-app://');
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true ||
+      document.referrer.includes('android-app://');
     setIsPWA(isStandalone);
   }, []);
 
@@ -59,7 +61,7 @@ const PullToRefresh = ({ children, onRefresh, disabled = false }) => {
   const isAtTop = useCallback(() => {
     // Check window scroll first
     if (window.scrollY > 1) return false;
-    
+
     // Check if there's a scrollable parent from the container
     if (containerRef.current) {
       const scrollableParent = getScrollableParent(containerRef.current);
@@ -67,98 +69,108 @@ const PullToRefresh = ({ children, onRefresh, disabled = false }) => {
         return false;
       }
     }
-    
+
     // Also check main-content element
     const mainContent = document.getElementById('main-content');
     if (mainContent && mainContent.scrollTop > 1) {
       return false;
     }
-    
+
     return true;
   }, [getScrollableParent]);
 
-  const handleTouchStart = useCallback((e) => {
-    if (disabled || isRefreshing || !isPWA) return;
+  const handleTouchStart = useCallback(
+    (e) => {
+      if (disabled || isRefreshing || !isPWA) return;
 
-    // Check if modal is open
-    if (isModalOpen()) return;
+      // Check if modal is open
+      if (isModalOpen()) return;
 
-    // Check if touch originated from within a modal
-    const target = e.target;
-    const isInsideModal = target.closest('[data-modal-content]');
-    if (isInsideModal) return;
+      // Check if touch originated from within a modal
+      const target = e.target;
+      const isInsideModal = target.closest('[data-modal-content]');
+      if (isInsideModal) return;
 
-    // Must be at top when touch starts
-    if (!isAtTop()) {
-      isAtTopOnStartRef.current = false;
-      return;
-    }
-    
-    isAtTopOnStartRef.current = true;
-    startYRef.current = e.touches[0].clientY;
-    isPullingRef.current = true;
-  }, [disabled, isRefreshing, isPWA, isAtTop, isModalOpen]);
-
-  const handleTouchMove = useCallback((e) => {
-    if (!isPullingRef.current || disabled || isRefreshing || !isPWA) return;
-    
-    // Cancel pull if modal opens mid-gesture
-    if (isModalOpen()) {
-      isPullingRef.current = false;
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      setPullDistance(0);
-      return;
-    }
-    
-    // If wasn't at top when touch started, ignore
-    if (!isAtTopOnStartRef.current) {
-      isPullingRef.current = false;
-      return;
-    }
-
-    // If no longer at top (user scrolled), cancel pull
-    if (!isAtTop()) {
-      isPullingRef.current = false;
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      setPullDistance(0);
-      return;
-    }
-    
-    const currentY = e.touches[0].clientY;
-    const deltaY = currentY - startYRef.current;
-    
-    if (deltaY > 0) {
-      // Use requestAnimationFrame for smoother updates
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        const pull = Math.min(MAX_PULL, deltaY * RESISTANCE);
-        setPullDistance(pull);
-      });
-      
-      if (deltaY > 10) {
-        e.preventDefault();
+      // Must be at top when touch starts
+      if (!isAtTop()) {
+        isAtTopOnStartRef.current = false;
+        return;
       }
-    } else {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      setPullDistance(0);
-    }
-  }, [disabled, isRefreshing, isPWA, isAtTop, isModalOpen]);
+
+      isAtTopOnStartRef.current = true;
+      startYRef.current = e.touches[0].clientY;
+      isPullingRef.current = true;
+      setIsPulling(true);
+    },
+    [disabled, isRefreshing, isPWA, isAtTop, isModalOpen]
+  );
+
+  const handleTouchMove = useCallback(
+    (e) => {
+      if (!isPullingRef.current || disabled || isRefreshing || !isPWA) return;
+
+      // Cancel pull if modal opens mid-gesture
+      if (isModalOpen()) {
+        isPullingRef.current = false;
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        setPullDistance(0);
+        return;
+      }
+
+      // If wasn't at top when touch started, ignore
+      if (!isAtTopOnStartRef.current) {
+        isPullingRef.current = false;
+        setIsPulling(false);
+        return;
+      }
+
+      // If no longer at top (user scrolled), cancel pull
+      if (!isAtTop()) {
+        isPullingRef.current = false;
+        setIsPulling(false);
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        setPullDistance(0);
+        return;
+      }
+
+      const currentY = e.touches[0].clientY;
+      const deltaY = currentY - startYRef.current;
+
+      if (deltaY > 0) {
+        // Use requestAnimationFrame for smoother updates
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(() => {
+          const pull = Math.min(MAX_PULL, deltaY * RESISTANCE);
+          setPullDistance(pull);
+        });
+
+        if (deltaY > 10) {
+          e.preventDefault();
+        }
+      } else {
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        setPullDistance(0);
+      }
+    },
+    [disabled, isRefreshing, isPWA, isAtTop, isModalOpen]
+  );
 
   const handleTouchEnd = useCallback(async () => {
     if (!isPullingRef.current || disabled || !isPWA) return;
-    
+
     isPullingRef.current = false;
     isAtTopOnStartRef.current = false;
-    
+    setIsPulling(false);
+
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
 
     if (pullDistance >= THRESHOLD && onRefresh) {
       setIsRefreshing(true);
-      
+
       if ('vibrate' in navigator) {
         navigator.vibrate(15);
       }
-      
+
       try {
         await onRefresh();
       } finally {
@@ -187,7 +199,7 @@ const PullToRefresh = ({ children, onRefresh, disabled = false }) => {
   const progress = Math.min(1, pullDistance / THRESHOLD);
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className="relative touch-pan-x"
       onTouchStart={handleTouchStart}
@@ -196,38 +208,40 @@ const PullToRefresh = ({ children, onRefresh, disabled = false }) => {
       style={{ touchAction: pullDistance > 0 ? 'none' : 'pan-y' }}
     >
       {/* Pull indicator */}
-      <div 
+      <div
         className="fixed left-1/2 z-[9999] pointer-events-none will-change-transform will-change-opacity"
-        style={{ 
+        style={{
           top: 16,
           transform: 'translateX(-50%)',
           opacity: pullDistance > 5 || isRefreshing ? 1 : 0,
-          transition: 'opacity 0.15s ease-out'
+          transition: 'opacity 0.15s ease-out',
         }}
       >
-        <div 
+        <div
           className={`flex items-center justify-center w-10 h-10 bg-gray-900/95 backdrop-blur-sm rounded-full shadow-lg border border-gray-700/50 will-change-transform ${
             isRefreshing ? 'animate-spin' : ''
           }`}
           style={{
-            transform: isRefreshing ? 'none' : `rotate(${progress * 180}deg) scale(${0.8 + progress * 0.2})`,
-            transition: isPullingRef.current ? 'none' : 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)'
+            transform: isRefreshing
+              ? 'none'
+              : `rotate(${progress * 180}deg) scale(${0.8 + progress * 0.2})`,
+            transition: isPulling ? 'none' : 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
           }}
         >
-          <RefreshCw 
+          <RefreshCw
             className={`w-5 h-5 transition-colors duration-150 ${
               progress >= 1 || isRefreshing ? 'text-blue-400' : 'text-gray-400'
-            }`} 
+            }`}
           />
         </div>
       </div>
 
       {/* Content */}
-      <div 
+      <div
         className="will-change-transform"
-        style={{ 
+        style={{
           transform: `translateY(${isRefreshing ? 48 : pullDistance * 0.5}px)`,
-          transition: isPullingRef.current ? 'none' : 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)'
+          transition: isPulling ? 'none' : 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
         }}
       >
         {children}

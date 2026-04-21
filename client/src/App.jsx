@@ -292,6 +292,10 @@ function AppContent() {
 }
 
 function App() {
+  const enablePwaFeatures =
+    import.meta.env.DEV ||
+    ['linksnap.centralindia.cloudapp.azure.com', 'lksnp.qzz.io'].includes(window.location.hostname);
+
   return (
     <HelmetProvider>
       <AuthProvider>
@@ -302,17 +306,23 @@ function App() {
                 <AppContent />
               </OfflineIndicator>
               {/* PWA Update Prompt - shows when new version is available */}
-              <Suspense fallback={null}>
-                <PWAUpdatePrompt />
-              </Suspense>
+              {enablePwaFeatures && (
+                <Suspense fallback={null}>
+                  <PWAUpdatePrompt />
+                </Suspense>
+              )}
               {/* Add to Home Screen Prompt - shows for mobile users (lazy loaded) */}
-              <Suspense fallback={null}>
-                <InstallPrompt />
-              </Suspense>
+              {enablePwaFeatures && (
+                <Suspense fallback={null}>
+                  <InstallPrompt />
+                </Suspense>
+              )}
               {/* Mobile Back Button - shows in PWA mode for navigation (lazy loaded) */}
-              <Suspense fallback={null}>
-                <MobileBackButton />
-              </Suspense>
+              {enablePwaFeatures && (
+                <Suspense fallback={null}>
+                  <MobileBackButton />
+                </Suspense>
+              )}
             </DialogProvider>
           </ConfirmDialogProvider>
         </ToastProvider>
