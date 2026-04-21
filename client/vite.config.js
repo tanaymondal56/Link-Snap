@@ -43,6 +43,8 @@ export default defineConfig(async ({ mode }) => {
         // Use prompt mode to show mandatory update dialog
         // The new SW will wait until user clicks Update
         registerType: 'prompt',
+        // Use the hook/manual registration path only; avoid injected scripts that can trip CSP
+        injectRegister: null,
         workbox: {
           // Include index.html - required for navigateFallback to work
           globPatterns: ['**/*.{js,css,ico,png,svg,webp,html}'],

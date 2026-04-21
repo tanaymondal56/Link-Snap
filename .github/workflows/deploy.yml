@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://linksnap.centralindia.cloudapp.azure.com
+      url: https://lksnp.qzz.io
 
     steps:
       - name: Checkout code
@@ -36,8 +36,8 @@ jobs:
 
       - name: Build client with production environment variables
         env:
-          VITE_BASE_URL: ${{ secrets.VITE_BASE_URL != '' && secrets.VITE_BASE_URL || format('https://{0}', secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com') }}
-          VITE_DOMAIN: ${{ secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com' }}
+          VITE_BASE_URL: ${{ secrets.VITE_BASE_URL != '' && secrets.VITE_BASE_URL || format('https://{0}', secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'lksnp.qzz.io') }}
+          VITE_DOMAIN: ${{ secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'lksnp.qzz.io' }}
           VITE_API_URL: /api
         run: cd client && npm run build
 
@@ -57,7 +57,7 @@ jobs:
       - name: Verify environment variables in build
         run: |
           echo "🔍 Checking for hardcoded URLs in built HTML..."
-          PROD_DOMAIN="${{ secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com' }}"
+          PROD_DOMAIN="${{ secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'lksnp.qzz.io' }}"
           if grep -q "https://$PROD_DOMAIN" client/dist/index.html; then
             echo "✅ Production domain found in built HTML"
           else
@@ -74,10 +74,10 @@ jobs:
 
       - name: Deployment Success
         run: |
-          PROD_DOMAIN="${{ secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com' }}"
+          PROD_DOMAIN="${{ secrets.PRODUCTION_DOMAIN != '' && secrets.PRODUCTION_DOMAIN || 'lksnp.qzz.io' }}"
           echo "📦 Production URL: https://$PROD_DOMAIN"
           echo "🌍 Domain: $PROD_DOMAIN"
-          echo "🌍 Domain: ${{ secrets.PRODUCTION_DOMAIN || 'linksnap.centralindia.cloudapp.azure.com' }}"
+          echo "🌍 Domain: ${{ secrets.PRODUCTION_DOMAIN || 'lksnp.qzz.io' }}"
           echo ""
           echo "📝 Next steps:"
           echo "1. Deploy 'client/dist' to your web server"

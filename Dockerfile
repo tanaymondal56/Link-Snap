@@ -56,8 +56,8 @@ COPY server/ ./server/
 # This creates client/dist/ with optimized HTML, CSS, JS
 # VITE_* vars are needed at BUILD TIME (baked into the JS bundle)
 
-ARG VITE_BASE_URL=https://linksnap.centralindia.cloudapp.azure.com
-ARG VITE_DOMAIN=linksnap.centralindia.cloudapp.azure.com
+ARG VITE_BASE_URL=https://lksnp.qzz.io
+ARG VITE_DOMAIN=lksnp.qzz.io
 ARG VITE_API_URL=/api
 
 ENV VITE_BASE_URL=$VITE_BASE_URL
