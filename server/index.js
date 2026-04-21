@@ -102,10 +102,19 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", ...(process.env.NODE_ENV === 'development' ? ["'unsafe-inline'"] : [])], // 'unsafe-inline' only in dev
+      scriptSrc: [
+        "'self'",
+        "https://static.cloudflareinsights.com",
+        "'sha256-6V+kZj6VryO2CtStAdeNIizLs8xSHtHaC/h1Ladclbg='",
+        ...(process.env.NODE_ENV === 'development' ? ["'unsafe-inline'"] : []),
+      ],
       styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", process.env.CLIENT_URL || "http://localhost:3000"],
+      connectSrc: [
+        "'self'",
+        "https://static.cloudflareinsights.com",
+        process.env.CLIENT_URL || "http://localhost:3000",
+      ],
       fontSrc: ["'self'", "https:", "data:"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
