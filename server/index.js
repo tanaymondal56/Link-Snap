@@ -8,7 +8,6 @@ import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import morgan from 'morgan';
-const crypto = require('crypto');
 import connectDB from './config/db.js';
 import errorHandler from './middleware/errorHandler.js';
 import mongoSanitize from './middleware/sanitizer.js';
@@ -98,10 +97,6 @@ if (process.env.NODE_ENV === 'development') {
 // Toggle: PROXY_GATE_ENABLED=false for local development
 app.use(strictProxyGate);
 
-app.use((req, res, next) => {
-  res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
-  next();
-});
 
 // Security headers with Helmet
 app.use(helmet({
@@ -110,16 +105,12 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: [
         "'self'",
-        "https://static.cloudflareinsights.com",
-        (req, res) => `'nonce-${res.locals.cspNonce}'`,
         ...(process.env.NODE_ENV === 'development' ? ["'unsafe-inline'"] : []),
       ],
       styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: [
         "'self'",
-        "https://static.cloudflareinsights.com",
-        "https://*.cloudflareinsights.com",
         process.env.CLIENT_URL || "http://localhost:3000",
       ],
       fontSrc: ["'self'", "https:", "data:"],
