@@ -105,8 +105,7 @@ app.use(helmet({
       scriptSrc: [
         "'self'",
         "https://static.cloudflareinsights.com",
-        "'sha256-6V+kZj6VryO2CtStAdeNIizLs8xSHtHaC/h1Ladclbg='",
-        "'sha256-ImJG5+G0ilYEuACU+ftsWJPtAYLkrim4PGz/BNyEUTw='",
+        "'sha256-toGDo7ZLRIL0/wicIGK6OSxGUGashH4eddi2M4MWuKI='",
         ...(process.env.NODE_ENV === 'development' ? ["'unsafe-inline'"] : []),
       ],
       styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles
@@ -114,7 +113,7 @@ app.use(helmet({
       connectSrc: [
         "'self'",
         "https://static.cloudflareinsights.com",
-        "https://cloudflareinsights.com",
+        "https://*.cloudflareinsights.com",
         process.env.CLIENT_URL || "http://localhost:3000",
       ],
       fontSrc: ["'self'", "https:", "data:"],
