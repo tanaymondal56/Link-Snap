@@ -106,6 +106,7 @@ app.use(helmet({
         "'self'",
         "https://static.cloudflareinsights.com",
         "'sha256-6V+kZj6VryO2CtStAdeNIizLs8xSHtHaC/h1Ladclbg='",
+        "'sha256-ImJG5+G0ilYEuACU+ftsWJPtAYLkrim4PGz/BNyEUTw='",
         ...(process.env.NODE_ENV === 'development' ? ["'unsafe-inline'"] : []),
       ],
       styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles
@@ -113,6 +114,7 @@ app.use(helmet({
       connectSrc: [
         "'self'",
         "https://static.cloudflareinsights.com",
+        "https://cloudflareinsights.com",
         process.env.CLIENT_URL || "http://localhost:3000",
       ],
       fontSrc: ["'self'", "https:", "data:"],
@@ -355,10 +357,15 @@ if (process.env.NODE_ENV === 'production') {
     if (
       req.path.startsWith('/assets/') ||
       req.path === '/manifest.json' ||
+      req.path === '/manifest.webmanifest' ||
       req.path === '/robots.txt' ||
       req.path === '/sitemap.xml' ||
       req.path === '/sw.js' ||
-      req.path === '/favicon.ico'
+      req.path === '/favicon.ico' ||
+      req.path === '/favicon.svg' ||
+      req.path === '/favicon-16x16.png' ||
+      req.path === '/favicon-32x32.png' ||
+      req.path === '/apple-touch-icon.png'
     ) {
       return next(); // Pass to express.static or 404
     }

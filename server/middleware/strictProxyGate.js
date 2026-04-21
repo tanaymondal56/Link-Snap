@@ -208,10 +208,15 @@ export const strictProxyGate = (req, res, next) => {
     if (
         req.path.startsWith('/assets/') ||
         req.path === '/manifest.json' ||
+        req.path === '/manifest.webmanifest' ||
         req.path === '/robots.txt' ||
         req.path === '/sitemap.xml' ||
         req.path === '/sw.js' ||
-        req.path === '/favicon.ico'
+        req.path === '/favicon.ico' ||
+        req.path === '/favicon.svg' ||
+        req.path === '/favicon-16x16.png' ||
+        req.path === '/favicon-32x32.png' ||
+        req.path === '/apple-touch-icon.png'
     ) {
         // Set real user IP for logging (use connecting IP for static assets)
         req.realUserIP = getConnectingIP(req);
