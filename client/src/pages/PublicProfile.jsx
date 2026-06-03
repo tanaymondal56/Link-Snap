@@ -4,11 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   ExternalLink,
-  Twitter,
-  Instagram,
-  Linkedin,
-  Youtube,
-  Github,
+  AtSign,
   Globe,
   Mail,
   MessageCircle,
@@ -93,11 +89,11 @@ const THEMES = {
 
 // Social icon mapping
 const SOCIAL_ICONS = {
-  twitter: Twitter,
-  instagram: Instagram,
-  linkedin: Linkedin,
-  youtube: Youtube,
-  github: Github,
+  twitter: AtSign,
+  instagram: AtSign,
+  linkedin: AtSign,
+  youtube: AtSign,
+  github: AtSign,
   discord: MessageCircle,
   email: Mail,
   website: Globe,
@@ -264,8 +260,6 @@ const Badge = ({ children, tooltip, gradient, shadowColor }) => {
     </div>
   );
 };
-
-
 
 export default function PublicProfile() {
   const { username } = useParams();
@@ -742,11 +736,13 @@ export default function PublicProfile() {
               </div>
               <div className="grid grid-cols-2 gap-3 mt-6">
                 <button
-                  onClick={() => exportQrCode({
-                    exportToPng,
-                    selector: '#link-qr-code',
-                    filename: `${linkQR.shortCode}-qr.png`,
-                  })}
+                  onClick={() =>
+                    exportQrCode({
+                      exportToPng,
+                      selector: '#link-qr-code',
+                      filename: `${linkQR.shortCode}-qr.png`,
+                    })
+                  }
                   className="px-4 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium flex items-center justify-center gap-2 transition"
                 >
                   <Download className="w-4 h-4" />

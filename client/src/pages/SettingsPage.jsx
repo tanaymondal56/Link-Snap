@@ -68,6 +68,7 @@ const SettingsPage = () => {
   const tabsRef = useRef(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
+  const [currentTime, setCurrentTime] = useState(0);
 
   const checkScroll = () => {
     if (tabsRef.current) {
@@ -175,6 +176,19 @@ const SettingsPage = () => {
     }
   }, [setUser]);
 
+  const fetchSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    try {
+      const { data } = await api.get('/sessions');
+      setSessions(data.sessions || []);
+    } catch (error) {
+      console.error('Failed to fetch sessions:', error);
+      handleApiError(error, 'Failed to load sessions');
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
@@ -183,7 +197,14 @@ const SettingsPage = () => {
     if (activeTab === 'sessions') {
       fetchSessions();
     }
-  }, [activeTab]);
+  }, [activeTab, fetchSessions]);
+
+  useEffect(() => {
+    const updateNow = () => setCurrentTime(Date.now());
+    updateNow();
+    const intervalId = setInterval(updateNow, 60000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Close confirmation modal on Escape key
   useEffect(() => {
@@ -199,7 +220,7 @@ const SettingsPage = () => {
   // Calculate if username change is allowed (30-day cooldown)
   const canChangeUsername =
     !usernameChangedAt ||
-    Date.now() - new Date(usernameChangedAt).getTime() >= 30 * 24 * 60 * 60 * 1000;
+    currentTime - new Date(usernameChangedAt).getTime() >= 30 * 24 * 60 * 60 * 1000;
   const nextUsernameChangeDate = usernameChangedAt
     ? new Date(new Date(usernameChangedAt).getTime() + 30 * 24 * 60 * 60 * 1000)
     : null;
@@ -296,20 +317,6 @@ const SettingsPage = () => {
       handleApiError(error, 'Failed to change password');
     } finally {
       setChangingPassword(false);
-    }
-  };
-
-  // Session management functions
-  const fetchSessions = async () => {
-    setSessionsLoading(true);
-    try {
-      const { data } = await api.get('/sessions');
-      setSessions(data.sessions || []);
-    } catch (error) {
-      console.error('Failed to fetch sessions:', error);
-      handleApiError(error, 'Failed to load sessions');
-    } finally {
-      setSessionsLoading(false);
     }
   };
 

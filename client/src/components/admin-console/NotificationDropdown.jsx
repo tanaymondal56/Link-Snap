@@ -1,5 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
-import { Bell, Check, CheckCheck, AlertTriangle, AlertCircle, Info, Calendar, X, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Bell,
+  Check,
+  CheckCheck,
+  AlertTriangle,
+  AlertCircle,
+  Info,
+  Calendar,
+  X,
+  Loader2,
+} from 'lucide-react';
 import api from '../../api/axios';
 
 const severityConfig = {
@@ -8,29 +18,29 @@ const severityConfig = {
     color: 'text-red-400',
     bg: 'bg-red-500/10',
     border: 'border-red-500/30',
-    dot: 'bg-red-500'
+    dot: 'bg-red-500',
   },
   warning: {
     icon: AlertTriangle,
     color: 'text-amber-400',
     bg: 'bg-amber-500/10',
     border: 'border-amber-500/30',
-    dot: 'bg-amber-500'
+    dot: 'bg-amber-500',
   },
   info: {
     icon: Info,
     color: 'text-blue-400',
     bg: 'bg-blue-500/10',
     border: 'border-blue-500/30',
-    dot: 'bg-blue-500'
+    dot: 'bg-blue-500',
   },
   summary: {
     icon: Calendar,
     color: 'text-purple-400',
     bg: 'bg-purple-500/10',
     border: 'border-purple-500/30',
-    dot: 'bg-purple-500'
-  }
+    dot: 'bg-purple-500',
+  },
 };
 
 const NotificationDropdown = () => {
@@ -39,6 +49,7 @@ const NotificationDropdown = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
+  const [notificationsAvailable, setNotificationsAvailable] = useState(true);
   const dropdownRef = useRef(null);
 
   // Close on click outside
@@ -58,49 +69,70 @@ const NotificationDropdown = () => {
     };
   }, [isOpen]);
 
-  // Fetch unread count on mount and periodically
-  useEffect(() => {
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30s
-    return () => clearInterval(interval);
-  }, []);
-
-  // Fetch notifications when dropdown opens
-  useEffect(() => {
-    if (isOpen) {
-      fetchNotifications();
-    }
-  }, [isOpen]);
-
-  const fetchUnreadCount = async () => {
+  const fetchUnreadCount = useCallback(async () => {
+    if (!notificationsAvailable) return;
     try {
       const { data } = await api.get('/admin/notifications/count');
       setUnreadCount(data.total || 0);
     } catch (error) {
+      if (error.response?.status === 404) {
+        // Backend admin notifications are not available on this deployment/domain.
+        setUnreadCount(0);
+        setNotificationsAvailable(false);
+        return;
+      }
       console.error('Failed to fetch notification count:', error);
     }
-  };
+  }, [notificationsAvailable]);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
+    if (!notificationsAvailable) return;
     setLoading(true);
     try {
       const { data } = await api.get('/admin/notifications?limit=15');
       setNotifications(data.notifications || []);
       setUnreadCount(data.totalUnread || 0);
     } catch (error) {
+      if (error.response?.status === 404) {
+        setNotifications([]);
+        setUnreadCount(0);
+        setNotificationsAvailable(false);
+        return;
+      }
       console.error('Failed to fetch notifications:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [notificationsAvailable]);
+
+  // Fetch unread count on mount and periodically
+  useEffect(() => {
+    if (!notificationsAvailable) return;
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30s
+    return () => clearInterval(interval);
+  }, [notificationsAvailable, fetchUnreadCount]);
+
+  // Fetch notifications when dropdown opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchNotifications();
+    }
+  }, [isOpen, fetchNotifications]);
 
   const markAllRead = async () => {
+    if (!notificationsAvailable) return;
     setMarkingRead(true);
     try {
       await api.patch('/admin/notifications/read-all');
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch (error) {
+      if (error.response?.status === 404) {
+        setUnreadCount(0);
+        setNotificationsAvailable(false);
+        return;
+      }
       console.error('Failed to mark all as read:', error);
     } finally {
       setMarkingRead(false);
@@ -144,9 +176,7 @@ const NotificationDropdown = () => {
           <div className="p-4 border-b border-white/5 flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-white">Notifications</h3>
-              {unreadCount > 0 && (
-                <p className="text-xs text-gray-400">{unreadCount} unread</p>
-              )}
+              {unreadCount > 0 && <p className="text-xs text-gray-400">{unreadCount} unread</p>}
             </div>
             {unreadCount > 0 && (
               <button
@@ -188,7 +218,9 @@ const NotificationDropdown = () => {
                     >
                       <div className="flex gap-3">
                         {/* Icon */}
-                        <div className={`shrink-0 w-9 h-9 rounded-lg ${config.bg} ${config.border} border flex items-center justify-center`}>
+                        <div
+                          className={`shrink-0 w-9 h-9 rounded-lg ${config.bg} ${config.border} border flex items-center justify-center`}
+                        >
                           <Icon size={18} className={config.color} />
                         </div>
 
@@ -198,7 +230,9 @@ const NotificationDropdown = () => {
                             <h4 className="text-sm font-medium text-white truncate">
                               {notification.title}
                               {!notification.isRead && (
-                                <span className={`inline-block w-2 h-2 rounded-full ${config.dot} ml-2`} />
+                                <span
+                                  className={`inline-block w-2 h-2 rounded-full ${config.dot} ml-2`}
+                                />
                               )}
                             </h4>
                             <span className="text-xs text-gray-500 shrink-0">

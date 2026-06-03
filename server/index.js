@@ -97,15 +97,22 @@ if (process.env.NODE_ENV === 'development') {
 // Toggle: PROXY_GATE_ENABLED=false for local development
 app.use(strictProxyGate);
 
+
 // Security headers with Helmet
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", ...(process.env.NODE_ENV === 'development' ? ["'unsafe-inline'"] : [])], // 'unsafe-inline' only in dev
+      scriptSrc: [
+        "'self'",
+        ...(process.env.NODE_ENV === 'development' ? ["'unsafe-inline'"] : []),
+      ],
       styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", process.env.CLIENT_URL || "http://localhost:3000"],
+      connectSrc: [
+        "'self'",
+        process.env.CLIENT_URL || "http://localhost:3000",
+      ],
       fontSrc: ["'self'", "https:", "data:"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
@@ -125,17 +132,30 @@ app.use(helmet({
   },
 }));
 
-const allowedOrigins = [
-  process.env.CLIENT_URL || 'http://localhost:3000',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  // Add any tunnel URLs here if needed
+const normalizeOrigin = (value) => String(value || '').trim().replace(/\/$/, '');
+
+const parseCsvOrigins = (value) => {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((item) => normalizeOrigin(item))
+    .filter(Boolean);
+};
+
+const productionDefaultOrigins = [
+  'https://linksnap.centralindia.cloudapp.azure.com',
+  'https://lksnp.qzz.io',
 ];
 
-// In production, also allow the same origin (when client is served from server)
-if (process.env.NODE_ENV === 'production') {
-  allowedOrigins.push(process.env.CLIENT_URL);
-}
+const allowedOrigins = Array.from(new Set([
+  normalizeOrigin(process.env.CLIENT_URL),
+  ...parseCsvOrigins(process.env.ALLOWED_ORIGINS),
+  ...productionDefaultOrigins,
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+].filter(Boolean)));
 
 import webhookRoutes from './routes/webhookRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
@@ -145,24 +165,23 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps, curl, or same-origin in production)
     if (!origin) return callback(null, true);
 
-    // In production, allow same-origin requests
-    if (process.env.NODE_ENV === 'production') {
+    const normalizedOrigin = normalizeOrigin(origin);
+
+    if (allowedOrigins.includes(normalizedOrigin)) {
       return callback(null, true);
     }
 
-    if (allowedOrigins.indexOf(origin) === -1) {
-      // For development, allow localhost variants
-      if (process.env.NODE_ENV === 'development' && (
-        origin.includes('localhost') ||
-        origin.includes('127.0.0.1') ||
-        origin.match(/^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|100\.)/) // Local network IPs
-      )) {
-        return callback(null, true);
-      }
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+    // For development, allow localhost and LAN variants
+    if (process.env.NODE_ENV === 'development' && (
+      normalizedOrigin.includes('localhost') ||
+      normalizedOrigin.includes('127.0.0.1') ||
+      normalizedOrigin.match(/^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|100\.)/) // Local network IPs
+    )) {
+      return callback(null, true);
     }
-    return callback(null, true);
+
+    const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+    return callback(new Error(msg), false);
   },
   credentials: true,
 }));
@@ -329,19 +348,24 @@ if (process.env.NODE_ENV === 'production') {
         path: req.path
       });
     }
-    
+
     // Skip catch-all for static assets (let express.static handle them)
     if (
       req.path.startsWith('/assets/') ||
       req.path === '/manifest.json' ||
+      req.path === '/manifest.webmanifest' ||
       req.path === '/robots.txt' ||
       req.path === '/sitemap.xml' ||
       req.path === '/sw.js' ||
-      req.path === '/favicon.ico'
+      req.path === '/favicon.ico' ||
+      req.path === '/favicon.svg' ||
+      req.path === '/favicon-16x16.png' ||
+      req.path === '/favicon-32x32.png' ||
+      req.path === '/apple-touch-icon.png'
     ) {
       return next(); // Pass to express.static or 404
     }
-    
+
     console.log(`[SPA Catch-all] Serving index.html for: ${req.path}`);
     // Allow browser caching with revalidation (enables bfcache for back/forward navigation)
     // Changed from 'no-store' to allow bfcache while still checking for updates

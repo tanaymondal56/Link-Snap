@@ -208,10 +208,15 @@ export const strictProxyGate = (req, res, next) => {
     if (
         req.path.startsWith('/assets/') ||
         req.path === '/manifest.json' ||
+        req.path === '/manifest.webmanifest' ||
         req.path === '/robots.txt' ||
         req.path === '/sitemap.xml' ||
         req.path === '/sw.js' ||
-        req.path === '/favicon.ico'
+        req.path === '/favicon.ico' ||
+        req.path === '/favicon.svg' ||
+        req.path === '/favicon-16x16.png' ||
+        req.path === '/favicon-32x32.png' ||
+        req.path === '/apple-touch-icon.png'
     ) {
         // Set real user IP for logging (use connecting IP for static assets)
         req.realUserIP = getConnectingIP(req);
@@ -233,9 +238,9 @@ export const strictProxyGate = (req, res, next) => {
         '/api/.d/',              // Hidden device auth routes (has its own ipWhitelist)
         '/api/analytics/track',  // Internal analytics from Nginx mirror (uses X-Internal-Analytics-Secret)
     ];
-    
+
     const isPublicApi = publicApiPaths.some(path => req.path.startsWith(path));
-    
+
 
     if (isPublicApi) {
         // Still extract real user IP for rate limiting and logging

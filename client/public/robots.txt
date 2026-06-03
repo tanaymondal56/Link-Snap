@@ -16,4 +16,4 @@ Allow: /login
 Allow: /register
 
 # Sitemap location (Update with your actual domain)
-Sitemap: https://linksnap.centralindia.cloudapp.azure.com/sitemap.xml
+Sitemap: https://lksnp.qzz.io/sitemap.xml

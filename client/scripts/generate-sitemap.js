@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
 config();
 
 // Get base URL from environment or use default
-const BASE_URL = process.env.VITE_BASE_URL || 'https://linksnap.centralindia.cloudapp.azure.com';
+const BASE_URL = process.env.VITE_BASE_URL || 'https://lksnp.qzz.io';
 
 // Pages to include in sitemap
 const pages = [
