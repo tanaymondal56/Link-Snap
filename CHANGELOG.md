@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.4] - 2026-06-03
+
+### Dependency Security Hardening & CSP Nonce Integration
+
+This release implements server-side dynamic CSP nonces for Cloudflare Insights script validation and upgrades workspace dependencies to address security advisories, improve network resilience, and optimize client build/compilation speeds.
+
+### 🔒 Security & CSP
+
+- **Dynamic CSP Nonces:** Implemented cryptographically secure, per-request nonce generation middleware (`crypto`) and integrated it into the Content Security Policy (`helmet` configuration). This resolves script-blocking issues caused by Cloudflare Insights inline script injections without resorting to unsafe inline scripting.
+- **Dependency Hardening:** Upgraded core production dependencies including `mongoose` (v9.6.3), `zod` (v4.4.3), and `express-rate-limit` (v8.5.2) to resolve transitive vulnerability reports and secure database/validation/rate-limiting pipelines.
+- **Biometric Security:** Bumped `@simplewebauthn/server` and `@simplewebauthn/browser` versions to improve passwordless login stability.
+
+### 🚀 Performance & Tooling Upgrades
+
+- **Vite & Tooling Upgrades:** Upgraded Vite build tooling (`vite` v8.0.16) and `esbuild` (v0.28.0), reducing development startup and client build compilation times.
+- **React & Routing:** Bumped `react` / `react-dom` to v19.2.7 and `react-router-dom` to v7.16.0 for better rendering efficiency and routing optimizations.
+- **HTTP Client:** Upgraded `axios` to v1.17.0 for more stable networking across client and server.
+- **Linter & Formatting:** Upgraded ESLint configurations to v10.4.1 to align linting capabilities.
+
 ## [0.6.3] - 2026-02-22
 
 ### Subscription & Auth Fix, Tier Theming, Pricing Redesign, and QR Worker
