@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: linksnap-ban-scheduler
+  namespace: linksnap
+spec:
+  schedule: "*/5 * * * *"          # Every 5 minutes
+  concurrencyPolicy: Forbid         # Don't overlap if previous run is still going
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: ban-scheduler
+              image: ghcr.io/tanaymondal56/linksnap-backend:latest
+              command: ["node", "scripts/runBanScheduler.js"]
+              envFrom:
+                - configMapRef:
+                    name: linksnap-config
+                - secretRef:
+                    name: linksnap-secrets
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "256Mi"

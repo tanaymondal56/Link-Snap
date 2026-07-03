@@ -283,18 +283,28 @@ const createShortUrl = async (req, res, next) => {
             }
         }
 
-        const newUrl = await Url.create({
-            originalUrl,
-            customAlias: customAlias || undefined,
-            title: autoTitle,
-            createdBy: userId,
-            expiresAt: finalExpiresAt,
-            isPasswordProtected,
-            passwordHash,
-            deviceRedirects: deviceRedirectsData,
-            activeStartTime: activeStartTimeData,
-            timeRedirects: timeRedirectsData,
-        });
+        let newUrl;
+        try {
+            newUrl = await Url.create({
+                originalUrl,
+                customAlias: customAlias || undefined,
+                title: autoTitle,
+                createdBy: userId,
+                expiresAt: finalExpiresAt,
+                isPasswordProtected,
+                passwordHash,
+                deviceRedirects: deviceRedirectsData,
+                activeStartTime: activeStartTimeData,
+                timeRedirects: timeRedirectsData,
+            });
+        } catch (err) {
+            // Handle race conditions where another pod creates the same custom alias at the exact same millisecond
+            if (err.code === 11000 && err.keyPattern && err.keyPattern.customAlias) {
+                res.status(400);
+                throw new Error('This alias was just taken. Please choose another.');
+            }
+            throw err;
+        }
 
         // Return without passwordHash (already excluded by select: false)
         // Increment usage for both Anonymous and Registered users (Fire-and-forget)
@@ -789,11 +799,21 @@ const updateUrl = async (req, res, next) => {
         }
 
         // Atomic update to prevent race conditions
-        const updatedUrl = await Url.findByIdAndUpdate(
-            url._id,
-            updateOperation,
-            { new: true }
-        );
+        let updatedUrl;
+        try {
+            updatedUrl = await Url.findByIdAndUpdate(
+                url._id,
+                updateOperation,
+                { new: true }
+            );
+        } catch (err) {
+            // Handle race conditions where another pod creates the same custom alias at the exact same millisecond
+            if (err.code === 11000 && err.keyPattern && err.keyPattern.customAlias) {
+                res.status(400);
+                throw new Error('This alias was just taken. Please choose another.');
+            }
+            throw err;
+        }
 
         res.json(updatedUrl);
 

@@ -154,7 +154,11 @@ const processSingleUnban = async (user) => {
 };
 
 // Start the scheduler (runs every minute)
+let banSchedulerInterval = null;
+
 const startBanScheduler = () => {
+    if (banSchedulerInterval) return;
+
     logger.info('Starting temporary ban scheduler');
 
     // Run immediately on start
@@ -165,7 +169,7 @@ const startBanScheduler = () => {
     let isSchedulerRunning = false;
 
     // Then run every minute
-    setInterval(async () => {
+    banSchedulerInterval = setInterval(async () => {
         if (isSchedulerRunning) return;
         isSchedulerRunning = true;
         
@@ -180,4 +184,12 @@ const startBanScheduler = () => {
     }, 60 * 1000);
 };
 
-export { startBanScheduler, processExpiredBans, processScheduledChangelogs };
+const stopBanScheduler = () => {
+    if (banSchedulerInterval) {
+        clearInterval(banSchedulerInterval);
+        banSchedulerInterval = null;
+        logger.info('[BanScheduler] Stopped');
+    }
+};
+
+export { startBanScheduler, stopBanScheduler, processExpiredBans, processScheduledChangelogs };

@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: linksnap-safe-browsing-scan
+  namespace: linksnap
+spec:
+  schedule: "0 */4 * * *"          # Every 4 hours
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: safe-browsing
+              image: ghcr.io/tanaymondal56/linksnap-backend:latest
+              command: ["node", "scripts/runSafeBrowsingScan.js"]
+              envFrom:
+                - configMapRef:
+                    name: linksnap-config
+                - secretRef:
+                    name: linksnap-secrets
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "256Mi"

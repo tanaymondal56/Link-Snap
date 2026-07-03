@@ -1554,6 +1554,7 @@ export const redirectUrl = async (req, res, next) => {
                     const timeDestination = getTimeBasedDestination(cached.timeRedirects);
                     if (timeDestination) {
                         trackVisit(cached._id, req, { deviceMatchType: 'time_redirect' });
+                        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
                         return res.redirect(timeDestination);
                     }
                 }
@@ -1677,6 +1678,7 @@ export const redirectUrl = async (req, res, next) => {
                     const timeDestination = getTimeBasedDestination(url.timeRedirects);
                     if (timeDestination) {
                         trackVisit(url._id, req, { deviceMatchType: 'time_redirect' });
+                        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
                         return res.redirect(timeDestination);
                     }
                 }

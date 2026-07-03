@@ -32,11 +32,6 @@ const flushBuffer = async () => {
 const startFlushTimer = () => {
     if (!flushTimer) {
         flushTimer = setInterval(flushBuffer, FLUSH_INTERVAL);
-        // Ensure graceful shutdown
-        process.on('SIGTERM', async () => {
-            await flushBuffer();
-            process.exit(0);
-        });
     }
 };
 
@@ -93,4 +88,16 @@ export const trackVisit = async (urlId, req, extras = {}) => {
         console.error('Analytics Tracking Error:', error);
         // We don't throw here to avoid blocking the main flow if analytics fails
     }
+};
+
+/**
+ * Flush all pending analytics records to DB and stop the timer.
+ * Call this during graceful shutdown to prevent data loss.
+ */
+export const flushAnalyticsAndStop = async () => {
+    if (flushTimer) {
+        clearInterval(flushTimer);
+        flushTimer = null;
+    }
+    await flushBuffer();
 };

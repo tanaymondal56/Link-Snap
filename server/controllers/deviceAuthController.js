@@ -41,7 +41,14 @@ const cleanup = () => {
 };
 
 // Cleanup every minute
-setInterval(cleanup, 60000);
+let cleanupInterval = setInterval(cleanup, 60000);
+
+export const stopDeviceAuthIntervals = () => {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
+};
 
 // Helper: Get client IP - uses proxy-aware extraction
 const getClientIP = (req) => {

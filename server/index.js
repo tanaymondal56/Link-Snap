@@ -38,9 +38,13 @@ import sessionRoutes from './routes/sessionRoutes.js';
 import redirectRoutes from './routes/redirectRoutes.js';
 import bioRoutes from './routes/bioRoutes.js';
 import deviceAuthRoutes from './routes/deviceAuthRoutes.js';
-import { startBanScheduler } from './services/banScheduler.js';
-import { startCronJobs } from './services/cronService.js';
+import { startBanScheduler, stopBanScheduler } from './services/banScheduler.js';
+import { startCronJobs, stopCronJobs } from './services/cronService.js';
+import { flushAndStop } from './services/clickStatsService.js';
+import { stopDeviceAuthIntervals } from './controllers/deviceAuthController.js';
+import { flushAnalyticsAndStop } from './services/analyticsService.js';
 import compression from 'compression';
+import mongoose from 'mongoose';
 
 const app = express();
 
@@ -249,17 +253,28 @@ app.get('/api/health', (req, res) => {
 });
 
 // Deep health check - verifies database connectivity
+// Redis check is stubbed — will return 'not_configured' until Redis is wired in.
+// When Redis is added, import checkRedis from config/redis.js and call it here.
 app.get('/api/health/deep', async (req, res) => {
   const dbConnected = isConnected();
-  const status = dbConnected ? 'ok' : 'degraded';
-  const statusCode = dbConnected ? 200 : 503;
+
+  // --- Redis stub (safe no-op until Redis is configured) ---
+  let redisStatus = 'not_configured';
+  if (process.env.REDIS_URL) {
+    // TODO: replace with real Redis ping once redis.js client is wired
+    redisStatus = 'configured_not_yet_connected';
+  }
+
+  const allOk = dbConnected; // add && redisOk once Redis is live
+  const statusCode = allOk ? 200 : 503;
 
   res.status(statusCode).json({
-    status,
+    status: allOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     services: {
       database: dbConnected ? 'connected' : 'disconnected',
+      redis: redisStatus,
     },
   });
 });
@@ -393,7 +408,6 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-// Start server only after database connection is established
 const startServer = async () => {
   try {
     await connectDB();
@@ -405,7 +419,7 @@ const startServer = async () => {
     // misconfigured in production. MUST be called after DB connects but before listen.
     validateProxyGateConfig();
 
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 
       // Start the temporary ban scheduler
@@ -414,6 +428,53 @@ const startServer = async () => {
       // Start background cron jobs (Safe Browsing, etc.)
       startCronJobs();
     });
+
+    // ─── Graceful Shutdown Handler ──────────────────────────────────────────────
+    // Kubernetes sends SIGTERM when scaling down or rolling updates.
+    // We must stop accepting new connections, finish in-flight requests,
+    // flush analytics, and close DB before the 30-second SIGKILL deadline.
+    const shutdown = async (signal) => {
+      logger.info(`Received ${signal}. Starting graceful shutdown...`);
+
+      // 1. Stop accepting new HTTP connections
+      server.close(async () => {
+        try {
+          logger.info('[Shutdown] HTTP server closed. Cleaning up...');
+
+          // 2. Stop background timers
+          stopBanScheduler();
+          stopCronJobs();
+          stopDeviceAuthIntervals();
+
+          // 3. Flush buffered click counts to DB (prevent data loss)
+          logger.info('[Shutdown] Flushing click stats buffer...');
+          await flushAndStop();
+
+          // 3b. Flush buffered analytics to DB (prevent data loss)
+          logger.info('[Shutdown] Flushing analytics buffer...');
+          await flushAnalyticsAndStop();
+
+          // 4. Close MongoDB connection cleanly
+          await mongoose.connection.close(false);
+          logger.info('[Shutdown] MongoDB connection closed.');
+
+          process.exit(0);
+        } catch (err) {
+          logger.error(`[Shutdown] Error during cleanup: ${err.message}`);
+          process.exit(1);
+        }
+      });
+
+      // Hard kill if graceful shutdown takes too long (K8s will SIGKILL at 30s anyway)
+      setTimeout(() => {
+        logger.error('[Shutdown] Timed out after 15s. Forcing exit.');
+        process.exit(1);
+      }, 15000);
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+
   } catch (error) {
     logger.error(`Failed to start server: ${error.message}`);
     process.exit(1);
@@ -421,3 +482,17 @@ const startServer = async () => {
 };
 
 startServer();
+
+// ─── Global Error Safety Net ────────────────────────────────────────────────
+// Prevents CrashLoopBackOff from unhandled async failures
+process.on('unhandledRejection', (reason) => {
+  logger.error(`[UnhandledRejection] ${reason}`);
+  // Do NOT exit — log and let monitoring catch it
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error(`[UncaughtException] ${err.message}`);
+  // Uncaught exceptions leave the process in an unknown state
+  // Let it crash naturally so K8s restarts it
+  process.exit(1);
+});

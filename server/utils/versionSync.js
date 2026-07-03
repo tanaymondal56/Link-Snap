@@ -109,10 +109,20 @@ function updateVersionConfig(filePath, newVersion) {
  * Sync version across all configuration files
  * Called automatically when a changelog is published
  * 
+ * IMPORTANT: In Kubernetes, the container filesystem is ephemeral and often read-only.
+ * When K8S_DISABLE_VERSION_SYNC=true (set via ConfigMap), this function is a no-op.
+ * Version management in K8s should be done via Docker image tags and CI/CD pipeline.
+ * 
  * @param {string} version - The version to sync to
  * @returns {Object} Result object with updated count and any errors
  */
 export async function syncVersionOnPublish(version) {
+    // K8s safety guard: skip filesystem writes in containerized environments
+    if (process.env.K8S_DISABLE_VERSION_SYNC === 'true') {
+        console.log(`[VersionSync] K8s mode: skipping filesystem version sync for v${version}. Manage versions via CI/CD image tags.`);
+        return { success: true, updated: 0, version, skipped: true };
+    }
+
     // Validate version format
     if (!version || !/^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/.test(version)) {
         console.log(`[VersionSync] Invalid version format: ${version}`);

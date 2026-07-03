@@ -17,6 +17,15 @@ const connectDB = async (retryCount = 0) => {
       serverSelectionTimeoutMS: 5000, // 5 second timeout
     });
 
+    // Add connection event listeners for K8s observability
+    mongoose.connection.on('disconnected', () => {
+      logger.warn('MongoDB disconnected! Awaiting auto-reconnect...');
+    });
+    
+    mongoose.connection.on('reconnected', () => {
+      logger.info('MongoDB reconnected successfully.');
+    });
+
     logger.info(`MongoDB Connected: ${conn.connection.host} (${useLocal ? 'Local' : 'Cloud'})`);
     return conn;
   } catch (error) {

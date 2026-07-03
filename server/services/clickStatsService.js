@@ -73,11 +73,8 @@ const flushBuffer = async () => {
 const startFlushTimer = () => {
     if (!flushTimer) {
         flushTimer = setInterval(flushBuffer, FLUSH_INTERVAL);
-        // Ensure graceful shutdown
-        process.on('SIGTERM', async () => {
-            await flushBuffer();
-            process.exit(0);
-        });
+        // Note: SIGTERM/SIGINT handling is done centrally in server/index.js
+        // Use flushBuffer() export if you need to flush during shutdown
     }
 };
 
@@ -125,4 +122,16 @@ export const queueUserClickIncrement = async (userId) => {
     } catch (error) {
         console.error('[ClickStats] User Queue Error:', error);
     }
+};
+
+/**
+ * Flush all pending click counts to DB and stop the timer.
+ * Call this during graceful shutdown to prevent data loss.
+ */
+export const flushAndStop = async () => {
+    if (flushTimer) {
+        clearInterval(flushTimer);
+        flushTimer = null;
+    }
+    await flushBuffer();
 };
