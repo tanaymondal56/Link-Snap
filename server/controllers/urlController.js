@@ -2,7 +2,7 @@ import Url from '../models/Url.js';
 import User from '../models/User.js';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-import { invalidateCache } from '../services/cacheService.js';
+import { invalidateCache, getSubscriptionCache } from '../services/cacheService.js';
 import { isReservedWord } from '../config/reservedWords.js';
 import { incrementLinkUsage } from '../middleware/subscriptionMiddleware.js';
 import { hasFeature, getUpgradeMessage } from '../services/subscriptionService.js';
@@ -627,11 +627,6 @@ const updateUrl = async (req, res, next) => {
 
         // Update other fields if provided
         if (originalUrl) {
-            // Invalidate old cache
-            await invalidateCache(url.shortId);
-            if (url.customAlias) {
-                await invalidateCache(url.customAlias);
-            }
             updateFields.originalUrl = originalUrl;
             
             // Security: Reset safety status to trigger re-check
@@ -648,9 +643,6 @@ const updateUrl = async (req, res, next) => {
         // Handle expiration changes
         if (removeExpiration) {
             unsetFields.expiresAt = 1;
-            // Invalidate cache since expiration changed
-            await invalidateCache(url.shortId);
-            if (url.customAlias) await invalidateCache(url.customAlias);
         } else if (expiresAt) {
             // Check feature access for expiration
             if (!hasFeature(req.user, 'link_expiration')) {
@@ -663,8 +655,6 @@ const updateUrl = async (req, res, next) => {
                 throw new Error('Expiration date must be in the future');
             }
             updateFields.expiresAt = newExpiresAt;
-            await invalidateCache(url.shortId);
-            if (url.customAlias) await invalidateCache(url.customAlias);
         } else if (expiresIn) {
             // Check feature access for expiration
             if (!hasFeature(req.user, 'link_expiration')) {
@@ -672,16 +662,12 @@ const updateUrl = async (req, res, next) => {
                 throw new Error(getUpgradeMessage('link_expiration'));
             }
             updateFields.expiresAt = calculateExpiresAt(expiresIn);
-            await invalidateCache(url.shortId);
-            if (url.customAlias) await invalidateCache(url.customAlias);
         }
 
         // Handle password changes
         if (removePassword) {
             updateFields.isPasswordProtected = false;
             unsetFields.passwordHash = 1;
-            await invalidateCache(url.shortId);
-            if (url.customAlias) await invalidateCache(url.customAlias);
         } else if (password && password.length >= 4) {
             // Check feature access for password protection
             if (!hasFeature(req.user, 'password_protection')) {
@@ -691,8 +677,6 @@ const updateUrl = async (req, res, next) => {
             const salt = await bcrypt.genSalt(10);
             updateFields.passwordHash = await bcrypt.hash(password, salt);
             updateFields.isPasswordProtected = true;
-            await invalidateCache(url.shortId);
-            if (url.customAlias) await invalidateCache(url.customAlias);
         }
 
         // Handle device redirects (Pro/Business only)
@@ -726,9 +710,6 @@ const updateUrl = async (req, res, next) => {
                 // Device redirects disabled - just save as-is
                 updateFields.deviceRedirects = deviceRedirects;
             }
-            // Invalidate cache when device rules change
-            await invalidateCache(url.shortId);
-            if (url.customAlias) await invalidateCache(url.customAlias);
             
             // Security: Reset safety status (new URLs might be malicious)
             updateFields.safetyStatus = 'pending';
@@ -738,8 +719,6 @@ const updateUrl = async (req, res, next) => {
         // Handle activeStartTime (Schedule Activation - Free feature)
         if (removeActiveStartTime) {
             unsetFields.activeStartTime = 1;
-            await invalidateCache(url.shortId);
-            if (url.customAlias) await invalidateCache(url.customAlias);
         } else if (activeStartTime) {
             const newActiveStartTime = new Date(activeStartTime);
             if (newActiveStartTime <= new Date()) {
@@ -747,8 +726,6 @@ const updateUrl = async (req, res, next) => {
                 throw new Error('Schedule activation time must be in the future');
             }
             updateFields.activeStartTime = newActiveStartTime;
-            await invalidateCache(url.shortId);
-            if (url.customAlias) await invalidateCache(url.customAlias);
         }
 
         // Handle Time-Based Redirects (Pro/Business only)
@@ -781,9 +758,6 @@ const updateUrl = async (req, res, next) => {
                 // Time redirects disabled - just save as-is
                 updateFields.timeRedirects = timeRedirects;
             }
-            // Invalidate cache when time rules change
-            await invalidateCache(url.shortId);
-            if (url.customAlias) await invalidateCache(url.customAlias);
 
             // Security: Reset safety status (new URLs might be malicious)
             updateFields.safetyStatus = 'pending';
@@ -807,6 +781,13 @@ const updateUrl = async (req, res, next) => {
                 updateOperation,
                 { new: true }
             );
+
+            // Centralized Cache Invalidation: clear cache for both old and new aliases
+            await invalidateCache(url.shortId);
+            if (url.customAlias) await invalidateCache(url.customAlias);
+            if (updatedUrl && updatedUrl.customAlias && updatedUrl.customAlias !== url.customAlias) {
+                await invalidateCache(updatedUrl.customAlias);
+            }
         } catch (err) {
             // Handle race conditions where another pod creates the same custom alias at the exact same millisecond
             if (err.code === 11000 && err.keyPattern && err.keyPattern.customAlias) {
@@ -916,8 +897,8 @@ const verifyLinkPassword = async (req, res, next) => {
         // Import getTimeBasedDestination at top if not already
         let finalTargetUrl = null;
         if (url.timeRedirects?.enabled && url.createdBy) {
-            // Check if owner has time_redirects feature
-            const owner = await User.findById(url.createdBy).select('subscription role');
+            // Check if owner has time_redirects feature using cache instead of DB
+            const owner = await getSubscriptionCache(url.createdBy.toString());
             if (owner && (owner.role === 'admin' || hasFeature(owner, 'time_redirects'))) {
                 const timeDestination = getTimeBasedDestination(url.timeRedirects);
                 if (timeDestination) {
