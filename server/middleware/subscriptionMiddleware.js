@@ -34,12 +34,21 @@ export const checkLinkLimit = async (req, res, next) => {
         const tier = getEffectiveTier(user);
         const config = TIERS[tier];
         const isPaid = ['pro', 'business'].includes(tier);
+        const billingCycle = user.subscription?.billingCycle;
+        const isMonthlyPaid = isPaid && billingCycle === 'monthly';
 
         // Get Limits (Hard vs Active)
         const hardLimit = config ? config.linksPerMonth : 100; // Monthly creation limit
         const activeLimit = config ? config.activeLimit : 25;  // Concurrent active links
 
-        const currentPeriodStart = isPaid ? user.subscription?.currentPeriodStart : null;
+        let currentPeriodStart = isMonthlyPaid ? user.subscription?.currentPeriodStart : null;
+        if (currentPeriodStart) {
+            const ageMs = Date.now() - new Date(currentPeriodStart).getTime();
+            if (ageMs > 31 * 24 * 60 * 60 * 1000) {
+                // Stale billing cycle start (failed webhook or manual upgrade legacy)
+                currentPeriodStart = null;
+            }
+        }
         const resetAt = user.linkUsage?.resetAt;
 
         // RESET LOGIC: Only reset Hard Count (total created this period)
@@ -233,7 +242,16 @@ export const resolveCurrentLinkUsage = async (user) => {
     const resetAt = linkUsage.resetAt;
     const now = new Date();
     const isPaid = ['pro', 'business'].includes(getEffectiveTier(user));
-    const currentPeriodStart = isPaid ? user.subscription?.currentPeriodStart : null;
+    const billingCycle = user.subscription?.billingCycle;
+    const isMonthlyPaid = isPaid && billingCycle === 'monthly';
+    
+    let currentPeriodStart = isMonthlyPaid ? user.subscription?.currentPeriodStart : null;
+    if (currentPeriodStart) {
+        const ageMs = Date.now() - new Date(currentPeriodStart).getTime();
+        if (ageMs > 31 * 24 * 60 * 60 * 1000) {
+            currentPeriodStart = null;
+        }
+    }
 
     let needsReset = false;
     if (currentPeriodStart) {
