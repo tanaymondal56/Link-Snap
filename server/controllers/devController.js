@@ -3,7 +3,7 @@ import RedeemCode from '../models/RedeemCode.js';
 import Url from '../models/Url.js';
 import Analytics from '../models/Analytics.js';
 import Settings from '../models/Settings.js';
-import { getSettings } from '../utils/getSettings.js';
+import { getSettings, invalidateSettings } from '../utils/getSettings.js';
 import Session from '../models/Session.js';
 import { nanoid } from 'nanoid';
 import logger from '../utils/logger.js';
@@ -210,7 +210,7 @@ export const devStatus = async (req, res) => {
       Url.countDocuments(),
       Analytics.estimatedDocumentCount(),
       Session.countDocuments({ userId: user._id }),
-      getSettings().lean()
+      getSettings()
     ]);
 
     res.json({
@@ -363,13 +363,14 @@ export const devVerifySelf = async (req, res) => {
  */
 export const devToggleVerification = async (req, res) => {
   try {
-    let settings = await getSettings();
+    let settings = await Settings.findOne();
     if (!settings) {
       settings = await Settings.create({});
     }
     
     settings.requireEmailVerification = !settings.requireEmailVerification;
     await settings.save();
+    await invalidateSettings();
     
     logger.info(`[DEV] Email verification ${settings.requireEmailVerification ? 'enabled' : 'disabled'}`);
     res.json({ 
