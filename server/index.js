@@ -45,6 +45,7 @@ import { stopDeviceAuthIntervals } from './controllers/deviceAuthController.js';
 import { flushAnalyticsAndStop } from './services/analyticsService.js';
 import compression from 'compression';
 import mongoose from 'mongoose';
+import { connectRedis, checkRedisConnection, disconnectRedis } from './config/redis.js';
 
 const app = express();
 
@@ -252,20 +253,17 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Deep health check - verifies database connectivity
-// Redis check is stubbed — will return 'not_configured' until Redis is wired in.
-// When Redis is added, import checkRedis from config/redis.js and call it here.
+// Deep health check - verifies database and Redis connectivity
 app.get('/api/health/deep', async (req, res) => {
   const dbConnected = isConnected();
 
-  // --- Redis stub (safe no-op until Redis is configured) ---
-  let redisStatus = 'not_configured';
-  if (process.env.REDIS_URL) {
-    // TODO: replace with real Redis ping once redis.js client is wired
-    redisStatus = 'configured_not_yet_connected';
-  }
+  // Real Redis ping — checkRedisConnection() returns false if not configured
+  const redisConfigured = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+  const redisReachable = await checkRedisConnection();
+  const redisStatus = !redisConfigured ? 'not_configured' : (redisReachable ? 'connected' : 'unreachable');
 
-  const allOk = dbConnected; // add && redisOk once Redis is live
+  // Service is healthy if DB is up. Redis degraded is non-fatal (falls back to in-memory).
+  const allOk = dbConnected;
   const statusCode = allOk ? 200 : 503;
 
   res.status(statusCode).json({
@@ -412,6 +410,9 @@ const startServer = async () => {
   try {
     await connectDB();
 
+    // Initialise Upstash Redis (non-blocking — falls back gracefully if not configured)
+    connectRedis();
+
     // ═══════════════════════════════════════════════════════════════════════════
     // VALIDATE PROXY GATE CONFIGURATION
     // ═══════════════════════════════════════════════════════════════════════════
@@ -454,7 +455,10 @@ const startServer = async () => {
           logger.info('[Shutdown] Flushing analytics buffer...');
           await flushAnalyticsAndStop();
 
-          // 4. Close MongoDB connection cleanly
+          // 4. Release Redis HTTP client
+          disconnectRedis();
+
+          // 5. Close MongoDB connection cleanly
           await mongoose.connection.close(false);
           logger.info('[Shutdown] MongoDB connection closed.');
 
