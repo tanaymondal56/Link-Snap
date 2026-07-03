@@ -5,7 +5,7 @@ import AnonUsage from '../models/AnonUsage.js';
 import { getAnonFingerprint } from '../utils/fingerprint.js';
 import { queueUserClickIncrement } from '../services/clickStatsService.js';
 import { LRUCache } from 'lru-cache';
-import { redisGet, redisSet, getRedisClient } from '../config/redis.js';
+import { redisGet, redisSet, getRedisClient, redisDel } from '../config/redis.js';
 
 /**
  * Middleware to check if user has reached their monthly link creation limit
@@ -33,12 +33,13 @@ export const checkLinkLimit = async (req, res, next) => {
 
         const tier = getEffectiveTier(user);
         const config = TIERS[tier];
+        const isPaid = ['pro', 'business'].includes(tier);
 
         // Get Limits (Hard vs Active)
         const hardLimit = config ? config.linksPerMonth : 100; // Monthly creation limit
         const activeLimit = config ? config.activeLimit : 25;  // Concurrent active links
 
-        const currentPeriodStart = user.subscription?.currentPeriodStart;
+        const currentPeriodStart = isPaid ? user.subscription?.currentPeriodStart : null;
         const resetAt = user.linkUsage?.resetAt;
 
         // RESET LOGIC: Only reset Hard Count (total created this period)
@@ -100,6 +101,7 @@ export const checkLinkLimit = async (req, res, next) => {
             if (!user.linkUsage) user.linkUsage = {};
             user.linkUsage.hardCount = 0;
             user.linkUsage.resetAt = now;
+            await redisDel(`ls:user:${user._id}`);
         }
 
         const currentHard = user.linkUsage?.hardCount || 0;
@@ -225,20 +227,24 @@ export const incrementLinkUsage = async (reqOrUserId) => {
  * @returns {object} linkUsage - { count, hardCount, resetAt } (potentially zeroed)
  */
 export const resolveCurrentLinkUsage = async (user) => {
-    const now = new Date();
+    if (!user) return { count: 0, hardCount: 0, resetAt: null };
+    
     const linkUsage = user.linkUsage || { count: 0, hardCount: 0, resetAt: null };
     const resetAt = linkUsage.resetAt;
-    const currentPeriodStart = user.subscription?.currentPeriodStart;
+    const now = new Date();
+    const isPaid = ['pro', 'business'].includes(getEffectiveTier(user));
+    const currentPeriodStart = isPaid ? user.subscription?.currentPeriodStart : null;
 
-    let needsReset;
-
+    let needsReset = false;
     if (currentPeriodStart) {
-        // Paid sub: reset if last reset was before the current billing period start
-        needsReset = resetAt && new Date(resetAt) < new Date(currentPeriodStart);
+        if (resetAt && new Date(resetAt) < new Date(currentPeriodStart)) {
+            needsReset = true;
+        }
     } else {
-        // Free tier: reset on the 1st of each calendar month
         const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        needsReset = !resetAt || new Date(resetAt) < startOfCurrentMonth;
+        if (!resetAt || new Date(resetAt) < startOfCurrentMonth) {
+            needsReset = true;
+        }
     }
 
     if (!needsReset) {
@@ -262,6 +268,8 @@ export const resolveCurrentLinkUsage = async (user) => {
         { $set: { 'linkUsage.hardCount': 0, 'linkUsage.resetAt': now } },
         { new: true, select: 'linkUsage' }
     );
+
+    await redisDel(`ls:user:${user._id}`);
 
     if (updated) {
         return { ...linkUsage, hardCount: 0, resetAt: now };
