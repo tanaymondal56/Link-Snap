@@ -1,6 +1,8 @@
 import User from '../models/User.js';
 import BanHistory from '../models/BanHistory.js';
 import Settings from '../models/Settings.js';
+import { getSettings } from '../utils/getSettings.js';
+import { redisDel } from '../config/redis.js';
 import Url from '../models/Url.js';
 import Changelog from '../models/Changelog.js';
 import { invalidateMultiple } from '../services/cacheService.js';
@@ -47,7 +49,7 @@ const processScheduledChangelogs = async () => {
 // Send reactivation email when temporary ban expires
 const sendBanExpiredEmail = async (user) => {
     try {
-        const settings = await Settings.findOne();
+        const settings = await getSettings();
         if (!settings?.emailConfigured) {
             return;
         }

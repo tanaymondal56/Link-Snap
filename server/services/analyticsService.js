@@ -2,27 +2,54 @@ import Analytics from '../models/Analytics.js';
 import { UAParser } from 'ua-parser-js';
 import geoip from 'geoip-lite';
 import { getUserIP } from '../middleware/strictProxyGate.js';
+import { getRedisClient } from '../config/redis.js';
 
 // Buffer configuration
 const BATCH_SIZE = 100;
 const FLUSH_INTERVAL = 5000; // 5 seconds
 let isFlushing = false;
-let analyticsBuffer = [];
+let analyticsBuffer = []; // Fallback for single-pod mode
 let flushTimer = null;
 
-const flushBuffer = async () => {
-    if (analyticsBuffer.length === 0 || isFlushing) return;
+const REDIS_QUEUE_KEY = 'ls:analytics:queue';
 
+const flushBuffer = async () => {
+    if (isFlushing) return;
     isFlushing = true;
-    const bufferToInsert = [...analyticsBuffer];
-    analyticsBuffer = []; // Clear buffer immediately
+
+    const redis = getRedisClient();
+    const bufferToInsert = [];
 
     try {
-        await Analytics.insertMany(bufferToInsert, { ordered: false });
-        // console.log(`[Analytics] Flushed ${bufferToInsert.length} records`);
+        if (redis) {
+            // Atomic fetch and clear using multi/exec or LTRIM
+            // We use LRANGE to get all items, then LTRIM to remove them
+            const items = await redis.lrange(REDIS_QUEUE_KEY, 0, -1);
+            if (items && items.length > 0) {
+                // Remove the items we just fetched
+                await redis.ltrim(REDIS_QUEUE_KEY, items.length, -1);
+                
+                for (const item of items) {
+                    try {
+                        bufferToInsert.push(JSON.parse(item));
+                    } catch (e) {
+                        console.error('[Analytics] Failed to parse queued item:', e);
+                    }
+                }
+            }
+        } else {
+            if (analyticsBuffer.length > 0) {
+                bufferToInsert.push(...analyticsBuffer);
+                analyticsBuffer = []; // Clear local buffer immediately
+            }
+        }
+
+        if (bufferToInsert.length > 0) {
+            await Analytics.insertMany(bufferToInsert, { ordered: false });
+        }
     } catch (error) {
         console.error('[Analytics] Flush Error:', error);
-        // Note: Logic could be added here to retry failed inserts if critical
+        // On error, if we wanted to retry we could LPUSH them back, but for analytics dropping them on DB failure is usually acceptable.
     } finally {
         isFlushing = false;
     }
@@ -60,24 +87,26 @@ export const trackVisit = async (urlId, req, extras = {}) => {
             userAgent: req.headers['user-agent'],
             browser: browser.name || 'Unknown',
             os: os.name || 'Unknown',
-            // ua-parser-js returns undefined for type 'desktop', so we default to 'Desktop'
             device: device.type ? (device.type.charAt(0).toUpperCase() + device.type.slice(1)) : 'Desktop',
             country: geo ? geo.country : 'Unknown',
             city: geo ? geo.city : 'Unknown',
-            // Device-based redirect tracking
             deviceMatchType: extras.deviceMatchType || null,
-            // Mongoose timestamps won't auto-generate for insertMany unless specified or schema default
-            // Schema has timestamps: true, but insertMany bypasses mongoose defaults usually? 
-            // Actually, Mongoose 5+ handle defaults in insertMany if model is passed.
-            // But let's be safe and rely on DB defaults or schema.
         };
 
-        analyticsBuffer.push(analyticsData);
-
-        // Immediate flush if buffer full
-        if (analyticsBuffer.length >= BATCH_SIZE) {
-            if (!isFlushing) {
-                // Reset timer only if we actually trigger the flush
+        const redis = getRedisClient();
+        
+        if (redis) {
+            // Push to Redis queue
+            const length = await redis.rpush(REDIS_QUEUE_KEY, JSON.stringify(analyticsData));
+            if (length >= BATCH_SIZE && !isFlushing) {
+                clearInterval(flushTimer);
+                await flushBuffer();
+                flushTimer = setInterval(flushBuffer, FLUSH_INTERVAL);
+            }
+        } else {
+            // Fallback to memory
+            analyticsBuffer.push(analyticsData);
+            if (analyticsBuffer.length >= BATCH_SIZE && !isFlushing) {
                 clearInterval(flushTimer);
                 await flushBuffer();
                 flushTimer = setInterval(flushBuffer, FLUSH_INTERVAL);
@@ -86,7 +115,6 @@ export const trackVisit = async (urlId, req, extras = {}) => {
 
     } catch (error) {
         console.error('Analytics Tracking Error:', error);
-        // We don't throw here to avoid blocking the main flow if analytics fails
     }
 };
 

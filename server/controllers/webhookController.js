@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
+import { invalidateSubscriptionCache } from '../services/cacheService.js';
+import { redisDel } from '../config/redis.js';
 import WebhookEvent from '../models/WebhookEvent.js';
 import SubscriptionAuditLog from '../models/SubscriptionAuditLog.js';
 import logger from '../utils/logger.js';

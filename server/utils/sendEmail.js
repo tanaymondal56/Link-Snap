@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import Settings from '../models/Settings.js';
+import { getSettings } from './getSettings.js';
 
 // Simple in-memory cache for settings
 let settingsCache = {
@@ -15,7 +16,7 @@ const sendEmail = async (options) => {
         settings = settingsCache.data;
     } else {
         // Fetch from DB
-        settings = await Settings.findOne();
+        settings = await getSettings();
         if (settings) {
             settingsCache = {
                 data: settings,

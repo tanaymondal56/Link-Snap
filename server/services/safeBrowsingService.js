@@ -2,6 +2,7 @@ import { redisGet, redisSet, getRedisClient } from '../config/redis.js';
 import axios from 'axios';
 import Url from '../models/Url.js';
 import Settings from '../models/Settings.js';
+import { getSettings } from '../utils/getSettings.js';
 
 const SAFE_BROWSING_API_URL = 'https://safebrowsing.googleapis.com/v4/threatMatches:find';
 
@@ -22,7 +23,7 @@ const queryGoogleRef = async (threatEntries) => {
     const uniqueEntries = [...new Set(threatEntries.map(e => e.url))].map(url => ({ url }));
 
     const apiKey = process.env.GOOGLE_SAFE_BROWSING_KEY;
-    const settings = await Settings.findOne();
+    const settings = await getSettings();
     
     if (!apiKey || !settings?.safeBrowsingEnabled) return new Map();
 
@@ -148,7 +149,7 @@ const runBatchScan = async (query, maxLimit = 500) => {
     const BATCH_SIZE = 50; // Google API limit is often 500, but 50 is safer for timeout
     
     try {
-        const settings = await Settings.findOne();
+        const settings = await getSettings();
         if (!settings?.safeBrowsingEnabled) return { processed: 0, message: 'Feature disabled' };
         
         // Loop until maxLimit reached or no more links

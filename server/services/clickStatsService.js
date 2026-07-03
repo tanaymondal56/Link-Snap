@@ -25,39 +25,46 @@ const flushBuffer = async () => {
     try {
         if (redis) {
             // --- Process URL Clicks from Redis ---
-            const urlKeys = await redis.keys('ls:click:url:*');
-            if (urlKeys && urlKeys.length > 0) {
-                for (const key of urlKeys) {
-                    // Atomically get and delete the key to prevent double counting
-                    const count = await redisGetDel(key);
-                    if (count) {
-                        const urlId = key.replace('ls:click:url:', '');
-                        urlOps.push({
-                            updateOne: {
-                                filter: { _id: urlId },
-                                update: { $inc: { clicks: parseInt(count, 10) } }
-                            }
-                        });
+            let urlCursor = 0;
+            do {
+                const [nextCursor, keys] = await redis.scan(urlCursor, { match: 'ls:click:url:*', count: 100 });
+                if (keys && keys.length > 0) {
+                    for (const key of keys) {
+                        const count = await redisGetDel(key);
+                        if (count) {
+                            const urlId = key.replace('ls:click:url:', '');
+                            urlOps.push({
+                                updateOne: {
+                                    filter: { _id: urlId },
+                                    update: { $inc: { clicks: parseInt(count, 10) } }
+                                }
+                            });
+                        }
                     }
                 }
-            }
+                urlCursor = Number(nextCursor) === 0 ? 0 : nextCursor;
+            } while (urlCursor !== 0);
 
             // --- Process User Clicks from Redis ---
-            const userKeys = await redis.keys('ls:click:user:*');
-            if (userKeys && userKeys.length > 0) {
-                for (const key of userKeys) {
-                    const count = await redisGetDel(key);
-                    if (count) {
-                        const userId = key.replace('ls:click:user:', '');
-                        userOps.push({
-                            updateOne: {
-                                filter: { _id: userId },
-                                update: { $inc: { 'clickUsage.count': parseInt(count, 10) } }
-                            }
-                        });
+            let userCursor = 0;
+            do {
+                const [nextCursor, keys] = await redis.scan(userCursor, { match: 'ls:click:user:*', count: 100 });
+                if (keys && keys.length > 0) {
+                    for (const key of keys) {
+                        const count = await redisGetDel(key);
+                        if (count) {
+                            const userId = key.replace('ls:click:user:', '');
+                            userOps.push({
+                                updateOne: {
+                                    filter: { _id: userId },
+                                    update: { $inc: { 'clickUsage.count': parseInt(count, 10) } }
+                                }
+                            });
+                        }
                     }
                 }
-            }
+                userCursor = Number(nextCursor) === 0 ? 0 : nextCursor;
+            } while (userCursor !== 0);
         } else {
             // --- Fallback: Process URL Clicks from in-memory Map ---
             if (clickBuffer.size > 0) {

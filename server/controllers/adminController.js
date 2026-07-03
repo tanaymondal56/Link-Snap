@@ -3,6 +3,8 @@ import User from '../models/User.js';
 import Url from '../models/Url.js';
 import Analytics from '../models/Analytics.js';
 import Settings from '../models/Settings.js';
+import { getSettings, invalidateSettings } from '../utils/getSettings.js';
+import { redisDel } from '../config/redis.js';
 import BanHistory from '../models/BanHistory.js';
 import Appeal from '../models/Appeal.js';
 import Feedback from '../models/Feedback.js';
@@ -38,7 +40,7 @@ const calculateBanExpiry = (duration) => {
 // Helper function to send ban/unban notification email
 const sendBanNotificationEmail = async (user, isBanned, reason, bannedUntil) => {
     try {
-        const settings = await Settings.findOne();
+        const settings = await getSettings();
         if (!settings?.emailConfigured) {
             logger.debug('[Admin] Email not configured, skipping ban notification');
             return;
@@ -483,6 +485,7 @@ export const deleteUser = async (req, res, next) => {
 
         // Delete the user
         await User.findByIdAndDelete(req.params.userId);
+        await redisDel(`ls:user:${req.params.userId}`);
 
         res.json({ message: 'User and associated data removed' });
     } catch (error) {
@@ -495,7 +498,7 @@ export const deleteUser = async (req, res, next) => {
 // @access  Admin
 export const getSettings = async (req, res, next) => {
     try {
-        let settings = await Settings.findOne();
+        let settings = await getSettings();
         if (!settings) {
             settings = await Settings.create({});
         }
@@ -517,7 +520,7 @@ export const updateSettings = async (req, res, next) => {
     try {
         logger.debug('[updateSettings] Request received:', JSON.stringify(req.body, null, 2));
 
-        let settings = await Settings.findOne();
+        let settings = await getSettings();
         if (!settings) {
             settings = await Settings.create({});
         }
@@ -574,6 +577,7 @@ export const updateSettings = async (req, res, next) => {
 
         logger.debug('[updateSettings] Saving settings...');
         await settings.save();
+        await invalidateSettings();
         logger.debug('[updateSettings] Settings saved successfully!');
 
         // Return settings with masked password
@@ -597,7 +601,7 @@ export const testEmailConfiguration = async (req, res, next) => {
             return res.status(400).json({ message: 'Please provide an email address to test' });
         }
 
-        const settings = await Settings.findOne();
+        const settings = await getSettings();
 
         if (!settings || !settings.emailConfigured) {
             return res.status(400).json({ message: 'Email is not configured yet' });
@@ -903,7 +907,7 @@ export const respondToAppeal = async (req, res, next) => {
 
         // Send appeal decision email
         try {
-            const settings = await Settings.findOne();
+            const settings = await getSettings();
             if (settings?.emailConfigured) {
                 const user = await User.findById(appeal.userId);
                 if (user) {

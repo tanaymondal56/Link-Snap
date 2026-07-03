@@ -9,6 +9,7 @@ import { hasFeature, getUpgradeMessage } from '../services/subscriptionService.j
 import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
 import { trackVisit } from '../services/analyticsService.js';
 import Settings from '../models/Settings.js';
+import { getSettings } from '../utils/getSettings.js';
 import { checkUrlsSafety } from '../services/safeBrowsingService.js';
 import { getTimeBasedDestination } from '../services/timeService.js';
 import NotificationService from '../services/notificationService.js';
@@ -320,7 +321,7 @@ const createShortUrl = async (req, res, next) => {
         // Safe Browsing Check (Async / Fire-and-forget)
         (async () => {
             try {
-                const settings = await Settings.findOne();
+                const settings = await getSettings();
                 if (settings?.safeBrowsingAutoCheck) {
                     // Collect ALL URLs to check
                     const urlsToCheck = [originalUrl];
@@ -825,7 +826,7 @@ const updateUrl = async (req, res, next) => {
         if (shouldScan) {
              (async () => {
                 try {
-                    const settings = await Settings.findOne();
+                    const settings = await getSettings();
                     if (settings?.safeBrowsingAutoCheck) {
                         // Re-fetch updated document to get unified view
                         const fullDoc = await Url.findById(url._id);
