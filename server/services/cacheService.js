@@ -163,16 +163,31 @@ export const clearCache = async () => {
     }
 
     try {
-        // Find all cache keys and delete them.
-        // We use keys for administrative clear operations.
-        const urlKeys = await redis.keys('ls:url:*');
-        const subKeys = await redis.keys('ls:sub:*');
-        const allKeys = [...urlKeys, ...subKeys];
+        let deletedCount = 0;
+        let cursor = 0;
         
-        if (allKeys.length > 0) {
-            await redisDel(...allKeys);
-        }
-        logger.info(`[Cache] Cleared ${allKeys.length} Redis cache keys`);
+        // Scan and delete ls:url:*
+        do {
+            const [nextCursor, keys] = await redis.scan(cursor, { match: 'ls:url:*', count: 100 });
+            cursor = nextCursor;
+            if (keys.length > 0) {
+                await redisDel(...keys);
+                deletedCount += keys.length;
+            }
+        } while (cursor !== 0);
+
+        // Scan and delete ls:sub:*
+        cursor = 0;
+        do {
+            const [nextCursor, keys] = await redis.scan(cursor, { match: 'ls:sub:*', count: 100 });
+            cursor = nextCursor;
+            if (keys.length > 0) {
+                await redisDel(...keys);
+                deletedCount += keys.length;
+            }
+        } while (cursor !== 0);
+        
+        logger.info(`[Cache] Cleared ${deletedCount} Redis cache keys`);
     } catch (err) {
         logger.warn(`[Cache] Redis clear failed: ${err.message}`);
     }
