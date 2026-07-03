@@ -3,7 +3,7 @@ import User from '../models/User.js';
 import Url from '../models/Url.js';
 import Analytics from '../models/Analytics.js';
 import Settings from '../models/Settings.js';
-import { getSettings, invalidateSettings } from '../utils/getSettings.js';
+import { getSettings as getGlobalSettings, invalidateSettings } from '../utils/getSettings.js';
 import { redisDel } from '../config/redis.js';
 import BanHistory from '../models/BanHistory.js';
 import Appeal from '../models/Appeal.js';
@@ -40,7 +40,7 @@ const calculateBanExpiry = (duration) => {
 // Helper function to send ban/unban notification email
 const sendBanNotificationEmail = async (user, isBanned, reason, bannedUntil) => {
     try {
-        const settings = await getSettings();
+        const settings = await getGlobalSettings();
         if (!settings?.emailConfigured) {
             logger.debug('[Admin] Email not configured, skipping ban notification');
             return;
@@ -289,6 +289,7 @@ export const updateUserStatus = async (req, res, next) => {
                     }
                 }
             );
+            await redisDel(`ls:user:${user._id}`);
 
             // Log ban history
             await BanHistory.create({
@@ -317,6 +318,7 @@ export const updateUserStatus = async (req, res, next) => {
             }
             
             await User.findByIdAndUpdate(user._id, updateOps);
+            await redisDel(`ls:user:${user._id}`);
 
             // Log unban history
             await BanHistory.create({
@@ -408,6 +410,7 @@ export const updateUserRole = async (req, res, next) => {
             { $set: { role: newRole } },
             { new: true }
         );
+        if (updatedUser) await redisDel(`ls:user:${updatedUser._id}`);
 
         res.json({
             message: `User ${newRole === 'admin' ? 'promoted to admin' : 'demoted to user'}`,
@@ -498,7 +501,7 @@ export const deleteUser = async (req, res, next) => {
 // @access  Admin
 export const getSettings = async (req, res, next) => {
     try {
-        let settings = await getSettings();
+        let settings = await getGlobalSettings();
         if (!settings) {
             settings = await Settings.create({});
         }
@@ -520,7 +523,7 @@ export const updateSettings = async (req, res, next) => {
     try {
         logger.debug('[updateSettings] Request received:', JSON.stringify(req.body, null, 2));
 
-        let settings = await getSettings();
+        let settings = await getGlobalSettings();
         if (!settings) {
             settings = await Settings.create({});
         }
@@ -601,7 +604,7 @@ export const testEmailConfiguration = async (req, res, next) => {
             return res.status(400).json({ message: 'Please provide an email address to test' });
         }
 
-        const settings = await getSettings();
+        const settings = await getGlobalSettings();
 
         if (!settings || !settings.emailConfigured) {
             return res.status(400).json({ message: 'Email is not configured yet' });
@@ -859,6 +862,7 @@ export const respondToAppeal = async (req, res, next) => {
                         $set: { isActive: true, disableLinksOnBan: false },
                         $unset: { bannedAt: 1, bannedReason: 1, bannedUntil: 1, bannedBy: 1 }
                     });
+                    await redisDel(`ls:user:${user._id}`);
 
                     // Log in ban history
                     await BanHistory.create({
@@ -890,6 +894,7 @@ export const respondToAppeal = async (req, res, next) => {
                     await User.findByIdAndUpdate(user._id, {
                         $set: { bannedReason: `Appeal Approved - Unban Pending. ${adminResponse || ''}` }
                     });
+                    await redisDel(`ls:user:${user._id}`);
 
                     // Log in ban history
                     await BanHistory.create({
@@ -907,7 +912,7 @@ export const respondToAppeal = async (req, res, next) => {
 
         // Send appeal decision email
         try {
-            const settings = await getSettings();
+            const settings = await getGlobalSettings();
             if (settings?.emailConfigured) {
                 const user = await User.findById(appeal.userId);
                 if (user) {
