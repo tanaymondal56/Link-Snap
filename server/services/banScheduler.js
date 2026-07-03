@@ -135,13 +135,13 @@ const processSingleUnban = async (user) => {
             }
 
             if (batchIds.length >= CACHE_BATCH_SIZE) {
-                invalidateMultiple(batchIds);
+                await invalidateMultiple(batchIds);
                 batchIds = [];
             }
         }
 
         if (batchIds.length > 0) {
-            invalidateMultiple(batchIds);
+            await invalidateMultiple(batchIds);
         }
 
         // Send reactivation email

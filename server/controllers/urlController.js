@@ -416,9 +416,9 @@ const deleteUrl = async (req, res, next) => {
         }
 
         // Invalidate cache before deleting
-        invalidateCache(url.shortId);
+        await invalidateCache(url.shortId);
         if (url.customAlias) {
-            invalidateCache(url.customAlias);
+            await invalidateCache(url.customAlias);
         }
 
         await url.deleteOne();
@@ -627,9 +627,9 @@ const updateUrl = async (req, res, next) => {
         // Update other fields if provided
         if (originalUrl) {
             // Invalidate old cache
-            invalidateCache(url.shortId);
+            await invalidateCache(url.shortId);
             if (url.customAlias) {
-                invalidateCache(url.customAlias);
+                await invalidateCache(url.customAlias);
             }
             updateFields.originalUrl = originalUrl;
             
@@ -648,8 +648,8 @@ const updateUrl = async (req, res, next) => {
         if (removeExpiration) {
             unsetFields.expiresAt = 1;
             // Invalidate cache since expiration changed
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
+            await invalidateCache(url.shortId);
+            if (url.customAlias) await invalidateCache(url.customAlias);
         } else if (expiresAt) {
             // Check feature access for expiration
             if (!hasFeature(req.user, 'link_expiration')) {
@@ -662,8 +662,8 @@ const updateUrl = async (req, res, next) => {
                 throw new Error('Expiration date must be in the future');
             }
             updateFields.expiresAt = newExpiresAt;
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
+            await invalidateCache(url.shortId);
+            if (url.customAlias) await invalidateCache(url.customAlias);
         } else if (expiresIn) {
             // Check feature access for expiration
             if (!hasFeature(req.user, 'link_expiration')) {
@@ -671,16 +671,16 @@ const updateUrl = async (req, res, next) => {
                 throw new Error(getUpgradeMessage('link_expiration'));
             }
             updateFields.expiresAt = calculateExpiresAt(expiresIn);
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
+            await invalidateCache(url.shortId);
+            if (url.customAlias) await invalidateCache(url.customAlias);
         }
 
         // Handle password changes
         if (removePassword) {
             updateFields.isPasswordProtected = false;
             unsetFields.passwordHash = 1;
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
+            await invalidateCache(url.shortId);
+            if (url.customAlias) await invalidateCache(url.customAlias);
         } else if (password && password.length >= 4) {
             // Check feature access for password protection
             if (!hasFeature(req.user, 'password_protection')) {
@@ -690,8 +690,8 @@ const updateUrl = async (req, res, next) => {
             const salt = await bcrypt.genSalt(10);
             updateFields.passwordHash = await bcrypt.hash(password, salt);
             updateFields.isPasswordProtected = true;
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
+            await invalidateCache(url.shortId);
+            if (url.customAlias) await invalidateCache(url.customAlias);
         }
 
         // Handle device redirects (Pro/Business only)
@@ -726,8 +726,8 @@ const updateUrl = async (req, res, next) => {
                 updateFields.deviceRedirects = deviceRedirects;
             }
             // Invalidate cache when device rules change
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
+            await invalidateCache(url.shortId);
+            if (url.customAlias) await invalidateCache(url.customAlias);
             
             // Security: Reset safety status (new URLs might be malicious)
             updateFields.safetyStatus = 'pending';
@@ -737,8 +737,8 @@ const updateUrl = async (req, res, next) => {
         // Handle activeStartTime (Schedule Activation - Free feature)
         if (removeActiveStartTime) {
             unsetFields.activeStartTime = 1;
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
+            await invalidateCache(url.shortId);
+            if (url.customAlias) await invalidateCache(url.customAlias);
         } else if (activeStartTime) {
             const newActiveStartTime = new Date(activeStartTime);
             if (newActiveStartTime <= new Date()) {
@@ -746,8 +746,8 @@ const updateUrl = async (req, res, next) => {
                 throw new Error('Schedule activation time must be in the future');
             }
             updateFields.activeStartTime = newActiveStartTime;
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
+            await invalidateCache(url.shortId);
+            if (url.customAlias) await invalidateCache(url.customAlias);
         }
 
         // Handle Time-Based Redirects (Pro/Business only)
@@ -781,8 +781,8 @@ const updateUrl = async (req, res, next) => {
                 updateFields.timeRedirects = timeRedirects;
             }
             // Invalidate cache when time rules change
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
+            await invalidateCache(url.shortId);
+            if (url.customAlias) await invalidateCache(url.customAlias);
 
             // Security: Reset safety status (new URLs might be malicious)
             updateFields.safetyStatus = 'pending';

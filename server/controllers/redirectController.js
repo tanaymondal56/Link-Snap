@@ -1477,7 +1477,7 @@ export const redirectUrl = async (req, res, next) => {
 
     try {
         // 1. Check cache first (fast path)
-        const cached = getFromCache(shortId);
+        const cached = await getFromCache(shortId);
         if (cached) {
             if (!cached.isActive) {
                 return res.status(410).send(getInactiveLinkPage(shortId));
@@ -1501,7 +1501,7 @@ export const redirectUrl = async (req, res, next) => {
                     const isBanned = !owner.isActive;
                     cached.ownerBanned = isBanned;
                     cached.disableLinksOnBan = owner.disableLinksOnBan;
-                    setInCache(shortId, cached);
+                    await setInCache(shortId, cached);
 
                     if (isBanned && owner.disableLinksOnBan) {
                         return res.status(410).send(getInactiveLinkPage(shortId));
@@ -1540,13 +1540,13 @@ export const redirectUrl = async (req, res, next) => {
             // Only apply if owner has time_redirects feature
             if (cached.timeRedirects?.enabled && cached.ownerId) {
                 // Check subscription cache first (24h TTL)
-                let ownerSub = getSubscriptionCache(cached.ownerId.toString());
+                let ownerSub = await getSubscriptionCache(cached.ownerId.toString());
                 if (!ownerSub) {
                     // Cache miss - fetch from DB and cache
                     const owner = await User.findById(cached.ownerId).select('subscription role');
                     if (owner) {
                         ownerSub = { subscription: owner.subscription, role: owner.role };
-                        setSubscriptionCache(cached.ownerId.toString(), ownerSub);
+                        await setSubscriptionCache(cached.ownerId.toString(), ownerSub);
                     }
                 }
 
@@ -1652,7 +1652,7 @@ export const redirectUrl = async (req, res, next) => {
         }
 
         // 4. Store in cache with ban status
-        setInCache(shortId, {
+        await setInCache(shortId, {
             ...url.toObject(),
             ownerId: url.createdBy,
             ownerBanned,
@@ -1669,7 +1669,7 @@ export const redirectUrl = async (req, res, next) => {
             const ownerFull = await User.findById(url.createdBy).select('subscription role');
             if (ownerFull) {
                 // Cache for future requests
-                setSubscriptionCache(url.createdBy.toString(), {
+                await setSubscriptionCache(url.createdBy.toString(), {
                     subscription: ownerFull.subscription,
                     role: ownerFull.role
                 });

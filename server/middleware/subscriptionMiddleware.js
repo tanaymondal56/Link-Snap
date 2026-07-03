@@ -5,6 +5,7 @@ import AnonUsage from '../models/AnonUsage.js';
 import { getAnonFingerprint } from '../utils/fingerprint.js';
 import { queueUserClickIncrement } from '../services/clickStatsService.js';
 import { LRUCache } from 'lru-cache';
+import { redisGet, redisSet, getRedisClient } from '../config/redis.js';
 
 /**
  * Middleware to check if user has reached their monthly link creation limit
@@ -287,9 +288,16 @@ const usageCache = new LRUCache({
  */
 export const checkAndIncrementClickUsage = async (userId) => {
     const userIdStr = userId.toString();
+    const redis = getRedisClient();
+    const cacheKey = `ls:usage:${userIdStr}`;
 
     // 1. Try Cache
-    let user = usageCache.get(userIdStr);
+    let user = null;
+    if (redis) {
+        user = await redisGet(cacheKey);
+    } else {
+        user = usageCache.get(userIdStr);
+    }
 
     if (!user) {
         // Cache Miss: Fetch from DB
@@ -304,7 +312,12 @@ export const checkAndIncrementClickUsage = async (userId) => {
             subscription: dbUser.subscription ? dbUser.subscription.toObject?.() || dbUser.subscription : null,
             clickUsage: dbUser.clickUsage ? { ...dbUser.clickUsage.toObject?.() || dbUser.clickUsage } : { count: 0, resetAt: null }
         };
-        usageCache.set(userIdStr, user);
+        
+        if (redis) {
+            await redisSet(cacheKey, 60, user); // 60 seconds
+        } else {
+            usageCache.set(userIdStr, user);
+        }
     }
 
     if (user.role === 'admin') return { allowed: true };
@@ -362,7 +375,11 @@ export const checkAndIncrementClickUsage = async (userId) => {
         }
         user.clickUsage.count = 0;
         user.clickUsage.resetAt = now;
-        usageCache.set(userIdStr, user);
+        if (redis) {
+            await redisSet(cacheKey, 60, user);
+        } else {
+            usageCache.set(userIdStr, user);
+        }
     }
 
     // Soft Cap for Business (Allow up to 120%)
@@ -385,6 +402,11 @@ export const checkAndIncrementClickUsage = async (userId) => {
         user.clickUsage = { count: 0, resetAt: null };
     }
     user.clickUsage.count += 1;
+    if (redis) {
+        await redisSet(cacheKey, 60, user);
+    } else {
+        usageCache.set(userIdStr, user);
+    }
 
     // 3. Queue DB Increment (Buffered)
     queueUserClickIncrement(user._id);

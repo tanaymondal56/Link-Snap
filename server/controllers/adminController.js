@@ -353,13 +353,13 @@ export const updateUserStatus = async (req, res, next) => {
             }
 
             if (batchIds.length >= BATCH_SIZE) {
-                invalidateMultiple(batchIds);
+                await invalidateMultiple(batchIds);
                 batchIds = [];
             }
         }
 
         if (batchIds.length > 0) {
-            invalidateMultiple(batchIds);
+            await invalidateMultiple(batchIds);
         }
 
         res.json({
@@ -623,7 +623,7 @@ export const testEmailConfiguration = async (req, res, next) => {
 // @access  Admin
 export const clearUrlCache = async (req, res, next) => {
     try {
-        clearCache();
+        await clearCache();
         res.json({ message: 'Cache cleared successfully', stats: getCacheStats() });
     } catch (error) {
         next(error);
@@ -875,7 +875,7 @@ export const respondToAppeal = async (req, res, next) => {
                             allIds.push(u.shortId);
                             if (u.customAlias) allIds.push(u.customAlias);
                         });
-                        invalidateMultiple(allIds);
+                        await invalidateMultiple(allIds);
                     }
 
                     // Send notification email

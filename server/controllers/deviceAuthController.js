@@ -11,6 +11,7 @@ import { createSession } from '../utils/sessionHelper.js';
 import logger from '../utils/logger.js';
 import LoginHistory from '../models/LoginHistory.js';
 import { getUserIP } from '../middleware/strictProxyGate.js';
+import { redisGet, redisSet, redisDel, redisIncr, redisGetDel, getRedisClient } from '../config/redis.js';
 
 // Config
 const rpName = process.env.WEBAUTHN_RP_NAME || 'Link Snap Admin';
@@ -65,7 +66,17 @@ const getCookieSameSite = () => {
 };
 
 // Helper: Check rate limit
-const checkRateLimit = (identifier) => {
+const checkRateLimit = async (identifier) => {
+  const redis = getRedisClient();
+  if (redis) {
+    const locked = await redisGet(`ls:wn:rl:${identifier}`);
+    if (locked) {
+      const remainingSeconds = Math.ceil((locked.lockedUntil - Date.now()) / 1000);
+      return { allowed: false, remainingSeconds: remainingSeconds > 0 ? remainingSeconds : 30 };
+    }
+    return { allowed: true };
+  }
+
   const record = rateLimitStore.get(identifier);
   if (!record) return { allowed: true };
   
@@ -78,7 +89,20 @@ const checkRateLimit = (identifier) => {
 };
 
 // Helper: Record failed attempt
-const recordFailedAttempt = (identifier) => {
+const recordFailedAttempt = async (identifier) => {
+  const redis = getRedisClient();
+  if (redis) {
+    const attemptsKey = `ls:wn:attempts:${identifier}`;
+    const attempts = await redisIncr(attemptsKey, 300); // 5 min TTL
+    if (attempts && attempts >= MAX_ATTEMPTS) {
+      const lockedUntil = Date.now() + LOCKOUT_DURATION;
+      await redisSet(`ls:wn:rl:${identifier}`, LOCKOUT_DURATION / 1000, { lockedUntil });
+      await redisDel(attemptsKey);
+      logger.warn(`[Device Auth] Lockout triggered for: ${identifier}`);
+    }
+    return;
+  }
+
   const record = rateLimitStore.get(identifier) || { attempts: 0, lockedUntil: 0 };
   record.attempts += 1;
   
@@ -92,9 +116,15 @@ const recordFailedAttempt = (identifier) => {
 };
 
 // Helper: Clear rate limit on success
-const clearRateLimit = (identifier) => {
+const clearRateLimit = async (identifier) => {
+  const redis = getRedisClient();
+  if (redis) {
+    await redisDel(`ls:wn:rl:${identifier}`, `ls:wn:attempts:${identifier}`);
+    return;
+  }
   rateLimitStore.delete(identifier);
 };
+
 
 // Helper: Log access attempt
 const logAccessAttempt = (type, success, details) => {
@@ -160,10 +190,18 @@ export const getRegistrationOptions = async (req, res) => {
     });
 
     // Store challenge
-    challengeStore.set(userId.toString(), {
-      challenge: options.challenge,
-      expires: Date.now() + 60000,
-    });
+    const redis = getRedisClient();
+    if (redis) {
+      await redisSet(`ls:wn:challenge:${userId}`, 60, {
+        challenge: options.challenge,
+        expires: Date.now() + 60000,
+      });
+    } else {
+      challengeStore.set(userId.toString(), {
+        challenge: options.challenge,
+        expires: Date.now() + 60000,
+      });
+    }
 
     logAccessAttempt('REGISTER_OPTIONS', true, { userId, ip: clientIP });
     // DEBUG: Log options structure
@@ -190,35 +228,44 @@ export const verifyRegistration = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
     const user = await User.findById(userId);
-
+ 
     if (!user || user.role !== 'admin') {
       logAccessAttempt('REGISTER_VERIFY', false, { userId, ip: clientIP, reason: 'not_admin' });
       return res.status(404).json({ message: 'Not Found' });
     }
-
+ 
     const { response, deviceName, deviceInfo } = req.body;
-
+ 
     // Get stored challenge
-    const stored = challengeStore.get(userId.toString());
+    let stored;
+    const redisInstance = getRedisClient();
+    if (redisInstance) {
+      stored = await redisGetDel(`ls:wn:challenge:${userId}`);
+    } else {
+      stored = challengeStore.get(userId.toString());
+      if (stored) challengeStore.delete(userId.toString());
+    }
+    
     if (!stored || Date.now() > stored.expires) {
       logAccessAttempt('REGISTER_VERIFY', false, { userId, ip: clientIP, reason: 'challenge_expired' });
       return res.status(400).json({ message: 'Challenge expired' });
     }
-
+ 
     const verification = await verifyRegistrationResponse({
       response,
       expectedChallenge: stored.challenge,
       expectedOrigin: origin,
       expectedRPID: rpID,
     });
-
+ 
     if (!verification.verified || !verification.registrationInfo) {
       logAccessAttempt('REGISTER_VERIFY', false, { userId, ip: clientIP, reason: 'verification_failed' });
       return res.status(400).json({ message: 'Verification failed' });
     }
-
+ 
     // Clear challenge
     challengeStore.delete(userId.toString());
+
 
     // === DUPLICATE DEVICE DETECTION ===
     // Check if user already has a device with similar fingerprint
@@ -330,7 +377,7 @@ export const getAuthenticationOptions = async (req, res) => {
   
   try {
     // Check rate limit
-    const rateCheck = checkRateLimit(clientIP);
+    const rateCheck = await checkRateLimit(clientIP);
     if (!rateCheck.allowed) {
       logAccessAttempt('AUTH_OPTIONS', false, { ip: clientIP, reason: 'rate_limited' });
       return res.status(429).json({ 
@@ -348,11 +395,20 @@ export const getAuthenticationOptions = async (req, res) => {
 
     // Store challenge with a temporary ID
     const tempId = `auth_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    challengeStore.set(tempId, {
-      challenge: options.challenge,
-      expires: Date.now() + 60000,
-      ip: clientIP, // Track IP for logging
-    });
+    const redis = getRedisClient();
+    if (redis) {
+      await redisSet(`ls:wn:challenge:${tempId}`, 60, {
+        challenge: options.challenge,
+        expires: Date.now() + 60000,
+        ip: clientIP, // Track IP for logging
+      });
+    } else {
+      challengeStore.set(tempId, {
+        challenge: options.challenge,
+        expires: Date.now() + 60000,
+        ip: clientIP, // Track IP for logging
+      });
+    }
 
     res.json({
       ...options,
@@ -372,7 +428,7 @@ export const verifyAuthentication = async (req, res) => {
   
   try {
     // Check rate limit
-    const rateCheck = checkRateLimit(clientIP);
+    const rateCheck = await checkRateLimit(clientIP);
     if (!rateCheck.allowed) {
       logAccessAttempt('AUTH_VERIFY', false, { ip: clientIP, reason: 'rate_limited' });
       return res.status(429).json({ 
@@ -384,9 +440,17 @@ export const verifyAuthentication = async (req, res) => {
     const { response, challengeId } = req.body;
 
     // Get stored challenge
-    const stored = challengeStore.get(challengeId);
+    let stored;
+    const redis = getRedisClient();
+    if (redis) {
+      stored = await redisGetDel(`ls:wn:challenge:${challengeId}`);
+    } else {
+      stored = challengeStore.get(challengeId);
+      if (stored) challengeStore.delete(challengeId);
+    }
+
     if (!stored || Date.now() > stored.expires) {
-      recordFailedAttempt(clientIP);
+      await recordFailedAttempt(clientIP);
       logAccessAttempt('AUTH_VERIFY', false, { ip: clientIP, reason: 'challenge_expired' });
       return res.status(400).json({ message: 'Challenge expired' });
     }
@@ -403,7 +467,7 @@ export const verifyAuthentication = async (req, res) => {
         logger.debug('[Device Auth] Device not found for ID (Base64URL):', response.id);
         logger.debug('[Device Auth] Converted Buffer:', credentialId);
       }
-      recordFailedAttempt(clientIP);
+      await recordFailedAttempt(clientIP);
       logAccessAttempt('AUTH_VERIFY', false, { ip: clientIP, reason: 'device_not_found' });
       return res.status(400).json({ message: 'Invalid credential' });
     }
@@ -438,7 +502,7 @@ export const verifyAuthentication = async (req, res) => {
       if (process.env.NODE_ENV === 'development') {
          logger.debug('[Device Auth] Verification failed result:', JSON.stringify(verification, null, 2));
       }
-      recordFailedAttempt(clientIP);
+      await recordFailedAttempt(clientIP);
       logAccessAttempt('AUTH_VERIFY', false, { 
         ip: clientIP, 
         deviceId: device._id,
@@ -459,7 +523,7 @@ export const verifyAuthentication = async (req, res) => {
     // Check if user is still admin
     const user = device.userId;
     if (!user || user.role !== 'admin') {
-      recordFailedAttempt(clientIP);
+      await recordFailedAttempt(clientIP);
       logAccessAttempt('AUTH_VERIFY', false, { 
         ip: clientIP, 
         userId: user?._id,
@@ -479,7 +543,7 @@ export const verifyAuthentication = async (req, res) => {
     }
 
     // Clear rate limit on success
-    clearRateLimit(clientIP);
+    await clearRateLimit(clientIP);
 
     // === CRITICAL FIX: Generate JWT tokens ===
     const accessToken = generateAccessToken(user._id);

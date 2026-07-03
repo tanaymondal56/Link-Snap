@@ -1,3 +1,4 @@
+import { redisGet, redisSet, getRedisClient } from '../config/redis.js';
 import axios from 'axios';
 import Url from '../models/Url.js';
 import Settings from '../models/Settings.js';
@@ -46,31 +47,81 @@ const queryGoogleRef = async (threatEntries) => {
 };
 
 /**
- * Check one or more URLs for safety
+ * Check one or more URLs for safety (with Redis Cache + fallback)
  * @param {string|string[]} urls - Single URL string or array of URL strings
  * @returns {Promise<{status: string, details: string|null}>} Aggregate status
  */
 export const checkUrlsSafety = async (urls) => {
     try {
         const urlList = Array.isArray(urls) ? urls : [urls];
-        // Filter out empty or non-string values
-        const validUrls = urlList.filter(u => u && typeof u === 'string').map(u => ({ url: u }));
+        const validUrls = urlList.filter(u => u && typeof u === 'string');
         
         if (validUrls.length === 0) return { status: 'safe', details: null };
 
-        const threatMap = await queryGoogleRef(validUrls);
+        const redis = getRedisClient();
+        const results = [];
+        const nonCachedUrls = [];
 
-        if (threatMap.size > 0) {
-            // Priority: Malware > Phishing > Unwanted
-            const threatTypes = Array.from(threatMap.values());
-            
-            if (threatTypes.some(t => t === 'MALWARE' || t === 'POTENTIALLY_HARMFUL_APPLICATION')) {
-                return { status: 'malware', details: 'Detected Malware/Harmful Content' };
+        if (redis) {
+            for (const url of validUrls) {
+                // Generate safe unique key
+                const safeKey = `ls:sb:${Buffer.from(url).toString('base64').substring(0, 40)}`;
+                const cached = await redisGet(safeKey);
+                if (cached) {
+                    results.push(cached);
+                } else {
+                    nonCachedUrls.push(url);
+                }
             }
-            if (threatTypes.some(t => t === 'SOCIAL_ENGINEERING')) {
-                return { status: 'phishing', details: 'Detected Social Engineering' };
+        } else {
+            nonCachedUrls.push(...validUrls);
+        }
+
+        if (nonCachedUrls.length > 0) {
+            const threatEntries = nonCachedUrls.map(u => ({ url: u }));
+            const threatMap = await queryGoogleRef(threatEntries);
+
+            for (const url of nonCachedUrls) {
+                let status = 'safe';
+                let details = null;
+
+                if (threatMap.has(url)) {
+                    const threat = threatMap.get(url);
+                    if (threat === 'MALWARE' || threat === 'POTENTIALLY_HARMFUL_APPLICATION') {
+                        status = 'malware';
+                        details = 'Detected Malware/Harmful Content';
+                    } else if (threat === 'SOCIAL_ENGINEERING') {
+                        status = 'phishing';
+                        details = 'Detected Social Engineering';
+                    } else {
+                        status = 'unwanted';
+                        details = 'Detected Unwanted Software';
+                    }
+                }
+
+                const result = { url, status, details };
+                results.push(result);
+
+                if (redis) {
+                    const safeKey = `ls:sb:${Buffer.from(url).toString('base64').substring(0, 40)}`;
+                    const ttl = status === 'safe' ? 3600 : 86400; // 1 hour for safe, 24 hours for threats
+                    await redisSet(safeKey, ttl, result);
+                }
             }
+        }
+
+        if (results.some(r => r.status === 'malware')) {
+            return { status: 'malware', details: 'Detected Malware/Harmful Content' };
+        }
+        if (results.some(r => r.status === 'phishing')) {
+            return { status: 'phishing', details: 'Detected Social Engineering' };
+        }
+        if (results.some(r => r.status === 'unwanted')) {
             return { status: 'unwanted', details: 'Detected Unwanted Software' };
+        }
+        if (results.some(r => r.status === 'pending')) {
+            const firstPending = results.find(r => r.status === 'pending');
+            return { status: 'pending', details: firstPending ? firstPending.details : 'Check pending' };
         }
 
         return { status: 'safe', details: null };
