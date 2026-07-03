@@ -507,7 +507,7 @@ export const getSettings = async (req, res, next) => {
         }
 
         // Return settings with masked password
-        const settingsObj = settings.toObject();
+        const settingsObj = typeof settings.toObject === 'function' ? settings.toObject() : { ...settings };
         settingsObj.emailPassword = settings.emailPassword ? '••••••••' : '';
 
         res.json(settingsObj);
@@ -523,7 +523,8 @@ export const updateSettings = async (req, res, next) => {
     try {
         logger.debug('[updateSettings] Request received:', JSON.stringify(req.body, null, 2));
 
-        let settings = await getGlobalSettings();
+        // Use findOne to get the raw Mongoose document so we can call .save()
+        let settings = await Settings.findOne();
         if (!settings) {
             settings = await Settings.create({});
         }
@@ -584,7 +585,7 @@ export const updateSettings = async (req, res, next) => {
         logger.debug('[updateSettings] Settings saved successfully!');
 
         // Return settings with masked password
-        const settingsObj = settings.toObject();
+        const settingsObj = typeof settings.toObject === 'function' ? settings.toObject() : { ...settings };
         settingsObj.emailPassword = settings.emailPassword ? '••••••••' : '';
 
         res.json(settingsObj);
