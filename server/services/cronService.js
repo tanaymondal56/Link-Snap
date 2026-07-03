@@ -1,5 +1,6 @@
 import { scanPendingLinks, scanUncheckedLinks } from './safeBrowsingService.js';
 import logger from '../utils/logger.js';
+import { getRedisClient } from '../config/redis.js';
 
 // Intervals
 const FIVE_MINUTES = 5 * 60 * 1000;
@@ -19,6 +20,16 @@ export const startCronJobs = () => {
     let isScanning = false;
     safetyScanInterval = setInterval(async () => {
         if (isScanning) return;
+        
+        const redis = getRedisClient();
+        if (redis) {
+            // Lock for 270 seconds (4.5 minutes) to cover the 5-minute interval
+            const acquired = await redis.set('ls:lock:cron:safety', '1', { nx: true, ex: 270 });
+            if (!acquired) {
+                return;
+            }
+        }
+
         isScanning = true;
         try {
             await scanPendingLinks();
@@ -34,6 +45,15 @@ export const startCronJobs = () => {
     // 2. Backlog Scanner (Unchecked Links)
     // Catches links that were missed or skipped (bulk imports, system downtime)
     backlogScanInterval = setInterval(async () => {
+        const redis = getRedisClient();
+        if (redis) {
+            // Lock for 3300 seconds (55 minutes) to cover the 1-hour interval
+            const acquired = await redis.set('ls:lock:cron:backlog', '1', { nx: true, ex: 3300 });
+            if (!acquired) {
+                return;
+            }
+        }
+
         try {
             await scanUncheckedLinks();
         } catch (err) {
