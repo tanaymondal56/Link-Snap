@@ -22,13 +22,11 @@ const flushBuffer = async () => {
 
     try {
         if (redis) {
-            // Atomic fetch and clear using multi/exec or LTRIM
-            // We use LRANGE to get all items, then LTRIM to remove them
-            const items = await redis.lrange(REDIS_QUEUE_KEY, 0, -1);
+            // Atomically pop up to BATCH_SIZE items from the queue
+            // (Upstash supports LPOP with count argument)
+            const items = await redis.lpop(REDIS_QUEUE_KEY, BATCH_SIZE);
+            
             if (items && items.length > 0) {
-                // Remove the items we just fetched
-                await redis.ltrim(REDIS_QUEUE_KEY, items.length, -1);
-                
                 for (const item of items) {
                     try {
                         bufferToInsert.push(JSON.parse(item));
@@ -36,20 +34,32 @@ const flushBuffer = async () => {
                         console.error('[Analytics] Failed to parse queued item:', e);
                     }
                 }
+                
+                if (bufferToInsert.length > 0) {
+                    try {
+                        await Analytics.insertMany(bufferToInsert, { ordered: false });
+                    } catch (dbError) {
+                        console.error('[Analytics] DB insert failed. Restoring data to Redis...', dbError.message);
+                        // Data safety backup: if DB fails, push the items back to the head of the queue
+                        await redis.lpush(REDIS_QUEUE_KEY, ...items);
+                    }
+                }
             }
         } else {
             if (analyticsBuffer.length > 0) {
                 bufferToInsert.push(...analyticsBuffer);
                 analyticsBuffer = []; // Clear local buffer immediately
+                
+                try {
+                    await Analytics.insertMany(bufferToInsert, { ordered: false });
+                } catch (dbError) {
+                    console.error('[Analytics] DB insert failed. Restoring data to memory...', dbError.message);
+                    analyticsBuffer.unshift(...bufferToInsert);
+                }
             }
-        }
-
-        if (bufferToInsert.length > 0) {
-            await Analytics.insertMany(bufferToInsert, { ordered: false });
         }
     } catch (error) {
         console.error('[Analytics] Flush Error:', error);
-        // On error, if we wanted to retry we could LPUSH them back, but for analytics dropping them on DB failure is usually acceptable.
     } finally {
         isFlushing = false;
     }
