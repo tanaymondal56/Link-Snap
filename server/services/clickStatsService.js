@@ -99,14 +99,59 @@ const flushBuffer = async () => {
 
         // --- Execute Bulk Writes ---
         if (urlOps.length > 0 || userOps.length > 0) {
-            const promises = [];
-            if (urlOps.length > 0) {
-                promises.push(Url.bulkWrite(urlOps, { ordered: false }));
+            try {
+                const promises = [];
+                if (urlOps.length > 0) {
+                    promises.push(Url.bulkWrite(urlOps, { ordered: false }));
+                }
+                if (userOps.length > 0) {
+                    promises.push(User.bulkWrite(userOps, { ordered: false }));
+                }
+                await Promise.all(promises);
+            } catch (dbError) {
+                console.error('[ClickStats] DB write failed. Restoring data...', dbError.message);
+                if (redis) {
+                    // Restore to Redis (atomic incrby + safety TTL)
+                    for (const op of urlOps) {
+                        try {
+                            const urlId = op.updateOne.filter._id;
+                            const count = op.updateOne.update.$inc.clicks;
+                            const key = `ls:click:url:${urlId}`;
+                            const newCount = await redis.incrby(key, count);
+                            if (newCount === count) {
+                                await redis.expire(key, 604800); // 7 days safety TTL
+                            }
+                        } catch (redisErr) {
+                            console.error('[ClickStats] Failed to restore URL clicks to Redis:', redisErr.message);
+                        }
+                    }
+                    for (const op of userOps) {
+                        try {
+                            const userId = op.updateOne.filter._id;
+                            const count = op.updateOne.update.$inc['clickUsage.count'];
+                            const key = `ls:click:user:${userId}`;
+                            const newCount = await redis.incrby(key, count);
+                            if (newCount === count) {
+                                await redis.expire(key, 604800); // 7 days safety TTL
+                            }
+                        } catch (redisErr) {
+                            console.error('[ClickStats] Failed to restore User clicks to Redis:', redisErr.message);
+                        }
+                    }
+                } else {
+                    // Restore to in-memory buffers
+                    for (const op of urlOps) {
+                        const urlId = op.updateOne.filter._id;
+                        const count = op.updateOne.update.$inc.clicks;
+                        clickBuffer.set(urlId, (clickBuffer.get(urlId) || 0) + count);
+                    }
+                    for (const op of userOps) {
+                        const userId = op.updateOne.filter._id;
+                        const count = op.updateOne.update.$inc['clickUsage.count'];
+                        userClickBuffer.set(userId, (userClickBuffer.get(userId) || 0) + count);
+                    }
+                }
             }
-            if (userOps.length > 0) {
-                promises.push(User.bulkWrite(userOps, { ordered: false }));
-            }
-            await Promise.all(promises);
         }
     } catch (error) {
         console.error('[ClickStats] Flush Error:', error);
