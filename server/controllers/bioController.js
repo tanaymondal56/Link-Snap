@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import Url from '../models/Url.js';
 import logger from '../utils/logger.js';
+import { redisGet, redisSet, redisDel } from '../config/redis.js';
 
 // Valid theme values (must match schema enum)
 const VALID_THEMES = ['default', 'dark', 'midnight', 'ocean', 'forest', 'sunset', 'custom'];
@@ -75,8 +76,18 @@ export const getPublicProfile = async (req, res) => {
       return res.status(400).json({ message: 'Invalid username' });
     }
 
+    const usernameLower = username.toLowerCase();
+    const cacheKey = `ls:bio:${usernameLower}`;
+
+    // 1. Try Redis cache first
+    const cachedProfile = await redisGet(cacheKey);
+    if (cachedProfile) {
+      return res.json(cachedProfile);
+    }
+
+    // 2. Cache miss - query database
     // Find user by username (case insensitive)
-    const user = await User.findOne({ username: username.toLowerCase() })
+    const user = await User.findOne({ username: usernameLower })
       .select('username bioPage isVerified eliteId idTier avatar firstName lastName isActive subscription')
       .populate({
         path: 'bioPage.pinnedLinks',
@@ -122,7 +133,7 @@ export const getPublicProfile = async (req, res) => {
     logger.debug(`[Bio] User: ${username} | Tier: ${subTier} | Status: ${subStatus} | isPro: ${isPro} | isExpired: ${isExpired}`);
 
     // Build response with only public fields
-    res.json({
+    const responseData = {
       username: user.username,
       displayName: user.bioPage?.displayName || user.firstName || user.username,
       bio: user.bioPage?.bio || '',
@@ -144,7 +155,12 @@ export const getPublicProfile = async (req, res) => {
         clicks: link.clicks
       })),
       lastUpdatedAt: user.bioPage?.lastUpdatedAt || null
-    });
+    };
+
+    // 3. Store in Redis for 5 minutes (300 seconds)
+    await redisSet(cacheKey, 300, responseData);
+
+    res.json(responseData);
 
   } catch (error) {
     logger.error(`[Bio] Error fetching profile: ${error.message}`);
@@ -268,6 +284,10 @@ export const updateBioSettings = async (req, res) => {
     user.bioPage.lastUpdatedAt = new Date();
     await user.save();
 
+    // Invalidate caches
+    await redisDel(`ls:user:${user._id}`);
+    await redisDel(`ls:bio:${user.username.toLowerCase()}`);
+
     logger.info(`[Bio] User ${user.username} updated their bio page`);
 
     res.json({
@@ -299,6 +319,10 @@ export const toggleBioVisibility = async (req, res) => {
     }
 
     await user.save();
+
+    // Invalidate caches
+    await redisDel(`ls:user:${user._id}`);
+    await redisDel(`ls:bio:${user.username.toLowerCase()}`);
 
     res.json({
       isEnabled: user.bioPage.isEnabled,
