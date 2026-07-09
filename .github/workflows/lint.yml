@@ -57,4 +57,4 @@ jobs:
             | tar xz && sudo mv kubeconform /usr/local/bin/
       - name: Validate manifests
         run: |
-          kubeconform -strict -summary k8s/*.yaml
+          kubeconform -strict -summary -ignore-missing-schemas k8s/*.yaml

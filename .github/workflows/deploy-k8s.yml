@@ -14,9 +14,7 @@ jobs:
     name: Deploy to Beta (K8s)
     runs-on: ubuntu-latest
     environment: beta
-    if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'major/k8s'
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'major/k8s' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -91,9 +89,7 @@ jobs:
     name: Deploy to Production (K8s)
     runs-on: ubuntu-latest
     environment: production
-    if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'master'
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'master' }}
     steps:
       - uses: actions/checkout@v4
         with:
