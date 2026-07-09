@@ -114,3 +114,6 @@ deploy.env.local
 
 # Dev curl session cookies — never commit
 cookies.txt
+
+# Staging/Testing configurations
+Staging Test/
