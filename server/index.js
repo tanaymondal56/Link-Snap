@@ -38,8 +38,6 @@ import sessionRoutes from './routes/sessionRoutes.js';
 import redirectRoutes from './routes/redirectRoutes.js';
 import bioRoutes from './routes/bioRoutes.js';
 import deviceAuthRoutes from './routes/deviceAuthRoutes.js';
-import { startBanScheduler, stopBanScheduler } from './services/banScheduler.js';
-import { startCronJobs, stopCronJobs } from './services/cronService.js';
 import { flushAndStop } from './services/clickStatsService.js';
 import { stopDeviceAuthIntervals } from './controllers/deviceAuthController.js';
 import { flushAnalyticsAndStop } from './services/analyticsService.js';
@@ -103,6 +101,17 @@ if (process.env.NODE_ENV === 'development') {
 app.use(strictProxyGate);
 
 
+// Build dynamic connectSrc for CSP based on configured allowed origins
+const dynamicConnectSrc = [
+  "'self'",
+  process.env.CLIENT_URL || "http://localhost:3000",
+  // Allow all entries from ALLOWED_ORIGINS as well
+  ...(() => {
+    if (!process.env.ALLOWED_ORIGINS) return [];
+    return process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean);
+  })(),
+];
+
 // Security headers with Helmet
 app.use(helmet({
   contentSecurityPolicy: {
@@ -114,10 +123,7 @@ app.use(helmet({
       ],
       styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: [
-        "'self'",
-        process.env.CLIENT_URL || "http://localhost:3000",
-      ],
+      connectSrc: dynamicConnectSrc,
       fontSrc: ["'self'", "https:", "data:"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
@@ -147,8 +153,9 @@ const parseCsvOrigins = (value) => {
     .filter(Boolean);
 };
 
+// NOTE: Remove or replace 'linksnap.centralindia.cloudapp.azure.com' once Azure proxy is decommissioned.
+// Keep only your canonical domain(s) here. Add extra domains via ALLOWED_ORIGINS env var.
 const productionDefaultOrigins = [
-  'https://linksnap.centralindia.cloudapp.azure.com',
   'https://lksnp.qzz.io',
 ];
 
@@ -174,6 +181,20 @@ app.use(cors({
 
     if (allowedOrigins.includes(normalizedOrigin)) {
       return callback(null, true);
+    }
+
+    // ─── DYNAMIC HOST CHECKER ────────────────────────────────────────────────
+    // Allow dynamic domains (like wildcards) via environment variable regex
+    // Example: ^https:\/\/(.*?\.)?linksnap\.com$
+    if (process.env.DYNAMIC_ALLOWED_DOMAINS_REGEX) {
+      try {
+        const regex = new RegExp(process.env.DYNAMIC_ALLOWED_DOMAINS_REGEX, 'i');
+        if (regex.test(normalizedOrigin)) {
+          return callback(null, true);
+        }
+      } catch (e) {
+        console.error(`[CORS] Invalid DYNAMIC_ALLOWED_DOMAINS_REGEX: ${e.message}`);
+      }
     }
 
     // For development, allow localhost and LAN variants
@@ -208,13 +229,29 @@ app.use(cookieParser());
 // CSRF Protection (using lusca as recommended by CodeQL)
 // Lusca requires a session to store the CSRF secret.
 // We use cookie-session to provide a client-side session.
+// ─── Cross-Origin Cookie Mode ──────────────────────────────────────────────
+// When frontend is hosted on a DIFFERENT domain (CF Pages, Vercel, external CDN),
+// cookies MUST use SameSite=None + Secure to be sent in cross-origin requests.
+// When frontend is on the SAME domain, SameSite=Strict is safer.
+// Set CROSS_ORIGIN_FRONTEND=true in configmap.yaml to enable cross-origin mode.
+const isCrossOriginFrontend = process.env.CROSS_ORIGIN_FRONTEND === 'true';
+const cookieSameSite = isCrossOriginFrontend ? 'none' : 'strict';
+const cookieSecure  = isCrossOriginFrontend ? true : (process.env.NODE_ENV === 'production');
+
 app.use(cookieSession({
   name: 'session',
-  keys: [process.env.SESSION_SECRET || 'default-secret-key'],
+  keys: [(() => {
+    const secret = process.env.SESSION_SECRET;
+    if (!secret && process.env.NODE_ENV === 'production') {
+      console.error('[FATAL] SESSION_SECRET env var is not set in production. Refusing to start with an insecure session key.');
+      process.exit(1);
+    }
+    return secret || 'dev-only-insecure-session-key';
+  })()],
   maxAge: 24 * 60 * 60 * 1000, // 24 hours
-  secure: process.env.NODE_ENV === 'production',
+  secure: cookieSecure,
   httpOnly: true,
-  sameSite: 'strict',
+  sameSite: cookieSameSite,
 }));
 
 // Configure CSRF with double-submit cookie pattern
@@ -223,8 +260,8 @@ app.use(lusca.csrf({
     name: 'XSRF-TOKEN',
     options: {
       httpOnly: false, // Allow client to read for header inclusion
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
     }
   },
   header: 'X-XSRF-TOKEN',
@@ -297,95 +334,10 @@ app.use('/api/sessions', sessionRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/bio', bioRoutes);
-// Serve static assets in production (BEFORE redirect routes)
-if (process.env.NODE_ENV === 'development') {
-  const devRoutes = (await import('./routes/devRoutes.js')).default;
-  app.use('/api/dev', devRoutes);
-  logger.info('Dev routes enabled under /api/dev');
-}
-if (process.env.NODE_ENV === 'production') {
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  // Serve static files from client build with proper cache headers
-  app.use(express.static(path.join(__dirname, '../client/dist'), {
-    etag: true,
-    lastModified: true,
-    setHeaders: (res, filePath) => {
-      // Set explicit Content-Type for JS/CSS files to prevent MIME type errors
-      if (filePath.endsWith('.js')) {
-        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-      } else if (filePath.endsWith('.mjs')) {
-        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-      } else if (filePath.endsWith('.css')) {
-        res.setHeader('Content-Type', 'text/css; charset=utf-8');
-      }
-
-      // For Service Worker, never cache (must always check for updates)
-      if (filePath.includes('sw.js') || filePath.includes('workbox-')) {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-      }
-      // For HTML files, allow caching with revalidation (enables bfcache)
-      else if (filePath.endsWith('.html')) {
-        res.setHeader('Cache-Control', 'no-cache, max-age=0, must-revalidate');
-      }
-      // For JS/CSS with hash in filename, cache forever (immutable)
-      else if (filePath.match(/\.[a-f0-9]{8}\.(js|css)$/)) {
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      }
-      // For other assets (images, fonts, etc), short cache with revalidation
-      else {
-        res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate'); // 5 minutes
-      }
-    }
-  }));
-}
-
-// Short URL redirect routes (after static files, so JS/CSS/images are served directly)
+// Short URL redirect routes (This must be after all API routes)
 app.use('/', redirectRoutes);
 
-// SPA catch-all route (after redirect routes)
-if (process.env.NODE_ENV === 'production') {
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  // Catch-all route for SPA - Express 5 uses {*param} syntax
-  // This handles all routes not matched by API or redirect routes
-  // IMPORTANT: Exclude static asset paths that are handled by express.static
-  app.get('/{*splat}', (req, res, next) => {
-    // Skip catch-all for API routes (they should never reach this point if properly routed)
-    // This is a safety net in case an API route falls through
-    if (req.path.startsWith('/api/')) {
-      console.warn(`[SPA Catch-all] WARNING: API route fell through: ${req.path}`);
-      return res.status(404).json({
-        error: 'Not Found',
-        message: 'API endpoint not found',
-        path: req.path
-      });
-    }
 
-    // Skip catch-all for static assets (let express.static handle them)
-    if (
-      req.path.startsWith('/assets/') ||
-      req.path === '/manifest.json' ||
-      req.path === '/manifest.webmanifest' ||
-      req.path === '/robots.txt' ||
-      req.path === '/sitemap.xml' ||
-      req.path === '/sw.js' ||
-      req.path === '/favicon.ico' ||
-      req.path === '/favicon.svg' ||
-      req.path === '/favicon-16x16.png' ||
-      req.path === '/favicon-32x32.png' ||
-      req.path === '/apple-touch-icon.png'
-    ) {
-      return next(); // Pass to express.static or 404
-    }
-
-    console.log(`[SPA Catch-all] Serving index.html for: ${req.path}`);
-    // Allow browser caching with revalidation (enables bfcache for back/forward navigation)
-    // Changed from 'no-store' to allow bfcache while still checking for updates
-    res.setHeader('Cache-Control', 'no-cache, max-age=0, must-revalidate');
-    res.sendFile(path.resolve(__dirname, '../client/dist/index.html'));
-  });
-} else {
   // Development mode - catch-all for 404s
   app.get('/{*splat}', (req, res) => {
     // Return proper 404 response for invalid short URLs
@@ -399,7 +351,6 @@ if (process.env.NODE_ENV === 'production') {
   app.get('/', (req, res) => {
     res.send('Link Snap API is running...');
   });
-}
 
 // Error Handler
 app.use(errorHandler);
@@ -423,11 +374,7 @@ const startServer = async () => {
     const server = app.listen(PORT, () => {
       logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 
-      // Start the temporary ban scheduler
-      startBanScheduler();
-
-      // Start background cron jobs (Safe Browsing, etc.)
-      startCronJobs();
+      // Cron jobs are now handled by independent K8s CronJobs.
     });
 
     // ─── Graceful Shutdown Handler ──────────────────────────────────────────────
@@ -443,8 +390,6 @@ const startServer = async () => {
           logger.info('[Shutdown] HTTP server closed. Cleaning up...');
 
           // 2. Stop background timers
-          stopBanScheduler();
-          stopCronJobs();
           stopDeviceAuthIntervals();
 
           // 3. Flush buffered click counts to DB (prevent data loss)

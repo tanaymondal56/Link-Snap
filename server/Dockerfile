@@ -3,7 +3,7 @@ FROM node:20-alpine AS deps
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
 
 
@@ -21,8 +21,8 @@ RUN addgroup -S linksnap && adduser -S -G linksnap linksnap
 # Copy deps from previous stage
 COPY --from=deps --chown=linksnap:linksnap /app/node_modules ./node_modules
 
-# Copy server source
-COPY --chown=linksnap:linksnap . ./
+# Copy server source (only server folder files)
+COPY --chown=linksnap:linksnap server/ ./
 
 USER linksnap
 

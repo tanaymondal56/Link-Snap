@@ -100,3 +100,17 @@ study/
 
 # Utility scripts (may contain local paths or dev-only utilities)
 server/scripts/
+
+# Infrastructure / DevOps
+terraform/terraform.tfvars
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/.terraform/
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+deploy.env
+deploy.env.local
+
+# Dev curl session cookies — never commit
+cookies.txt

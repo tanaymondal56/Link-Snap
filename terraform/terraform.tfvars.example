@@ -1,0 +1,26 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# terraform.tfvars.example
+# Copy this file to terraform.tfvars and fill in your actual values.
+# terraform.tfvars is gitignored — never commit it.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# OCI Authentication (from OCI Console → Profile → API Keys)
+tenancy_ocid     = "ocid1.tenancy.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+user_ocid        = "ocid1.user.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+fingerprint      = "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
+private_key_path = "~/.oci/oci_api_key.pem"
+
+# OCI Region — e.g. ap-mumbai-1, us-ashburn-1, eu-frankfurt-1
+region = "ap-mumbai-1"
+
+# OCI Compartment OCID (where resources will be created)
+compartment_ocid = "ocid1.compartment.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Your SSH public key content (paste the full key string, not a file path)
+ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... your@email.com"
+
+# CIDR range allowed to reach the K8s API server (port 6443).
+# Set to your static IP or GitHub Actions egress IP range.
+# Run: curl ifconfig.me to find your current IP, then append /32
+# GitHub Actions IPs: https://api.github.com/meta (actions key)
+kubectl_access_cidr = "0.0.0.0/0"  # Restrict this for production hardening!

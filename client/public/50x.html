@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Server Error — LinkSnap</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f14;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem;
+    }
+    .container { max-width: 480px; }
+    .code {
+      font-size: 6rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+      margin-bottom: 1rem;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 0.75rem; color: #f1f5f9; }
+    p  { color: #94a3b8; margin-bottom: 1.5rem; line-height: 1.6; }
+    a  {
+      display: inline-block;
+      padding: 0.6rem 1.5rem;
+      border-radius: 8px;
+      background: #6366f1;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    a:hover { background: #4f46e5; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="code">5xx</div>
+    <h1>Something went wrong</h1>
+    <p>Our server ran into an unexpected error. We're on it — please try again in a moment.</p>
+    <a href="/">Go back home</a>
+  </div>
+</body>
+</html>

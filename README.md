@@ -48,10 +48,11 @@
 *   **JWT & Bcrypt** for industry-standard security.
 
 **DevOps & Infrastructure**
-*   **Docker** - Multi-stage production builds.
-*   **Multi-Cloud** - Azure (Edge) + AWS (Backend) via Tailscale VPN.
-*   **Nginx** - Reverse proxy with SSL/TLS termination.
-*   **GitHub Actions** - CI/CD with linting and security scanning.
+*   **Kubernetes (K8s)** - Stateless microservices architecture for infinite horizontal scaling.
+*   **Docker** - Split frontend and backend containers hosted on GHCR.
+*   **Nginx Ingress** - Reverse proxy with automatic SSL/TLS termination via cert-manager.
+*   **GitHub Actions** - CI/CD pipeline with Trivy vulnerability scanning and zero-downtime rolling deployments.
+*   **Redis** - Distributed state management for rate limiting and WebAuthn challenges across pods.
 *   **ESLint & Prettier** for code quality.
 
 ---
@@ -107,17 +108,26 @@ Link-Snap implements a **"Defense in Depth"** strategy:
 
 ---
 
-## 🐳 Docker Quickstart
+## 🐳 Kubernetes Quickstart
 
-For production deployment, use the official Docker image:
+For production deployment, use the automated bootstrap script or apply the K8s manifests directly:
 
 ```bash
-# Pull the image
-docker pull tanaymondal/linksnap:latest
+# 1. Clone the repository
+git clone https://github.com/tanaymondal56/Link-Snap.git
+cd Link-Snap
 
-# Run the container
-docker run -d -p 5000:5000 --env-file server/.env --name linksnap tanaymondal/linksnap:latest
+# 2. Copy the environment template
+cp deploy.env.example deploy.env
+# Edit deploy.env with your MongoDB URI, Redis URL, and secrets
+
+# 3. Deploy to your cluster
+./bootstrap.sh
 ```
+
+Alternatively, you can pull the split microservice images directly from GHCR:
+- `ghcr.io/tanaymondal56/linksnap-frontend:latest`
+- `ghcr.io/tanaymondal56/linksnap-backend:latest`
 
 ---
 

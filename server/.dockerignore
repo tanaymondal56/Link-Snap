@@ -5,15 +5,35 @@ Dockerfile
 .git
 .gitignore
 README.md
-docs
-plans
-testing
-My-VM-Automation
-feature-docs
-feature-list
-fix-needed
-study
-notes
 .env
 .env.*
-!server/**
+*.local
+
+# ── Admin / ops scripts — MUST NOT ship in the production image ───────────────
+# These scripts contain privileged DB operations and are for local/CI use only.
+# NOTE: runBanScheduler.js and runSafeBrowsingScan.js are intentionally kept
+#       because they are called by Kubernetes CronJobs at runtime.
+scripts/makeAdmin.js
+scripts/manageMasterAdmin.js
+scripts/migrate-to-cosmos.js
+scripts/migrateEliteIds.js
+scripts/migrateLocalIds.js
+scripts/migrateToSmartSnapId.js
+scripts/migrateUsernames.js
+scripts/migrate_anon_expiry.js
+scripts/registerUser.js
+scripts/generateInternalIds.js
+scripts/insert-app-changelog.js
+scripts/testDualLimits.js
+scripts/verify_notifications.js
+check_counts.js
+migration/
+
+# ── Dev-only config ───────────────────────────────────────────────────────────
+nodemon.json
+eslint.config.js
+.prettierrc
+*.log
+coverage/
+*.tsbuildinfo
+.eslintcache

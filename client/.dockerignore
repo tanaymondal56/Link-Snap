@@ -5,15 +5,21 @@ Dockerfile
 .git
 .gitignore
 README.md
-docs
-plans
-testing
-My-VM-Automation
-feature-docs
-feature-list
-fix-needed
-study
-notes
 .env
 .env.*
-!client/**
+*.local
+
+# Build artifacts — not needed in build context (rebuilt inside Docker)
+dist/
+dev-dist/
+.cache/
+coverage/
+
+# Dev-only config files
+eslint.config.js
+generate-icons.js
+nodemon.json
+*.log
+
+# TypeScript artifacts
+*.tsbuildinfo

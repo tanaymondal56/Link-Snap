@@ -1,0 +1,165 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_run:
+    workflows: ["Build and Publish Docker Images"]
+    types: [completed]
+    branches: [master, major/k8s]
+
+env:
+  REGISTRY: ${{ secrets.DOCKER_REGISTRY || 'docker.io' }}
+
+jobs:
+  deploy-beta:
+    name: Deploy to Beta (K8s)
+    runs-on: ubuntu-latest
+    environment: beta
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'major/k8s'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Guard: ensure KUBE_CONFIG is set
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          [[ -z "$KUBE_CONFIG" ]] && echo "❌ KUBE_CONFIG secret is not set" && exit 1
+          echo "✅ KUBE_CONFIG is present"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.30.0"
+
+      - name: Configure kubectl
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          mkdir -p $HOME/.kube
+          echo "$KUBE_CONFIG" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Resolve exact image SHA tag
+        id: vars
+        run: |
+          SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
+          echo "sha=sha-${SHA}" >> $GITHUB_OUTPUT
+          echo "Deploying image tag: sha-${SHA}"
+
+      - name: Update backend image
+        run: |
+          kubectl set image deployment/linksnap-backend \
+            backend=${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_BACKEND }}:${{ steps.vars.outputs.sha }} \
+            -n linksnap-beta
+
+      - name: Update frontend image
+        run: |
+          kubectl set image deployment/linksnap-frontend \
+            frontend=${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_FRONTEND }}:${{ steps.vars.outputs.sha }} \
+            -n linksnap-beta
+
+      - name: Wait for backend rollout
+        run: |
+          kubectl rollout status deployment/linksnap-backend -n linksnap-beta --timeout=5m
+
+      - name: Wait for frontend rollout
+        run: |
+          kubectl rollout status deployment/linksnap-frontend -n linksnap-beta --timeout=3m
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "⚠️ Deployment failed — triggering rollback..."
+          kubectl rollout undo deployment/linksnap-backend -n linksnap-beta || true
+          kubectl rollout undo deployment/linksnap-frontend -n linksnap-beta || true
+          echo "⚠️ Rolled back to previous stable version."
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "## Beta Deployment Complete 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** \`${{ steps.vars.outputs.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Namespace:** \`linksnap-beta\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend:** ${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_FRONTEND }}:${{ steps.vars.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend:** ${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_BACKEND }}:${{ steps.vars.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.event.workflow_run.head_sha }}" >> $GITHUB_STEP_SUMMARY
+
+  deploy-production:
+    name: Deploy to Production (K8s)
+    runs-on: ubuntu-latest
+    environment: production
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'master'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Guard: ensure KUBE_CONFIG is set
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          [[ -z "$KUBE_CONFIG" ]] && echo "❌ KUBE_CONFIG secret is not set" && exit 1
+          echo "✅ KUBE_CONFIG is present"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.30.0"
+
+      - name: Configure kubectl
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          mkdir -p $HOME/.kube
+          echo "$KUBE_CONFIG" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Resolve exact image SHA tag
+        id: vars
+        run: |
+          SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
+          echo "sha=sha-${SHA}" >> $GITHUB_OUTPUT
+          echo "Deploying image tag: sha-${SHA}"
+
+      - name: Update backend image
+        run: |
+          kubectl set image deployment/linksnap-backend \
+            backend=${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_BACKEND }}:${{ steps.vars.outputs.sha }} \
+            -n linksnap
+
+      - name: Update frontend image
+        run: |
+          kubectl set image deployment/linksnap-frontend \
+            frontend=${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_FRONTEND }}:${{ steps.vars.outputs.sha }} \
+            -n linksnap
+
+      - name: Wait for backend rollout
+        run: |
+          kubectl rollout status deployment/linksnap-backend -n linksnap --timeout=5m
+
+      - name: Wait for frontend rollout
+        run: |
+          kubectl rollout status deployment/linksnap-frontend -n linksnap --timeout=3m
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "⚠️ Deployment failed — triggering rollback..."
+          kubectl rollout undo deployment/linksnap-backend -n linksnap || true
+          kubectl rollout undo deployment/linksnap-frontend -n linksnap || true
+          echo "⚠️ Rolled back to previous stable version."
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "## Production Deployment Complete 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** \`${{ steps.vars.outputs.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Namespace:** \`linksnap\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend:** ${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_FRONTEND }}:${{ steps.vars.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend:** ${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_BACKEND }}:${{ steps.vars.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.event.workflow_run.head_sha }}" >> $GITHUB_STEP_SUMMARY

@@ -21,6 +21,14 @@ spec:
         app: linksnap-backend
     spec:
       terminationGracePeriodSeconds: 30
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
       containers:
         - name: backend
           image: ghcr.io/tanaymondal56/linksnap-backend:latest

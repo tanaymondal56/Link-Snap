@@ -318,7 +318,7 @@ export const checkAndIncrementClickUsage = async (userId) => {
     const cacheKey = `ls:usage:${userIdStr}`;
 
     // 1. Try Cache
-    let user = null;
+    let user;
     if (redis) {
         user = await redisGet(cacheKey);
     } else {

@@ -85,16 +85,20 @@ export const trackVisit = async (urlId, req, extras = {}) => {
         const os = parser.getOS();
         const device = parser.getDevice();
 
-        // Get real user IP using proxy-aware extraction
-        const ip = getUserIP(req);
+        // Get real user IP using proxy-aware extraction, then anonymize (GDPR)
+        const rawIp = getUserIP(req);
+        // Mask the last octet for IPv4 or last 80 bits for IPv6 (GDPR/privacy)
+        const ip = rawIp.includes(':') 
+          ? rawIp.replace(/(:[0-9a-fA-F]{0,4}){3}$/, ':0:0:0')  // IPv6 anonymize
+          : rawIp.replace(/\.\d+$/, '.0');                        // IPv4 anonymize
 
         // GeoIP lookup
-        const geo = geoip.lookup(ip);
+        const geo = geoip.lookup(rawIp);
 
         const analyticsData = {
             urlId,
             ip,
-            userAgent: req.headers['user-agent'],
+            userAgent: userAgent, // Use truncated version (max 500 chars)
             browser: browser.name || 'Unknown',
             os: os.name || 'Unknown',
             device: device.type ? (device.type.charAt(0).toUpperCase() + device.type.slice(1)) : 'Desktop',

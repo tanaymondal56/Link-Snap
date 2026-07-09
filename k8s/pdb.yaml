@@ -1,0 +1,15 @@
+# Ensures at least 1 backend pod is always available during:
+# - Node drains (kubectl drain)
+# - K3s upgrades
+# - OCI maintenance events
+# Without this, a rolling update on a 2-replica deployment could briefly have 0 pods ready.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: linksnap-backend-pdb
+  namespace: linksnap
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: linksnap-backend

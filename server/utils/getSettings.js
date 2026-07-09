@@ -45,7 +45,7 @@ export const getSettings = async () => {
     if (cached) return cached;
 
     // 2. Cache miss (or Redis unavailable) — fetch from MongoDB
-    let settings = null;
+    let settings;
     try {
         settings = await Settings.findOne().lean();
     } catch (err) {

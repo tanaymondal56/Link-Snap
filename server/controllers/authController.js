@@ -1083,6 +1083,12 @@ const resendOTP = async (req, res, next) => {
       });
     }
 
+    // Rate limiting: Prevent spamming resend requests (60 second debounce)
+    // otpExpires is 10 mins. If it expires in > 9 mins, it was just sent < 1 min ago.
+    if (user.otpExpires && user.otpExpires > Date.now() + 9 * 60 * 1000) {
+      return res.status(429).json({ error: 'Please wait before requesting another code' });
+    }
+
     // Generate new OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const verificationToken = crypto.randomBytes(20).toString('hex');

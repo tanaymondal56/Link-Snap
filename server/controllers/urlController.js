@@ -4,6 +4,7 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { invalidateCache, getSubscriptionCache } from '../services/cacheService.js';
 import { isReservedWord } from '../config/reservedWords.js';
+import { isValidUrl } from '../utils/regexUtils.js';
 import { incrementLinkUsage } from '../middleware/subscriptionMiddleware.js';
 import { hasFeature, getUpgradeMessage } from '../services/subscriptionService.js';
 import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
@@ -67,9 +68,7 @@ const calculateExpiresAt = (expiresIn) => {
 // Validation Schema
 const createUrlSchema = z.object({
     // Security: Enforce HTTP/HTTPS to prevent javascript: XSS attacks
-    originalUrl: z.string().url({ message: "Invalid URL format" }).refine((url) => /^https?:\/\//i.test(url), {
-        message: "Only HTTP and HTTPS URLs are allowed",
-    }),
+    originalUrl: z.string().refine(isValidUrl, { message: "Invalid URL format. Only HTTP and HTTPS URLs are allowed." }),
     customAlias: z.string().min(3).max(20).regex(/^[a-zA-Z0-9-_]+$/, "Alias must be alphanumeric").optional().or(z.literal('')),
     title: z.string().optional(),
     // Link Expiration
@@ -302,7 +301,7 @@ const createShortUrl = async (req, res, next) => {
             // Handle race conditions where another pod creates the same custom alias at the exact same millisecond
             if (err.code === 11000 && err.keyPattern && err.keyPattern.customAlias) {
                 res.status(400);
-                throw new Error('This alias was just taken. Please choose another.');
+                throw new Error('This alias was just taken. Please choose another.', { cause: err });
             }
             throw err;
         }
@@ -508,9 +507,8 @@ const checkAliasAvailability = async (req, res, next) => {
 
 // Validation Schema for Update
 const updateUrlSchema = z.object({
-    originalUrl: z.string().url({ message: "Invalid URL format" }).refine((url) => /^https?:\/\//i.test(url), {
-        message: "Only HTTP and HTTPS URLs are allowed",
-    }).optional(),
+    // Security: Enforce HTTP/HTTPS to prevent javascript: XSS attacks
+    originalUrl: z.string().refine(isValidUrl, { message: "Invalid URL format. Only HTTP and HTTPS URLs are allowed." }).optional(),
     customAlias: z.string().min(3).max(20).regex(/^[a-zA-Z0-9-_]+$/, "Alias must be alphanumeric").optional().or(z.literal('')).or(z.null()),
     title: z.string().optional(),
     // Link Expiration
@@ -792,7 +790,7 @@ const updateUrl = async (req, res, next) => {
             // Handle race conditions where another pod creates the same custom alias at the exact same millisecond
             if (err.code === 11000 && err.keyPattern && err.keyPattern.customAlias) {
                 res.status(400);
-                throw new Error('This alias was just taken. Please choose another.');
+                throw new Error('This alias was just taken. Please choose another.', { cause: err });
             }
             throw err;
         }

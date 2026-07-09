@@ -1583,6 +1583,9 @@ export const redirectUrl = async (req, res, next) => {
                 }
             }
 
+            if (cached.timeRedirects?.rules?.length > 0 || cached.activeStartTime) {
+                res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+            }
             return res.redirect(finalUrl);
         }
 
@@ -1708,6 +1711,9 @@ export const redirectUrl = async (req, res, next) => {
             }
         }
 
+        if (url.timeRedirects?.rules?.length > 0 || url.activeStartTime) {
+            res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        }
         return res.redirect(finalUrl);
     } catch (error) {
         console.error('Redirect Error:', error);

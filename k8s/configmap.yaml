@@ -9,11 +9,26 @@ data:
   DOMAIN: "lksnp.qzz.io"
   BASE_URL: "https://lksnp.qzz.io"
   CLIENT_URL: "https://lksnp.qzz.io"
+
+  # ── CORS: Add any extra frontend origins here (comma-separated) ───────────────────
+  # For CF Pages / Vercel / external CDN deployments, add their URLs:
+  # e.g. "https://linksnap.pages.dev,https://linksnap.vercel.app"
   ALLOWED_ORIGINS: "https://lksnp.qzz.io"
+
+  # ── Dynamic wildcard origin regex (optional, overrides ALLOWED_ORIGINS for pattern matching) ─
+  # Example: "^https:\/\/(.*\.)?lksnp\.qzz\.io$" allows all subdomains
+  DYNAMIC_ALLOWED_DOMAINS_REGEX: ""    # Leave empty unless using wildcard subdomains
+
+  # ── Cross-Origin Frontend Mode ─────────────────────────────────────────────
+  # Set to "true" ONLY when frontend is hosted on a DIFFERENT domain than the API.
+  # This switches cookies to SameSite=None+Secure (required for cross-origin credentialed requests).
+  # Keep "false" when frontend is served through the same Ingress (same-origin).
+  CROSS_ORIGIN_FRONTEND: "false"
+
   ADMIN_ENABLED: "true"
   PROXY_GATE_ENABLED: "false"          # No proxy gate needed in K8s — Ingress handles TLS
   REAL_IP_HEADER: "x-forwarded-for"
-  COOKIE_SAMESITE: "strict"
+  COOKIE_SAMESITE: "strict"            # Overridden by CROSS_ORIGIN_FRONTEND flag in code
   WEBAUTHN_RP_ID: "lksnp.qzz.io"
   WEBAUTHN_RP_NAME: "Link Snap"
   WEBAUTHN_ORIGIN: "https://lksnp.qzz.io"
