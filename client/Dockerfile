@@ -4,11 +4,11 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Install dependencies first (cache layer — only invalidated when package.json changes)
-COPY package.json package-lock.json ./
+COPY client/package.json client/package-lock.json ./
 RUN npm ci --legacy-peer-deps
 
 # Copy source (invalidates cache when source changes)
-COPY . .
+COPY client/ ./
 
 # Build-time env vars (public values only — these are baked into the JS bundle)
 ARG VITE_BASE_URL=https://lksnp.qzz.io
@@ -32,7 +32,7 @@ RUN rm -rf /usr/share/nginx/html/*
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy Nginx SPA config (the one already in client/)
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY client/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Non-root user for security
 RUN addgroup -S linksnap && adduser -S -G linksnap linksnap \
