@@ -9,7 +9,6 @@ import { incrementLinkUsage } from '../middleware/subscriptionMiddleware.js';
 import { hasFeature, getUpgradeMessage } from '../services/subscriptionService.js';
 import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
 import { trackVisit } from '../services/analyticsService.js';
-import Settings from '../models/Settings.js';
 import { getSettings } from '../utils/getSettings.js';
 import { checkUrlsSafety } from '../services/safeBrowsingService.js';
 import { getTimeBasedDestination } from '../services/timeService.js';

@@ -1,8 +1,7 @@
 import User from '../models/User.js';
 import BanHistory from '../models/BanHistory.js';
-import Settings from '../models/Settings.js';
 import { getSettings } from '../utils/getSettings.js';
-import { redisDel, getRedisClient } from '../config/redis.js';
+import { getRedisClient } from '../config/redis.js';
 import Url from '../models/Url.js';
 import Changelog from '../models/Changelog.js';
 import { invalidateMultiple } from '../services/cacheService.js';

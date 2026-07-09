@@ -1,7 +1,6 @@
 import { redisGet, redisSet, getRedisClient } from '../config/redis.js';
 import axios from 'axios';
 import Url from '../models/Url.js';
-import Settings from '../models/Settings.js';
 import { getSettings } from '../utils/getSettings.js';
 
 const SAFE_BROWSING_API_URL = 'https://safebrowsing.googleapis.com/v4/threatMatches:find';

@@ -1,5 +1,4 @@
 import nodemailer from 'nodemailer';
-import Settings from '../models/Settings.js';
 import { getSettings } from './getSettings.js';
 
 // Simple in-memory cache for settings

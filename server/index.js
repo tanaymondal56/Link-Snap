@@ -5,8 +5,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import morgan from 'morgan';
 import connectDB from './config/db.js';
 import errorHandler from './middleware/errorHandler.js';
