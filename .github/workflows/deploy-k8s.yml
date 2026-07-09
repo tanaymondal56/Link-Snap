@@ -20,7 +20,7 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Guard: ensure KUBE_CONFIG is set
+      - name: "Guard: ensure KUBE_CONFIG is set"
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
@@ -95,7 +95,7 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Guard: ensure KUBE_CONFIG is set
+      - name: "Guard: ensure KUBE_CONFIG is set"
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
