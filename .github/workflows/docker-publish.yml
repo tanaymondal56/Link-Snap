@@ -62,7 +62,6 @@ jobs:
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
       image-sha-tag: ${{ steps.meta.outputs.version }}
-      image-path: ${{ vars.DOCKER_IMAGE_PATH_FRONTEND }}
     steps:
       - uses: actions/checkout@v4
 
@@ -131,7 +130,6 @@ jobs:
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
       image-sha-tag: ${{ steps.meta.outputs.version }}
-      image-path: ${{ vars.DOCKER_IMAGE_PATH_BACKEND }}
     steps:
       - uses: actions/checkout@v4
 
@@ -186,7 +184,7 @@ jobs:
       - name: Scan frontend image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: "${{ env.REGISTRY }}/${{ needs.build-frontend.outputs.image-path }}@${{ needs.build-frontend.outputs.image-digest }}"
+          image-ref: "${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_FRONTEND }}@${{ needs.build-frontend.outputs.image-digest }}"
           format: "sarif"
           output: "trivy-frontend.sarif"
           severity: "CRITICAL,HIGH"
@@ -195,21 +193,21 @@ jobs:
       - name: Scan backend image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: "${{ env.REGISTRY }}/${{ needs.build-backend.outputs.image-path }}@${{ needs.build-backend.outputs.image-digest }}"
+          image-ref: "${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_BACKEND }}@${{ needs.build-backend.outputs.image-digest }}"
           format: "sarif"
           output: "trivy-backend.sarif"
           severity: "CRITICAL,HIGH"
           exit-code: "0"
 
       - name: Upload frontend Trivy results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-frontend.sarif
           category: trivy-frontend
 
       - name: Upload backend Trivy results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-backend.sarif
