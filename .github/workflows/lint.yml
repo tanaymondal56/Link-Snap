@@ -5,12 +5,13 @@ on:
     # Run on all branches
   pull_request:
     branches: [ "master" ]
+  workflow_call:
 
 permissions:
   contents: read
 
 env:
-  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   NODE_OPTIONS: "--no-warnings"
 
 jobs:

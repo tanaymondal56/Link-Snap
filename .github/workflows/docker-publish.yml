@@ -16,7 +16,7 @@ permissions:
 env:
   # Allows pushing to a private registry (e.g. AWS ECR, Docker Hub, custom ACR) or defaults to Docker Hub
   REGISTRY: ${{ secrets.DOCKER_REGISTRY || 'docker.io' }}
-  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   NODE_OPTIONS: "--no-warnings"
 
 jobs:
@@ -36,27 +36,12 @@ jobs:
           [[ $ERRORS -eq 1 ]] && exit 1
           echo "✅ All required secrets are present"
 
-  lint-client:
-    name: Lint Client
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
-          cache-dependency-path: client/package-lock.json
-      - name: Install dependencies
-        working-directory: ./client
-        run: npm ci --legacy-peer-deps
-      - name: Run Lint
-        working-directory: ./client
-        run: npm run lint
+  lint:
+    uses: ./.github/workflows/lint.yml
 
   build-frontend:
     name: Build Frontend Image
-    needs: [validate-secrets, lint-client]
+    needs: [validate-secrets, lint]
     runs-on: ubuntu-latest
     environment: ${{ github.ref == 'refs/heads/major/k8s' && 'beta' || 'production' }}
     outputs:
@@ -104,27 +89,9 @@ jobs:
             VITE_DOMAIN=${{ secrets.VITE_DOMAIN }}
             VITE_API_URL=/api
 
-  lint-server:
-    name: Lint Server
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
-          cache-dependency-path: server/package-lock.json
-      - name: Install dependencies
-        working-directory: ./server
-        run: npm ci
-      - name: Run Lint
-        working-directory: ./server
-        run: npm run lint
-
   build-backend:
     name: Build Backend Image
-    needs: [validate-secrets, lint-server]
+    needs: [validate-secrets, lint]
     runs-on: ubuntu-latest
     environment: ${{ github.ref == 'refs/heads/major/k8s' && 'beta' || 'production' }}
     outputs:
@@ -189,6 +156,7 @@ jobs:
           output: "trivy-frontend.sarif"
           severity: "CRITICAL,HIGH"
           exit-code: "0"
+          args: --platform linux/arm64
 
       - name: Scan backend image
         uses: aquasecurity/trivy-action@master
@@ -198,6 +166,7 @@ jobs:
           output: "trivy-backend.sarif"
           severity: "CRITICAL,HIGH"
           exit-code: "0"
+          args: --platform linux/arm64
 
       - name: Upload frontend Trivy results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v4
