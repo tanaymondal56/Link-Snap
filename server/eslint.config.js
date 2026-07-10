@@ -15,7 +15,9 @@ export default [
     },
     rules: {
       "no-unused-vars": "warn",
-      "no-undef": "error"
+      "no-undef": "error",
+      "no-eval": "error",
+      "no-implied-eval": "error"
     }
   }
 ];

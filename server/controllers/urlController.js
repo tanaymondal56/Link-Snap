@@ -85,9 +85,7 @@ const createUrlSchema = z.object({
             startTime: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM format"),
             endTime: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM format"),
             days: z.array(z.number().min(0).max(6)).default([]),
-            destination: z.string().url({ message: "Invalid destination URL" }).refine((url) => /^https?:\/\//i.test(url), {
-                message: "Destination URLs must be HTTP or HTTPS",
-            }),
+            destination: z.string().refine(isValidUrl, { message: "Invalid destination URL format. Only HTTP and HTTPS URLs are allowed." }),
             priority: z.number().default(0),
             label: z.string().optional()
         })).max(50, "Maximum 50 schedule rules allowed").default([]),
@@ -97,9 +95,7 @@ const createUrlSchema = z.object({
         enabled: z.boolean().default(false),
         rules: z.array(z.object({
             device: z.enum(['ios', 'android', 'mobile', 'desktop', 'tablet']),
-            url: z.string().url({ message: "Invalid device redirect URL" }).refine((url) => /^https?:\/\//i.test(url), {
-                message: "Device redirect URLs must be HTTP or HTTPS",
-            }),
+            url: z.string().refine(isValidUrl, { message: "Invalid device redirect URL format. Only HTTP and HTTPS URLs are allowed." }),
             priority: z.number().default(0)
         })).max(50, "Maximum 50 device rules allowed").default([]),
     }).optional(),
@@ -120,6 +116,15 @@ const createShortUrl = async (req, res, next) => {
             req.body.deviceRedirects.rules.forEach(rule => {
                 if (rule.url && typeof rule.url === 'string' && !/^https?:\/\//i.test(rule.url)) {
                     rule.url = `https://${rule.url}`;
+                }
+            });
+        }
+
+        // Normalize Time Redirect URLs: Prepend https:// if missing
+        if (req.body.timeRedirects?.rules && Array.isArray(req.body.timeRedirects.rules)) {
+            req.body.timeRedirects.rules.forEach(rule => {
+                if (rule.destination && typeof rule.destination === 'string' && !/^https?:\/\//i.test(rule.destination)) {
+                    rule.destination = `https://${rule.destination}`;
                 }
             });
         }
@@ -483,6 +488,9 @@ const checkAliasAvailability = async (req, res, next) => {
         };
 
         if (excludeId) {
+            if (!/^[0-9a-fA-F]{24}$/.test(excludeId)) {
+                return res.status(400).json({ available: false, reason: 'Invalid excludeId format' });
+            }
             query._id = { $ne: excludeId };
         }
 
@@ -528,9 +536,7 @@ const updateUrlSchema = z.object({
             startTime: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM format"),
             endTime: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM format"),
             days: z.array(z.number().min(0).max(6)).default([]),
-            destination: z.string().url({ message: "Invalid destination URL" }).refine((url) => /^https?:\/\//i.test(url), {
-                message: "Destination URLs must be HTTP or HTTPS",
-            }),
+            destination: z.string().refine(isValidUrl, { message: "Invalid destination URL format. Only HTTP and HTTPS URLs are allowed." }),
             priority: z.number().default(0),
             label: z.string().optional()
         })).max(50, "Maximum 50 schedule rules allowed").default([]),
@@ -540,9 +546,7 @@ const updateUrlSchema = z.object({
         enabled: z.boolean().default(false),
         rules: z.array(z.object({
             device: z.enum(['ios', 'android', 'mobile', 'desktop', 'tablet']),
-            url: z.string().url({ message: "Invalid device redirect URL" }).refine((url) => /^https?:\/\//i.test(url), {
-                message: "Device redirect URLs must be HTTP or HTTPS",
-            }),
+            url: z.string().refine(isValidUrl, { message: "Invalid device redirect URL format. Only HTTP and HTTPS URLs are allowed." }),
             priority: z.number().default(0)
         })).max(50, "Maximum 50 device rules allowed").default([]),
     }).optional(),
@@ -575,6 +579,15 @@ const updateUrl = async (req, res, next) => {
             req.body.deviceRedirects.rules.forEach(rule => {
                 if (rule.url && typeof rule.url === 'string' && !/^https?:\/\//i.test(rule.url)) {
                     rule.url = `https://${rule.url}`;
+                }
+            });
+        }
+
+        // Normalize Time Redirect URLs for update
+        if (req.body.timeRedirects?.rules && Array.isArray(req.body.timeRedirects.rules)) {
+            req.body.timeRedirects.rules.forEach(rule => {
+                if (rule.destination && typeof rule.destination === 'string' && !/^https?:\/\//i.test(rule.destination)) {
+                    rule.destination = `https://${rule.destination}`;
                 }
             });
         }

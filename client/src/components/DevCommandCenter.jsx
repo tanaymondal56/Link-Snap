@@ -36,7 +36,7 @@ import {
   Sparkles,
   Loader2
 } from 'lucide-react';
-import api from '../api/axios';
+import api, { getAccessToken } from '../api/axios';
 
 // Only render in development mode
 const isDev = import.meta.env.MODE === 'development' || import.meta.env.DEV;
@@ -223,7 +223,7 @@ const DevCommandCenter = () => {
       category: '🔍 Debug', 
       keywords: 'time' 
     },
-    { id: 'copy-token', label: 'Copy Auth Token', icon: Copy, action: () => { const token = document.cookie.match(/jwt=([^;]+)/)?.[1] || localStorage.getItem('token') || 'No token'; navigator.clipboard.writeText(token); showToast.info(token !== 'No token' ? 'Token copied!' : 'No token found', { icon: token !== 'No token' ? '🔑' : '❌' }); }, category: '🔍 Debug', keywords: 'jwt auth' },
+    { id: 'copy-token', label: 'Copy Auth Token', icon: Copy, action: () => { const token = getAccessToken() || 'No token'; navigator.clipboard.writeText(token); showToast.info(token !== 'No token' ? 'Token copied!' : 'No token found', { icon: token !== 'No token' ? '🔑' : '❌' }); }, category: '🔍 Debug', keywords: 'jwt auth' },
     { 
       id: 'viewport-info', 
       label: 'Show Viewport Info', 
