@@ -19,9 +19,9 @@ jobs:
     name: Lint Client
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Use Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version-file: '.nvmrc'
         cache: 'npm'
@@ -32,14 +32,17 @@ jobs:
     - name: Run Lint
       working-directory: ./client
       run: npm run lint
+    - name: Run NPM Audit
+      working-directory: ./client
+      run: npm audit
 
   lint-server:
     name: Lint Server
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Use Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version-file: '.nvmrc'
         cache: 'npm'
@@ -50,12 +53,15 @@ jobs:
     - name: Run Lint
       working-directory: ./server
       run: npm run lint
+    - name: Run NPM Audit
+      working-directory: ./server
+      run: npm audit
 
   validate-k8s:
     name: Validate K8s Manifests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install kubeconform
         run: |
           curl -sL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
