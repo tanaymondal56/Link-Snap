@@ -1,5 +1,5 @@
 # ── Stage 1: Install dependencies ─────────────────────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:24-alpine AS deps
 
 WORKDIR /app
 
@@ -8,7 +8,7 @@ RUN npm ci --omit=dev --ignore-scripts
 
 
 # ── Stage 2: Production image ──────────────────────────────────────────────────
-FROM node:20-alpine AS production
+FROM node:24-alpine AS production
 
 # tini: tiny init system to forward signals and reap zombie processes
 RUN apk add --no-cache tini
