@@ -3,7 +3,7 @@ import { getEffectiveTier } from '../services/subscriptionService.js';
 import { getAnonFingerprint } from '../utils/fingerprint.js';
 import { getUserIP } from './strictProxyGate.js';
 import RedisStore from 'rate-limit-redis';
-import { getRedisClient } from '../config/redis.js';
+import { getRedisClient, isRedisConfigured } from '../config/redis.js';
 
 // IPs that bypass rate limiting
 const envAllowedIPs = process.env.RATE_LIMIT_WHITELIST_IPS ? process.env.RATE_LIMIT_WHITELIST_IPS.split(',').map(ip => ip.trim()) : [];
@@ -27,49 +27,65 @@ const isWhitelisted = (ip) => {
 
 /**
  * Creates a RedisStore for express-rate-limit.
- * Maps raw commands to @upstash/redis REST client methods (eval, evalsha, scriptLoad, scriptExists).
+ * For ioredis (TCP): redis.call() is a native passthrough — no mapping needed.
+ * For Upstash (HTTP REST): manually maps EVAL/EVALSHA/SCRIPT commands since the
+ * Upstash SDK does not expose a generic .call() method.
  * Falls back to MemoryStore (undefined) if Redis is not configured.
  */
 const createRedisStore = (prefix) => {
-    const redis = getRedisClient();
-    if (!redis) return undefined;
+    if (!isRedisConfigured()) return undefined;
 
     return new RedisStore({
         sendCommand: async (...args) => {
+            const redis = getRedisClient();
+            if (!redis) {
+                throw new Error('Redis client is not available');
+            }
+
+            // ioredis TCP client: native .call() passthrough — most efficient path
+            if (typeof redis.call === 'function') {
+                return await redis.call(...args);
+            }
+
+            // Upstash HTTP client: map raw Redis protocol commands to SDK methods
             const command = args[0].toLowerCase();
             const cmdArgs = args.slice(1);
-            
+
             if (command === 'script') {
                 const subCommand = cmdArgs[0].toLowerCase();
                 if (subCommand === 'load') {
                     return await redis.scriptLoad(cmdArgs[1]);
                 }
                 if (subCommand === 'exists') {
-                    return await redis.scriptExists(cmdArgs[1]);
+                    // Upstash scriptExists takes an array of SHAs
+                    return await redis.scriptExists([cmdArgs[1]]);
                 }
             }
-            
+
             if (command === 'evalsha') {
                 const sha = cmdArgs[0];
-                const numKeys = parseInt(cmdArgs[1]);
+                const numKeys = parseInt(cmdArgs[1], 10);
                 const keys = cmdArgs.slice(2, 2 + numKeys);
                 const scriptArgs = cmdArgs.slice(2 + numKeys);
+                // Upstash evalsha: (sha, keys[], args[])
                 return await redis.evalsha(sha, keys, scriptArgs);
             }
-            
+
             if (command === 'eval') {
                 const script = cmdArgs[0];
-                const numKeys = parseInt(cmdArgs[1]);
+                const numKeys = parseInt(cmdArgs[1], 10);
                 const keys = cmdArgs.slice(2, 2 + numKeys);
                 const scriptArgs = cmdArgs.slice(2 + numKeys);
+                // Upstash eval: (script, keys[], args[])
                 return await redis.eval(script, keys, scriptArgs);
             }
-            
+
+            // Generic command passthrough via Upstash method name mapping
             if (typeof redis[command] === 'function') {
                 return await redis[command](...cmdArgs);
             }
-            
-            throw new Error(`Unsupported raw command in rate limiter: ${command}`);
+
+            throw new Error(`Unsupported raw command in rate limiter store: ${command}`);
         },
         prefix: `ls:rl:${prefix}:`,
     });

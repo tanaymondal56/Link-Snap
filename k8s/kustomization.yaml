@@ -1,0 +1,32 @@
+# Kustomize base for Link-Snap K8s deployment.
+#
+# Architecture:
+#   - Cloudflare Pages (React SPA) ──BFF Proxy──▶ CF Access ──Tunnel──▶ K8s backend
+#   - Frontend pod is kept but scaled to 0 in production (CF Pages is primary)
+#   - Redis runs in-cluster (TCP) with Upstash REST as fallback
+#
+# Deploy order:
+#   1. kubectl apply -f namespace.yaml           (create namespaces first)
+#   2. kubectl apply -f secrets.yaml             (copy from secrets.yaml.template, fill values)
+#   3. kubectl apply -k .                        (apply everything else via kustomize)
+#
+# Note: cloudflare-tunnel.yaml.template must be copied to cloudflare-tunnel.yaml
+# and the CLOUDFLARE_TUNNEL_TOKEN must be set in secrets.yaml before applying.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - redis.yaml                       # In-cluster Redis (TCP, LRU cache, password auth)
+  - backend-deployment.yaml
+  - backend-service.yaml
+  - frontend-deployment.yaml         # Kept for local testing / fallback (scale: 0 in prod)
+  - frontend-service.yaml
+  - hpa.yaml
+  - pdb.yaml
+  - ingress.yaml                     # Fallback ingress (not primary — CF Tunnel is primary)
+  - cronjob-ban-scheduler.yaml
+  - cronjob-safe-browsing.yaml
+  - cloudflare-tunnel.yaml.template  # Rename to .yaml and set CLOUDFLARE_TUNNEL_TOKEN first

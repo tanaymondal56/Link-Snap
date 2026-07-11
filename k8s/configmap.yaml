@@ -10,31 +10,34 @@ data:
   BASE_URL: "https://lksnp.qzz.io"
   CLIENT_URL: "https://lksnp.qzz.io"
 
-  # ── CORS: Add any extra frontend origins here (comma-separated) ───────────────────
-  # For CF Pages / Vercel / external CDN deployments, add their URLs:
-  # e.g. "https://linksnap.pages.dev,https://linksnap.vercel.app"
-  ALLOWED_ORIGINS: "https://lksnp.qzz.io"
+  # ── CORS: CF Pages + API subdomain + wildcard qzz.io support ────────────────
+  # Exact origins for fast path matching (comma-separated)
+  ALLOWED_ORIGINS: "https://lksnp.qzz.io,https://api.lksnp.qzz.io,https://link-snap.pages.dev"
 
-  # ── Dynamic wildcard origin regex (optional, overrides ALLOWED_ORIGINS for pattern matching) ─
-  # Example: "^https:\/\/(.*\.)?lksnp\.qzz\.io$" allows all subdomains
-  DYNAMIC_ALLOWED_DOMAINS_REGEX: ""    # Leave empty unless using wildcard subdomains
+  # ── Wildcard subdomain regex ───────────────────────────────────────────────
+  # Allows ALL *.lksnp.qzz.io subdomains (api., beta., staging., etc.)
+  # The server code also has a built-in BUILTIN_WILDCARD_REGEX for the same purpose.
+  DYNAMIC_ALLOWED_DOMAINS_REGEX: "^https:\/\/([a-z0-9-]+\.)*lksnp\.qzz\.io$"
 
   # ── Cross-Origin Frontend Mode ─────────────────────────────────────────────
-  # Set to "true" ONLY when frontend is hosted on a DIFFERENT domain than the API.
-  # This switches cookies to SameSite=None+Secure (required for cross-origin credentialed requests).
-  # Keep "false" when frontend is served through the same Ingress (same-origin).
-  CROSS_ORIGIN_FRONTEND: "false"
+  # MUST be "true" because the React SPA is now served from Cloudflare Pages
+  # (a different origin than api.lksnp.qzz.io). This switches cookies to
+  # SameSite=None;Secure so credentialed cross-origin requests work correctly.
+  CROSS_ORIGIN_FRONTEND: "true"
 
   ADMIN_ENABLED: "true"
-  PROXY_GATE_ENABLED: "false"          # No proxy gate needed in K8s — Ingress handles TLS
+  PROXY_GATE_ENABLED: "false"          # No proxy gate needed in K8s — CF Tunnel handles ingress
   REAL_IP_HEADER: "x-forwarded-for"
-  COOKIE_SAMESITE: "strict"            # Overridden by CROSS_ORIGIN_FRONTEND flag in code
+  # SameSite=None required for cross-origin CF Pages ↔ API credentialed requests
+  COOKIE_SAMESITE: "none"
   WEBAUTHN_RP_ID: "lksnp.qzz.io"
   WEBAUTHN_RP_NAME: "Link Snap"
   WEBAUTHN_ORIGIN: "https://lksnp.qzz.io"
   MAX_SESSIONS_PER_USER: "10"
   SESSION_DURATION_DAYS: "30"
   MAX_TRUSTED_DEVICES: "5"
+  SUBSCRIPTION_GRACE_PERIOD_DAYS: "7"
   USE_LOCAL_DB: "false"
   LOG_LEVEL: "info"
   K8S_DISABLE_VERSION_SYNC: "true"     # Skip writing package.json on ephemeral container filesystem
+  # NOTE: REDIS_URL is set in linksnap-secrets (not here) because it contains credentials.

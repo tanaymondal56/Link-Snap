@@ -21,8 +21,14 @@ spec:
         app: linksnap-frontend
     spec:
       containers:
+          # NOTE: In the new CF Pages + BFF architecture, the React SPA is served
+          # by Cloudflare Pages and this frontend pod is NO LONGER required.
+          # This deployment is kept for:
+          #   a) Local Docker/K8s testing without CF Pages.
+          #   b) Fallback if CF Pages is unavailable.
+          # Scale to 0 replicas in production: `kubectl scale deploy/linksnap-frontend --replicas=0`
         - name: frontend
-          image: ghcr.io/tanaymondal56/linksnap-frontend:latest
+          image: tanaymondal/linksnap-frontend-beta:beta
           imagePullPolicy: Always
           ports:
             - containerPort: 80
@@ -45,5 +51,6 @@ spec:
               port: 80
             initialDelaySeconds: 5
             periodSeconds: 10
-      imagePullSecrets:
-        - name: ghcr-credentials
+      # No imagePullSecrets needed — Docker Hub public registry
+      # imagePullSecrets:
+      #   - name: registry-credentials

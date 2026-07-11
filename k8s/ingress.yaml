@@ -4,6 +4,20 @@ metadata:
   name: linksnap-ingress
   namespace: linksnap
   annotations:
+    # ── NOTE ON NEW ARCHITECTURE ───────────────────────────────────────────────
+    # In the CF Tunnel + BFF architecture, the Cloudflare Tunnel pod handles all
+    # inbound traffic from Cloudflare. No public ports (80/443) are opened on the
+    # host VM. This Ingress is RETAINED for:
+    #   a) Direct-access fallback if the tunnel is unavailable.
+    #   b) Local K8s testing without Cloudflare.
+    #
+    # For the primary production path, traffic flows:
+    #   CF Pages BFF (injects CF Access token) → CF Edge → CF Tunnel Pod
+    #   → linksnap-backend-service directly (bypasses this Ingress).
+    #
+    # To use this Ingress as primary entrypoint (e.g. local testing):
+    #   kubectl port-forward svc/ingress-nginx-controller -n ingress-nginx 80:80 443:443
+    # ──────────────────────────────────────────────────────────────────────────
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
@@ -23,6 +37,15 @@ spec:
     - host: lksnp.qzz.io
       http:
         paths:
+          # Route /api/* to backend directly (used for fallback direct access)
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: linksnap-backend-service
+                port:
+                  number: 5000
+          # Route all other traffic to frontend (for local testing without CF Pages)
           - path: /
             pathType: Prefix
             backend:

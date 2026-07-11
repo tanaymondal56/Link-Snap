@@ -36,6 +36,8 @@ import sessionRoutes from './routes/sessionRoutes.js';
 import redirectRoutes from './routes/redirectRoutes.js';
 import bioRoutes from './routes/bioRoutes.js';
 import deviceAuthRoutes from './routes/deviceAuthRoutes.js';
+import webhookRoutes from './routes/webhookRoutes.js';
+import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import { flushAndStop } from './services/clickStatsService.js';
 import { stopDeviceAuthIntervals } from './controllers/deviceAuthController.js';
 import { flushAnalyticsAndStop } from './services/analyticsService.js';
@@ -151,11 +153,16 @@ const parseCsvOrigins = (value) => {
     .filter(Boolean);
 };
 
-// NOTE: Remove or replace 'linksnap.centralindia.cloudapp.azure.com' once Azure proxy is decommissioned.
-// Keep only your canonical domain(s) here. Add extra domains via ALLOWED_ORIGINS env var.
+// Keep only canonical domains here. Add extras via ALLOWED_ORIGINS env var.
 const productionDefaultOrigins = [
   'https://lksnp.qzz.io',
+  'https://api.lksnp.qzz.io',    // API subdomain used in BFF / Cloudflare Tunnel architecture
+  'https://link-snap.pages.dev',  // Cloudflare Pages default domain (project-specific URL)
 ];
+
+// Built-in wildcard: allows any current or future subdomain of lksnp.qzz.io
+// (e.g. api.lksnp.qzz.io, beta.lksnp.qzz.io) without any config changes.
+const BUILTIN_WILDCARD_REGEX = /^https:\/\/([a-z0-9-]+\.)*lksnp\.qzz\.io$/i;
 
 const allowedOrigins = Array.from(new Set([
   normalizeOrigin(process.env.CLIENT_URL),
@@ -167,23 +174,27 @@ const allowedOrigins = Array.from(new Set([
   'http://127.0.0.1:5173',
 ].filter(Boolean)));
 
-import webhookRoutes from './routes/webhookRoutes.js';
-import subscriptionRoutes from './routes/subscriptionRoutes.js';
-
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl, or same-origin in production)
+    // Allow requests with no origin (mobile apps, curl, or same-origin in production)
     if (!origin) return callback(null, true);
 
     const normalizedOrigin = normalizeOrigin(origin);
 
+    // Exact-match allowlist (fastest path)
     if (allowedOrigins.includes(normalizedOrigin)) {
       return callback(null, true);
     }
 
-    // ─── DYNAMIC HOST CHECKER ────────────────────────────────────────────────
-    // Allow dynamic domains (like wildcards) via environment variable regex
-    // Example: ^https:\/\/(.*?\.)?linksnap\.com$
+    // ── Wildcard: any *.lksnp.qzz.io subdomain ────────────────────────────
+    // Covers any current or future subdomain automatically
+    if (BUILTIN_WILDCARD_REGEX.test(normalizedOrigin)) {
+      return callback(null, true);
+    }
+
+    // ── Dynamic host checker (via env var regex) ───────────────────────────
+    // Allow additional custom domains via DYNAMIC_ALLOWED_DOMAINS_REGEX env var
+    // Example: ^https:\/\/(.*?\.)?yourdomain\.com$
     if (process.env.DYNAMIC_ALLOWED_DOMAINS_REGEX) {
       try {
         const regex = new RegExp(process.env.DYNAMIC_ALLOWED_DOMAINS_REGEX, 'i');

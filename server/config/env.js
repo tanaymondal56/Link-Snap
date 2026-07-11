@@ -50,6 +50,7 @@ const OPTIONAL_VARS = [
   'SUPPORT_EMAIL',
   // Redis — Upstash serverless Redis (required for K8s horizontal scaling)
   // Get these from your Upstash console: https://console.upstash.com
+  'REDIS_URL',
   'UPSTASH_REDIS_REST_URL',
   'UPSTASH_REDIS_REST_TOKEN',
   // K8s: set to 'true' to skip versionSync.js filesystem writes in containers

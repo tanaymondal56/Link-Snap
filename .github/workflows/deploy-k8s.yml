@@ -6,15 +6,15 @@ on:
     types: [completed]
     branches: [master, major/k8s]
 
-env:
-  REGISTRY: ${{ secrets.DOCKER_REGISTRY || 'docker.io' }}
-
 jobs:
+  # ─── Beta Deploy (major/k8s → linksnap-beta namespace) ────────────────────
   deploy-beta:
-    name: Deploy to Beta (K8s)
+    name: Deploy Beta (major/k8s → K8s)
     runs-on: ubuntu-latest
     environment: beta
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'major/k8s' }}
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'major/k8s'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,7 +24,7 @@ jobs:
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
-          [[ -z "$KUBE_CONFIG" ]] && echo "❌ KUBE_CONFIG secret is not set" && exit 1
+          [[ -z "$KUBE_CONFIG" ]] && echo "❌ KUBE_CONFIG secret not set" && exit 1
           echo "✅ KUBE_CONFIG is present"
 
       - name: Set up kubectl
@@ -40,56 +40,56 @@ jobs:
           echo "$KUBE_CONFIG" | base64 -d > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
 
-      - name: Resolve exact image SHA tag
+      - name: Resolve image SHA tag
         id: vars
         run: |
           SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
           echo "sha=sha-${SHA}" >> $GITHUB_OUTPUT
-          echo "Deploying image tag: sha-${SHA}"
+          echo "Deploying beta tag: sha-${SHA}"
 
-      - name: Update backend image
+      # ── Beta: Only backend is deployed to K8s. ──────────────────────────────
+      # The React SPA is served by Cloudflare Pages in this architecture.
+      # The frontend K8s deployment can optionally be scaled to 0 in beta namespace.
+      - name: Update backend image (beta)
         run: |
           kubectl set image deployment/linksnap-backend \
-            backend=${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_BACKEND }}:${{ steps.vars.outputs.sha }} \
+            backend=tanaymondal/linksnap-backend-beta:${{ steps.vars.outputs.sha }} \
             -n linksnap-beta
 
-      - name: Update frontend image
-        run: |
-          kubectl set image deployment/linksnap-frontend \
-            frontend=${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_FRONTEND }}:${{ steps.vars.outputs.sha }} \
-            -n linksnap-beta
-
-      - name: Wait for backend rollout
+      - name: Wait for backend rollout (beta)
         run: |
           kubectl rollout status deployment/linksnap-backend -n linksnap-beta --timeout=5m
 
-      - name: Wait for frontend rollout
+      - name: Scale frontend to 0 in beta (CF Pages serves the SPA)
         run: |
-          kubectl rollout status deployment/linksnap-frontend -n linksnap-beta --timeout=3m
+          kubectl scale deployment/linksnap-frontend --replicas=0 -n linksnap-beta || true
 
       - name: Rollback on failure
         if: failure()
         run: |
-          echo "⚠️ Deployment failed — triggering rollback..."
+          echo "⚠️ Beta deployment failed — rolling back backend..."
           kubectl rollout undo deployment/linksnap-backend -n linksnap-beta || true
-          kubectl rollout undo deployment/linksnap-frontend -n linksnap-beta || true
-          echo "⚠️ Rolled back to previous stable version."
+          echo "✅ Rolled back to previous beta version."
 
-      - name: Deployment summary
+      - name: Beta Deployment Summary
         if: success()
         run: |
-          echo "## Beta Deployment Complete 🚀" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tag:** \`${{ steps.vars.outputs.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Namespace:** \`linksnap-beta\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Frontend:** ${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_FRONTEND }}:${{ steps.vars.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Backend:** ${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_BACKEND }}:${{ steps.vars.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** ${{ github.event.workflow_run.head_sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "## 🧪 Beta Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "| | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Namespace** | \`linksnap-beta\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Backend Image** | \`tanaymondal/linksnap-backend-beta:${{ steps.vars.outputs.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Frontend** | Served by Cloudflare Pages (no pod) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`${{ github.event.workflow_run.head_sha }}\` |" >> $GITHUB_STEP_SUMMARY
 
+  # ─── Stable Deploy (master → linksnap namespace) ──────────────────────────
   deploy-production:
-    name: Deploy to Production (K8s)
+    name: Deploy Stable (master → K8s)
     runs-on: ubuntu-latest
     environment: production
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'master' }}
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'master'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -99,7 +99,7 @@ jobs:
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
-          [[ -z "$KUBE_CONFIG" ]] && echo "❌ KUBE_CONFIG secret is not set" && exit 1
+          [[ -z "$KUBE_CONFIG" ]] && echo "❌ KUBE_CONFIG secret not set" && exit 1
           echo "✅ KUBE_CONFIG is present"
 
       - name: Set up kubectl
@@ -115,47 +115,46 @@ jobs:
           echo "$KUBE_CONFIG" | base64 -d > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
 
-      - name: Resolve exact image SHA tag
+      - name: Resolve image SHA tag
         id: vars
         run: |
           SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
           echo "sha=sha-${SHA}" >> $GITHUB_OUTPUT
-          echo "Deploying image tag: sha-${SHA}"
+          echo "Deploying stable tag: sha-${SHA}"
 
-      - name: Update backend image
+      # ── Stable: Deploy backend with immutable SHA tag ──────────────────────
+      - name: Update backend image (stable)
         run: |
           kubectl set image deployment/linksnap-backend \
-            backend=${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_BACKEND }}:${{ steps.vars.outputs.sha }} \
+            backend=tanaymondal/linksnap-backend:${{ steps.vars.outputs.sha }} \
             -n linksnap
 
-      - name: Update frontend image
-        run: |
-          kubectl set image deployment/linksnap-frontend \
-            frontend=${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_FRONTEND }}:${{ steps.vars.outputs.sha }} \
-            -n linksnap
+      # ── Stable: Frontend pod is optional (CF Pages is still primary) ────────
+      # Uncomment if you want a fallback K8s frontend pod in production:
+      # - name: Update frontend image (stable)
+      #   run: |
+      #     kubectl set image deployment/linksnap-frontend \
+      #       frontend=tanaymondal/linksnap-frontend:${{ steps.vars.outputs.sha }} \
+      #       -n linksnap
 
-      - name: Wait for backend rollout
+      - name: Wait for backend rollout (stable)
         run: |
           kubectl rollout status deployment/linksnap-backend -n linksnap --timeout=5m
-
-      - name: Wait for frontend rollout
-        run: |
-          kubectl rollout status deployment/linksnap-frontend -n linksnap --timeout=3m
 
       - name: Rollback on failure
         if: failure()
         run: |
-          echo "⚠️ Deployment failed — triggering rollback..."
+          echo "⚠️ Production deployment failed — rolling back backend..."
           kubectl rollout undo deployment/linksnap-backend -n linksnap || true
-          kubectl rollout undo deployment/linksnap-frontend -n linksnap || true
-          echo "⚠️ Rolled back to previous stable version."
+          echo "✅ Rolled back to previous stable version."
 
-      - name: Deployment summary
+      - name: Production Deployment Summary
         if: success()
         run: |
-          echo "## Production Deployment Complete 🚀" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tag:** \`${{ steps.vars.outputs.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Namespace:** \`linksnap\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Frontend:** ${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_FRONTEND }}:${{ steps.vars.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Backend:** ${{ env.REGISTRY }}/${{ vars.DOCKER_IMAGE_PATH_BACKEND }}:${{ steps.vars.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** ${{ github.event.workflow_run.head_sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Production Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "| | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Namespace** | \`linksnap\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Backend Image** | \`tanaymondal/linksnap-backend:${{ steps.vars.outputs.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tags Also Available** | \`latest\`, \`0.6\`, \`0.6.4\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`${{ github.event.workflow_run.head_sha }}\` |" >> $GITHUB_STEP_SUMMARY

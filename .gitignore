@@ -117,3 +117,8 @@ cookies.txt
 
 # Staging/Testing configurations
 Staging Test/
+
+# Cloudflare Pages BFF function — contains CF Access token references.
+# Deploy separately via Wrangler CLI or by connecting the CF Pages project
+# directly to the GitHub repo (CF dashboard will read functions/ from the repo root).
+cf-pages/

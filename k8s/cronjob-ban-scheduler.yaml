@@ -13,11 +13,9 @@ spec:
       template:
         spec:
           restartPolicy: OnFailure
-          imagePullSecrets:
-            - name: ghcr-credentials
           containers:
             - name: ban-scheduler
-              image: ghcr.io/tanaymondal56/linksnap-backend:latest
+              image: tanaymondal/linksnap-backend-beta:beta
               command: ["node", "scripts/runBanScheduler.js"]
               envFrom:
                 - configMapRef:

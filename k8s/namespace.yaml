@@ -5,3 +5,12 @@ metadata:
   labels:
     app.kubernetes.io/name: linksnap
     app.kubernetes.io/managed-by: kubectl
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: linksnap-beta
+  labels:
+    app.kubernetes.io/name: linksnap-beta
+    app.kubernetes.io/managed-by: kubectl
+    environment: beta

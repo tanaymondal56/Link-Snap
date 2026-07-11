@@ -13,11 +13,9 @@ spec:
       template:
         spec:
           restartPolicy: OnFailure
-          imagePullSecrets:
-            - name: ghcr-credentials
           containers:
             - name: safe-browsing
-              image: ghcr.io/tanaymondal56/linksnap-backend:latest
+              image: tanaymondal/linksnap-backend-beta:beta
               command: ["node", "scripts/runSafeBrowsingScan.js"]
               envFrom:
                 - configMapRef:

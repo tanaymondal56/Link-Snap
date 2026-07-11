@@ -12,7 +12,7 @@
   },
   "homepage": "https://github.com/tanaymondal56/Link-Snap#readme",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",

@@ -18,6 +18,7 @@ spec:
       containers:
         - name: cloudflared
           image: cloudflare/cloudflared:latest
+          imagePullPolicy: Always
           args:
             - tunnel
             - --no-autoupdate
@@ -26,23 +27,34 @@ spec:
             - name: TUNNEL_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: cloudflare-tunnel-secret
-                  key: tunnel-token
+                  name: linksnap-secrets
+                  key: CLOUDFLARE_TUNNEL_TOKEN
           resources:
-            limits:
-              cpu: "100m"
-              memory: "128Mi"
             requests:
               cpu: "50m"
               memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
           livenessProbe:
             httpGet:
               path: /ready
               port: 2000
             initialDelaySeconds: 10
-            periodSeconds: 10
----
-# Instructions to create the secret on your K8s cluster:
-# kubectl create secret generic cloudflare-tunnel-secret \
-#   --namespace=linksnap \
-#   --from-literal=tunnel-token=<YOUR_CLOUDFLARE_TUNNEL_TOKEN>
+            periodSeconds: 15
+            failureThreshold: 3
+
+# ─── HOW TO CONFIGURE CLOUDFLARE TUNNEL ──────────────────────────────────────
+# 1. Go to: Cloudflare Zero Trust → Networks → Tunnels → Create a Tunnel
+# 2. Give it a name, e.g. "linksnap-k8s-tunnel"
+# 3. Copy the Tunnel Token provided by Cloudflare.
+# 4. In your secrets.yaml (copy from secrets.yaml.template), set:
+#      CLOUDFLARE_TUNNEL_TOKEN: "your-token-here"
+# 5. In the Cloudflare Tunnel dashboard → Public Hostnames tab, add:
+#      Subdomain: api
+#      Domain:    lksnp.qzz.io
+#      Service:   http://linksnap-backend-service.linksnap.svc.cluster.local:5000
+# 6. Also add an Access Application (Zero Trust → Access → Applications) for
+#      api.lksnp.qzz.io with a Service Token policy using the CF_CLIENT_ID /
+#      CF_CLIENT_SECRET you generate. Store those tokens in secrets.yaml too.
+# ─────────────────────────────────────────────────────────────────────────────
