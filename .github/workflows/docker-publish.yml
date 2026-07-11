@@ -189,8 +189,6 @@ jobs:
   sync-readme:
     name: Sync Readmes to Docker Hub
     needs: [set-matrix, lint]
-    # Only run on master branch for stable production repos
-    if: needs.set-matrix.outputs.is_beta == 'false' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -201,7 +199,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: tanaymondal/linksnap-frontend
+          repository: ${{ needs.set-matrix.outputs.frontend_repo }}
           readme-filepath: ./client/README.md
 
       - name: Sync Backend README
@@ -210,7 +208,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: tanaymondal/linksnap-backend
+          repository: ${{ needs.set-matrix.outputs.backend_repo }}
           readme-filepath: ./server/README.md
 
   # ─── Security Scan ─────────────────────────────────────────────────────────
