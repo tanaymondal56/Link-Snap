@@ -1,16 +1,25 @@
-# React + Vite
+# Link-Snap Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the frontend client for the **Link-Snap** application. It is built using React.js and Vite.
 
-Currently, two official plugins are available:
+## Architecture & Deployment
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+The frontend operates as a **Progressive Web App (PWA)** and Single Page Application (SPA).
+In the production architecture, this client is decoupled from the Kubernetes backend and is instead deployed globally via **Cloudflare Pages**.
 
-## React Compiler
+### Cloudflare Pages Setup
+- The frontend is served directly by Cloudflare Pages.
+- Cloudflare Pages Functions (`client/functions/api/[[path]].js`) act as a secure Backend-For-Frontend (BFF).
+- The BFF intercepts all `/api/*` requests and securely routes them to the Kubernetes backend via a **Cloudflare Zero Trust Tunnel**.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Build Scripts
+- `npm run dev`: Starts the local development server (with proxy rules for local backend).
+- `npm run build`: Compiles the application for production.
+- `npm run lint`: Runs ESLint checks.
 
-## Expanding the ESLint configuration
+## Environment Variables
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+When deploying or building, the following build arguments/environment variables are used:
+- `VITE_BASE_URL`
+- `VITE_DOMAIN`
+- `VITE_API_URL` (Typically `/api` to route through the BFF)

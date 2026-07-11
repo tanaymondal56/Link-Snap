@@ -109,12 +109,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Install actionlint
+      - name: Run actionlint
         run: |
           bash <(curl -sL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-          sudo mv ./actionlint /usr/local/bin/
-      - name: Run actionlint
-        run: actionlint
+          ./actionlint
 
   lint-dockerfiles:
     name: Lint Dockerfiles

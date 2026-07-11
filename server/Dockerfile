@@ -11,6 +11,7 @@ RUN npm ci --omit=dev --ignore-scripts
 FROM node:24-alpine AS production
 
 # tini: tiny init system to forward signals and reap zombie processes
+# hadolint ignore=DL3018
 RUN apk add --no-cache tini
 
 WORKDIR /app

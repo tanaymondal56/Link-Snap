@@ -3,7 +3,7 @@
 > **Advanced URL Shortening, Analytics, & Bio-Link Platform with Stealth Security.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.6.4-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-0.6.5-blue.svg)](package.json)
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
 [![Docker](https://img.shields.io/badge/docker-tanaymondal%2Flinksnap-blue?logo=docker)](https://hub.docker.com/repository/docker/tanaymondal/linksnap/)
 
@@ -48,10 +48,10 @@
 *   **JWT & Bcrypt** for industry-standard security.
 
 **DevOps & Infrastructure**
-*   **Kubernetes (K8s)** - Stateless microservices architecture for infinite horizontal scaling.
-*   **Docker** - Split frontend and backend containers hosted on GHCR.
-*   **Nginx Ingress** - Reverse proxy with automatic SSL/TLS termination via cert-manager.
-*   **GitHub Actions** - CI/CD pipeline with Trivy vulnerability scanning and zero-downtime rolling deployments.
+*   **Kubernetes (K8s)** - Stateless microservices architecture for the backend API and Redis cache, infinitely horizontally scalable.
+*   **Cloudflare Ecosystem** - Frontend hosted globally via Cloudflare Pages. Backend traffic routed securely into K8s via Cloudflare Zero Trust Tunnels without exposing any public host ports.
+*   **Docker** - Split frontend and backend containers hosted on Docker Hub.
+*   **GitHub Actions** - CI/CD pipeline with strict `actionlint` and `hadolint` checks, Trivy vulnerability scanning, and automated zero-downtime rolling deployments to `beta` and `production` environments.
 *   **Redis** - Distributed state management for rate limiting and WebAuthn challenges across pods.
 *   **ESLint & Prettier** for code quality.
 
@@ -125,9 +125,9 @@ cp deploy.env.example deploy.env
 ./bootstrap.sh
 ```
 
-Alternatively, you can pull the split microservice images directly from GHCR:
-- `ghcr.io/tanaymondal56/linksnap-frontend:latest`
-- `ghcr.io/tanaymondal56/linksnap-backend:latest`
+Alternatively, you can pull the split microservice images directly from Docker Hub:
+- `tanaymondal/linksnap-frontend:latest`
+- `tanaymondal/linksnap-backend:latest`
 
 ---
 
