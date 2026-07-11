@@ -185,6 +185,34 @@ jobs:
           cache-from: type=gha,scope=backend-${{ github.ref_name }}
           cache-to: type=gha,mode=max,scope=backend-${{ github.ref_name }}
 
+  # ─── Sync Readmes to Docker Hub ────────────────────────────────────────────
+  sync-readme:
+    name: Sync Readmes to Docker Hub
+    needs: [set-matrix, lint]
+    # Only run on master branch for stable production repos
+    if: needs.set-matrix.outputs.is_beta == 'false' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Sync Frontend README
+        continue-on-error: true
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: tanaymondal/linksnap-frontend
+          readme-filepath: ./client/README.md
+
+      - name: Sync Backend README
+        continue-on-error: true
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: tanaymondal/linksnap-backend
+          readme-filepath: ./server/README.md
+
   # ─── Security Scan ─────────────────────────────────────────────────────────
   scan-images:
     name: Scan Images for Vulnerabilities

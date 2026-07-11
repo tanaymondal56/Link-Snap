@@ -34,6 +34,9 @@ const FILES = {
     serverPackage: path.join(rootDir, 'server', 'package.json'),
     serverPackageLock: path.join(rootDir, 'server', 'package-lock.json'),
     versionConfig: path.join(rootDir, 'client', 'src', 'config', 'version.js'),
+    rootReadme: path.join(rootDir, 'README.md'),
+    clientReadme: path.join(rootDir, 'client', 'README.md'),
+    serverReadme: path.join(rootDir, 'server', 'README.md'),
 };
 
 /**
@@ -155,6 +158,43 @@ function updateVersionConfig(filePath, newVersion) {
 }
 
 /**
+ * Update version badge in README.md files
+ */
+function updateReadmeVersion(filePath, newVersion) {
+    try {
+        if (!fs.existsSync(filePath)) {
+            log.warn(`File not found: ${filePath}`);
+            return false;
+        }
+        let content = fs.readFileSync(filePath, 'utf8');
+        
+        // Match the version badge: shields.io/badge/version-X.Y.Z-blue.svg
+        const regex = /img\.shields\.io\/badge\/version-([a-zA-Z0-9.]+)-blue\.svg/;
+        const match = content.match(regex);
+        
+        if (!match) {
+            log.warn(`Could not find version badge in ${path.basename(filePath)}`);
+            return false;
+        }
+        
+        const oldVersion = match[1];
+        
+        if (oldVersion === newVersion) {
+            log.info(`${path.basename(filePath)} version badge: Already at ${newVersion}`);
+            return false;
+        }
+        
+        content = content.replace(regex, `img.shields.io/badge/version-${newVersion}-blue.svg`);
+        fs.writeFileSync(filePath, content);
+        log.success(`${path.basename(filePath)} version badge: ${oldVersion} → ${newVersion}`);
+        return true;
+    } catch (error) {
+        log.error(`Failed to update version badge in ${filePath}: ${error.message}`);
+        return false;
+    }
+}
+
+/**
  * Fetch latest version from database (requires mongoose connection)
  */
 async function fetchLatestVersionFromDB() {
@@ -269,6 +309,11 @@ async function syncVersion(providedVersion) {
     
     // Update version.js FALLBACK_VERSION
     if (updateVersionConfig(FILES.versionConfig, version)) updated++;
+    
+    // Update README.md files
+    if (updateReadmeVersion(FILES.rootReadme, version)) updated++;
+    if (updateReadmeVersion(FILES.clientReadme, version)) updated++;
+    if (updateReadmeVersion(FILES.serverReadme, version)) updated++;
     
     console.log('');
     
