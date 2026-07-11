@@ -17,7 +17,7 @@ data:
   # ── Wildcard subdomain regex ───────────────────────────────────────────────
   # Allows ALL *.lksnp.qzz.io subdomains (api., beta., staging., etc.)
   # The server code also has a built-in BUILTIN_WILDCARD_REGEX for the same purpose.
-  DYNAMIC_ALLOWED_DOMAINS_REGEX: "^https:\/\/([a-z0-9-]+\.)*lksnp\.qzz\.io$"
+  DYNAMIC_ALLOWED_DOMAINS_REGEX: '^https:\/\/([a-z0-9-]+\.)*lksnp\.qzz\.io$'
 
   # ── Cross-Origin Frontend Mode ─────────────────────────────────────────────
   # MUST be "true" because the React SPA is now served from Cloudflare Pages
