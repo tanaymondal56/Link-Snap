@@ -178,7 +178,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Scan frontend image
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: "${{ needs.set-matrix.outputs.frontend_repo }}@${{ needs.build-frontend.outputs.image-digest }}"
           format: "sarif"
@@ -187,7 +187,7 @@ jobs:
           exit-code: "0"
 
       - name: Scan backend image
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: "${{ needs.set-matrix.outputs.backend_repo }}@${{ needs.build-backend.outputs.image-digest }}"
           format: "sarif"

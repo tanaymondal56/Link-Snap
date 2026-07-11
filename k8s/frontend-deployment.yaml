@@ -6,7 +6,7 @@ metadata:
   labels:
     app: linksnap-frontend
 spec:
-  replicas: 2
+  replicas: 0
   selector:
     matchLabels:
       app: linksnap-frontend
@@ -26,9 +26,9 @@ spec:
           # This deployment is kept for:
           #   a) Local Docker/K8s testing without CF Pages.
           #   b) Fallback if CF Pages is unavailable.
-          # Scale to 0 replicas in production: `kubectl scale deploy/linksnap-frontend --replicas=0`
+          # Scaled to 0 replicas in production by default.
         - name: frontend
-          image: tanaymondal/linksnap-frontend-beta:beta
+          image: tanaymondal/linksnap-frontend:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 80
