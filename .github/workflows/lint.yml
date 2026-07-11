@@ -32,9 +32,7 @@ jobs:
     - name: Run Lint
       working-directory: ./client
       run: npm run lint
-    - name: Run NPM Audit
-      working-directory: ./client
-      run: npm audit
+
 
   lint-server:
     name: Lint Server
@@ -53,9 +51,25 @@ jobs:
     - name: Run Lint
       working-directory: ./server
       run: npm run lint
+
+
+  audit-client:
+    name: Security Audit Client
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: Run NPM Audit
+      working-directory: ./client
+      run: npm audit --audit-level=low
+
+  audit-server:
+    name: Security Audit Server
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
     - name: Run NPM Audit
       working-directory: ./server
-      run: npm audit
+      run: npm audit --audit-level=low
 
   validate-k8s:
     name: Validate K8s Manifests

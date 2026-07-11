@@ -205,14 +205,14 @@ jobs:
           exit-code: "0"
 
       - name: Upload frontend Trivy results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-frontend.sarif
           category: trivy-frontend
 
       - name: Upload backend Trivy results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-backend.sarif
