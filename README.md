@@ -8,6 +8,7 @@
 [![Docker Frontend](https://img.shields.io/badge/docker-linksnap--frontend-blue?logo=docker)](https://hub.docker.com/r/tanaymondal/linksnap-frontend)
 [![Docker Backend](https://img.shields.io/badge/docker-linksnap--backend-blue?logo=docker)](https://hub.docker.com/r/tanaymondal/linksnap-backend)
 [![Docker Profile](https://img.shields.io/badge/docker-profile-blue?logo=docker)](https://hub.docker.com/u/tanaymondal)
+[![LinkedIn](https://img.shields.io/badge/linkedin-%230077B5.svg?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/tanaymondal/)
 
 **Link-Snap** is a modern, full-stack URL management platform engineered for power users and businesses. Beyond standard link shortening, it offers specific device targeting, comprehensive real-time analytics, and a "Link-in-Bio" page builder, all protected by a military-grade stealth admin system.
 
@@ -136,6 +137,10 @@ Alternatively, you can pull the split microservice images directly from Docker H
 ## 🤝 Contributing
 
 Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+## 👤 Author
+
+*   **Tanay Mondal** - [LinkedIn](https://www.linkedin.com/in/tanaymondal/) / [GitHub](https://github.com/tanaymondal56)
 
 ## 📄 License
 

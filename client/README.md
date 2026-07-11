@@ -100,5 +100,6 @@ To run the frontend together with the backend API and MongoDB/Redis stack, refer
 *   **Docker Hub Frontend:** [hub.docker.com/r/tanaymondal/linksnap-frontend](https://hub.docker.com/r/tanaymondal/linksnap-frontend)
 *   **Docker Hub Backend:** [hub.docker.com/r/tanaymondal/linksnap-backend](https://hub.docker.com/r/tanaymondal/linksnap-backend)
 *   **Docker Hub Profile:** [hub.docker.com/u/tanaymondal](https://hub.docker.com/u/tanaymondal)
+*   **LinkedIn Profile:** [linkedin.com/in/tanaymondal](https://www.linkedin.com/in/tanaymondal/)
 *   **Live Demo:** [lksnp.qzz.io](https://lksnp.qzz.io/) 🌐
 *   **Changelog:** [CHANGELOG.md](https://github.com/tanaymondal56/Link-Snap/blob/master/CHANGELOG.md)
