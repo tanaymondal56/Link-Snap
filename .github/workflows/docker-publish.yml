@@ -68,13 +68,17 @@ jobs:
         id: check
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/major/k8s" ]]; then
-            echo "is_beta=true"              >> $GITHUB_OUTPUT
-            echo "frontend_repo=tanaymondal/linksnap-frontend-beta" >> $GITHUB_OUTPUT
-            echo "backend_repo=tanaymondal/linksnap-backend-beta"   >> $GITHUB_OUTPUT
+            {
+              echo "is_beta=true"
+              echo "frontend_repo=tanaymondal/linksnap-frontend-beta"
+              echo "backend_repo=tanaymondal/linksnap-backend-beta"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "is_beta=false"             >> $GITHUB_OUTPUT
-            echo "frontend_repo=tanaymondal/linksnap-frontend"      >> $GITHUB_OUTPUT
-            echo "backend_repo=tanaymondal/linksnap-backend"        >> $GITHUB_OUTPUT
+            {
+              echo "is_beta=false"
+              echo "frontend_repo=tanaymondal/linksnap-frontend"
+              echo "backend_repo=tanaymondal/linksnap-backend"
+            } >> "$GITHUB_OUTPUT"
           fi
 
   # ─── Build Frontend ────────────────────────────────────────────────────────
@@ -233,12 +237,14 @@ jobs:
       - name: Build Summary
         if: always()
         run: |
-          echo "## Docker Build Summary 🐳" >> $GITHUB_STEP_SUMMARY
-          echo "| | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Branch** | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Mode** | ${{ needs.set-matrix.outputs.is_beta == 'true' && '🧪 Beta' || '🚀 Stable' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Frontend Repo** | \`${{ needs.set-matrix.outputs.frontend_repo }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Backend Repo** | \`${{ needs.set-matrix.outputs.backend_repo }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Frontend Tag** | \`${{ needs.build-frontend.outputs.image-tag }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Backend Tag** | \`${{ needs.build-backend.outputs.image-tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Docker Build Summary 🐳"
+            echo "| | Value |"
+            echo "|---|---|"
+            echo "| **Branch** | \`${{ github.ref_name }}\` |"
+            echo "| **Mode** | ${{ needs.set-matrix.outputs.is_beta == 'true' && '🧪 Beta' || '🚀 Stable' }} |"
+            echo "| **Frontend Repo** | \`${{ needs.set-matrix.outputs.frontend_repo }}\` |"
+            echo "| **Backend Repo** | \`${{ needs.set-matrix.outputs.backend_repo }}\` |"
+            echo "| **Frontend Tag** | \`${{ needs.build-frontend.outputs.image-tag }}\` |"
+            echo "| **Backend Tag** | \`${{ needs.build-backend.outputs.image-tag }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

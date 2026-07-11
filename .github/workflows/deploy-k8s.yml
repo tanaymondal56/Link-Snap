@@ -40,15 +40,15 @@ jobs:
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
-          mkdir -p $HOME/.kube
-          echo "$KUBE_CONFIG" | base64 -d > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
 
       - name: Resolve image SHA tag
         id: vars
         run: |
           SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
-          echo "sha=sha-${SHA}" >> $GITHUB_OUTPUT
+          echo "sha=sha-${SHA}" >> "$GITHUB_OUTPUT"
           echo "Deploying beta tag: sha-${SHA}"
 
       # ── Beta: Only backend is deployed to K8s. ──────────────────────────────
@@ -78,13 +78,15 @@ jobs:
       - name: Beta Deployment Summary
         if: success()
         run: |
-          echo "## 🧪 Beta Deployment Complete" >> $GITHUB_STEP_SUMMARY
-          echo "| | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Namespace** | \`linksnap-beta\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Backend Image** | \`tanaymondal/linksnap-backend-beta:${{ steps.vars.outputs.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Frontend** | Served by Cloudflare Pages (no pod) |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Commit** | \`${{ github.event.workflow_run.head_sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## 🧪 Beta Deployment Complete"
+            echo "| | Value |"
+            echo "|---|---|"
+            echo "| **Namespace** | \`linksnap-beta\` |"
+            echo "| **Backend Image** | \`tanaymondal/linksnap-backend-beta:${{ steps.vars.outputs.sha }}\` |"
+            echo "| **Frontend** | Served by Cloudflare Pages (no pod) |"
+            echo "| **Commit** | \`${{ github.event.workflow_run.head_sha }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ─── Stable Deploy (master → linksnap namespace) ──────────────────────────
   deploy-production:
@@ -115,15 +117,15 @@ jobs:
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
-          mkdir -p $HOME/.kube
-          echo "$KUBE_CONFIG" | base64 -d > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
 
       - name: Resolve image SHA tag
         id: vars
         run: |
           SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
-          echo "sha=sha-${SHA}" >> $GITHUB_OUTPUT
+          echo "sha=sha-${SHA}" >> "$GITHUB_OUTPUT"
           echo "Deploying stable tag: sha-${SHA}"
 
       # ── Stable: Deploy backend with immutable SHA tag ──────────────────────
@@ -155,10 +157,12 @@ jobs:
       - name: Production Deployment Summary
         if: success()
         run: |
-          echo "## 🚀 Production Deployment Complete" >> $GITHUB_STEP_SUMMARY
-          echo "| | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Namespace** | \`linksnap\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Backend Image** | \`tanaymondal/linksnap-backend:${{ steps.vars.outputs.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Tags Also Available** | \`latest\`, \`0.6\`, \`0.6.4\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Commit** | \`${{ github.event.workflow_run.head_sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## 🚀 Production Deployment Complete"
+            echo "| | Value |"
+            echo "|---|---|"
+            echo "| **Namespace** | \`linksnap\` |"
+            echo "| **Backend Image** | \`tanaymondal/linksnap-backend:${{ steps.vars.outputs.sha }}\` |"
+            echo "| **Tags Also Available** | \`latest\`, \`0.6\`, \`0.6.4\` |"
+            echo "| **Commit** | \`${{ github.event.workflow_run.head_sha }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
