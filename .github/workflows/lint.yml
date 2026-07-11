@@ -3,9 +3,29 @@ name: Lint
 on:
   push:
     branches-ignore: [ "master", "major/k8s" ]
+    paths-ignore:
+      - '**.md'
+      - 'plans/**'
+      - 'Notes/**'
+      - 'study/**'
+      - '.gitignore'
+      - '.dockerignore'
+      - 'LICENSE'
   pull_request:
     branches: [ "master" ]
+    paths-ignore:
+      - '**.md'
+      - 'plans/**'
+      - 'Notes/**'
+      - 'study/**'
+      - '.gitignore'
+      - '.dockerignore'
+      - 'LICENSE'
   workflow_call:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -83,3 +103,25 @@ jobs:
       - name: Validate manifests
         run: |
           kubeconform -strict -summary -ignore-missing-schemas k8s/*.yaml
+
+  lint-workflows:
+    name: Lint GitHub Actions Workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install actionlint
+        run: |
+          bash <(curl -sL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          sudo mv ./actionlint /usr/local/bin/
+      - name: Run actionlint
+        run: actionlint
+
+  lint-dockerfiles:
+    name: Lint Dockerfiles
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Lint Dockerfiles
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          recursive: true

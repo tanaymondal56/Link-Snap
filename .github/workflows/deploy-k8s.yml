@@ -6,6 +6,10 @@ on:
     types: [completed]
     branches: [master, major/k8s]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ─── Beta Deploy (major/k8s → linksnap-beta namespace) ────────────────────
   deploy-beta:
