@@ -283,10 +283,6 @@ app.use(lusca.csrf({
 // NoSQL injection protection
 app.use(mongoSanitize);
 
-// Rate Limiting
-app.use('/api', apiLimiter);
-// app.use('/api/auth', authLimiter); // Moved to specific routes in authRoutes.js
-
 // Health Check Endpoints
 import { isConnected } from './config/db.js';
 
@@ -322,6 +318,10 @@ app.get('/api/health/deep', async (req, res) => {
     },
   });
 });
+
+// Rate Limiting
+app.use('/api', apiLimiter);
+// app.use('/api/auth', authLimiter); // Moved to specific routes in authRoutes.js
 
 // Routes (API routes first)
 app.use('/api/auth', authRoutes);
