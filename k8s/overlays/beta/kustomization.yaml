@@ -5,3 +5,11 @@ resources:
   - ../../base
   - namespace.yaml
   - secrets.yaml
+
+images:
+  - name: tanaymondal/linksnap-backend
+    newName: tanaymondal/linksnap-backend-beta
+    newTag: beta
+  - name: tanaymondal/linksnap-frontend
+    newName: tanaymondal/linksnap-frontend-beta
+    newTag: beta
