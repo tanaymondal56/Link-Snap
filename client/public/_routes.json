@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "description": "Route rules for Cloudflare Pages. /api/* is handled by the BFF proxy function; everything else serves static assets with SPA fallback.",
+  "include": ["/api/*"],
+  "exclude": []
+}
