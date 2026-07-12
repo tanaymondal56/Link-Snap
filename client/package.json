@@ -64,6 +64,7 @@
     "serialize-javascript": "7.0.5",
     "workbox-build": {
       "ajv": "^8.20.0"
-    }
+    },
+    "picomatch": "^4.0.5"
   }
 }
