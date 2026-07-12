@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: ["Build and Publish Docker Images"]
     types: [completed]
-    branches: [master, major/k8s]
+    branches: [master, major/k8s, staging]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,7 +18,7 @@ jobs:
     environment: beta
     if: >
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'major/k8s'
+      (github.event.workflow_run.head_branch == 'major/k8s' || github.event.workflow_run.head_branch == 'staging')
     steps:
       - uses: actions/checkout@v6
         with:

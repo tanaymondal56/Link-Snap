@@ -2,7 +2,6 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: linksnap-ingress
-  namespace: linksnap
   annotations:
     # ── NOTE ON NEW ARCHITECTURE ───────────────────────────────────────────────
     # In the CF Tunnel + BFF architecture, the Cloudflare Tunnel pod handles all

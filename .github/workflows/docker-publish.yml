@@ -2,7 +2,7 @@ name: Build and Publish Docker Images
 
 on:
   push:
-    branches: [master, major/k8s]
+    branches: [master, major/k8s, staging]
     tags: ["v*.*.*"]
     paths-ignore:
       - '**.md'
@@ -35,7 +35,7 @@ jobs:
   validate-secrets:
     name: Validate Required Secrets
     runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/major/k8s' && 'beta' || 'production' }}
+    environment: ${{ (github.ref == 'refs/heads/major/k8s' || github.ref == 'refs/heads/staging') && 'beta' || 'production' }}
     steps:
       - name: Check required secrets are set
         env:
@@ -67,7 +67,7 @@ jobs:
       - name: Determine target repos
         id: check
         run: |
-          if [[ "${{ github.ref }}" == "refs/heads/major/k8s" ]]; then
+          if [[ "${{ github.ref }}" == "refs/heads/major/k8s" || "${{ github.ref }}" == "refs/heads/staging" ]]; then
             {
               echo "is_beta=true"
               echo "frontend_repo=tanaymondal/linksnap-frontend-beta"
@@ -86,7 +86,7 @@ jobs:
     name: Build Frontend Image
     needs: [set-matrix, lint]
     runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/major/k8s' && 'beta' || 'production' }}
+    environment: ${{ (github.ref == 'refs/heads/major/k8s' || github.ref == 'refs/heads/staging') && 'beta' || 'production' }}
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
       image-tag: ${{ steps.meta.outputs.version }}
@@ -142,7 +142,7 @@ jobs:
     name: Build Backend Image
     needs: [set-matrix, lint]
     runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/major/k8s' && 'beta' || 'production' }}
+    environment: ${{ (github.ref == 'refs/heads/major/k8s' || github.ref == 'refs/heads/staging') && 'beta' || 'production' }}
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
       image-tag: ${{ steps.meta.outputs.version }}
@@ -216,7 +216,7 @@ jobs:
     name: Scan Images for Vulnerabilities
     needs: [set-matrix, build-frontend, build-backend]
     runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/major/k8s' && 'beta' || 'production' }}
+    environment: ${{ (github.ref == 'refs/heads/major/k8s' || github.ref == 'refs/heads/staging') && 'beta' || 'production' }}
     steps:
       - name: Log in to Docker Hub
         uses: docker/login-action@v4

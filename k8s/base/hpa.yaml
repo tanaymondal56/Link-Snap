@@ -2,7 +2,6 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: linksnap-backend-hpa
-  namespace: linksnap
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

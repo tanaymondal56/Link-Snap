@@ -2,7 +2,6 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: linksnap-safe-browsing-scan
-  namespace: linksnap
 spec:
   schedule: "0 */4 * * *"          # Every 4 hours
   concurrencyPolicy: Forbid

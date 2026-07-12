@@ -7,7 +7,6 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: linksnap-backend-pdb
-  namespace: linksnap
 spec:
   minAvailable: 1
   selector:
