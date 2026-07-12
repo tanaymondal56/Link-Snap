@@ -43,7 +43,7 @@ import { stopDeviceAuthIntervals } from './controllers/deviceAuthController.js';
 import { flushAnalyticsAndStop } from './services/analyticsService.js';
 import compression from 'compression';
 import mongoose from 'mongoose';
-import { connectRedis, checkRedisConnection, disconnectRedis } from './config/redis.js';
+import { connectRedis, checkRedisConnection, disconnectRedis, isRedisConfigured } from './config/redis.js';
 
 const app = express();
 
@@ -304,7 +304,7 @@ app.get('/api/health/deep', async (req, res) => {
   const dbConnected = isConnected();
 
   // Real Redis ping — checkRedisConnection() returns false if not configured
-  const redisConfigured = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+  const redisConfigured = isRedisConfigured();
   const redisReachable = await checkRedisConnection();
   const redisStatus = !redisConfigured ? 'not_configured' : (redisReachable ? 'connected' : 'unreachable');
 

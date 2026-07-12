@@ -102,7 +102,9 @@ testing/
 study/
 
 # Utility scripts (may contain local paths or dev-only utilities)
-server/scripts/
+server/scripts/*
+!server/scripts/runBanScheduler.js
+!server/scripts/runSafeBrowsingScan.js
 
 # Infrastructure / DevOps
 terraform/terraform.tfvars

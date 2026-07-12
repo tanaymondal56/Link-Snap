@@ -1,6 +1,6 @@
 import Url from '../models/Url.js';
 import User from '../models/User.js';
-import { redisIncr, redisGetDel, getRedisClient } from '../config/redis.js';
+import { redisIncr, redisGetDel, getRedisClient, redisScan } from '../config/redis.js';
 
 // Buffer configuration
 const BATCH_SIZE = 100;
@@ -27,7 +27,7 @@ const flushBuffer = async () => {
             // --- Process URL Clicks from Redis ---
             let urlCursor = 0;
             do {
-                const [nextCursor, keys] = await redis.scan(urlCursor, { match: 'ls:click:url:*', count: 100 });
+                const [nextCursor, keys] = await redisScan(urlCursor, 'ls:click:url:*', 100);
                 if (keys && keys.length > 0) {
                     for (const key of keys) {
                         const count = await redisGetDel(key);
@@ -48,7 +48,7 @@ const flushBuffer = async () => {
             // --- Process User Clicks from Redis ---
             let userCursor = 0;
             do {
-                const [nextCursor, keys] = await redis.scan(userCursor, { match: 'ls:click:user:*', count: 100 });
+                const [nextCursor, keys] = await redisScan(userCursor, 'ls:click:user:*', 100);
                 if (keys && keys.length > 0) {
                     for (const key of keys) {
                         const count = await redisGetDel(key);

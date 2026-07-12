@@ -163,6 +163,20 @@ export const redisGetDel = async (key) => {
     }
 };
 
+export const redisScan = async (cursor, matchPattern, count = 100) => {
+    if (!redisClient) return [0, []];
+    try {
+        if (redisDriver === 'tcp') {
+            return await redisClient.scan(cursor, 'MATCH', matchPattern, 'COUNT', count);
+        } else {
+            return await redisClient.scan(cursor, { match: matchPattern, count });
+        }
+    } catch (err) {
+        logger.warn('[Redis] SCAN failed: ' + err.message);
+        return [0, []];
+    }
+};
+
 export default {
     connect: connectRedis,
     get: getRedisClient,
@@ -173,4 +187,5 @@ export default {
     safeDel: redisDel,
     safeIncr: redisIncr,
     safeGetDel: redisGetDel,
+    safeScan: redisScan,
 };
