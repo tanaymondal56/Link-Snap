@@ -177,6 +177,9 @@ export const redisScan = async (cursor, matchPattern, count = 100) => {
     }
 };
 
+// Auto-initialize connection so it is available immediately for rate limiters
+connectRedis();
+
 export default {
     connect: connectRedis,
     get: getRedisClient,
