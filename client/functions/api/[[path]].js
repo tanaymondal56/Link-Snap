@@ -16,7 +16,7 @@
 //   API_BASE_URL      = https://api.lksnp.qzz.io  (your tunnel-connected API origin)
 
 export async function onRequest(context) {
-  const { request, env, params } = context;
+  const { request, env } = context;
 
   // Validate required environment variables
   if (!env.CF_CLIENT_ID || !env.CF_CLIENT_SECRET) {
