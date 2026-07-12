@@ -61,6 +61,9 @@
   },
   "overrides": {
     "minimatch": "10.2.4",
-    "serialize-javascript": "7.0.5"
+    "serialize-javascript": "7.0.5",
+    "workbox-build": {
+      "ajv": "^8.20.0"
+    }
   }
 }
