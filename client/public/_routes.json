@@ -1,6 +1,21 @@
 {
   "version": 1,
-  "description": "Route rules for Cloudflare Pages. /api/* is handled by the BFF proxy function; everything else serves static assets with SPA fallback.",
-  "include": ["/api/*"],
-  "exclude": []
+  "description": "Route rules for Cloudflare Pages. /api/* is handled by BFF; /[[shortId]] is handled by edge router; static assets bypass functions.",
+  "include": [
+    "/*"
+  ],
+  "exclude": [
+    "/assets/*",
+    "/favicon.ico",
+    "/favicon.svg",
+    "/favicon-16x16.png",
+    "/favicon-32x32.png",
+    "/apple-touch-icon.png",
+    "/manifest.json",
+    "/manifest.webmanifest",
+    "/sw.js",
+    "/robots.txt",
+    "/sitemap.xml",
+    "/og-image.png"
+  ]
 }
