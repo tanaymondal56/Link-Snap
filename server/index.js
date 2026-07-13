@@ -13,6 +13,7 @@ import logger from './utils/logger.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
 import lusca from 'lusca';
 import cookieSession from 'cookie-session';
+import crypto from 'crypto';
 
 import authRoutes from './routes/authRoutes.js';
 import urlRoutes from './routes/urlRoutes.js';
@@ -100,6 +101,11 @@ if (process.env.NODE_ENV === 'development') {
 // Toggle: PROXY_GATE_ENABLED=false for local development
 app.use(strictProxyGate);
 
+// Generate CSP Nonce
+app.use((req, res, next) => {
+  res.locals.nonce = crypto.randomBytes(16).toString('base64');
+  next();
+});
 
 // Build dynamic connectSrc for CSP based on configured allowed origins
 const dynamicConnectSrc = [
@@ -119,6 +125,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: [
         "'self'",
+        (req, res) => `'nonce-${res.locals.nonce}'`,
         ...(process.env.NODE_ENV === 'development' ? ["'unsafe-inline'"] : []),
       ],
       styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles

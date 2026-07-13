@@ -28,7 +28,7 @@ const escapeRegex = (str) => {
 };
 
 // Beautiful HTML page for link preview (when user adds + or / at end)
-const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCustom) => {
+const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCustom, nonce = '') => {
     const safeTitle = escapeHtml(url.title || url.shortId);
     const safeOriginalUrl = escapeHtml(url.originalUrl);
     // Escape user-controllable URLs to prevent XSS
@@ -628,7 +628,7 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
     
     <div class="copy-toast" id="copyToast">✓ Link copied to clipboard!</div>
     
-    <script>
+    <script nonce="${nonce}">
         function copyLink() {
             navigator.clipboard.writeText('${safeShortUrl}').then(() => {
                 showToast();
@@ -1085,7 +1085,7 @@ const getExpiredLinkPage = (shortId, expiresAt) => {
 };
 
 // HTML page for scheduled/pending links (not yet active)
-const getScheduledLinkPage = (shortId, activeStartTime) => {
+const getScheduledLinkPage = (shortId, activeStartTime, nonce = '') => {
     const safeShortId = escapeHtml(shortId);
     const activateDate = new Date(activeStartTime);
     const isoDate = activateDate.toISOString();
@@ -1201,7 +1201,7 @@ const getScheduledLinkPage = (shortId, activeStartTime) => {
         </div>
     </div>
     
-    <script>
+    <script nonce="${nonce}">
         const targetDate = new Date('${isoDate}');
         
         // Display date in user's local timezone
@@ -1246,7 +1246,7 @@ const getScheduledLinkPage = (shortId, activeStartTime) => {
 };
 
 // HTML page for password-protected links
-const getPasswordEntryPage = (shortId, title) => {
+const getPasswordEntryPage = (shortId, title, nonce = '') => {
     const safeTitle = escapeHtml(title || shortId);
     // Escape shortId for use in JavaScript string to prevent XSS
     // Must escape backslashes first, then quotes to prevent breaking out of string
@@ -1353,7 +1353,7 @@ const getPasswordEntryPage = (shortId, title) => {
         </div>
     </div>
     <style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
-    <script>
+    <script nonce="${nonce}">
         const form = document.getElementById('passwordForm');
         const passwordInput = document.getElementById('password');
         const errorMsg = document.getElementById('errorMsg');
@@ -1512,7 +1512,7 @@ export const redirectUrl = async (req, res, next) => {
             // Check if link is ready to go live (activeStartTime)
             if (cached.activeStartTime && !isLinkActive(cached.activeStartTime)) {
                 // Show countdown page until link activates
-                return res.status(200).send(getScheduledLinkPage(shortId, cached.activeStartTime));
+                return res.status(200).send(getScheduledLinkPage(shortId, cached.activeStartTime, res.locals.nonce));
             }
 
             // Check if link has expired
@@ -1522,7 +1522,7 @@ export const redirectUrl = async (req, res, next) => {
 
             // Check if link is password protected
             if (cached.isPasswordProtected) {
-                return res.send(getPasswordEntryPage(shortId, cached.title));
+                return res.send(getPasswordEntryPage(shortId, cached.title, res.locals.nonce));
             }
 
             // CHECK & INCREMENT USER USAGE (Atomic)
@@ -1633,7 +1633,7 @@ export const redirectUrl = async (req, res, next) => {
         // Check if link is ready to go live (activeStartTime)
         if (url.activeStartTime && !isLinkActive(url.activeStartTime)) {
             // Show countdown page until link activates
-            return res.status(200).send(getScheduledLinkPage(shortId, url.activeStartTime));
+            return res.status(200).send(getScheduledLinkPage(shortId, url.activeStartTime, res.locals.nonce));
         }
 
         // Check if link has expired
@@ -1643,7 +1643,7 @@ export const redirectUrl = async (req, res, next) => {
 
         // Check if link is password protected
         if (url.isPasswordProtected) {
-            return res.send(getPasswordEntryPage(shortId, url.title));
+            return res.send(getPasswordEntryPage(shortId, url.title, res.locals.nonce));
         }
 
         // CHECK & INCREMENT USER USAGE (Atomic)
@@ -1773,7 +1773,7 @@ export const previewUrl = async (req, res) => {
 
         // Check if link is password protected - redirect to password page instead of preview
         if (url.isPasswordProtected) {
-            return res.send(getPasswordEntryPage(shortId, url.title));
+            return res.send(getPasswordEntryPage(shortId, url.title, res.locals.nonce));
         }
 
         // Generate the short URL (use what was accessed)
@@ -1789,7 +1789,7 @@ export const previewUrl = async (req, res) => {
         const viewingViaCustom = url.customAlias && shortId === url.customAlias;
 
         // Send the preview page with both URLs
-        return res.send(getLinkPreviewPage(url, accessedUrl, randomUrl, customUrl, viewingViaCustom));
+        return res.send(getLinkPreviewPage(url, accessedUrl, randomUrl, customUrl, viewingViaCustom, res.locals.nonce));
     } catch (error) {
         console.error('Preview Error:', error);
         return res.status(500).send('Server Error');
