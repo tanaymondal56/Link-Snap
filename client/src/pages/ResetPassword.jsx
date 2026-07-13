@@ -174,7 +174,7 @@ const ResetPassword = () => {
                   
                   {/* OTP Inputs */}
                   <div>
-                    <label className="block text-sm text-gray-400 mb-3 text-center">Enter the 6-digit code from your email</label>
+                    <span className="block text-sm text-gray-400 mb-3 text-center">Enter the 6-digit code from your email</span>
                     <div className="flex justify-between gap-2">
                       {otp.map((digit, index) => (
                         <input

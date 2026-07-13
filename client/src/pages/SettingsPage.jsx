@@ -668,14 +668,14 @@ const SettingsPage = () => {
             <div className="p-6 space-y-6">
               {/* Username Field */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <span className="block text-sm font-medium text-gray-300 mb-2">
                   Username
                   {!canChangeUsername && (
                     <span className="ml-2 text-xs text-amber-500">
                       (Change available on {nextUsernameChangeDate?.toLocaleDateString()})
                     </span>
                   )}
-                </label>
+                </span>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                   <input
@@ -743,7 +743,7 @@ const SettingsPage = () => {
               {/* Name Fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">First Name</label>
+                  <span className="block text-sm font-medium text-gray-300 mb-2">First Name</span>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                     <input
@@ -758,7 +758,7 @@ const SettingsPage = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Last Name</label>
+                  <span className="block text-sm font-medium text-gray-300 mb-2">Last Name</span>
                   <input
                     type="text"
                     value={profileForm.lastName}
@@ -771,9 +771,9 @@ const SettingsPage = () => {
 
               {/* Email (Read-only) */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <span className="block text-sm font-medium text-gray-300 mb-2">
                   Email Address
-                </label>
+                </span>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                   <input
@@ -788,7 +788,7 @@ const SettingsPage = () => {
 
               {/* Phone */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Phone Number</label>
+                <span className="block text-sm font-medium text-gray-300 mb-2">Phone Number</span>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                   <input
@@ -803,9 +803,9 @@ const SettingsPage = () => {
 
               {/* Company */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <span className="block text-sm font-medium text-gray-300 mb-2">
                   Company / Organization
-                </label>
+                </span>
                 <div className="relative">
                   <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                   <input
@@ -820,7 +820,7 @@ const SettingsPage = () => {
 
               {/* Website */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Website</label>
+                <span className="block text-sm font-medium text-gray-300 mb-2">Website</span>
                 <div className="relative">
                   <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                   <input
@@ -835,7 +835,7 @@ const SettingsPage = () => {
 
               {/* Bio */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Bio</label>
+                <span className="block text-sm font-medium text-gray-300 mb-2">Bio</span>
                 <textarea
                   value={profileForm.bio}
                   onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
@@ -929,9 +929,9 @@ const SettingsPage = () => {
             <form onSubmit={handleChangePassword} className="space-y-4">
               {/* Current Password */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <span className="block text-sm font-medium text-gray-300 mb-2">
                   Current Password
-                </label>
+                </span>
                 <div className="relative">
                   <input
                     type={showPasswords.current ? 'text' : 'password'}
@@ -957,7 +957,7 @@ const SettingsPage = () => {
 
               {/* New Password */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">New Password</label>
+                <span className="block text-sm font-medium text-gray-300 mb-2">New Password</span>
                 <div className="relative">
                   <input
                     type={showPasswords.new ? 'text' : 'password'}
@@ -982,9 +982,9 @@ const SettingsPage = () => {
 
               {/* Confirm New Password */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <span className="block text-sm font-medium text-gray-300 mb-2">
                   Confirm New Password
-                </label>
+                </span>
                 <div className="relative">
                   <input
                     type={showPasswords.confirm ? 'text' : 'password'}

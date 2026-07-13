@@ -189,9 +189,9 @@ const ManageSubscriptionModal = ({ isOpen, onClose, user, onUpdate }) => {
             {/* Tier & Status */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
+                <span className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
                   <Crown size={14} className="text-amber-400" /> New Tier
-                </label>
+                </span>
                 <select
                   className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500/50 focus:outline-none transition-colors"
                   value={form.tier}
@@ -204,9 +204,9 @@ const ManageSubscriptionModal = ({ isOpen, onClose, user, onUpdate }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
+                <span className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
                   <AlertCircle size={14} className="text-purple-400" /> Status
-                </label>
+                </span>
                 <select
                   className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500/50 focus:outline-none transition-colors"
                   value={form.status}
@@ -224,9 +224,9 @@ const ManageSubscriptionModal = ({ isOpen, onClose, user, onUpdate }) => {
             {form.tier !== 'free' && (
               <div className="animate-fade-in space-y-4 pt-2 border-t border-white/5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-1.5">
+                  <span className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-1.5">
                     <Clock size={14} className="text-green-400" /> Duration Preset
-                  </label>
+                  </span>
                   <div className="grid grid-cols-4 gap-2">
                     {[
                       { id: 'custom', label: 'Custom' },
@@ -252,9 +252,9 @@ const ManageSubscriptionModal = ({ isOpen, onClose, user, onUpdate }) => {
 
                 {form.durationMode === 'custom' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
+                    <span className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
                       <Calendar size={14} className="text-gray-400" /> Days from Now
-                    </label>
+                    </span>
                     <input
                       type="number"
                       min="1"
@@ -269,9 +269,9 @@ const ManageSubscriptionModal = ({ isOpen, onClose, user, onUpdate }) => {
 
             {/* Reason */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
+              <span className="block text-sm font-medium text-gray-300 mb-1">
                 Reason for Change <span className="text-red-400">*</span>
-              </label>
+              </span>
               <textarea
                 required
                 rows="3"
@@ -307,9 +307,9 @@ const ManageSubscriptionModal = ({ isOpen, onClose, user, onUpdate }) => {
                     </div>
 
                     <div>
-                      <label className="block text-sm text-gray-400 mb-1">
+                      <span className="block text-sm text-gray-400 mb-1">
                         Reason for deletion *
-                      </label>
+                      </span>
                       <textarea
                         placeholder="Provide a detailed reason (min 10 chars) - this will be logged for audit"
                         className="w-full bg-gray-800 border border-red-500/30 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:border-red-500/50 focus:outline-none"
@@ -320,9 +320,9 @@ const ManageSubscriptionModal = ({ isOpen, onClose, user, onUpdate }) => {
                     </div>
 
                     <div>
-                      <label className="block text-sm text-gray-400 mb-1">
+                      <span className="block text-sm text-gray-400 mb-1">
                         Type DELETE to confirm *
-                      </label>
+                      </span>
                       <input
                         type="text"
                         placeholder="Type DELETE"

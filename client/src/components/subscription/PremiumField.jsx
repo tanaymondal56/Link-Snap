@@ -37,12 +37,12 @@ const PremiumField = ({
   if (!isLocked) {
     return (
       <div className={`space-y-2 ${className}`}>
-        <label className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
+        <span className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
           {LabelIcon && <LabelIcon size={14} className={labelIconClass} />}
           {label}
           <span className="text-xs text-gray-500 font-normal">(optional)</span>
           <Sparkles size={14} className="text-purple-400" />
-        </label>
+        </span>
         {children}
       </div>
     );
@@ -58,7 +58,7 @@ const PremiumField = ({
       onMouseLeave={() => setShowTooltip(false)}
     >
       {/* Label with PRO badge */}
-      <label className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
+      <span className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
         {LabelIcon && <LabelIcon size={14} className={labelIconClass} />}
         {label}
         <span className="text-xs text-gray-500 font-normal">(optional)</span>
@@ -66,7 +66,7 @@ const PremiumField = ({
           <Crown size={10} />
           PRO
         </span>
-      </label>
+      </span>
       
       {/* Disabled content wrapper */}
       <div className="relative">

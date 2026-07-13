@@ -253,36 +253,36 @@ const UserDetailsModal = ({ isOpen, onClose, user }) => {
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Full Name
-                      </label>
+                      </span>
                       <div className="flex items-center gap-2 text-white bg-white/5 p-3 rounded-xl border border-white/5">
                         <User size={16} className="text-gray-400" />
                         {user.firstName} {user.lastName}
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Created At
-                      </label>
+                      </span>
                       <div className="flex items-center gap-2 text-white bg-white/5 p-3 rounded-xl border border-white/5">
                         <Clock size={16} className="text-gray-400" />
                         {formatDateTime(user.createdAt)}
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Phone
-                      </label>
+                      </span>
                       <div className="flex items-center gap-2 text-white bg-white/5 p-3 rounded-xl border border-white/5">
                         <Phone size={16} className="text-gray-400" />
                         {user.phone || 'Not provided'}
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Company
-                      </label>
+                      </span>
                       <div className="flex items-center gap-2 text-white bg-white/5 p-3 rounded-xl border border-white/5">
                         <Building2 size={16} className="text-gray-400" />
                         {user.company || 'Not provided'}

@@ -432,7 +432,7 @@ const AccountSuspended = () => {
                     </h3>
                     <form onSubmit={handleSubmitAppeal} className="space-y-3">
                       <div>
-                        <label className="text-xs text-gray-400 block mb-1">Account Email</label>
+                        <span className="text-xs text-gray-400 block mb-1">Account Email</span>
                         <div className="w-full px-3 py-2 rounded-lg bg-gray-800/50 border border-gray-700 text-gray-400 text-sm flex items-center gap-2 cursor-not-allowed">
                           <Mail className="w-3 h-3" />
                           {banInfo.userEmail || 'Unknown Account'}
@@ -442,7 +442,7 @@ const AccountSuspended = () => {
                         </p>
                       </div>
                       <div>
-                        <label className="text-xs text-gray-400 block mb-1">Appeal Message</label>
+                        <span className="text-xs text-gray-400 block mb-1">Appeal Message</span>
                         <textarea
                           value={appealMessage}
                           onChange={(e) => setAppealMessage(e.target.value)}

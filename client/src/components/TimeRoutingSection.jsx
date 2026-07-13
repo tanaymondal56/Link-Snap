@@ -99,10 +99,10 @@ const TimeRoutingSection = ({
   if (isLocked) {
     return (
       <div className="space-y-4">
-        <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+        <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
           <Clock size={16} className="text-violet-400" />
           Time Routing
-        </label>
+        </span>
 
         <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-violet-500/30">
           <div className="flex items-center justify-between relative z-10">

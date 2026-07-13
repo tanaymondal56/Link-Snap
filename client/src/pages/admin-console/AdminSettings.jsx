@@ -306,7 +306,7 @@ const AdminSettings = () => {
           <form onSubmit={handleSaveEmailConfig} className="mt-4 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-400 mb-1">Provider</label>
+                <span className="block text-sm font-medium text-gray-400 mb-1">Provider</span>
                 <select
                   value={emailForm.emailProvider}
                   onChange={(e) => setEmailForm({ ...emailForm, emailProvider: e.target.value })}
@@ -333,9 +333,9 @@ const AdminSettings = () => {
               </div>
 
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-400 mb-1">
+                <span className="block text-sm font-medium text-gray-400 mb-1">
                   Email / Username
-                </label>
+                </span>
                 <input
                   type="text"
                   value={emailForm.emailUsername}
@@ -345,9 +345,9 @@ const AdminSettings = () => {
               </div>
 
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-400 mb-1">
+                <span className="block text-sm font-medium text-gray-400 mb-1">
                   Password / App Password
-                </label>
+                </span>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -369,9 +369,9 @@ const AdminSettings = () => {
               {emailForm.emailProvider === 'smtp' && (
                 <>
                   <div className="col-span-2 sm:col-span-1">
-                    <label className="block text-sm font-medium text-gray-400 mb-1">
+                    <span className="block text-sm font-medium text-gray-400 mb-1">
                       SMTP Host
-                    </label>
+                    </span>
                     <input
                       type="text"
                       value={emailForm.smtpHost}
@@ -380,7 +380,7 @@ const AdminSettings = () => {
                     />
                   </div>
                   <div className="col-span-2 sm:col-span-1">
-                    <label className="block text-sm font-medium text-gray-400 mb-1">Port</label>
+                    <span className="block text-sm font-medium text-gray-400 mb-1">Port</span>
                     <input
                       type="number"
                       value={emailForm.smtpPort}

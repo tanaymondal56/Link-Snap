@@ -188,9 +188,9 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                  <span className="block text-sm font-medium text-gray-300 mb-1">
                     Email Address *
-                  </label>
+                  </span>
                   <input
                     type="email"
                     required
@@ -200,7 +200,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                  <span className="block text-sm font-medium text-gray-300 mb-1">Username</span>
                   <div className="relative">
                     <input
                       type="text"
@@ -255,7 +255,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Role</label>
+                  <span className="block text-sm font-medium text-gray-300 mb-1">Role</span>
                   <select
                     className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500/50 focus:outline-none"
                     value={form.role}
@@ -271,7 +271,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Password *</label>
+                  <span className="block text-sm font-medium text-gray-300 mb-1">Password *</span>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
@@ -290,9 +290,9 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                  <span className="block text-sm font-medium text-gray-300 mb-1">
                     Confirm Password *
-                  </label>
+                  </span>
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
@@ -311,7 +311,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">First Name</label>
+                  <span className="block text-sm font-medium text-gray-300 mb-1">First Name</span>
                   <input
                     type="text"
                     className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500/50 focus:outline-none"
@@ -320,7 +320,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Last Name</label>
+                  <span className="block text-sm font-medium text-gray-300 mb-1">Last Name</span>
                   <input
                     type="text"
                     className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500/50 focus:outline-none"
@@ -329,7 +329,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Phone</label>
+                  <span className="block text-sm font-medium text-gray-300 mb-1">Phone</span>
                   <input
                     type="text"
                     className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500/50 focus:outline-none"
@@ -338,7 +338,7 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Company</label>
+                  <span className="block text-sm font-medium text-gray-300 mb-1">Company</span>
                   <input
                     type="text"
                     className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500/50 focus:outline-none"

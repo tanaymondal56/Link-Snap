@@ -188,13 +188,13 @@ export const DevNullPage = () => {
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm text-green-600 mb-1">Full Name *</label>
+                <span className="block text-sm text-green-600 mb-1">Full Name *</span>
                 <input type="text" placeholder="Your name (we won't read it)" 
                   className="w-full bg-black border border-green-800 rounded px-3 py-2 text-green-400 focus:border-green-500 focus:outline-none" />
               </div>
               
               <div>
-                <label className="block text-sm text-green-600 mb-1">Resume *</label>
+                <span className="block text-sm text-green-600 mb-1">Resume *</span>
                 <div className="border-2 border-dashed border-green-800 rounded p-4 text-center text-green-700">
                   Drag your resume here<br/>
                   <span className="text-xs">(It will be sent directly to /dev/null)</span>
@@ -202,19 +202,19 @@ export const DevNullPage = () => {
               </div>
               
               <div>
-                <label className="block text-sm text-green-600 mb-1">P=NP Proof *</label>
+                <span className="block text-sm text-green-600 mb-1">P=NP Proof *</span>
                 <textarea placeholder="Attach your proof here..." rows={3}
                   className="w-full bg-black border border-green-800 rounded px-3 py-2 text-green-400 focus:border-green-500 focus:outline-none" />
               </div>
               
               <div>
-                <label className="block text-sm text-green-600 mb-1">First 1000 digits of π *</label>
+                <span className="block text-sm text-green-600 mb-1">First 1000 digits of π *</span>
                 <textarea placeholder="3.14159265358979323846..." rows={2}
                   className="w-full bg-black border border-green-800 rounded px-3 py-2 text-green-400 focus:border-green-500 focus:outline-none" />
               </div>
               
               <div>
-                <label className="block text-sm text-green-600 mb-1">Tabs vs Spaces Essay (500 words) *</label>
+                <span className="block text-sm text-green-600 mb-1">Tabs vs Spaces Essay (500 words) *</span>
                 <textarea placeholder="Explain why tabs are superior..." rows={3}
                   className="w-full bg-black border border-green-800 rounded px-3 py-2 text-green-400 focus:border-green-500 focus:outline-none" />
               </div>
