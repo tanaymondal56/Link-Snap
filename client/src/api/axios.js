@@ -8,13 +8,8 @@ const getBaseURL = () => {
   const isProduction = import.meta.env.PROD;
 
   // In production: always use relative path (same origin)
-  // This works with any domain (Cloudflare, custom domain, etc.)
+  // This routes requests through the CF Pages /api proxy function
   if (isProduction) {
-    // If apiUrl is a full URL (not localhost), use it
-    if (apiUrl && !apiUrl.includes('localhost') && !apiUrl.includes('127.0.0.1') && !apiUrl.startsWith('/')) {
-      return apiUrl;
-    }
-    // Otherwise use relative path
     return '/api';
   }
 

@@ -30,7 +30,8 @@ const PublicLayout = () => {
     const checkWithStatus = async () => {
       try {
         // Use native fetch with minimal footprint - only checking IP whitelist status
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        // Use relative /api path in production to leverage the proxy function
+        const baseUrl = import.meta.env.PROD ? '/api' : (import.meta.env.VITE_API_URL || 'http://localhost:5000/api');
         const response = await fetch(`${baseUrl}/admin/ip-check`, {
           method: 'HEAD', // Use HEAD to minimize response size
           credentials: 'include',

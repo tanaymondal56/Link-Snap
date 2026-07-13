@@ -14,11 +14,9 @@ const getVersionApiUrl = () => {
     const apiUrl = import.meta.env.VITE_API_URL;
     const isProduction = import.meta.env.PROD;
 
-    // In production: use relative path or configured URL
+    // In production: always use relative path (same origin)
+    // This routes requests through the CF Pages /api proxy function
     if (isProduction) {
-        if (apiUrl && !apiUrl.includes('localhost') && !apiUrl.includes('127.0.0.1') && !apiUrl.startsWith('/')) {
-            return `${apiUrl}/changelog/version`;
-        }
         return '/api/changelog/version';
     }
 
