@@ -44,27 +44,6 @@ export async function onRequest(context) {
   try {
     const response = await fetch(upstreamRequest);
 
-    // If debug parameter is present, return detailed response info
-    if (url.searchParams.has('debug')) {
-      const responseBodyText = await response.text();
-      return new Response(JSON.stringify({
-        debug: true,
-        step: 'received_response',
-        targetUrl,
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
-        env: {
-          CF_CLIENT_ID_exists: !!env.CF_CLIENT_ID,
-          CF_CLIENT_SECRET_exists: !!env.CF_CLIENT_SECRET,
-          API_BASE_URL: env.API_BASE_URL || 'default (https://api.lksnp.qzz.io)'
-        },
-        bodySample: responseBodyText.slice(0, 1000)
-      }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
     // If the backend returns a 404, it means this isn't a valid short link.
     // It's likely a React Router SPA path (e.g., /dashboard).
     // So we gracefully fallback to serving the React app's index.html.
@@ -85,25 +64,6 @@ export async function onRequest(context) {
     });
   } catch (err) {
     console.error('[Edge Router] Upstream fetch failed:', err.message);
-
-    // If debug parameter is present, return the error
-    if (url.searchParams.has('debug')) {
-      return new Response(JSON.stringify({
-        debug: true,
-        step: 'fetch_error',
-        targetUrl,
-        error: err.message,
-        stack: err.stack,
-        env: {
-          CF_CLIENT_ID_exists: !!env.CF_CLIENT_ID,
-          CF_CLIENT_SECRET_exists: !!env.CF_CLIENT_SECRET,
-          API_BASE_URL: env.API_BASE_URL || 'default (https://api.lksnp.qzz.io)'
-        }
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
 
     // If backend is down, fallback to the React app so the dashboard still works
     const indexRequest = new Request(new URL('/', request.url), request);
