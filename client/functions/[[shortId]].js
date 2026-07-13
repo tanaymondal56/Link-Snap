@@ -6,21 +6,12 @@ export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
 
-  // 1. Try to serve from static assets first (React app files, images, CSS)
-  try {
-    const assetResponse = await env.ASSETS.fetch(request);
-    if (assetResponse.status < 400) {
-      return assetResponse;
-    }
-  } catch {
-    // If asset fetch throws, we proceed to backend proxying
+  // 1. If it's the homepage or index.html, serve it directly from static assets.
+  // Other static assets (js, css, images) are already excluded in _routes.json
+  // and will bypass this function entirely.
+  if (url.pathname === '/' || url.pathname === '/index.html') {
+    return env.ASSETS.fetch(request);
   }
-
-  // 2. If it's a 404 from ASSETS, it's either a React Route (like /dashboard) or a Short URL (/abc)
-  // We forward the request to the backend. The backend will return:
-  // - 301/302 Redirect (valid short link)
-  // - 200 OK (HTML preview page / password page)
-  // - 404 Not Found (Invalid link OR skipped frontend route like /dashboard)
 
   const apiBase = env.API_BASE_URL || 'https://api.lksnp.qzz.io';
   // Note: we forward the original path and search query to the backend's root
