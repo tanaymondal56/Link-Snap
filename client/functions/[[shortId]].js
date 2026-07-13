@@ -12,7 +12,7 @@ export async function onRequest(context) {
     if (assetResponse.status < 400) {
       return assetResponse;
     }
-  } catch (e) {
+  } catch {
     // If asset fetch throws, we proceed to backend proxying
   }
 
