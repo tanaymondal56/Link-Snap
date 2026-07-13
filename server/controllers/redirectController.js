@@ -518,8 +518,8 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
                 ${viewingViaCustom && randomUrl ? `
                     <div class="alternate-link">
                         <span class="alternate-link-label">Also available at:</span>
-                        <span class="alternate-link-url" onclick="copyAlternateLink()">${safeRandomUrl}</span>
-                        <button class="alternate-link-copy" onclick="copyAlternateLink()" title="Copy random link">
+                        <span class="alternate-link-url" id="alternateLinkUrl">${safeRandomUrl}</span>
+                        <button class="alternate-link-copy" id="alternateLinkCopy" title="Copy random link">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -530,8 +530,8 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
                 ${!viewingViaCustom && customUrl ? `
                     <div class="alternate-link">
                         <span class="alternate-link-label">Custom alias:</span>
-                        <span class="alternate-link-url" onclick="copyCustomLink()">${safeCustomUrl}</span>
-                        <button class="alternate-link-copy" onclick="copyCustomLink()" title="Copy custom link">
+                        <span class="alternate-link-url" id="customLinkUrl">${safeCustomUrl}</span>
+                        <button class="alternate-link-copy" id="customLinkCopy" title="Copy custom link">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -552,8 +552,7 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
                 </div>
                 <div class="destination-url">
                     <div class="favicon">
-                        <img src="https://www.google.com/s2/favicons?domain=${new URL(url.originalUrl).hostname}&sz=64" 
-                             onerror="this.style.display='none';this.nextElementSibling.style.display='block';" alt="">
+                        <img src="https://www.google.com/s2/favicons?domain=${new URL(url.originalUrl).hostname}&sz=64" alt="">
                         <svg style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"/>
                             <line x1="2" y1="12" x2="22" y2="12"/>
@@ -611,7 +610,7 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
                         Link is Disabled
                     </button>
                 `}
-                <button class="btn btn-secondary" onclick="copyLink()">
+                <button class="btn btn-secondary" id="copyShortLinkBtn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -628,29 +627,45 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
     
     <div class="copy-toast" id="copyToast">✓ Link copied to clipboard!</div>
     
-    <script nonce="${nonce}">
-        function copyLink() {
-            navigator.clipboard.writeText('${safeShortUrl}').then(() => {
-                showToast();
+    <script data-cfasync="false" nonce="${nonce}">
+        // Favicon error handler
+        document.querySelectorAll('.favicon img').forEach(img => {
+            img.addEventListener('error', function() {
+                this.style.display = 'none';
+                if (this.nextElementSibling) {
+                    this.nextElementSibling.style.display = 'block';
+                }
             });
-        }
-        
-        function copyAlternateLink() {
-            navigator.clipboard.writeText('${safeRandomUrl}').then(() => {
-                showToast();
-            });
-        }
-        
-        function copyCustomLink() {
-            navigator.clipboard.writeText('${safeCustomUrl}').then(() => {
-                showToast();
-            });
-        }
-        
+        });
+
+        // Copy functionality
         function showToast() {
             const toast = document.getElementById('copyToast');
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        const copyShortLinkBtn = document.getElementById('copyShortLinkBtn');
+        if (copyShortLinkBtn) {
+            copyShortLinkBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText('${safeShortUrl}').then(showToast);
+            });
+        }
+
+        const altLinkUrl = document.getElementById('alternateLinkUrl');
+        const altLinkCopy = document.getElementById('alternateLinkCopy');
+        if (altLinkUrl) {
+            const copyAlt = () => navigator.clipboard.writeText('${safeRandomUrl}').then(showToast);
+            altLinkUrl.addEventListener('click', copyAlt);
+            if (altLinkCopy) altLinkCopy.addEventListener('click', copyAlt);
+        }
+
+        const custLinkUrl = document.getElementById('customLinkUrl');
+        const custLinkCopy = document.getElementById('customLinkCopy');
+        if (custLinkUrl) {
+            const copyCust = () => navigator.clipboard.writeText('${safeCustomUrl}').then(showToast);
+            custLinkUrl.addEventListener('click', copyCust);
+            if (custLinkCopy) custLinkCopy.addEventListener('click', copyCust);
         }
     </script>
 </body>
@@ -1201,7 +1216,7 @@ const getScheduledLinkPage = (shortId, activeStartTime, nonce = '') => {
         </div>
     </div>
     
-    <script nonce="${nonce}">
+    <script data-cfasync="false" nonce="${nonce}">
         const targetDate = new Date('${isoDate}');
         
         // Display date in user's local timezone
@@ -1323,7 +1338,7 @@ const getPasswordEntryPage = (shortId, title, nonce = '') => {
                     <label for="password">Password</label>
                     <div class="password-wrapper">
                         <input type="password" id="password" class="password-input" placeholder="Enter password" autocomplete="off" required />
-                        <button type="button" class="toggle-password" onclick="togglePassword()">
+                        <button type="button" class="toggle-password" id="togglePasswordBtn">
                             <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                                 <circle cx="12" cy="12" r="3"/>
@@ -1353,7 +1368,7 @@ const getPasswordEntryPage = (shortId, title, nonce = '') => {
         </div>
     </div>
     <style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
-    <script nonce="${nonce}">
+    <script data-cfasync="false" nonce="${nonce}">
         const form = document.getElementById('passwordForm');
         const passwordInput = document.getElementById('password');
         const errorMsg = document.getElementById('errorMsg');
@@ -1362,13 +1377,16 @@ const getPasswordEntryPage = (shortId, title, nonce = '') => {
         const loading = document.getElementById('loading');
         const card = document.getElementById('card');
         
-        function togglePassword() {
-            const type = passwordInput.type === 'password' ? 'text' : 'password';
-            passwordInput.type = type;
-            const eyeIcon = document.getElementById('eyeIcon');
-            eyeIcon.innerHTML = type === 'password' 
-                ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
-                : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+        const toggleBtn = document.getElementById('togglePasswordBtn');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                const type = passwordInput.type === 'password' ? 'text' : 'password';
+                passwordInput.type = type;
+                const eyeIcon = document.getElementById('eyeIcon');
+                eyeIcon.innerHTML = type === 'password' 
+                    ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+                    : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+            });
         }
         
         form.addEventListener('submit', async (e) => {
