@@ -13,3 +13,6 @@ images:
   - name: tanaymondal/linksnap-frontend
     newName: tanaymondal/linksnap-frontend-beta
     newTag: beta
+
+patchesStrategicMerge:
+  - deployment-patch.yaml
