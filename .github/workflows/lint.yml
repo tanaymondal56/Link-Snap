@@ -5,26 +5,10 @@ on:
     branches-ignore: [ "master", "major/k8s" ]
     paths-ignore:
       - '**.md'
-      - 'plans/**'
-      - 'Notes/**'
-      - 'study/**'
-      - '.gitignore'
-      - '.dockerignore'
-      - 'LICENSE'
-  pull_request:
-    branches: [ "master" ]
-    paths-ignore:
-      - '**.md'
-      - 'plans/**'
-      - 'Notes/**'
-      - 'study/**'
-      - '.gitignore'
-      - '.dockerignore'
-      - 'LICENSE'
   workflow_call:
 
 concurrency:
-  group: lint-${{ github.ref }}
+  group: lint-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
