@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [7.0.0] - 2026-07-14
+
+### Major Overhaul: Security, Independent Deployments & Cloudflare Integration
+
+This major release completely overhauls the deployment architecture and network security, transitioning to decoupled microservice deployments while hardening the pipeline with automated security testing.
+
+### 🛡️ Network Security & Cloudflare Integration
+- **Cloudflare Secure Network:** Fully integrated Cloudflare Tunnel (`cloudflared`) to proxy all backend traffic, establishing a highly secure, isolated network for the backend without exposing raw IPs to the public web.
+- **Global CDN & Performance:** Leveraged Cloudflare's edge network for comprehensive CDN caching and DDoS protection.
+- **In-Cluster Redis:** Successfully deployed a fully integrated, secure in-cluster Redis caching layer to support high-speed backend data management.
+
+### 🏗️ Independent Deployments & Architecture
+- **Decoupled Architecture:** Shifted from a monolith approach to completely independent frontend and backend deployments, enabling zero-downtime, independent scalable rollouts.
+- **Admin Panel Telemetry:** Added Comprehensive Infrastructure info inside the Admin Panel to monitor cluster resource metrics and environment settings.
+- **Smart Path Filtering:** Implemented `dorny/paths-filter` in CI/CD to automatically skip Kubernetes rollout jobs if only frontend or documentation files are modified, saving massive amounts of deployment time.
+
+### 🔒 Automated Security Testing & CI/CD
+- **Automated Workflow Audits:** Integrated strict automated testing and security scans into the GitHub workflow, extracting `npm audit` into dedicated blocking jobs and using `actionlint` for deep static analysis of all CI files.
+- **Docker Security Scanning:** Implemented recursive `hadolint` scanning to enforce Docker security best practices and prevent insecure image builds.
+- **Unified Pipeline:** Merged separate build and deployment jobs into a single highly optimized `docker-publish.yml` pipeline with concurrency gates to prevent overlapping deployment race conditions.
+- **Resource Optimization:** Enabled the `Recreate` strategy for the Beta namespace to definitively prevent double-memory exhaustion in LXD.
+
 ## [0.6.4] - 2026-06-03
 
 ### Dependency Security Hardening & CSP Nonce Integration

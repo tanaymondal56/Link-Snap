@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linksnap-frontend
+  labels:
+    app: linksnap-frontend
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: linksnap-frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: linksnap-frontend
+    spec:
+      containers:
+          # NOTE: In the new CF Pages + BFF architecture, the React SPA is served
+          # by Cloudflare Pages and this frontend pod is NO LONGER required.
+          # This deployment is kept for:
+          #   a) Local Docker/K8s testing without CF Pages.
+          #   b) Fallback if CF Pages is unavailable.
+          # Scaled to 0 replicas in production by default.
+        - name: frontend
+          image: tanaymondal/linksnap-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /index.html
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /index.html
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      # No imagePullSecrets needed — Docker Hub public registry
+      # imagePullSecrets:
+      #   - name: registry-credentials

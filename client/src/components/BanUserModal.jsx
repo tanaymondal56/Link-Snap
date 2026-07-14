@@ -164,10 +164,10 @@ const BanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
 
           {/* Ban Duration Selector */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <span className="block text-sm font-medium text-gray-300 mb-2">
               <Clock className="w-4 h-4 inline mr-2 text-gray-400" />
               Ban Duration
-            </label>
+            </span>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {DURATION_OPTIONS.map((opt) => (
                 <button
@@ -195,10 +195,10 @@ const BanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
 
           {/* Reason Template Selector */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <span className="block text-sm font-medium text-gray-300 mb-2">
               <MessageSquare className="w-4 h-4 inline mr-2 text-gray-400" />
               Ban Reason
-            </label>
+            </span>
             <div className="relative">
               <select
                 value={selectedTemplate}
@@ -218,7 +218,7 @@ const BanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
           {/* Custom Reason Input */}
           {showCustomReason && (
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-300 mb-2">Custom Reason</label>
+              <span className="block text-sm font-medium text-gray-300 mb-2">Custom Reason</span>
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}

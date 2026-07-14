@@ -164,9 +164,9 @@ const FeedbackModal = ({ isOpen, onClose, defaultType = 'feature_request' }) => 
             <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
               {/* Type Selector */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
+                <span className="block text-sm font-medium text-gray-300 mb-3">
                   What type of feedback?
-                </label>
+                </span>
                 <div className="grid grid-cols-2 gap-2">
                   {feedbackTypes.map((type) => (
                     <button

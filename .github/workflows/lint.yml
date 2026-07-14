@@ -2,23 +2,32 @@ name: Lint
 
 on:
   push:
-    # Run on all branches
-  pull_request:
-    branches: [ "master" ]
+    branches-ignore: [ "master", "major/k8s" ]
+    paths-ignore:
+      - '**.md'
+  workflow_call:
+
+concurrency:
+  group: lint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  NODE_OPTIONS: "--no-warnings"
 
 jobs:
   lint-client:
     name: Lint Client
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Use Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
-        node-version: '20.x'
+        node-version-file: '.nvmrc'
         cache: 'npm'
         cache-dependency-path: client/package-lock.json
     - name: Install dependencies
@@ -28,15 +37,16 @@ jobs:
       working-directory: ./client
       run: npm run lint
 
+
   lint-server:
     name: Lint Server
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Use Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
-        node-version: '20.x'
+        node-version-file: '.nvmrc'
         cache: 'npm'
         cache-dependency-path: server/package-lock.json
     - name: Install dependencies
@@ -45,3 +55,55 @@ jobs:
     - name: Run Lint
       working-directory: ./server
       run: npm run lint
+
+
+  audit-client:
+    name: Security Audit Client
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: Run NPM Audit
+      working-directory: ./client
+      run: npm audit --audit-level=low
+
+  audit-server:
+    name: Security Audit Server
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: Run NPM Audit
+      working-directory: ./server
+      run: npm audit --audit-level=low
+
+  validate-k8s:
+    name: Validate K8s Manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install kubeconform
+        run: |
+          curl -sL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
+            | tar xz && sudo mv kubeconform /usr/local/bin/
+      - name: Validate manifests
+        run: |
+          kubeconform -strict -summary -ignore-missing-schemas k8s/
+
+  lint-workflows:
+    name: Lint GitHub Actions Workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run actionlint
+        run: |
+          bash <(curl -sL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint
+
+  lint-dockerfiles:
+    name: Lint Dockerfiles
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Lint Dockerfiles
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          recursive: true

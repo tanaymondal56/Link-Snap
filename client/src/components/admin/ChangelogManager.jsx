@@ -913,7 +913,7 @@ const ChangelogManager = () => {
               {/* Version & Date */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Version *</label>
+                  <span className="block text-sm font-medium text-gray-400 mb-1">Version *</span>
                   <input
                     type="text"
                     value={form.version}
@@ -923,7 +923,7 @@ const ChangelogManager = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Date</label>
+                  <span className="block text-sm font-medium text-gray-400 mb-1">Date</span>
                   <input
                     type="date"
                     value={form.date}
@@ -935,7 +935,7 @@ const ChangelogManager = () => {
 
               {/* Title */}
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Title *</label>
+                <span className="block text-sm font-medium text-gray-400 mb-1">Title *</span>
                 <input
                   type="text"
                   value={form.title}
@@ -948,7 +948,7 @@ const ChangelogManager = () => {
 
               {/* Description (Optional) */}
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Description (Optional)</label>
+                <span className="block text-sm font-medium text-gray-400 mb-1">Description (Optional)</span>
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
@@ -962,7 +962,7 @@ const ChangelogManager = () => {
               {/* Type & Icon */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Release Type</label>
+                  <span className="block text-sm font-medium text-gray-400 mb-1">Release Type</span>
                   <div className="flex gap-2 flex-wrap">
                     {Object.entries(releaseTypeGradients).map(([type, gradient]) => (
                       <button
@@ -981,7 +981,7 @@ const ChangelogManager = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Icon</label>
+                  <span className="block text-sm font-medium text-gray-400 mb-1">Icon</span>
                   <div className="flex gap-1 flex-wrap">
                     {Object.entries(iconMap).map(([name, iconData]) => {
                       const IconComp = iconData.icon;
@@ -1005,7 +1005,7 @@ const ChangelogManager = () => {
 
               {/* Changes */}
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Changes *</label>
+                <span className="block text-sm font-medium text-gray-400 mb-2">Changes *</span>
                 <div className="space-y-2">
                   {form.changes.map((change, index) => (
                     <div key={index} className="flex flex-col sm:flex-row gap-2 bg-gray-800/50 p-2 rounded-xl sm:bg-transparent sm:p-0">
@@ -1086,7 +1086,7 @@ const ChangelogManager = () => {
               {/* Scheduled Publishing */}
               {!form.isPublished && (
                 <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                  <label className="block text-sm font-medium text-blue-400 mb-2">⏰ Schedule Publish</label>
+                  <span className="block text-sm font-medium text-blue-400 mb-2">⏰ Schedule Publish</span>
                   <input
                     type="datetime-local"
                     value={form.scheduledFor}
@@ -1106,9 +1106,9 @@ const ChangelogManager = () => {
               {!form.isPublished && (
                 <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl space-y-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-purple-400 flex items-center gap-2">
+                    <span className="text-sm font-medium text-purple-400 flex items-center gap-2">
                       🚀 Show on Public Roadmap
-                    </label>
+                    </span>
                     <button
                       onClick={() => setForm(prev => ({ ...prev, showOnRoadmap: !prev.showOnRoadmap }))}
                       className={`relative w-12 h-6 rounded-full transition-colors ${
@@ -1127,7 +1127,7 @@ const ChangelogManager = () => {
                     <>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">Status</label>
+                          <span className="block text-xs text-gray-400 mb-1">Status</span>
                           <select
                             value={form.roadmapStatus}
                             onChange={(e) => setForm(prev => ({ ...prev, roadmapStatus: e.target.value }))}
@@ -1141,7 +1141,7 @@ const ChangelogManager = () => {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">Estimated Release</label>
+                          <span className="block text-xs text-gray-400 mb-1">Estimated Release</span>
                           <input
                             type="text"
                             value={form.estimatedRelease}

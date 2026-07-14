@@ -1,6 +1,8 @@
 import User from '../models/User.js';
 import MasterAdmin from '../models/MasterAdmin.js';
 import Settings from '../models/Settings.js';
+import { getSettings } from '../utils/getSettings.js';
+import { redisDel } from '../config/redis.js';
 import Session from '../models/Session.js';
 import LoginHistory from '../models/LoginHistory.js';
 import UsernameHistory from '../models/UsernameHistory.js';
@@ -161,7 +163,7 @@ const registerUser = async (req, res, next) => {
     }
 
     // Check global settings
-    let settings = await Settings.findOne();
+    let settings = await getSettings();
     if (!settings) {
       settings = await Settings.create({});
     }
@@ -255,7 +257,7 @@ const registerUser = async (req, res, next) => {
 
       // Send welcome email (non-blocking)
       try {
-        const settings = await Settings.findOne();
+        const settings = await getSettings();
         if (settings?.emailConfigured) {
           const emailContent = welcomeEmail(user);
           await sendEmail({
@@ -560,7 +562,7 @@ const loginUser = async (req, res, next) => {
       }
 
       // Check verification status if required
-      let settings = await Settings.findOne();
+      let settings = await getSettings();
       if (!settings) settings = await Settings.create({});
 
       if (settings.requireEmailVerification && !user.isVerified) {
@@ -618,6 +620,7 @@ const loginUser = async (req, res, next) => {
 
       // Update lastLoginAt
       await User.findByIdAndUpdate(user._id, { $set: { lastLoginAt: new Date() } });
+      await redisDel(`ls:user:${user._id}`);
 
       // Log successful login
       await LoginHistory.create({
@@ -1078,6 +1081,12 @@ const resendOTP = async (req, res, next) => {
       return res.status(200).json({
         message: 'If an unverified account exists with this email, a new code has been sent.'
       });
+    }
+
+    // Rate limiting: Prevent spamming resend requests (60 second debounce)
+    // otpExpires is 10 mins. If it expires in > 9 mins, it was just sent < 1 min ago.
+    if (user.otpExpires && user.otpExpires > Date.now() + 9 * 60 * 1000) {
+      return res.status(429).json({ error: 'Please wait before requesting another code' });
     }
 
     // Generate new OTP

@@ -644,9 +644,9 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
             <div className={activeTab === 'essentials' ? 'space-y-6' : 'hidden'}>
               {/* Destination URL */}
               <div className="space-y-4">
-                <label className="block text-sm font-medium text-gray-300">
+                <span className="block text-sm font-medium text-gray-300">
                   Destination URL <span className="text-red-400">*</span>
-                </label>
+                </span>
                 <div className="relative group">
                   <input
                     type="text"
@@ -665,11 +665,11 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
 
               {/* Custom Alias */}
               <div className="space-y-4">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
                   <Sparkles size={16} className="text-violet-400" />
                   Custom Link
                   <Crown size={14} className="text-amber-400" />
-                </label>
+                </span>
 
                 {aliasField.isLocked ? (
                   <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-orange-500/30">
@@ -762,9 +762,9 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
 
                 {enableSchedule && (
                   <div className="mt-4 pt-4 border-t border-gray-700/50 animate-in slide-in-from-top-2">
-                    <label className="block text-sm text-gray-400 mb-2">
+                    <span className="block text-sm text-gray-400 mb-2">
                       Start Time (Your Local Time)
-                    </label>
+                    </span>
                     <div className="overflow-hidden rounded-lg">
                       <input
                         type="datetime-local"
@@ -810,11 +810,11 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
 
               {/* Expiration */}
               <div className="space-y-4">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
                   <Clock size={16} className="text-orange-400" />
                   Link Expiration
                   <Crown size={14} className="text-amber-400" />
-                </label>
+                </span>
 
                 {expirationField.isLocked ? (
                   <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-orange-500/30">
@@ -875,11 +875,11 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
               {/* Password Protection */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                  <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
                     <Lock size={16} className="text-purple-400" />
                     Password Protection
                     <Crown size={14} className="text-amber-400" />
-                  </label>
+                  </span>
                   {!passwordField.isLocked && (
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input

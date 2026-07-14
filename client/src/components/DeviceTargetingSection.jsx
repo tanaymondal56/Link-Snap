@@ -149,10 +149,10 @@ const DeviceTargetingSection = ({
   if (isLocked) {
     return (
       <div className="space-y-4">
-        <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+        <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
           <Target size={16} className="text-cyan-400" />
           Device Targeting
-        </label>
+        </span>
 
         <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-cyan-500/30">
           <div className="flex items-center justify-between relative z-10">

@@ -28,7 +28,7 @@ const escapeRegex = (str) => {
 };
 
 // Beautiful HTML page for link preview (when user adds + or / at end)
-const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCustom) => {
+const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCustom, nonce = '') => {
     const safeTitle = escapeHtml(url.title || url.shortId);
     const safeOriginalUrl = escapeHtml(url.originalUrl);
     // Escape user-controllable URLs to prevent XSS
@@ -518,8 +518,8 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
                 ${viewingViaCustom && randomUrl ? `
                     <div class="alternate-link">
                         <span class="alternate-link-label">Also available at:</span>
-                        <span class="alternate-link-url" onclick="copyAlternateLink()">${safeRandomUrl}</span>
-                        <button class="alternate-link-copy" onclick="copyAlternateLink()" title="Copy random link">
+                        <span class="alternate-link-url" id="alternateLinkUrl">${safeRandomUrl}</span>
+                        <button class="alternate-link-copy" id="alternateLinkCopy" title="Copy random link">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -530,8 +530,8 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
                 ${!viewingViaCustom && customUrl ? `
                     <div class="alternate-link">
                         <span class="alternate-link-label">Custom alias:</span>
-                        <span class="alternate-link-url" onclick="copyCustomLink()">${safeCustomUrl}</span>
-                        <button class="alternate-link-copy" onclick="copyCustomLink()" title="Copy custom link">
+                        <span class="alternate-link-url" id="customLinkUrl">${safeCustomUrl}</span>
+                        <button class="alternate-link-copy" id="customLinkCopy" title="Copy custom link">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -552,8 +552,7 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
                 </div>
                 <div class="destination-url">
                     <div class="favicon">
-                        <img src="https://www.google.com/s2/favicons?domain=${new URL(url.originalUrl).hostname}&sz=64" 
-                             onerror="this.style.display='none';this.nextElementSibling.style.display='block';" alt="">
+                        <img src="https://www.google.com/s2/favicons?domain=${new URL(url.originalUrl).hostname}&sz=64" alt="">
                         <svg style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"/>
                             <line x1="2" y1="12" x2="22" y2="12"/>
@@ -611,7 +610,7 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
                         Link is Disabled
                     </button>
                 `}
-                <button class="btn btn-secondary" onclick="copyLink()">
+                <button class="btn btn-secondary" id="copyShortLinkBtn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -628,29 +627,45 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
     
     <div class="copy-toast" id="copyToast">✓ Link copied to clipboard!</div>
     
-    <script>
-        function copyLink() {
-            navigator.clipboard.writeText('${safeShortUrl}').then(() => {
-                showToast();
+    <script data-cfasync="false" nonce="${nonce}">
+        // Favicon error handler
+        document.querySelectorAll('.favicon img').forEach(img => {
+            img.addEventListener('error', function() {
+                this.style.display = 'none';
+                if (this.nextElementSibling) {
+                    this.nextElementSibling.style.display = 'block';
+                }
             });
-        }
-        
-        function copyAlternateLink() {
-            navigator.clipboard.writeText('${safeRandomUrl}').then(() => {
-                showToast();
-            });
-        }
-        
-        function copyCustomLink() {
-            navigator.clipboard.writeText('${safeCustomUrl}').then(() => {
-                showToast();
-            });
-        }
-        
+        });
+
+        // Copy functionality
         function showToast() {
             const toast = document.getElementById('copyToast');
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        const copyShortLinkBtn = document.getElementById('copyShortLinkBtn');
+        if (copyShortLinkBtn) {
+            copyShortLinkBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText('${safeShortUrl}').then(showToast);
+            });
+        }
+
+        const altLinkUrl = document.getElementById('alternateLinkUrl');
+        const altLinkCopy = document.getElementById('alternateLinkCopy');
+        if (altLinkUrl) {
+            const copyAlt = () => navigator.clipboard.writeText('${safeRandomUrl}').then(showToast);
+            altLinkUrl.addEventListener('click', copyAlt);
+            if (altLinkCopy) altLinkCopy.addEventListener('click', copyAlt);
+        }
+
+        const custLinkUrl = document.getElementById('customLinkUrl');
+        const custLinkCopy = document.getElementById('customLinkCopy');
+        if (custLinkUrl) {
+            const copyCust = () => navigator.clipboard.writeText('${safeCustomUrl}').then(showToast);
+            custLinkUrl.addEventListener('click', copyCust);
+            if (custLinkCopy) custLinkCopy.addEventListener('click', copyCust);
         }
     </script>
 </body>
@@ -1085,7 +1100,7 @@ const getExpiredLinkPage = (shortId, expiresAt) => {
 };
 
 // HTML page for scheduled/pending links (not yet active)
-const getScheduledLinkPage = (shortId, activeStartTime) => {
+const getScheduledLinkPage = (shortId, activeStartTime, nonce = '') => {
     const safeShortId = escapeHtml(shortId);
     const activateDate = new Date(activeStartTime);
     const isoDate = activateDate.toISOString();
@@ -1201,7 +1216,7 @@ const getScheduledLinkPage = (shortId, activeStartTime) => {
         </div>
     </div>
     
-    <script>
+    <script data-cfasync="false" nonce="${nonce}">
         const targetDate = new Date('${isoDate}');
         
         // Display date in user's local timezone
@@ -1246,7 +1261,7 @@ const getScheduledLinkPage = (shortId, activeStartTime) => {
 };
 
 // HTML page for password-protected links
-const getPasswordEntryPage = (shortId, title) => {
+const getPasswordEntryPage = (shortId, title, nonce = '') => {
     const safeTitle = escapeHtml(title || shortId);
     // Escape shortId for use in JavaScript string to prevent XSS
     // Must escape backslashes first, then quotes to prevent breaking out of string
@@ -1323,7 +1338,7 @@ const getPasswordEntryPage = (shortId, title) => {
                     <label for="password">Password</label>
                     <div class="password-wrapper">
                         <input type="password" id="password" class="password-input" placeholder="Enter password" autocomplete="off" required />
-                        <button type="button" class="toggle-password" onclick="togglePassword()">
+                        <button type="button" class="toggle-password" id="togglePasswordBtn">
                             <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                                 <circle cx="12" cy="12" r="3"/>
@@ -1353,7 +1368,7 @@ const getPasswordEntryPage = (shortId, title) => {
         </div>
     </div>
     <style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
-    <script>
+    <script data-cfasync="false" nonce="${nonce}">
         const form = document.getElementById('passwordForm');
         const passwordInput = document.getElementById('password');
         const errorMsg = document.getElementById('errorMsg');
@@ -1362,13 +1377,16 @@ const getPasswordEntryPage = (shortId, title) => {
         const loading = document.getElementById('loading');
         const card = document.getElementById('card');
         
-        function togglePassword() {
-            const type = passwordInput.type === 'password' ? 'text' : 'password';
-            passwordInput.type = type;
-            const eyeIcon = document.getElementById('eyeIcon');
-            eyeIcon.innerHTML = type === 'password' 
-                ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
-                : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+        const toggleBtn = document.getElementById('togglePasswordBtn');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                const type = passwordInput.type === 'password' ? 'text' : 'password';
+                passwordInput.type = type;
+                const eyeIcon = document.getElementById('eyeIcon');
+                eyeIcon.innerHTML = type === 'password' 
+                    ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+                    : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+            });
         }
         
         form.addEventListener('submit', async (e) => {
@@ -1477,7 +1495,7 @@ export const redirectUrl = async (req, res, next) => {
 
     try {
         // 1. Check cache first (fast path)
-        const cached = getFromCache(shortId);
+        const cached = await getFromCache(shortId);
         if (cached) {
             if (!cached.isActive) {
                 return res.status(410).send(getInactiveLinkPage(shortId));
@@ -1501,7 +1519,7 @@ export const redirectUrl = async (req, res, next) => {
                     const isBanned = !owner.isActive;
                     cached.ownerBanned = isBanned;
                     cached.disableLinksOnBan = owner.disableLinksOnBan;
-                    setInCache(shortId, cached);
+                    await setInCache(shortId, cached);
 
                     if (isBanned && owner.disableLinksOnBan) {
                         return res.status(410).send(getInactiveLinkPage(shortId));
@@ -1512,7 +1530,7 @@ export const redirectUrl = async (req, res, next) => {
             // Check if link is ready to go live (activeStartTime)
             if (cached.activeStartTime && !isLinkActive(cached.activeStartTime)) {
                 // Show countdown page until link activates
-                return res.status(200).send(getScheduledLinkPage(shortId, cached.activeStartTime));
+                return res.status(200).send(getScheduledLinkPage(shortId, cached.activeStartTime, res.locals.nonce));
             }
 
             // Check if link has expired
@@ -1522,7 +1540,7 @@ export const redirectUrl = async (req, res, next) => {
 
             // Check if link is password protected
             if (cached.isPasswordProtected) {
-                return res.send(getPasswordEntryPage(shortId, cached.title));
+                return res.send(getPasswordEntryPage(shortId, cached.title, res.locals.nonce));
             }
 
             // CHECK & INCREMENT USER USAGE (Atomic)
@@ -1540,13 +1558,13 @@ export const redirectUrl = async (req, res, next) => {
             // Only apply if owner has time_redirects feature
             if (cached.timeRedirects?.enabled && cached.ownerId) {
                 // Check subscription cache first (24h TTL)
-                let ownerSub = getSubscriptionCache(cached.ownerId.toString());
+                let ownerSub = await getSubscriptionCache(cached.ownerId.toString());
                 if (!ownerSub) {
                     // Cache miss - fetch from DB and cache
                     const owner = await User.findById(cached.ownerId).select('subscription role');
                     if (owner) {
                         ownerSub = { subscription: owner.subscription, role: owner.role };
-                        setSubscriptionCache(cached.ownerId.toString(), ownerSub);
+                        await setSubscriptionCache(cached.ownerId.toString(), ownerSub);
                     }
                 }
 
@@ -1554,6 +1572,7 @@ export const redirectUrl = async (req, res, next) => {
                     const timeDestination = getTimeBasedDestination(cached.timeRedirects);
                     if (timeDestination) {
                         trackVisit(cached._id, req, { deviceMatchType: 'time_redirect' });
+                        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
                         return res.redirect(timeDestination);
                     }
                 }
@@ -1582,6 +1601,9 @@ export const redirectUrl = async (req, res, next) => {
                 }
             }
 
+            if (cached.timeRedirects?.rules?.length > 0 || cached.activeStartTime) {
+                res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+            }
             return res.redirect(finalUrl);
         }
 
@@ -1629,7 +1651,7 @@ export const redirectUrl = async (req, res, next) => {
         // Check if link is ready to go live (activeStartTime)
         if (url.activeStartTime && !isLinkActive(url.activeStartTime)) {
             // Show countdown page until link activates
-            return res.status(200).send(getScheduledLinkPage(shortId, url.activeStartTime));
+            return res.status(200).send(getScheduledLinkPage(shortId, url.activeStartTime, res.locals.nonce));
         }
 
         // Check if link has expired
@@ -1639,7 +1661,7 @@ export const redirectUrl = async (req, res, next) => {
 
         // Check if link is password protected
         if (url.isPasswordProtected) {
-            return res.send(getPasswordEntryPage(shortId, url.title));
+            return res.send(getPasswordEntryPage(shortId, url.title, res.locals.nonce));
         }
 
         // CHECK & INCREMENT USER USAGE (Atomic)
@@ -1651,7 +1673,7 @@ export const redirectUrl = async (req, res, next) => {
         }
 
         // 4. Store in cache with ban status
-        setInCache(shortId, {
+        await setInCache(shortId, {
             ...url.toObject(),
             ownerId: url.createdBy,
             ownerBanned,
@@ -1668,7 +1690,7 @@ export const redirectUrl = async (req, res, next) => {
             const ownerFull = await User.findById(url.createdBy).select('subscription role');
             if (ownerFull) {
                 // Cache for future requests
-                setSubscriptionCache(url.createdBy.toString(), {
+                await setSubscriptionCache(url.createdBy.toString(), {
                     subscription: ownerFull.subscription,
                     role: ownerFull.role
                 });
@@ -1677,6 +1699,7 @@ export const redirectUrl = async (req, res, next) => {
                     const timeDestination = getTimeBasedDestination(url.timeRedirects);
                     if (timeDestination) {
                         trackVisit(url._id, req, { deviceMatchType: 'time_redirect' });
+                        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
                         return res.redirect(timeDestination);
                     }
                 }
@@ -1706,6 +1729,9 @@ export const redirectUrl = async (req, res, next) => {
             }
         }
 
+        if (url.timeRedirects?.rules?.length > 0 || url.activeStartTime) {
+            res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        }
         return res.redirect(finalUrl);
     } catch (error) {
         console.error('Redirect Error:', error);
@@ -1765,7 +1791,7 @@ export const previewUrl = async (req, res) => {
 
         // Check if link is password protected - redirect to password page instead of preview
         if (url.isPasswordProtected) {
-            return res.send(getPasswordEntryPage(shortId, url.title));
+            return res.send(getPasswordEntryPage(shortId, url.title, res.locals.nonce));
         }
 
         // Generate the short URL (use what was accessed)
@@ -1781,7 +1807,7 @@ export const previewUrl = async (req, res) => {
         const viewingViaCustom = url.customAlias && shortId === url.customAlias;
 
         // Send the preview page with both URLs
-        return res.send(getLinkPreviewPage(url, accessedUrl, randomUrl, customUrl, viewingViaCustom));
+        return res.send(getLinkPreviewPage(url, accessedUrl, randomUrl, customUrl, viewingViaCustom, res.locals.nonce));
     } catch (error) {
         console.error('Preview Error:', error);
         return res.status(500).send('Server Error');

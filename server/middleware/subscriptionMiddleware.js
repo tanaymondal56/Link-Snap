@@ -5,6 +5,7 @@ import AnonUsage from '../models/AnonUsage.js';
 import { getAnonFingerprint } from '../utils/fingerprint.js';
 import { queueUserClickIncrement } from '../services/clickStatsService.js';
 import { LRUCache } from 'lru-cache';
+import { redisGet, redisSet, getRedisClient, redisDel } from '../config/redis.js';
 
 /**
  * Middleware to check if user has reached their monthly link creation limit
@@ -32,12 +33,22 @@ export const checkLinkLimit = async (req, res, next) => {
 
         const tier = getEffectiveTier(user);
         const config = TIERS[tier];
+        const isPaid = ['pro', 'business'].includes(tier);
+        const billingCycle = user.subscription?.billingCycle;
+        const isMonthlyPaid = isPaid && billingCycle === 'monthly';
 
         // Get Limits (Hard vs Active)
         const hardLimit = config ? config.linksPerMonth : 100; // Monthly creation limit
         const activeLimit = config ? config.activeLimit : 25;  // Concurrent active links
 
-        const currentPeriodStart = user.subscription?.currentPeriodStart;
+        let currentPeriodStart = isMonthlyPaid ? user.subscription?.currentPeriodStart : null;
+        if (currentPeriodStart) {
+            const ageMs = Date.now() - new Date(currentPeriodStart).getTime();
+            if (ageMs > 31 * 24 * 60 * 60 * 1000) {
+                // Stale billing cycle start (failed webhook or manual upgrade legacy)
+                currentPeriodStart = null;
+            }
+        }
         const resetAt = user.linkUsage?.resetAt;
 
         // RESET LOGIC: Only reset Hard Count (total created this period)
@@ -99,6 +110,7 @@ export const checkLinkLimit = async (req, res, next) => {
             if (!user.linkUsage) user.linkUsage = {};
             user.linkUsage.hardCount = 0;
             user.linkUsage.resetAt = now;
+            await redisDel(`ls:user:${user._id}`);
         }
 
         const currentHard = user.linkUsage?.hardCount || 0;
@@ -224,20 +236,33 @@ export const incrementLinkUsage = async (reqOrUserId) => {
  * @returns {object} linkUsage - { count, hardCount, resetAt } (potentially zeroed)
  */
 export const resolveCurrentLinkUsage = async (user) => {
-    const now = new Date();
+    if (!user) return { count: 0, hardCount: 0, resetAt: null };
+    
     const linkUsage = user.linkUsage || { count: 0, hardCount: 0, resetAt: null };
     const resetAt = linkUsage.resetAt;
-    const currentPeriodStart = user.subscription?.currentPeriodStart;
-
-    let needsReset;
-
+    const now = new Date();
+    const isPaid = ['pro', 'business'].includes(getEffectiveTier(user));
+    const billingCycle = user.subscription?.billingCycle;
+    const isMonthlyPaid = isPaid && billingCycle === 'monthly';
+    
+    let currentPeriodStart = isMonthlyPaid ? user.subscription?.currentPeriodStart : null;
     if (currentPeriodStart) {
-        // Paid sub: reset if last reset was before the current billing period start
-        needsReset = resetAt && new Date(resetAt) < new Date(currentPeriodStart);
+        const ageMs = Date.now() - new Date(currentPeriodStart).getTime();
+        if (ageMs > 31 * 24 * 60 * 60 * 1000) {
+            currentPeriodStart = null;
+        }
+    }
+
+    let needsReset = false;
+    if (currentPeriodStart) {
+        if (resetAt && new Date(resetAt) < new Date(currentPeriodStart)) {
+            needsReset = true;
+        }
     } else {
-        // Free tier: reset on the 1st of each calendar month
         const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        needsReset = !resetAt || new Date(resetAt) < startOfCurrentMonth;
+        if (!resetAt || new Date(resetAt) < startOfCurrentMonth) {
+            needsReset = true;
+        }
     }
 
     if (!needsReset) {
@@ -261,6 +286,8 @@ export const resolveCurrentLinkUsage = async (user) => {
         { $set: { 'linkUsage.hardCount': 0, 'linkUsage.resetAt': now } },
         { new: true, select: 'linkUsage' }
     );
+
+    await redisDel(`ls:user:${user._id}`);
 
     if (updated) {
         return { ...linkUsage, hardCount: 0, resetAt: now };
@@ -287,9 +314,16 @@ const usageCache = new LRUCache({
  */
 export const checkAndIncrementClickUsage = async (userId) => {
     const userIdStr = userId.toString();
+    const redis = getRedisClient();
+    const cacheKey = `ls:usage:${userIdStr}`;
 
     // 1. Try Cache
-    let user = usageCache.get(userIdStr);
+    let user;
+    if (redis) {
+        user = await redisGet(cacheKey);
+    } else {
+        user = usageCache.get(userIdStr);
+    }
 
     if (!user) {
         // Cache Miss: Fetch from DB
@@ -304,7 +338,12 @@ export const checkAndIncrementClickUsage = async (userId) => {
             subscription: dbUser.subscription ? dbUser.subscription.toObject?.() || dbUser.subscription : null,
             clickUsage: dbUser.clickUsage ? { ...dbUser.clickUsage.toObject?.() || dbUser.clickUsage } : { count: 0, resetAt: null }
         };
-        usageCache.set(userIdStr, user);
+        
+        if (redis) {
+            await redisSet(cacheKey, 60, user); // 60 seconds
+        } else {
+            usageCache.set(userIdStr, user);
+        }
     }
 
     if (user.role === 'admin') return { allowed: true };
@@ -362,7 +401,11 @@ export const checkAndIncrementClickUsage = async (userId) => {
         }
         user.clickUsage.count = 0;
         user.clickUsage.resetAt = now;
-        usageCache.set(userIdStr, user);
+        if (redis) {
+            await redisSet(cacheKey, 60, user);
+        } else {
+            usageCache.set(userIdStr, user);
+        }
     }
 
     // Soft Cap for Business (Allow up to 120%)
@@ -385,6 +428,11 @@ export const checkAndIncrementClickUsage = async (userId) => {
         user.clickUsage = { count: 0, resetAt: null };
     }
     user.clickUsage.count += 1;
+    if (redis) {
+        await redisSet(cacheKey, 60, user);
+    } else {
+        usageCache.set(userIdStr, user);
+    }
 
     // 3. Queue DB Increment (Buffered)
     queueUserClickIncrement(user._id);

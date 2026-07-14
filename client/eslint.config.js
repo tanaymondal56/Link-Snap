@@ -30,6 +30,8 @@ export default defineConfig([
       ],
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
       'react-hooks/set-state-in-effect': 'off',
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
     },
   },
   {

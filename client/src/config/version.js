@@ -2,7 +2,7 @@
 // This module provides dynamic version fetching from the API with robust fallback handling
 
 // Fallback version used when API is unavailable or on first load
-export const FALLBACK_VERSION = '0.6.4';
+export const FALLBACK_VERSION = '7.0.0';
 
 // Cache configuration
 const CACHE_KEY = 'app_version_cache_v2';
@@ -14,11 +14,9 @@ const getVersionApiUrl = () => {
     const apiUrl = import.meta.env.VITE_API_URL;
     const isProduction = import.meta.env.PROD;
 
-    // In production: use relative path or configured URL
+    // In production: always use relative path (same origin)
+    // This routes requests through the CF Pages /api proxy function
     if (isProduction) {
-        if (apiUrl && !apiUrl.includes('localhost') && !apiUrl.includes('127.0.0.1') && !apiUrl.startsWith('/')) {
-            return `${apiUrl}/changelog/version`;
-        }
         return '/api/changelog/version';
     }
 

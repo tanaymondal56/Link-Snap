@@ -3,9 +3,12 @@
 > **Advanced URL Shortening, Analytics, & Bio-Link Platform with Stealth Security.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.6.4-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-7.0.0-blue.svg)](package.json)
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
-[![Docker](https://img.shields.io/badge/docker-tanaymondal%2Flinksnap-blue?logo=docker)](https://hub.docker.com/repository/docker/tanaymondal/linksnap/)
+[![Docker Frontend](https://img.shields.io/badge/docker-linksnap--frontend-blue?logo=docker)](https://hub.docker.com/r/tanaymondal/linksnap-frontend)
+[![Docker Backend](https://img.shields.io/badge/docker-linksnap--backend-blue?logo=docker)](https://hub.docker.com/r/tanaymondal/linksnap-backend)
+[![Docker Profile](https://img.shields.io/badge/docker-profile-blue?logo=docker)](https://hub.docker.com/u/tanaymondal)
+[![LinkedIn](https://img.shields.io/badge/linkedin-%230077B5.svg?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/tanaymondal/)
 
 **Link-Snap** is a modern, full-stack URL management platform engineered for power users and businesses. Beyond standard link shortening, it offers specific device targeting, comprehensive real-time analytics, and a "Link-in-Bio" page builder, all protected by a military-grade stealth admin system.
 
@@ -48,10 +51,11 @@
 *   **JWT & Bcrypt** for industry-standard security.
 
 **DevOps & Infrastructure**
-*   **Docker** - Multi-stage production builds.
-*   **Multi-Cloud** - Azure (Edge) + AWS (Backend) via Tailscale VPN.
-*   **Nginx** - Reverse proxy with SSL/TLS termination.
-*   **GitHub Actions** - CI/CD with linting and security scanning.
+*   **Kubernetes (K8s)** - Stateless microservices architecture for the backend API and Redis cache, infinitely horizontally scalable.
+*   **Cloudflare Ecosystem** - Frontend hosted globally via Cloudflare Pages. Backend traffic routed securely into K8s via Cloudflare Zero Trust Tunnels without exposing any public host ports.
+*   **Docker** - Split frontend and backend containers hosted on Docker Hub.
+*   **GitHub Actions** - CI/CD pipeline with strict `actionlint` and `hadolint` checks, Trivy vulnerability scanning, and automated zero-downtime rolling deployments to `beta` and `production` environments.
+*   **Redis** - Distributed state management for rate limiting and WebAuthn challenges across pods.
 *   **ESLint & Prettier** for code quality.
 
 ---
@@ -107,23 +111,36 @@ Link-Snap implements a **"Defense in Depth"** strategy:
 
 ---
 
-## 🐳 Docker Quickstart
+## 🐳 Kubernetes Quickstart
 
-For production deployment, use the official Docker image:
+For production deployment, use the automated bootstrap script or apply the K8s manifests directly:
 
 ```bash
-# Pull the image
-docker pull tanaymondal/linksnap:latest
+# 1. Clone the repository
+git clone https://github.com/tanaymondal56/Link-Snap.git
+cd Link-Snap
 
-# Run the container
-docker run -d -p 5000:5000 --env-file server/.env --name linksnap tanaymondal/linksnap:latest
+# 2. Copy the environment template
+cp deploy.env.example deploy.env
+# Edit deploy.env with your MongoDB URI, Redis URL, and secrets
+
+# 3. Deploy to your cluster
+./bootstrap.sh
 ```
+
+Alternatively, you can pull the split microservice images directly from Docker Hub:
+- `tanaymondal/linksnap-frontend:latest`
+- `tanaymondal/linksnap-backend:latest`
 
 ---
 
 ## 🤝 Contributing
 
 Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+## 👤 Author
+
+*   **Tanay Mondal** - [LinkedIn](https://www.linkedin.com/in/tanaymondal/) / [GitHub](https://github.com/tanaymondal56)
 
 ## 📄 License
 

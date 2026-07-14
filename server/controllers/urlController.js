@@ -2,13 +2,14 @@ import Url from '../models/Url.js';
 import User from '../models/User.js';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-import { invalidateCache } from '../services/cacheService.js';
+import { invalidateCache, getSubscriptionCache } from '../services/cacheService.js';
 import { isReservedWord } from '../config/reservedWords.js';
+import { isValidUrl } from '../utils/regexUtils.js';
 import { incrementLinkUsage } from '../middleware/subscriptionMiddleware.js';
 import { hasFeature, getUpgradeMessage } from '../services/subscriptionService.js';
 import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
 import { trackVisit } from '../services/analyticsService.js';
-import Settings from '../models/Settings.js';
+import { getSettings } from '../utils/getSettings.js';
 import { checkUrlsSafety } from '../services/safeBrowsingService.js';
 import { getTimeBasedDestination } from '../services/timeService.js';
 import NotificationService from '../services/notificationService.js';
@@ -66,9 +67,7 @@ const calculateExpiresAt = (expiresIn) => {
 // Validation Schema
 const createUrlSchema = z.object({
     // Security: Enforce HTTP/HTTPS to prevent javascript: XSS attacks
-    originalUrl: z.string().url({ message: "Invalid URL format" }).refine((url) => /^https?:\/\//i.test(url), {
-        message: "Only HTTP and HTTPS URLs are allowed",
-    }),
+    originalUrl: z.string().refine(isValidUrl, { message: "Invalid URL format. Only HTTP and HTTPS URLs are allowed." }),
     customAlias: z.string().min(3).max(20).regex(/^[a-zA-Z0-9-_]+$/, "Alias must be alphanumeric").optional().or(z.literal('')),
     title: z.string().optional(),
     // Link Expiration
@@ -86,9 +85,7 @@ const createUrlSchema = z.object({
             startTime: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM format"),
             endTime: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM format"),
             days: z.array(z.number().min(0).max(6)).default([]),
-            destination: z.string().url({ message: "Invalid destination URL" }).refine((url) => /^https?:\/\//i.test(url), {
-                message: "Destination URLs must be HTTP or HTTPS",
-            }),
+            destination: z.string().refine(isValidUrl, { message: "Invalid destination URL format. Only HTTP and HTTPS URLs are allowed." }),
             priority: z.number().default(0),
             label: z.string().optional()
         })).max(50, "Maximum 50 schedule rules allowed").default([]),
@@ -98,9 +95,7 @@ const createUrlSchema = z.object({
         enabled: z.boolean().default(false),
         rules: z.array(z.object({
             device: z.enum(['ios', 'android', 'mobile', 'desktop', 'tablet']),
-            url: z.string().url({ message: "Invalid device redirect URL" }).refine((url) => /^https?:\/\//i.test(url), {
-                message: "Device redirect URLs must be HTTP or HTTPS",
-            }),
+            url: z.string().refine(isValidUrl, { message: "Invalid device redirect URL format. Only HTTP and HTTPS URLs are allowed." }),
             priority: z.number().default(0)
         })).max(50, "Maximum 50 device rules allowed").default([]),
     }).optional(),
@@ -121,6 +116,15 @@ const createShortUrl = async (req, res, next) => {
             req.body.deviceRedirects.rules.forEach(rule => {
                 if (rule.url && typeof rule.url === 'string' && !/^https?:\/\//i.test(rule.url)) {
                     rule.url = `https://${rule.url}`;
+                }
+            });
+        }
+
+        // Normalize Time Redirect URLs: Prepend https:// if missing
+        if (req.body.timeRedirects?.rules && Array.isArray(req.body.timeRedirects.rules)) {
+            req.body.timeRedirects.rules.forEach(rule => {
+                if (rule.destination && typeof rule.destination === 'string' && !/^https?:\/\//i.test(rule.destination)) {
+                    rule.destination = `https://${rule.destination}`;
                 }
             });
         }
@@ -283,18 +287,28 @@ const createShortUrl = async (req, res, next) => {
             }
         }
 
-        const newUrl = await Url.create({
-            originalUrl,
-            customAlias: customAlias || undefined,
-            title: autoTitle,
-            createdBy: userId,
-            expiresAt: finalExpiresAt,
-            isPasswordProtected,
-            passwordHash,
-            deviceRedirects: deviceRedirectsData,
-            activeStartTime: activeStartTimeData,
-            timeRedirects: timeRedirectsData,
-        });
+        let newUrl;
+        try {
+            newUrl = await Url.create({
+                originalUrl,
+                customAlias: customAlias || undefined,
+                title: autoTitle,
+                createdBy: userId,
+                expiresAt: finalExpiresAt,
+                isPasswordProtected,
+                passwordHash,
+                deviceRedirects: deviceRedirectsData,
+                activeStartTime: activeStartTimeData,
+                timeRedirects: timeRedirectsData,
+            });
+        } catch (err) {
+            // Handle race conditions where another pod creates the same custom alias at the exact same millisecond
+            if (err.code === 11000 && err.keyPattern && err.keyPattern.customAlias) {
+                res.status(400);
+                throw new Error('This alias was just taken. Please choose another.', { cause: err });
+            }
+            throw err;
+        }
 
         // Return without passwordHash (already excluded by select: false)
         // Increment usage for both Anonymous and Registered users (Fire-and-forget)
@@ -310,7 +324,7 @@ const createShortUrl = async (req, res, next) => {
         // Safe Browsing Check (Async / Fire-and-forget)
         (async () => {
             try {
-                const settings = await Settings.findOne();
+                const settings = await getSettings();
                 if (settings?.safeBrowsingAutoCheck) {
                     // Collect ALL URLs to check
                     const urlsToCheck = [originalUrl];
@@ -406,9 +420,9 @@ const deleteUrl = async (req, res, next) => {
         }
 
         // Invalidate cache before deleting
-        invalidateCache(url.shortId);
+        await invalidateCache(url.shortId);
         if (url.customAlias) {
-            invalidateCache(url.customAlias);
+            await invalidateCache(url.customAlias);
         }
 
         await url.deleteOne();
@@ -474,6 +488,9 @@ const checkAliasAvailability = async (req, res, next) => {
         };
 
         if (excludeId) {
+            if (!/^[0-9a-fA-F]{24}$/.test(excludeId)) {
+                return res.status(400).json({ available: false, reason: 'Invalid excludeId format' });
+            }
             query._id = { $ne: excludeId };
         }
 
@@ -497,9 +514,8 @@ const checkAliasAvailability = async (req, res, next) => {
 
 // Validation Schema for Update
 const updateUrlSchema = z.object({
-    originalUrl: z.string().url({ message: "Invalid URL format" }).refine((url) => /^https?:\/\//i.test(url), {
-        message: "Only HTTP and HTTPS URLs are allowed",
-    }).optional(),
+    // Security: Enforce HTTP/HTTPS to prevent javascript: XSS attacks
+    originalUrl: z.string().refine(isValidUrl, { message: "Invalid URL format. Only HTTP and HTTPS URLs are allowed." }).optional(),
     customAlias: z.string().min(3).max(20).regex(/^[a-zA-Z0-9-_]+$/, "Alias must be alphanumeric").optional().or(z.literal('')).or(z.null()),
     title: z.string().optional(),
     // Link Expiration
@@ -520,9 +536,7 @@ const updateUrlSchema = z.object({
             startTime: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM format"),
             endTime: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM format"),
             days: z.array(z.number().min(0).max(6)).default([]),
-            destination: z.string().url({ message: "Invalid destination URL" }).refine((url) => /^https?:\/\//i.test(url), {
-                message: "Destination URLs must be HTTP or HTTPS",
-            }),
+            destination: z.string().refine(isValidUrl, { message: "Invalid destination URL format. Only HTTP and HTTPS URLs are allowed." }),
             priority: z.number().default(0),
             label: z.string().optional()
         })).max(50, "Maximum 50 schedule rules allowed").default([]),
@@ -532,9 +546,7 @@ const updateUrlSchema = z.object({
         enabled: z.boolean().default(false),
         rules: z.array(z.object({
             device: z.enum(['ios', 'android', 'mobile', 'desktop', 'tablet']),
-            url: z.string().url({ message: "Invalid device redirect URL" }).refine((url) => /^https?:\/\//i.test(url), {
-                message: "Device redirect URLs must be HTTP or HTTPS",
-            }),
+            url: z.string().refine(isValidUrl, { message: "Invalid device redirect URL format. Only HTTP and HTTPS URLs are allowed." }),
             priority: z.number().default(0)
         })).max(50, "Maximum 50 device rules allowed").default([]),
     }).optional(),
@@ -567,6 +579,15 @@ const updateUrl = async (req, res, next) => {
             req.body.deviceRedirects.rules.forEach(rule => {
                 if (rule.url && typeof rule.url === 'string' && !/^https?:\/\//i.test(rule.url)) {
                     rule.url = `https://${rule.url}`;
+                }
+            });
+        }
+
+        // Normalize Time Redirect URLs for update
+        if (req.body.timeRedirects?.rules && Array.isArray(req.body.timeRedirects.rules)) {
+            req.body.timeRedirects.rules.forEach(rule => {
+                if (rule.destination && typeof rule.destination === 'string' && !/^https?:\/\//i.test(rule.destination)) {
+                    rule.destination = `https://${rule.destination}`;
                 }
             });
         }
@@ -616,11 +637,6 @@ const updateUrl = async (req, res, next) => {
 
         // Update other fields if provided
         if (originalUrl) {
-            // Invalidate old cache
-            invalidateCache(url.shortId);
-            if (url.customAlias) {
-                invalidateCache(url.customAlias);
-            }
             updateFields.originalUrl = originalUrl;
             
             // Security: Reset safety status to trigger re-check
@@ -637,9 +653,6 @@ const updateUrl = async (req, res, next) => {
         // Handle expiration changes
         if (removeExpiration) {
             unsetFields.expiresAt = 1;
-            // Invalidate cache since expiration changed
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
         } else if (expiresAt) {
             // Check feature access for expiration
             if (!hasFeature(req.user, 'link_expiration')) {
@@ -652,8 +665,6 @@ const updateUrl = async (req, res, next) => {
                 throw new Error('Expiration date must be in the future');
             }
             updateFields.expiresAt = newExpiresAt;
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
         } else if (expiresIn) {
             // Check feature access for expiration
             if (!hasFeature(req.user, 'link_expiration')) {
@@ -661,16 +672,12 @@ const updateUrl = async (req, res, next) => {
                 throw new Error(getUpgradeMessage('link_expiration'));
             }
             updateFields.expiresAt = calculateExpiresAt(expiresIn);
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
         }
 
         // Handle password changes
         if (removePassword) {
             updateFields.isPasswordProtected = false;
             unsetFields.passwordHash = 1;
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
         } else if (password && password.length >= 4) {
             // Check feature access for password protection
             if (!hasFeature(req.user, 'password_protection')) {
@@ -680,8 +687,6 @@ const updateUrl = async (req, res, next) => {
             const salt = await bcrypt.genSalt(10);
             updateFields.passwordHash = await bcrypt.hash(password, salt);
             updateFields.isPasswordProtected = true;
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
         }
 
         // Handle device redirects (Pro/Business only)
@@ -715,9 +720,6 @@ const updateUrl = async (req, res, next) => {
                 // Device redirects disabled - just save as-is
                 updateFields.deviceRedirects = deviceRedirects;
             }
-            // Invalidate cache when device rules change
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
             
             // Security: Reset safety status (new URLs might be malicious)
             updateFields.safetyStatus = 'pending';
@@ -727,8 +729,6 @@ const updateUrl = async (req, res, next) => {
         // Handle activeStartTime (Schedule Activation - Free feature)
         if (removeActiveStartTime) {
             unsetFields.activeStartTime = 1;
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
         } else if (activeStartTime) {
             const newActiveStartTime = new Date(activeStartTime);
             if (newActiveStartTime <= new Date()) {
@@ -736,8 +736,6 @@ const updateUrl = async (req, res, next) => {
                 throw new Error('Schedule activation time must be in the future');
             }
             updateFields.activeStartTime = newActiveStartTime;
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
         }
 
         // Handle Time-Based Redirects (Pro/Business only)
@@ -770,9 +768,6 @@ const updateUrl = async (req, res, next) => {
                 // Time redirects disabled - just save as-is
                 updateFields.timeRedirects = timeRedirects;
             }
-            // Invalidate cache when time rules change
-            invalidateCache(url.shortId);
-            if (url.customAlias) invalidateCache(url.customAlias);
 
             // Security: Reset safety status (new URLs might be malicious)
             updateFields.safetyStatus = 'pending';
@@ -789,11 +784,28 @@ const updateUrl = async (req, res, next) => {
         }
 
         // Atomic update to prevent race conditions
-        const updatedUrl = await Url.findByIdAndUpdate(
-            url._id,
-            updateOperation,
-            { new: true }
-        );
+        let updatedUrl;
+        try {
+            updatedUrl = await Url.findByIdAndUpdate(
+                url._id,
+                updateOperation,
+                { new: true }
+            );
+
+            // Centralized Cache Invalidation: clear cache for both old and new aliases
+            await invalidateCache(url.shortId);
+            if (url.customAlias) await invalidateCache(url.customAlias);
+            if (updatedUrl && updatedUrl.customAlias && updatedUrl.customAlias !== url.customAlias) {
+                await invalidateCache(updatedUrl.customAlias);
+            }
+        } catch (err) {
+            // Handle race conditions where another pod creates the same custom alias at the exact same millisecond
+            if (err.code === 11000 && err.keyPattern && err.keyPattern.customAlias) {
+                res.status(400);
+                throw new Error('This alias was just taken. Please choose another.', { cause: err });
+            }
+            throw err;
+        }
 
         res.json(updatedUrl);
 
@@ -805,7 +817,7 @@ const updateUrl = async (req, res, next) => {
         if (shouldScan) {
              (async () => {
                 try {
-                    const settings = await Settings.findOne();
+                    const settings = await getSettings();
                     if (settings?.safeBrowsingAutoCheck) {
                         // Re-fetch updated document to get unified view
                         const fullDoc = await Url.findById(url._id);
@@ -895,8 +907,8 @@ const verifyLinkPassword = async (req, res, next) => {
         // Import getTimeBasedDestination at top if not already
         let finalTargetUrl = null;
         if (url.timeRedirects?.enabled && url.createdBy) {
-            // Check if owner has time_redirects feature
-            const owner = await User.findById(url.createdBy).select('subscription role');
+            // Check if owner has time_redirects feature using cache instead of DB
+            const owner = await getSubscriptionCache(url.createdBy.toString());
             if (owner && (owner.role === 'admin' || hasFeature(owner, 'time_redirects'))) {
                 const timeDestination = getTimeBasedDestination(url.timeRedirects);
                 if (timeDestination) {

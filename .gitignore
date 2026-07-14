@@ -10,6 +10,9 @@ node_modules/
 .env.test.local
 .env.production.local
 .env.production
+secrets.yaml
+secret.yaml.env
+*.yaml.env
 
 # Build outputs
 # Note: client/dist is built during deployment, don't commit it
@@ -99,4 +102,28 @@ testing/
 study/
 
 # Utility scripts (may contain local paths or dev-only utilities)
-server/scripts/
+server/scripts/*
+!server/scripts/runBanScheduler.js
+!server/scripts/runSafeBrowsingScan.js
+
+# Infrastructure / DevOps
+terraform/terraform.tfvars
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/.terraform/
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+deploy.env
+deploy.env.local
+
+# Dev curl session cookies — never commit
+cookies.txt
+
+# Staging/Testing configurations
+Staging Test/
+
+# Cloudflare Pages BFF function — contains CF Access token references.
+# Deploy separately via Wrangler CLI or by connecting the CF Pages project
+# directly to the GitHub repo (CF dashboard will read functions/ from the repo root).
+cf-pages/

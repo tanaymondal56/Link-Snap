@@ -1,0 +1,25 @@
+node_modules
+npm-debug.log
+Dockerfile
+.dockerignore
+.git
+.gitignore
+README.md
+.env
+.env.*
+*.local
+
+# Build artifacts — not needed in build context (rebuilt inside Docker)
+dist/
+dev-dist/
+.cache/
+coverage/
+
+# Dev-only config files
+eslint.config.js
+generate-icons.js
+nodemon.json
+*.log
+
+# TypeScript artifacts
+*.tsbuildinfo

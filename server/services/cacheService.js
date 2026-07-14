@@ -1,33 +1,21 @@
 import { LRUCache } from 'lru-cache';
 import logger from '../utils/logger.js';
+import { redisGet, redisSet, redisDel, getRedisClient } from '../config/redis.js';
 
 /**
- * In-memory LRU Cache for URL redirects
- * Reduces database queries for frequently accessed links
- * 
- * Trade-offs vs Redis:
- * - ✅ No external dependency
- * - ✅ Zero latency (in-process)
- * - ✅ Free forever
- * - ❌ Not shared across server instances
- * - ❌ Lost on server restart
+ * In-memory fallback caches for single-pod / development mode.
+ * Falls back gracefully when Upstash Redis is not configured.
  */
-
-const urlCache = new LRUCache({
+const fallbackUrlCache = new LRUCache({
     max: 10000,              // Maximum 10,000 URLs in cache
     ttl: 1000 * 60 * 10,     // 10 minute TTL (auto-expire)
-    updateAgeOnGet: true,    // Reset TTL when accessed (keep hot URLs longer)
-    updateAgeOnHas: false,
+    updateAgeOnGet: true,    // Reset TTL when accessed
 });
 
-/**
- * Subscription cache for owner feature checks (TBR, etc.)
- * Renews daily to reflect subscription changes
- */
-const subscriptionCache = new LRUCache({
+const fallbackSubCache = new LRUCache({
     max: 5000,                       // Max 5,000 users
     ttl: 1000 * 60 * 60 * 24,        // 24 hour TTL (daily renewal)
-    updateAgeOnGet: false,           // Don't extend - force daily refresh
+    updateAgeOnGet: false,           // Don't extend
 });
 
 // Cache statistics for monitoring
@@ -37,85 +25,177 @@ let stats = {
 };
 
 /**
- * Get a URL from cache
+ * Get a URL from cache.
+ * Falls back to in-memory cache if Redis is down.
+ * 
  * @param {string} shortId - The short URL identifier
- * @returns {object|null} - Cached URL object or null
+ * @returns {Promise<object|null>} - Cached URL object or null
  */
-export const getFromCache = (shortId) => {
-    const cached = urlCache.get(shortId);
-    if (cached) {
-        stats.hits++;
-        return cached;
+export const getFromCache = async (shortId) => {
+    const redis = getRedisClient();
+    if (!redis) {
+        const cached = fallbackUrlCache.get(shortId);
+        if (cached) {
+            stats.hits++;
+            return cached;
+        }
+        stats.misses++;
+        return null;
     }
-    stats.misses++;
-    return null;
+
+    try {
+        const cached = await redisGet(`ls:url:${shortId}`);
+        if (cached) {
+            stats.hits++;
+            return cached;
+        }
+        stats.misses++;
+        return null;
+    } catch (err) {
+        logger.warn(`[Cache] Redis get failed, using fallback: ${err.message}`);
+        const cached = fallbackUrlCache.get(shortId);
+        if (cached) stats.hits++;
+        else stats.misses++;
+        return cached || null;
+    }
 };
 
 /**
- * Store a URL in cache
+ * Store a URL in cache.
+ * Sets 10 minute TTL in Redis or in-memory fallback.
+ * 
  * @param {string} shortId - The short URL identifier
  * @param {object} urlData - URL data to cache
  */
-export const setInCache = (shortId, urlData) => {
-    urlCache.set(shortId, {
+export const setInCache = async (shortId, urlData) => {
+    const payload = {
         originalUrl: urlData.originalUrl,
         isActive: urlData.isActive,
         _id: urlData._id,
         ownerId: urlData.ownerId || urlData.createdBy || null,
         ownerBanned: urlData.ownerBanned,
         disableLinksOnBan: urlData.disableLinksOnBan,
-        // Device-based redirects (Pro/Business feature)
         deviceRedirects: urlData.deviceRedirects || null,
-        // Link expiration
         expiresAt: urlData.expiresAt || null,
-        // Password protection (redirect controller needs this)
         isPasswordProtected: urlData.isPasswordProtected || false,
-        // Title for password page
         title: urlData.title || null,
-        // Time-Based Redirects (Pro/Business feature)
         activeStartTime: urlData.activeStartTime || null,
         timeRedirects: urlData.timeRedirects || null,
-    });
+    };
+
+    const redis = getRedisClient();
+    if (!redis) {
+        fallbackUrlCache.set(shortId, payload);
+        return;
+    }
+
+    try {
+        // Cache for 10 minutes (600 seconds)
+        await redisSet(`ls:url:${shortId}`, 600, payload);
+    } catch (err) {
+        logger.warn(`[Cache] Redis set failed: ${err.message}`);
+        fallbackUrlCache.set(shortId, payload);
+    }
 };
 
 /**
- * Remove a URL from cache (call when URL is updated/deleted)
+ * Remove a URL from cache.
+ * 
  * @param {string} shortId - The short URL identifier
  */
-export const invalidateCache = (shortId) => {
-    urlCache.delete(shortId);
+export const invalidateCache = async (shortId) => {
+    fallbackUrlCache.delete(shortId);
+    const redis = getRedisClient();
+    if (!redis) return;
+
+    try {
+        await redisDel(`ls:url:${shortId}`);
+    } catch (err) {
+        logger.warn(`[Cache] Redis invalidate failed: ${err.message}`);
+    }
 };
 
 /**
- * Invalidate multiple URLs from cache (for batch operations)
+ * Invalidate multiple URLs from cache (for batch operations).
+ * 
  * @param {string[]} shortIds - Array of short URL identifiers
- * @returns {number} - Number of entries invalidated
+ * @returns {Promise<number>} - Number of entries invalidated
  */
-export const invalidateMultiple = (shortIds) => {
+export const invalidateMultiple = async (shortIds) => {
     let count = 0;
+    
+    // Invalidate fallbacks
     for (const shortId of shortIds) {
-        if (urlCache.has(shortId)) {
-            urlCache.delete(shortId);
+        if (fallbackUrlCache.has(shortId)) {
+            fallbackUrlCache.delete(shortId);
             count++;
         }
     }
-    if (count > 0) {
-        logger.info(`Cache invalidated ${count} URLs`);
+
+    const redis = getRedisClient();
+    if (!redis || shortIds.length === 0) {
+        return count;
     }
-    return count;
+
+    try {
+        const keys = shortIds.map(id => `ls:url:${id}`);
+        await redisDel(...keys);
+        logger.info(`[Cache] Invalidated ${shortIds.length} keys in Redis`);
+        return shortIds.length;
+    } catch (err) {
+        logger.warn(`[Cache] Redis batch invalidate failed: ${err.message}`);
+        return count;
+    }
 };
 
 /**
- * Clear entire cache (useful for admin operations)
+ * Clear entire cache (useful for admin operations).
  */
-export const clearCache = () => {
-    urlCache.clear();
+export const clearCache = async () => {
+    fallbackUrlCache.clear();
+    fallbackSubCache.clear();
     stats = { hits: 0, misses: 0 };
-    logger.info('URL cache cleared');
+
+    const redis = getRedisClient();
+    if (!redis) {
+        logger.info('In-memory cache cleared');
+        return;
+    }
+
+    try {
+        let deletedCount = 0;
+        let cursor = 0;
+        
+        // Scan and delete ls:url:*
+        do {
+            const [nextCursor, keys] = await redis.scan(cursor, { match: 'ls:url:*', count: 100 });
+            cursor = nextCursor;
+            if (keys.length > 0) {
+                await redisDel(...keys);
+                deletedCount += keys.length;
+            }
+        } while (cursor !== 0);
+
+        // Scan and delete ls:sub:*
+        cursor = 0;
+        do {
+            const [nextCursor, keys] = await redis.scan(cursor, { match: 'ls:sub:*', count: 100 });
+            cursor = nextCursor;
+            if (keys.length > 0) {
+                await redisDel(...keys);
+                deletedCount += keys.length;
+            }
+        } while (cursor !== 0);
+        
+        logger.info(`[Cache] Cleared ${deletedCount} Redis cache keys`);
+    } catch (err) {
+        logger.warn(`[Cache] Redis clear failed: ${err.message}`);
+    }
 };
 
 /**
- * Get cache statistics
+ * Get cache statistics.
+ * 
  * @returns {object} - Cache stats { hits, misses, hitRate, size }
  */
 export const getCacheStats = () => {
@@ -124,41 +204,76 @@ export const getCacheStats = () => {
         hits: stats.hits,
         misses: stats.misses,
         hitRate: total > 0 ? ((stats.hits / total) * 100).toFixed(2) + '%' : '0%',
-        size: urlCache.size,
-        maxSize: urlCache.max,
-        subscriptionCacheSize: subscriptionCache.size,
+        size: fallbackUrlCache.size,
+        maxSize: fallbackUrlCache.max,
+        subscriptionCacheSize: fallbackSubCache.size,
     };
 };
 
 // ============= Subscription Cache Functions =============
 
 /**
- * Get cached subscription data for a user
+ * Get cached subscription data for a user.
+ * 
  * @param {string} userId - User ID
- * @returns {object|null} - Cached subscription data or null
+ * @returns {Promise<object|null>} - Cached subscription data or null
  */
-export const getSubscriptionCache = (userId) => {
-    return subscriptionCache.get(userId) || null;
+export const getSubscriptionCache = async (userId) => {
+    const redis = getRedisClient();
+    if (!redis) {
+        return fallbackSubCache.get(userId) || null;
+    }
+
+    try {
+        return await redisGet(`ls:sub:${userId}`);
+    } catch (err) {
+        logger.warn(`[Cache] Redis subscription get failed: ${err.message}`);
+        return fallbackSubCache.get(userId) || null;
+    }
 };
 
 /**
- * Cache subscription data for a user (24h TTL)
+ * Cache subscription data for a user (24h TTL).
+ * 
  * @param {string} userId - User ID
  * @param {object} subData - Subscription and role data
  */
-export const setSubscriptionCache = (userId, subData) => {
-    subscriptionCache.set(userId, {
+export const setSubscriptionCache = async (userId, subData) => {
+    const payload = {
         subscription: subData.subscription || null,
         role: subData.role || 'user',
-    });
+    };
+
+    const redis = getRedisClient();
+    if (!redis) {
+        fallbackSubCache.set(userId, payload);
+        return;
+    }
+
+    try {
+        // Cache for 24 hours (86400 seconds)
+        await redisSet(`ls:sub:${userId}`, 86400, payload);
+    } catch (err) {
+        logger.warn(`[Cache] Redis subscription set failed: ${err.message}`);
+        fallbackSubCache.set(userId, payload);
+    }
 };
 
 /**
- * Invalidate subscription cache (call on subscription change)
+ * Invalidate subscription cache (call on subscription change).
+ * 
  * @param {string} userId - User ID
  */
-export const invalidateSubscriptionCache = (userId) => {
-    subscriptionCache.delete(userId);
+export const invalidateSubscriptionCache = async (userId) => {
+    fallbackSubCache.delete(userId);
+    const redis = getRedisClient();
+    if (!redis) return;
+
+    try {
+        await redisDel(`ls:sub:${userId}`);
+    } catch (err) {
+        logger.warn(`[Cache] Redis subscription invalidate failed: ${err.message}`);
+    }
 };
 
 export default {

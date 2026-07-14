@@ -8,13 +8,8 @@ const getBaseURL = () => {
   const isProduction = import.meta.env.PROD;
 
   // In production: always use relative path (same origin)
-  // This works with any domain (Cloudflare, custom domain, etc.)
+  // This routes requests through the CF Pages /api proxy function
   if (isProduction) {
-    // If apiUrl is a full URL (not localhost), use it
-    if (apiUrl && !apiUrl.includes('localhost') && !apiUrl.includes('127.0.0.1') && !apiUrl.startsWith('/')) {
-      return apiUrl;
-    }
-    // Otherwise use relative path
     return '/api';
   }
 
@@ -97,7 +92,8 @@ api.interceptors.response.use(
     if (error.response?.status === 403 && error.response?.data?.banned) {
       // Clear all auth data immediately
       accessToken = null;
-      localStorage.removeItem('user'); // Keep user object cleanup if used elsewhere
+      localStorage.removeItem('ls_auth_user');
+      localStorage.removeItem('ls_auth_cached_at');
 
       // Store the ban message and details for the suspended page
       const banData = error.response.data;
@@ -146,7 +142,8 @@ api.interceptors.response.use(
         // Check if banned response from refresh endpoint
         if (data.banned) {
           accessToken = null;
-          localStorage.removeItem('user');
+          localStorage.removeItem('ls_auth_user');
+          localStorage.removeItem('ls_auth_cached_at');
           sessionStorage.setItem('banMessage', data.message || 'Your account has been suspended.');
           if (data.bannedReason) sessionStorage.setItem('banReason', data.bannedReason);
           if (data.bannedAt) sessionStorage.setItem('banBannedAt', data.bannedAt);
@@ -169,7 +166,8 @@ api.interceptors.response.use(
         // Check if refresh failed due to ban
         if (refreshError.response?.status === 403 && refreshError.response?.data?.banned) {
           accessToken = null;
-          localStorage.removeItem('user');
+          localStorage.removeItem('ls_auth_user');
+          localStorage.removeItem('ls_auth_cached_at');
           const banData = refreshError.response.data;
           sessionStorage.setItem('banMessage', banData.message || 'Your account has been suspended.');
           if (banData.bannedReason) sessionStorage.setItem('banReason', banData.bannedReason);

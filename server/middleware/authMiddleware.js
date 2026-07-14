@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import MasterAdmin from '../models/MasterAdmin.js';
+import { redisGet, redisSet, getRedisClient } from '../config/redis.js';
 
 const protect = async (req, res, next) => {
   let token;
@@ -27,11 +28,29 @@ const protect = async (req, res, next) => {
           req.user.subscription = { tier: 'pro', status: 'active', plan: 'pro_annual' };
       } else {
           // --- STANDARD USER LOOKUP ---
-          req.user = await User.findById(decoded.id).select('-password -refreshTokens');
+          const redis = getRedisClient();
+          const cacheKey = `ls:user:${decoded.id}`;
+          let userData = null;
 
-          if (!req.user) {
-            res.status(401);
-            throw new Error('User not found');
+          if (redis) {
+              userData = await redisGet(cacheKey);
+          }
+
+          if (userData) {
+              req.user = User.hydrate(userData);
+          } else {
+              const dbUser = await User.findById(decoded.id).select('-password -refreshTokens');
+
+              if (!dbUser) {
+                res.status(401);
+                throw new Error('User not found');
+              }
+
+              req.user = dbUser;
+
+              if (redis) {
+                  await redisSet(cacheKey, 300, dbUser.toObject());
+              }
           }
 
           if (!req.user.isActive) {

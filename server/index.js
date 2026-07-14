@@ -5,8 +5,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import morgan from 'morgan';
 import connectDB from './config/db.js';
 import errorHandler from './middleware/errorHandler.js';
@@ -15,6 +13,7 @@ import logger from './utils/logger.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
 import lusca from 'lusca';
 import cookieSession from 'cookie-session';
+import crypto from 'crypto';
 
 import authRoutes from './routes/authRoutes.js';
 import urlRoutes from './routes/urlRoutes.js';
@@ -38,9 +37,14 @@ import sessionRoutes from './routes/sessionRoutes.js';
 import redirectRoutes from './routes/redirectRoutes.js';
 import bioRoutes from './routes/bioRoutes.js';
 import deviceAuthRoutes from './routes/deviceAuthRoutes.js';
-import { startBanScheduler } from './services/banScheduler.js';
-import { startCronJobs } from './services/cronService.js';
+import webhookRoutes from './routes/webhookRoutes.js';
+import subscriptionRoutes from './routes/subscriptionRoutes.js';
+import { flushAndStop } from './services/clickStatsService.js';
+import { stopDeviceAuthIntervals } from './controllers/deviceAuthController.js';
+import { flushAnalyticsAndStop } from './services/analyticsService.js';
 import compression from 'compression';
+import mongoose from 'mongoose';
+import { connectRedis, checkRedisConnection, disconnectRedis, isRedisConfigured } from './config/redis.js';
 
 const app = express();
 
@@ -97,6 +101,22 @@ if (process.env.NODE_ENV === 'development') {
 // Toggle: PROXY_GATE_ENABLED=false for local development
 app.use(strictProxyGate);
 
+// Generate CSP Nonce
+app.use((req, res, next) => {
+  res.locals.nonce = crypto.randomBytes(16).toString('base64');
+  next();
+});
+
+// Build dynamic connectSrc for CSP based on configured allowed origins
+const dynamicConnectSrc = [
+  "'self'",
+  process.env.CLIENT_URL || "http://localhost:3000",
+  // Allow all entries from ALLOWED_ORIGINS as well
+  ...(() => {
+    if (!process.env.ALLOWED_ORIGINS) return [];
+    return process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean);
+  })(),
+];
 
 // Security headers with Helmet
 app.use(helmet({
@@ -105,14 +125,12 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: [
         "'self'",
+        (req, res) => `'nonce-${res.locals.nonce}'`,
         ...(process.env.NODE_ENV === 'development' ? ["'unsafe-inline'"] : []),
       ],
       styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: [
-        "'self'",
-        process.env.CLIENT_URL || "http://localhost:3000",
-      ],
+      connectSrc: dynamicConnectSrc,
       fontSrc: ["'self'", "https:", "data:"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
@@ -142,10 +160,16 @@ const parseCsvOrigins = (value) => {
     .filter(Boolean);
 };
 
+// Keep only canonical domains here. Add extras via ALLOWED_ORIGINS env var.
 const productionDefaultOrigins = [
-  'https://linksnap.centralindia.cloudapp.azure.com',
   'https://lksnp.qzz.io',
+  'https://api.lksnp.qzz.io',    // API subdomain used in BFF / Cloudflare Tunnel architecture
+  'https://link-snap.pages.dev',  // Cloudflare Pages default domain (project-specific URL)
 ];
+
+// Built-in wildcard: allows any current or future subdomain of lksnp.qzz.io
+// (e.g. api.lksnp.qzz.io, beta.lksnp.qzz.io) without any config changes.
+const BUILTIN_WILDCARD_REGEX = /^https:\/\/([a-z0-9-]+\.)*lksnp\.qzz\.io$/i;
 
 const allowedOrigins = Array.from(new Set([
   normalizeOrigin(process.env.CLIENT_URL),
@@ -157,18 +181,36 @@ const allowedOrigins = Array.from(new Set([
   'http://127.0.0.1:5173',
 ].filter(Boolean)));
 
-import webhookRoutes from './routes/webhookRoutes.js';
-import subscriptionRoutes from './routes/subscriptionRoutes.js';
-
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl, or same-origin in production)
+    // Allow requests with no origin (mobile apps, curl, or same-origin in production)
     if (!origin) return callback(null, true);
 
     const normalizedOrigin = normalizeOrigin(origin);
 
+    // Exact-match allowlist (fastest path)
     if (allowedOrigins.includes(normalizedOrigin)) {
       return callback(null, true);
+    }
+
+    // ── Wildcard: any *.lksnp.qzz.io subdomain ────────────────────────────
+    // Covers any current or future subdomain automatically
+    if (BUILTIN_WILDCARD_REGEX.test(normalizedOrigin)) {
+      return callback(null, true);
+    }
+
+    // ── Dynamic host checker (via env var regex) ───────────────────────────
+    // Allow additional custom domains via DYNAMIC_ALLOWED_DOMAINS_REGEX env var
+    // Example: ^https:\/\/(.*?\.)?yourdomain\.com$
+    if (process.env.DYNAMIC_ALLOWED_DOMAINS_REGEX) {
+      try {
+        const regex = new RegExp(process.env.DYNAMIC_ALLOWED_DOMAINS_REGEX, 'i');
+        if (regex.test(normalizedOrigin)) {
+          return callback(null, true);
+        }
+      } catch (e) {
+        console.error(`[CORS] Invalid DYNAMIC_ALLOWED_DOMAINS_REGEX: ${e.message}`);
+      }
     }
 
     // For development, allow localhost and LAN variants
@@ -203,13 +245,29 @@ app.use(cookieParser());
 // CSRF Protection (using lusca as recommended by CodeQL)
 // Lusca requires a session to store the CSRF secret.
 // We use cookie-session to provide a client-side session.
+// ─── Cross-Origin Cookie Mode ──────────────────────────────────────────────
+// When frontend is hosted on a DIFFERENT domain (CF Pages, Vercel, external CDN),
+// cookies MUST use SameSite=None + Secure to be sent in cross-origin requests.
+// When frontend is on the SAME domain, SameSite=Strict is safer.
+// Set CROSS_ORIGIN_FRONTEND=true in configmap.yaml to enable cross-origin mode.
+const isCrossOriginFrontend = process.env.CROSS_ORIGIN_FRONTEND === 'true';
+const cookieSameSite = isCrossOriginFrontend ? 'none' : 'strict';
+const cookieSecure  = isCrossOriginFrontend ? true : (process.env.NODE_ENV === 'production');
+
 app.use(cookieSession({
   name: 'session',
-  keys: [process.env.SESSION_SECRET || 'default-secret-key'],
+  keys: [(() => {
+    const secret = process.env.SESSION_SECRET;
+    if (!secret && process.env.NODE_ENV === 'production') {
+      console.error('[FATAL] SESSION_SECRET env var is not set in production. Refusing to start with an insecure session key.');
+      process.exit(1);
+    }
+    return secret || 'dev-only-insecure-session-key';
+  })()],
   maxAge: 24 * 60 * 60 * 1000, // 24 hours
-  secure: process.env.NODE_ENV === 'production',
+  secure: cookieSecure,
   httpOnly: true,
-  sameSite: 'strict',
+  sameSite: cookieSameSite,
 }));
 
 // Configure CSRF with double-submit cookie pattern
@@ -218,8 +276,8 @@ app.use(lusca.csrf({
     name: 'XSRF-TOKEN',
     options: {
       httpOnly: false, // Allow client to read for header inclusion
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
     }
   },
   header: 'X-XSRF-TOKEN',
@@ -231,10 +289,6 @@ app.use(lusca.csrf({
 
 // NoSQL injection protection
 app.use(mongoSanitize);
-
-// Rate Limiting
-app.use('/api', apiLimiter);
-// app.use('/api/auth', authLimiter); // Moved to specific routes in authRoutes.js
 
 // Health Check Endpoints
 import { isConnected } from './config/db.js';
@@ -248,21 +302,33 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Deep health check - verifies database connectivity
+// Deep health check - verifies database and Redis connectivity
 app.get('/api/health/deep', async (req, res) => {
   const dbConnected = isConnected();
-  const status = dbConnected ? 'ok' : 'degraded';
-  const statusCode = dbConnected ? 200 : 503;
+
+  // Real Redis ping — checkRedisConnection() returns false if not configured
+  const redisConfigured = isRedisConfigured();
+  const redisReachable = await checkRedisConnection();
+  const redisStatus = !redisConfigured ? 'not_configured' : (redisReachable ? 'connected' : 'unreachable');
+
+  // Service is healthy if DB is up. Redis degraded is non-fatal (falls back to in-memory).
+  const allOk = dbConnected;
+  const statusCode = allOk ? 200 : 503;
 
   res.status(statusCode).json({
-    status,
+    status: allOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     services: {
       database: dbConnected ? 'connected' : 'disconnected',
+      redis: redisStatus,
     },
   });
 });
+
+// Rate Limiting
+app.use('/api', apiLimiter);
+// app.use('/api/auth', authLimiter); // Moved to specific routes in authRoutes.js
 
 // Routes (API routes first)
 app.use('/api/auth', authRoutes);
@@ -284,95 +350,10 @@ app.use('/api/sessions', sessionRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/bio', bioRoutes);
-// Serve static assets in production (BEFORE redirect routes)
-if (process.env.NODE_ENV === 'development') {
-  const devRoutes = (await import('./routes/devRoutes.js')).default;
-  app.use('/api/dev', devRoutes);
-  logger.info('Dev routes enabled under /api/dev');
-}
-if (process.env.NODE_ENV === 'production') {
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  // Serve static files from client build with proper cache headers
-  app.use(express.static(path.join(__dirname, '../client/dist'), {
-    etag: true,
-    lastModified: true,
-    setHeaders: (res, filePath) => {
-      // Set explicit Content-Type for JS/CSS files to prevent MIME type errors
-      if (filePath.endsWith('.js')) {
-        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-      } else if (filePath.endsWith('.mjs')) {
-        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-      } else if (filePath.endsWith('.css')) {
-        res.setHeader('Content-Type', 'text/css; charset=utf-8');
-      }
-
-      // For Service Worker, never cache (must always check for updates)
-      if (filePath.includes('sw.js') || filePath.includes('workbox-')) {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-      }
-      // For HTML files, allow caching with revalidation (enables bfcache)
-      else if (filePath.endsWith('.html')) {
-        res.setHeader('Cache-Control', 'no-cache, max-age=0, must-revalidate');
-      }
-      // For JS/CSS with hash in filename, cache forever (immutable)
-      else if (filePath.match(/\.[a-f0-9]{8}\.(js|css)$/)) {
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      }
-      // For other assets (images, fonts, etc), short cache with revalidation
-      else {
-        res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate'); // 5 minutes
-      }
-    }
-  }));
-}
-
-// Short URL redirect routes (after static files, so JS/CSS/images are served directly)
+// Short URL redirect routes (This must be after all API routes)
 app.use('/', redirectRoutes);
 
-// SPA catch-all route (after redirect routes)
-if (process.env.NODE_ENV === 'production') {
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  // Catch-all route for SPA - Express 5 uses {*param} syntax
-  // This handles all routes not matched by API or redirect routes
-  // IMPORTANT: Exclude static asset paths that are handled by express.static
-  app.get('/{*splat}', (req, res, next) => {
-    // Skip catch-all for API routes (they should never reach this point if properly routed)
-    // This is a safety net in case an API route falls through
-    if (req.path.startsWith('/api/')) {
-      console.warn(`[SPA Catch-all] WARNING: API route fell through: ${req.path}`);
-      return res.status(404).json({
-        error: 'Not Found',
-        message: 'API endpoint not found',
-        path: req.path
-      });
-    }
 
-    // Skip catch-all for static assets (let express.static handle them)
-    if (
-      req.path.startsWith('/assets/') ||
-      req.path === '/manifest.json' ||
-      req.path === '/manifest.webmanifest' ||
-      req.path === '/robots.txt' ||
-      req.path === '/sitemap.xml' ||
-      req.path === '/sw.js' ||
-      req.path === '/favicon.ico' ||
-      req.path === '/favicon.svg' ||
-      req.path === '/favicon-16x16.png' ||
-      req.path === '/favicon-32x32.png' ||
-      req.path === '/apple-touch-icon.png'
-    ) {
-      return next(); // Pass to express.static or 404
-    }
-
-    console.log(`[SPA Catch-all] Serving index.html for: ${req.path}`);
-    // Allow browser caching with revalidation (enables bfcache for back/forward navigation)
-    // Changed from 'no-store' to allow bfcache while still checking for updates
-    res.setHeader('Cache-Control', 'no-cache, max-age=0, must-revalidate');
-    res.sendFile(path.resolve(__dirname, '../client/dist/index.html'));
-  });
-} else {
   // Development mode - catch-all for 404s
   app.get('/{*splat}', (req, res) => {
     // Return proper 404 response for invalid short URLs
@@ -386,17 +367,18 @@ if (process.env.NODE_ENV === 'production') {
   app.get('/', (req, res) => {
     res.send('Link Snap API is running...');
   });
-}
 
 // Error Handler
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-// Start server only after database connection is established
 const startServer = async () => {
   try {
     await connectDB();
+
+    // Initialise Upstash Redis (non-blocking — falls back gracefully if not configured)
+    connectRedis();
 
     // ═══════════════════════════════════════════════════════════════════════════
     // VALIDATE PROXY GATE CONFIGURATION
@@ -405,15 +387,59 @@ const startServer = async () => {
     // misconfigured in production. MUST be called after DB connects but before listen.
     validateProxyGateConfig();
 
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 
-      // Start the temporary ban scheduler
-      startBanScheduler();
-
-      // Start background cron jobs (Safe Browsing, etc.)
-      startCronJobs();
+      // Cron jobs are now handled by independent K8s CronJobs.
     });
+
+    // ─── Graceful Shutdown Handler ──────────────────────────────────────────────
+    // Kubernetes sends SIGTERM when scaling down or rolling updates.
+    // We must stop accepting new connections, finish in-flight requests,
+    // flush analytics, and close DB before the 30-second SIGKILL deadline.
+    const shutdown = async (signal) => {
+      logger.info(`Received ${signal}. Starting graceful shutdown...`);
+
+      // 1. Stop accepting new HTTP connections
+      server.close(async () => {
+        try {
+          logger.info('[Shutdown] HTTP server closed. Cleaning up...');
+
+          // 2. Stop background timers
+          stopDeviceAuthIntervals();
+
+          // 3. Flush buffered click counts to DB (prevent data loss)
+          logger.info('[Shutdown] Flushing click stats buffer...');
+          await flushAndStop();
+
+          // 3b. Flush buffered analytics to DB (prevent data loss)
+          logger.info('[Shutdown] Flushing analytics buffer...');
+          await flushAnalyticsAndStop();
+
+          // 4. Release Redis HTTP client
+          disconnectRedis();
+
+          // 5. Close MongoDB connection cleanly
+          await mongoose.connection.close(false);
+          logger.info('[Shutdown] MongoDB connection closed.');
+
+          process.exit(0);
+        } catch (err) {
+          logger.error(`[Shutdown] Error during cleanup: ${err.message}`);
+          process.exit(1);
+        }
+      });
+
+      // Hard kill if graceful shutdown takes too long (K8s will SIGKILL at 30s anyway)
+      setTimeout(() => {
+        logger.error('[Shutdown] Timed out after 15s. Forcing exit.');
+        process.exit(1);
+      }, 15000);
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+
   } catch (error) {
     logger.error(`Failed to start server: ${error.message}`);
     process.exit(1);
@@ -421,3 +447,17 @@ const startServer = async () => {
 };
 
 startServer();
+
+// ─── Global Error Safety Net ────────────────────────────────────────────────
+// Prevents CrashLoopBackOff from unhandled async failures
+process.on('unhandledRejection', (reason) => {
+  logger.error(`[UnhandledRejection] ${reason}`);
+  // Do NOT exit — log and let monitoring catch it
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error(`[UncaughtException] ${err.message}`);
+  // Uncaught exceptions leave the process in an unknown state
+  // Let it crash naturally so K8s restarts it
+  process.exit(1);
+});

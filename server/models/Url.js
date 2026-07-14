@@ -81,7 +81,12 @@ const urlSchema = new mongoose.Schema({
                 required: true,
                 validate: {
                     validator: function(v) {
-                        return /^https?:\/\/.+/.test(v);
+                        try {
+                            const url = new URL(v);
+                            return url.protocol === 'http:' || url.protocol === 'https:';
+                        } catch {
+                            return false;
+                        }
                     },
                     message: 'Destination must be a valid URL starting with http:// or https://'
                 }
@@ -109,8 +114,12 @@ const urlSchema = new mongoose.Schema({
                 required: true,
                 validate: {
                     validator: function(v) {
-                        // Basic URL validation - must start with http/https
-                        return /^https?:\/\/.+/.test(v);
+                        try {
+                            const url = new URL(v);
+                            return url.protocol === 'http:' || url.protocol === 'https:';
+                        } catch {
+                            return false;
+                        }
                     },
                     message: 'Destination must be a valid URL starting with http:// or https://'
                 }

@@ -294,11 +294,11 @@ const AdminFeedback = () => {
               <div className="p-4 pt-0 border-t border-gray-700/50 bg-gray-900/30">
                 <div className="grid md:grid-cols-2 gap-4 mt-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-400 mb-2 block">Full Message</label>
+                    <span className="text-sm font-medium text-gray-400 mb-2 block">Full Message</span>
                     <div className="bg-gray-800 rounded-lg p-3 text-gray-300 text-sm max-h-40 overflow-y-auto">{item.message}</div>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-400 mb-2 block">Admin Notes</label>
+                    <span className="text-sm font-medium text-gray-400 mb-2 block">Admin Notes</span>
                     <textarea
                       value={editingNotes[item._id] ?? item.adminNotes ?? ''}
                       onChange={(e) => setEditingNotes(prev => ({ ...prev, [item._id]: e.target.value }))}

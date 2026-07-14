@@ -15,6 +15,26 @@ class ErrorBoundary extends Component {
     this.setState({ errorInfo });
     // Log error to console for debugging
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+
+    // Automatically recover from chunk loading errors (usually caused by new deployments)
+    const isChunkError = 
+      error.name === 'ChunkLoadError' ||
+      error.message?.includes('Failed to fetch dynamically imported module') ||
+      error.message?.includes('Expected a JavaScript-or-Wasm module');
+
+    if (isChunkError) {
+      const lastReload = sessionStorage.getItem('chunk_error_reload_time');
+      const now = Date.now();
+      
+      if (!lastReload || now - parseInt(lastReload, 10) > 15000) {
+        sessionStorage.setItem('chunk_error_reload_time', now.toString());
+        console.warn('Chunk load error detected. Automatically reloading to retrieve the latest version...');
+        // Clear Sw cache just in case to ensure fresh index.html
+        this.handleClearCache();
+      } else {
+        console.error('Chunk load error persisted. Cooldown active (last reload < 15s ago). Showing error screen to prevent refresh loop.');
+      }
+    }
   }
 
   handleRefresh = () => {

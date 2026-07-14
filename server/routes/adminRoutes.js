@@ -23,7 +23,8 @@ import {
     deleteFeedback,
     exportFeedbackCSV,
     getUsernameHistory,
-    triggerSafetyScan
+    triggerSafetyScan,
+    getSystemEnvironment
 } from '../controllers/adminController.js';
 import { getAllLinks, updateLinkStatus, deleteLinkAdmin, overrideLinkSafety, rescanLinkSafety } from '../controllers/adminLinkController.js';
 import { 
@@ -61,8 +62,9 @@ router.head('/ip-check', ipWhitelist, (req, res) => {
 // Security: IP Whitelist -> Auth -> Admin Role (for all other routes)
 router.use(ipWhitelist, verifyToken, verifyAdmin);
 
-// Stats
+// Stats & System
 router.get('/stats', getSystemStats);
+router.get('/system-environment', getSystemEnvironment);
 
 // User Management
 router.get('/users', getAllUsers);

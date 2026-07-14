@@ -43,6 +43,8 @@
  * ═══════════════════════════════════════════════════════════════════════════════
  */
 
+import crypto from 'crypto';
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -245,7 +247,10 @@ export const strictProxyGate = (req, res, next) => {
     if (isPublicApi) {
         // Still extract real user IP for rate limiting and logging
         req.realUserIP = getRealUserIP(req) || getConnectingIP(req);
-        console.log(`[ProxyGate] ✅ Public API bypass for: ${req.path}`);
+        // Debug only — avoid log spam in production for every public request
+        if (process.env.NODE_ENV !== 'production') {
+            console.log(`[ProxyGate] ✅ Public API bypass for: ${req.path}`);
+        }
         return next();
     }
 
@@ -282,7 +287,20 @@ export const strictProxyGate = (req, res, next) => {
     // This is the first line of defense at the application level
     const clientSecret = req.headers[CONFIG.secretHeader];
 
-    if (!clientSecret || clientSecret !== CONFIG.secret) {
+    // Use constant-time comparison to prevent timing oracle attacks (CWE-208)
+    const secretMatches = (() => {
+        if (!clientSecret || !CONFIG.secret) return false;
+        try {
+            const a = Buffer.from(clientSecret);
+            const b = Buffer.from(CONFIG.secret);
+            if (a.length !== b.length) return false;
+            return crypto.timingSafeEqual(a, b);
+        } catch {
+            return false;
+        }
+    })();
+
+    if (!secretMatches) {
         // Log for security monitoring (avoid logging the secret itself!)
         console.warn(`[ProxyGate] ❌ BLOCKED - Invalid/missing secret token`);
         console.warn(`[ProxyGate]    Connecting IP: ${getConnectingIP(req)}`);

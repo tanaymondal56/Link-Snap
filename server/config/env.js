@@ -23,10 +23,11 @@ const CRITICAL_VARS = [
   'MONGO_URI',
   'JWT_ACCESS_SECRET',
   'JWT_REFRESH_SECRET',
+  'ENCRYPTION_KEY',
+  'SESSION_SECRET',
 ];
 
 const IMPORTANT_VARS = [
-  'ENCRYPTION_KEY',
   'NODE_ENV',
   'PORT',
   // Lemon Squeezy Integration
@@ -47,6 +48,13 @@ const OPTIONAL_VARS = [
   'SMTP_PASS',
   'EMAIL_FROM',
   'SUPPORT_EMAIL',
+  // Redis — Upstash serverless Redis (required for K8s horizontal scaling)
+  // Get these from your Upstash console: https://console.upstash.com
+  'REDIS_URL',
+  'UPSTASH_REDIS_REST_URL',
+  'UPSTASH_REDIS_REST_TOKEN',
+  // K8s: set to 'true' to skip versionSync.js filesystem writes in containers
+  'K8S_DISABLE_VERSION_SYNC',
 ];
 
 // Validate environment variables on startup

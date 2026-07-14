@@ -157,9 +157,9 @@ export const updateLinkStatus = async (req, res) => {
         );
 
         // Invalidate cache so the new status takes effect immediately
-        invalidateCache(url.shortId);
+        await invalidateCache(url.shortId);
         if (url.customAlias) {
-            invalidateCache(url.customAlias);
+            await invalidateCache(url.customAlias);
         }
 
         res.json({ message: `Link ${newStatus ? 'activated' : 'disabled'}`, url: updatedUrl });
@@ -180,9 +180,9 @@ export const deleteLinkAdmin = async (req, res) => {
         }
 
         // Invalidate cache before deleting
-        invalidateCache(url.shortId);
+        await invalidateCache(url.shortId);
         if (url.customAlias) {
-            invalidateCache(url.customAlias);
+            await invalidateCache(url.customAlias);
         }
 
         // Delete analytics
@@ -238,9 +238,9 @@ export const overrideLinkSafety = async (req, res) => {
         );
 
         // CRITICAL: Invalidate cache immediately so blocking takes effect
-        invalidateCache(url.shortId);
+        await invalidateCache(url.shortId);
         if (url.customAlias) {
-            invalidateCache(url.customAlias);
+            await invalidateCache(url.customAlias);
         }
 
         logger.info(`[Admin Safety Override] Link ${url.shortId}: ${previousStatus} -> ${safetyStatus} by Admin ${req.user?.email}`);
@@ -303,9 +303,9 @@ export const rescanLinkSafety = async (req, res) => {
         );
 
         // Invalidate cache
-        invalidateCache(url.shortId);
+        await invalidateCache(url.shortId);
         if (url.customAlias) {
-            invalidateCache(url.customAlias);
+            await invalidateCache(url.customAlias);
         }
 
         logger.info(`[Admin Re-Scan] Link ${url.shortId}: Now ${safetyResult.status}`);

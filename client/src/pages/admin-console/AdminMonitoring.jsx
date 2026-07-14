@@ -17,10 +17,11 @@ import { formatDateTime } from '../../utils/dateUtils';
 import BentoCard from '../../components/admin-console/ui/BentoCard';
 import showToast from '../../utils/toastUtils';
 import { useAuth } from '../../context/AuthContext';
+import SystemEnvironmentCard from '../../components/admin/SystemEnvironmentCard';
 
 const AdminMonitoring = () => {
   const { isAuthChecking } = useAuth();
-  const [activeTab, setActiveTab] = usePersistentTab('admin_monitoring', 'health', ['health', 'logs', 'performance']);
+  const [activeTab, setActiveTab] = usePersistentTab('admin_monitoring', 'health', ['health', 'logs', 'performance', 'environment']);
   const [health, setHealth] = useState(null);
   const [deepHealth, setDeepHealth] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -117,6 +118,16 @@ const AdminMonitoring = () => {
         >
           <Activity size={16} /> System Health
         </button>
+        <button
+          onClick={() => setActiveTab('environment')}
+          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === 'environment' 
+              ? 'border-blue-500 text-blue-400' 
+              : 'border-transparent text-gray-400 hover:text-white'
+          }`}
+        >
+          <Server size={16} /> Cluster & Host Env
+        </button>
         {/* Logs and Performance tabs hidden until backend support is implemented */}
       </div>
 
@@ -185,8 +196,8 @@ const AdminMonitoring = () => {
                      Since last restart
                    </p>
                  </div>
-               </BentoCard>
-             </div>
+                </BentoCard>
+              </div>
 
              {/* Raw Data View */}
              <BentoCard title="Detailed Diagnostics" className="font-mono text-xs">
@@ -198,8 +209,12 @@ const AdminMonitoring = () => {
                    Last checked: {formatDateTime(lastChecked)}
                  </p>
                )}
-             </BentoCard>
-          </div>
+              </BentoCard>
+           </div>
+        )}
+
+        {activeTab === 'environment' && (
+          <SystemEnvironmentCard />
         )}
 
         {/* Placeholders for Logs and Performance */}

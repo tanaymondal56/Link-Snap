@@ -77,7 +77,7 @@ const EditCodeModal = ({ isOpen, onClose, onSuccess, code }) => {
             {/* Code & Active Status */}
             <div className="flex gap-4">
               <div className="flex-1 space-y-1">
-                  <label className="text-sm font-medium text-gray-400">Code String</label>
+                  <span className="text-sm font-medium text-gray-400">Code String</span>
                   <input
                   type="text"
                   value={formData.code}
@@ -88,7 +88,7 @@ const EditCodeModal = ({ isOpen, onClose, onSuccess, code }) => {
                   />
               </div>
               <div className="space-y-1 w-24">
-                  <label className="text-sm font-medium text-gray-400">Status</label>
+                  <span className="text-sm font-medium text-gray-400">Status</span>
                   <button
                       type="button"
                       onClick={() => setFormData({...formData, isActive: !formData.isActive})}
@@ -105,7 +105,7 @@ const EditCodeModal = ({ isOpen, onClose, onSuccess, code }) => {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-400">Tier</label>
+                <span className="text-sm font-medium text-gray-400">Tier</span>
                 <select
                   value={formData.tier}
                   onChange={(e) => setFormData({...formData, tier: e.target.value})}
@@ -117,7 +117,7 @@ const EditCodeModal = ({ isOpen, onClose, onSuccess, code }) => {
               </div>
               
               <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-400">Duration</label>
+                <span className="text-sm font-medium text-gray-400">Duration</span>
                 <select
                   value={formData.duration}
                   onChange={(e) => setFormData({...formData, duration: e.target.value})}
@@ -134,7 +134,7 @@ const EditCodeModal = ({ isOpen, onClose, onSuccess, code }) => {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-400">Max Uses</label>
+                <span className="text-sm font-medium text-gray-400">Max Uses</span>
                 <input
                   type="number"
                   min="1"
@@ -145,7 +145,7 @@ const EditCodeModal = ({ isOpen, onClose, onSuccess, code }) => {
               </div>
               
               <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-400">Expires At (Optional)</label>
+                <span className="text-sm font-medium text-gray-400">Expires At (Optional)</span>
                 <input
                   type="date"
                   value={formData.expiresAt}
@@ -156,7 +156,7 @@ const EditCodeModal = ({ isOpen, onClose, onSuccess, code }) => {
             </div>
 
             <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-400">Notes</label>
+              <span className="text-sm font-medium text-gray-400">Notes</span>
               <textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({...formData, notes: e.target.value})}

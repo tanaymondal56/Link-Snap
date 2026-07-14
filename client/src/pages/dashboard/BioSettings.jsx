@@ -457,7 +457,7 @@ export default function BioSettings() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-slate-400 mb-1.5">Display Name</label>
+                <span className="block text-sm text-slate-400 mb-1.5">Display Name</span>
                 <input
                   type="text"
                   value={displayName}
@@ -469,9 +469,9 @@ export default function BioSettings() {
               </div>
 
               <div>
-                <label className="block text-sm text-slate-400 mb-1.5">
+                <span className="block text-sm text-slate-400 mb-1.5">
                   Bio <span className="text-slate-600">({bio.length}/160)</span>
-                </label>
+                </span>
                 <textarea
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}

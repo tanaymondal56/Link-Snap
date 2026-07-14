@@ -147,9 +147,9 @@ const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
             {/* Tier & Duration Row */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
+                <span className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
                   <CreditCard size={14} className="text-blue-400" /> Plan Tier
-                </label>
+                </span>
                 <select
                   className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-green-500/50 focus:outline-none transition-colors"
                   value={form.tier}
@@ -161,9 +161,9 @@ const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
+                <span className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
                   <Clock size={14} className="text-purple-400" /> Duration
-                </label>
+                </span>
                 <select
                   className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-green-500/50 focus:outline-none transition-colors"
                   value={form.duration}
@@ -181,10 +181,10 @@ const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
             {/* Custom Code & Max Uses Row */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
+                <span className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
                   <Hash size={14} className="text-amber-400" /> Custom Code{' '}
                   <span className="text-gray-500 text-xs font-normal">(Optional)</span>
-                </label>
+                </span>
                 <input
                   type="text"
                   placeholder="Automatic (Random)"
@@ -200,9 +200,9 @@ const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
+                <span className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
                   <Users size={14} className="text-cyan-400" /> Max Uses
-                </label>
+                </span>
                 <input
                   type="number"
                   min="1"
@@ -215,10 +215,10 @@ const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
 
             {/* Expiration Date */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
+              <span className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
                 <Calendar size={14} className="text-red-400" /> Code Expires At{' '}
                 <span className="text-gray-500 text-xs font-normal">(Optional)</span>
-              </label>
+              </span>
               <div className="relative">
                 <input
                   type="date"
@@ -235,10 +235,10 @@ const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
 
             {/* Notes */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
+              <span className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1.5">
                 <FileText size={14} className="text-gray-400" /> Internal Notes{' '}
                 <span className="text-gray-500 text-xs font-normal">(Optional)</span>
-              </label>
+              </span>
               <textarea
                 rows="3"
                 placeholder="E.g., Generated for Twitter giveaway 2025..."

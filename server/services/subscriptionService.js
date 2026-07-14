@@ -286,6 +286,14 @@ export const getEffectiveTier = (user) => {
     return 'free';
   }
   
+  // Check if active subscription has expired (with 24h grace period to cover webhook delays)
+  if (sub.status === 'active' && sub.currentPeriodEnd) {
+    const graceMs = 24 * 60 * 60 * 1000;
+    if (new Date(sub.currentPeriodEnd).getTime() + graceMs <= Date.now()) {
+      return 'free';
+    }
+  }
+
   const tier = sub.tier;
   
   if (sub.status === 'past_due') {

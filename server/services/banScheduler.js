@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import BanHistory from '../models/BanHistory.js';
-import Settings from '../models/Settings.js';
+import { getSettings } from '../utils/getSettings.js';
+import { getRedisClient } from '../config/redis.js';
 import Url from '../models/Url.js';
 import Changelog from '../models/Changelog.js';
 import { invalidateMultiple } from '../services/cacheService.js';
@@ -47,7 +48,7 @@ const processScheduledChangelogs = async () => {
 // Send reactivation email when temporary ban expires
 const sendBanExpiredEmail = async (user) => {
     try {
-        const settings = await Settings.findOne();
+        const settings = await getSettings();
         if (!settings?.emailConfigured) {
             return;
         }
@@ -135,13 +136,13 @@ const processSingleUnban = async (user) => {
             }
 
             if (batchIds.length >= CACHE_BATCH_SIZE) {
-                invalidateMultiple(batchIds);
+                await invalidateMultiple(batchIds);
                 batchIds = [];
             }
         }
 
         if (batchIds.length > 0) {
-            invalidateMultiple(batchIds);
+            await invalidateMultiple(batchIds);
         }
 
         // Send reactivation email
@@ -153,25 +154,50 @@ const processSingleUnban = async (user) => {
     }
 };
 
+// Wrapped execution with Redis locks to prevent multi-pod races
+const runExpiredBansWithLock = async () => {
+    const redis = getRedisClient();
+    if (redis) {
+        // Lock for 50 seconds (since it runs every 60 seconds)
+        const acquired = await redis.set('ls:lock:ban:expired', '1', { nx: true, ex: 50 });
+        if (!acquired) return;
+    }
+    await processExpiredBans();
+};
+
+const runScheduledChangelogsWithLock = async () => {
+    const redis = getRedisClient();
+    if (redis) {
+        // Lock for 50 seconds
+        const acquired = await redis.set('ls:lock:changelog:scheduled', '1', { nx: true, ex: 50 });
+        if (!acquired) return;
+    }
+    await processScheduledChangelogs();
+};
+
 // Start the scheduler (runs every minute)
+let banSchedulerInterval = null;
+
 const startBanScheduler = () => {
+    if (banSchedulerInterval) return;
+
     logger.info('Starting temporary ban scheduler');
 
-    // Run immediately on start
-    processExpiredBans();
-    processScheduledChangelogs();
+    // Run immediately on start (safe with locks)
+    runExpiredBansWithLock();
+    runScheduledChangelogsWithLock();
 
     // Flag to prevent overlapping runs if processing takes > 1 minute
     let isSchedulerRunning = false;
 
     // Then run every minute
-    setInterval(async () => {
+    banSchedulerInterval = setInterval(async () => {
         if (isSchedulerRunning) return;
         isSchedulerRunning = true;
         
         try {
-            await processExpiredBans();
-            await processScheduledChangelogs();
+            await runExpiredBansWithLock();
+            await runScheduledChangelogsWithLock();
         } catch (err) {
             logger.error(`[BanScheduler] Error in optimized loop: ${err.message}`);
         } finally {
@@ -180,4 +206,12 @@ const startBanScheduler = () => {
     }, 60 * 1000);
 };
 
-export { startBanScheduler, processExpiredBans, processScheduledChangelogs };
+const stopBanScheduler = () => {
+    if (banSchedulerInterval) {
+        clearInterval(banSchedulerInterval);
+        banSchedulerInterval = null;
+        logger.info('[BanScheduler] Stopped');
+    }
+};
+
+export { startBanScheduler, stopBanScheduler, processExpiredBans, processScheduledChangelogs };

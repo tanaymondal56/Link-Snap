@@ -615,7 +615,7 @@ const LandingPage = () => {
                   onMouseEnter={() => passwordField.isLocked && setShowPasswordUpgrade(true)}
                   onMouseLeave={() => setShowPasswordUpgrade(false)}
                 >
-                  <label className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-400 ml-1 flex items-center gap-2">
                     <Lock size={14} className="text-purple-400" />
                     Password Protection
                     <span className="text-xs text-gray-500 font-normal">(optional)</span>
@@ -624,7 +624,7 @@ const LandingPage = () => {
                     ) : (
                       <Sparkles size={14} className="text-purple-400" />
                     )}
-                  </label>
+                  </span>
                   <div className="relative">
                     <div
                       className={`flex items-center gap-3 ${passwordField.isLocked ? 'opacity-50' : ''}`}

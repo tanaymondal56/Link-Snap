@@ -1,0 +1,452 @@
+name: Build and Publish Docker Images
+
+on:
+  push:
+    branches: [master, major/k8s, staging]
+    tags: ["v*.*.*"]
+    paths-ignore:
+      - '**.md'
+      - 'plans/**'
+      - 'Notes/**'
+      - 'study/**'
+      - '.gitignore'
+      - '.dockerignore'
+      - 'LICENSE'
+  pull_request:
+    branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'plans/**'
+      - 'Notes/**'
+      - 'study/**'
+      - '.gitignore'
+      - '.dockerignore'
+      - 'LICENSE'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+jobs:
+  # ─── Run Linting ───────────────────────────────────────────────────────────
+  lint:
+    name: Lint Code and Manifests
+    uses: ./.github/workflows/lint.yml
+
+  # ─── Validate Secrets ──────────────────────────────────────────────────────
+  validate-secrets:
+    name: Validate Required Secrets
+    runs-on: ubuntu-latest
+    environment: ${{ (github.ref == 'refs/heads/major/k8s' || github.ref == 'refs/heads/staging') && 'beta' || 'production' }}
+    steps:
+      - name: Check required secrets are set
+        env:
+          VITE_BASE_URL: ${{ secrets.VITE_BASE_URL }}
+          VITE_DOMAIN: ${{ secrets.VITE_DOMAIN }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          ERRORS=0
+          [[ -z "$VITE_BASE_URL" ]]       && echo "❌ VITE_BASE_URL not set"       && ERRORS=1
+          [[ -z "$VITE_DOMAIN" ]]         && echo "❌ VITE_DOMAIN not set"         && ERRORS=1
+          [[ -z "$DOCKERHUB_USERNAME" ]]  && echo "❌ DOCKERHUB_USERNAME not set"  && ERRORS=1
+          [[ -z "$DOCKERHUB_TOKEN" ]]     && echo "❌ DOCKERHUB_TOKEN not set"     && ERRORS=1
+          [[ $ERRORS -eq 1 ]] && exit 1
+          echo "✅ All required secrets are present"
+
+  # ─── Determine branch type ─────────────────────────────────────────────────
+  # beta  → major/k8s branch  → images: *-beta repos, tags: beta + sha-xxx
+  # stable→ master branch     → images: * repos,      tags: latest + sha-xxx + semver
+  set-matrix:
+    name: Set Build Matrix
+    runs-on: ubuntu-latest
+    needs: [validate-secrets]
+    outputs:
+      is_beta: ${{ steps.check.outputs.is_beta }}
+      frontend_repo: ${{ steps.check.outputs.frontend_repo }}
+      backend_repo: ${{ steps.check.outputs.backend_repo }}
+    steps:
+      - name: Determine target repos
+        id: check
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/major/k8s" || "${{ github.ref }}" == "refs/heads/staging" ]]; then
+            {
+              echo "is_beta=true"
+              echo "frontend_repo=tanaymondal/linksnap-frontend-beta"
+              echo "backend_repo=tanaymondal/linksnap-backend-beta"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "is_beta=false"
+              echo "frontend_repo=tanaymondal/linksnap-frontend"
+              echo "backend_repo=tanaymondal/linksnap-backend"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+  # ─── Check Changes ─────────────────────────────────────────────────────────
+  check-changes:
+    name: Detect Changed Files
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'server/**'
+              - 'k8s/**'
+              - '.github/workflows/docker-publish.yml'
+
+  # ─── Build Frontend ────────────────────────────────────────────────────────
+  build-frontend:
+    name: Build Frontend Image
+    needs: [set-matrix, lint]
+    runs-on: ubuntu-latest
+    environment: ${{ (github.ref == 'refs/heads/major/k8s' || github.ref == 'refs/heads/staging') && 'beta' || 'production' }}
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Extract metadata (beta branch)
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ needs.set-matrix.outputs.frontend_repo }}
+          tags: |
+            # ── Beta branch (major/k8s) ──────────────────────────────────────
+            # Always tag :beta so the K8s manifest can pin to a stable mutable tag
+            type=raw,value=beta,enable=${{ needs.set-matrix.outputs.is_beta == 'true' }}
+            # Short SHA for immutable pinning in kubectl set image
+            type=sha,prefix=sha-
+            # ── Stable branch (master) ───────────────────────────────────────
+            # latest mutable tag
+            type=raw,value=latest,enable=${{ needs.set-matrix.outputs.is_beta == 'false' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')) }}
+            # semver tags from git tag (e.g. v0.6.4 → 0.6.4 and 0.6)
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push frontend image
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: client/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/arm64
+          cache-from: type=gha,scope=frontend-${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=frontend-${{ github.ref_name }}
+          build-args: |
+            VITE_BASE_URL=${{ secrets.VITE_BASE_URL }}
+            VITE_DOMAIN=${{ secrets.VITE_DOMAIN }}
+            VITE_API_URL=/api
+
+  # ─── Build Backend ─────────────────────────────────────────────────────────
+  build-backend:
+    name: Build Backend Image
+    needs: [set-matrix, lint]
+    runs-on: ubuntu-latest
+    environment: ${{ (github.ref == 'refs/heads/major/k8s' || github.ref == 'refs/heads/staging') && 'beta' || 'production' }}
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ needs.set-matrix.outputs.backend_repo }}
+          tags: |
+            # ── Beta branch ──────────────────────────────────────────────────
+            type=raw,value=beta,enable=${{ needs.set-matrix.outputs.is_beta == 'true' }}
+            type=sha,prefix=sha-
+            # ── Stable branch ────────────────────────────────────────────────
+            type=raw,value=latest,enable=${{ needs.set-matrix.outputs.is_beta == 'false' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')) }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push backend image
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: server/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/arm64
+          cache-from: type=gha,scope=backend-${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=backend-${{ github.ref_name }}
+
+  # ─── Sync Readmes to Docker Hub ────────────────────────────────────────────
+  sync-readme:
+    name: Sync Readmes to Docker Hub
+    needs: [set-matrix, lint]
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Sync Frontend README
+        continue-on-error: true
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ needs.set-matrix.outputs.frontend_repo }}
+          readme-filepath: ./client/README.md
+
+      - name: Sync Backend README
+        continue-on-error: true
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ needs.set-matrix.outputs.backend_repo }}
+          readme-filepath: ./server/README.md
+
+  # ─── Security Scan ─────────────────────────────────────────────────────────
+  scan-images:
+    name: Scan Images for Vulnerabilities
+    needs: [set-matrix, build-frontend, build-backend]
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    environment: ${{ (github.ref == 'refs/heads/major/k8s' || github.ref == 'refs/heads/staging') && 'beta' || 'production' }}
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_PLATFORM: linux/arm64
+        with:
+          image-ref: "${{ needs.set-matrix.outputs.frontend_repo }}@${{ needs.build-frontend.outputs.image-digest }}"
+          format: "sarif"
+          output: "trivy-frontend.sarif"
+          severity: "CRITICAL,HIGH"
+          exit-code: "0"
+
+      - name: Scan backend image
+        uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_PLATFORM: linux/arm64
+        with:
+          image-ref: "${{ needs.set-matrix.outputs.backend_repo }}@${{ needs.build-backend.outputs.image-digest }}"
+          format: "sarif"
+          output: "trivy-backend.sarif"
+          severity: "CRITICAL,HIGH"
+          exit-code: "0"
+
+      - name: Upload frontend Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-frontend.sarif
+          category: trivy-frontend
+
+      - name: Upload backend Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-backend.sarif
+          category: trivy-backend
+
+      - name: Build Summary
+        if: always()
+        run: |
+          {
+            echo "## Docker Build Summary 🐳"
+            echo "| | Value |"
+            echo "|---|---|"
+            echo "| **Branch** | \`${{ github.ref_name }}\` |"
+            echo "| **Mode** | ${{ needs.set-matrix.outputs.is_beta == 'true' && '🧪 Beta' || '🚀 Stable' }} |"
+            echo "| **Frontend Repo** | \`${{ needs.set-matrix.outputs.frontend_repo }}\` |"
+            echo "| **Backend Repo** | \`${{ needs.set-matrix.outputs.backend_repo }}\` |"
+            echo "| **Frontend Tag** | \`${{ needs.build-frontend.outputs.image-tag }}\` |"
+            echo "| **Backend Tag** | \`${{ needs.build-backend.outputs.image-tag }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ─── Deploy Beta ──────────────────────────────────────────────────────────
+  deploy-beta:
+    name: Deploy Beta (major/k8s → K8s)
+    runs-on: ubuntu-latest
+    needs: [build-frontend, build-backend, check-changes]
+    environment: beta
+    if: >
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/major/k8s' || github.ref == 'refs/heads/staging') &&
+      needs.check-changes.outputs.backend == 'true'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: "Guard: ensure KUBE_CONFIG is set"
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          [[ -z "$KUBE_CONFIG" ]] && echo "❌ KUBE_CONFIG secret not set" && exit 1
+          echo "✅ KUBE_CONFIG is present"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v5
+        with:
+          version: "v1.30.0"
+
+      - name: Configure kubectl
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Resolve image SHA tag
+        id: vars
+        run: |
+          SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "sha=sha-${SHA}" >> "$GITHUB_OUTPUT"
+          echo "Deploying beta tag: sha-${SHA}"
+
+      - name: Update backend image (beta)
+        run: |
+          # Patch deployment strategy to Recreate to prevent double memory in LXD
+          kubectl patch deployment linksnap-backend -n linksnap-beta -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
+          # Set the new image which triggers the rollout
+          kubectl set image deployment/linksnap-backend \
+            backend=tanaymondal/linksnap-backend-beta:${{ steps.vars.outputs.sha }} \
+            -n linksnap-beta
+
+      - name: Wait for backend rollout (beta)
+        run: |
+          kubectl rollout status deployment/linksnap-backend -n linksnap-beta --timeout=5m
+
+      - name: Scale frontend to 0 in beta (CF Pages serves the SPA)
+        run: |
+          kubectl scale deployment/linksnap-frontend --replicas=0 -n linksnap-beta || true
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "⚠️ Beta deployment failed — rolling back backend..."
+          kubectl rollout undo deployment/linksnap-backend -n linksnap-beta || true
+          echo "✅ Rolled back to previous beta version."
+
+      - name: Beta Deployment Summary
+        if: success()
+        run: |
+          {
+            echo "## 🧪 Beta Deployment Complete"
+            echo "| | Value |"
+            echo "|---|---|"
+            echo "| **Namespace** | \`linksnap-beta\` |"
+            echo "| **Backend Image** | \`tanaymondal/linksnap-backend-beta:${{ steps.vars.outputs.sha }}\` |"
+            echo "| **Frontend** | Served by Cloudflare Pages (no pod) |"
+            echo "| **Commit** | \`${{ github.sha }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ─── Deploy Production ────────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy Stable (master → K8s)
+    runs-on: ubuntu-latest
+    needs: [build-frontend, build-backend, check-changes]
+    environment: production
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/master' &&
+      needs.check-changes.outputs.backend == 'true'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: "Guard: ensure KUBE_CONFIG is set"
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          [[ -z "$KUBE_CONFIG" ]] && echo "❌ KUBE_CONFIG secret not set" && exit 1
+          echo "✅ KUBE_CONFIG is present"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v5
+        with:
+          version: "v1.30.0"
+
+      - name: Configure kubectl
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Resolve image SHA tag
+        id: vars
+        run: |
+          SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "sha=sha-${SHA}" >> "$GITHUB_OUTPUT"
+          echo "Deploying stable tag: sha-${SHA}"
+
+      - name: Update backend image (stable)
+        run: |
+          kubectl set image deployment/linksnap-backend \
+            backend=tanaymondal/linksnap-backend:${{ steps.vars.outputs.sha }} \
+            -n linksnap
+
+      - name: Wait for backend rollout (stable)
+        run: |
+          kubectl rollout status deployment/linksnap-backend -n linksnap --timeout=5m
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "⚠️ Production deployment failed — rolling back backend..."
+          kubectl rollout undo deployment/linksnap-backend -n linksnap || true
+          echo "✅ Rolled back to previous stable version."
+
+      - name: Production Deployment Summary
+        if: success()
+        run: |
+          {
+            echo "## 🚀 Production Deployment Complete"
+            echo "| | Value |"
+            echo "|---|---|"
+            echo "| **Namespace** | \`linksnap\` |"
+            echo "| **Backend Image** | \`tanaymondal/linksnap-backend:${{ steps.vars.outputs.sha }}\` |"
+            echo "| **Tags Also Available** | \`latest\` |"
+            echo "| **Commit** | \`${{ github.sha }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,6 +1,6 @@
 {
   "name": "link-snap",
-  "version": "0.6.4",
+  "version": "7.0.0",
   "private": true,
   "description": "Advanced URL Shortening, Analytics, & Bio-Link Platform with Stealth Security.",
   "repository": {
@@ -12,7 +12,7 @@
   },
   "homepage": "https://github.com/tanaymondal56/Link-Snap#readme",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",

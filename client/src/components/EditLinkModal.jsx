@@ -516,9 +516,9 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
             <div className={activeTab === 'essentials' ? 'space-y-6' : 'hidden'}>
               {/* Destination URL */}
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-300">
+                <span className="block text-sm font-medium text-gray-300">
                   Destination URL <span className="text-red-400">*</span>
-                </label>
+                </span>
                 <div className="relative group">
                   <input
                     type="text"
@@ -551,9 +551,9 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
 
               {/* Title */}
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-300">
+                <span className="block text-sm font-medium text-gray-300">
                   Title <span className="text-xs text-gray-500 font-normal">(optional)</span>
-                </label>
+                </span>
                 <input
                   type="text"
                   value={title}
@@ -566,11 +566,11 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
 
               {/* Custom Alias */}
               <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
                   <Sparkles size={16} className="text-purple-400" />
                   Custom Link
                   <Crown size={14} className="text-amber-400" />
-                </label>
+                </span>
 
                 {aliasField.isLocked ? (
                   <div className="relative group overflow-hidden rounded-xl border border-gray-700 bg-gray-800/30 p-4 transition-all hover:border-orange-500/30">
@@ -711,9 +711,9 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
 
                 {enableSchedule && (
                   <div className="mt-4 pt-4 border-t border-gray-700/50 animate-in slide-in-from-top-2">
-                    <label className="block text-sm text-gray-400 mb-2">
+                    <span className="block text-sm text-gray-400 mb-2">
                       Start Time (Your Local Time)
-                    </label>
+                    </span>
                     <input
                       type="datetime-local"
                       value={activeStartTime}
@@ -748,11 +748,11 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
 
               {/* Expiration */}
               <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
                   <Clock size={16} className="text-orange-400" />
                   Link Expiration
                   <Crown size={14} className="text-amber-400" />
-                </label>
+                </span>
 
                 {/* Current status */}
                 <p className="text-xs text-gray-500">
@@ -829,11 +829,11 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
 
               {/* Password Protection */}
               <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
                   <Lock size={16} className="text-purple-400" />
                   Password Protection
                   <Crown size={14} className="text-amber-400" />
-                </label>
+                </span>
 
                 {/* Current status */}
                 <p className="text-xs text-gray-500">

@@ -2,7 +2,6 @@ import Changelog from '../models/Changelog.js';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import validator from 'validator';
-import { syncVersionOnPublish } from '../utils/versionSync.js';
 import logger from '../utils/logger.js';
 
 // Helper to validate ObjectId
@@ -229,12 +228,7 @@ export const createChangelog = async (req, res, next) => {
             }]
         });
 
-        // Auto-sync version if created as published
-        if (changelog.isPublished) {
-            syncVersionOnPublish(changelog.version).catch(err => {
-            logger.error('[Changelog] Version sync failed:', err.message);
-            });
-        }
+
 
         res.status(201).json(changelog);
     } catch (error) {
@@ -319,14 +313,7 @@ export const updateChangelog = async (req, res, next) => {
 
         await changelog.save();
 
-        // Auto-sync version if changelog is now published and (version changed OR became published)
-        const versionChanged = changedFields.includes('version');
-        const becamePublished = changedFields.includes('isPublished') && changelog.isPublished;
-        if (changelog.isPublished && (versionChanged || becamePublished)) {
-            syncVersionOnPublish(changelog.version).catch(err => {
-            logger.error('[Changelog] Version sync failed:', err.message);
-            });
-        }
+
 
         res.json(changelog);
     } catch (error) {
@@ -447,12 +434,7 @@ export const togglePublish = async (req, res, next) => {
         });
         await changelog.save();
 
-        // Auto-sync version across all config files when publishing
-        if (changelog.isPublished) {
-            syncVersionOnPublish(changelog.version).catch(err => {
-            logger.error('[Changelog] Version sync failed:', err.message);
-            });
-        }
+
 
         res.json(changelog);
     } catch (error) {

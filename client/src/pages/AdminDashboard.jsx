@@ -7,6 +7,7 @@ import { useDialog } from '../components/ui/DialogProvider';
 const BanUserModal = lazy(() => import('../components/BanUserModal'));
 const UnbanUserModal = lazy(() => import('../components/UnbanUserModal'));
 const SystemHealthCard = lazy(() => import('../components/admin/SystemHealthCard'));
+const SystemEnvironmentCard = lazy(() => import('../components/admin/SystemEnvironmentCard'));
 const ChangelogManager = lazy(() => import('../components/admin/ChangelogManager'));
 import {
   Trash2,
@@ -821,6 +822,16 @@ const AdminDashboard = () => {
               >
                 Performance
               </button>
+              <button
+                className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
+                  monitoringTab === 'env'
+                    ? 'text-cyan-400 border-b-2 border-cyan-400'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                onClick={() => setMonitoringTab('env')}
+              >
+                Cluster & Host Env
+              </button>
             </>
           )}
         </div>
@@ -851,6 +862,19 @@ const AdminDashboard = () => {
                   }
                 >
                   <SystemHealthCard />
+                </Suspense>
+              </div>
+            )}
+            {monitoringTab === 'env' && (
+              <div className="space-y-6">
+                <Suspense
+                  fallback={
+                    <div className="glass-dark p-6 rounded-2xl border border-white/5 h-64 flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                    </div>
+                  }
+                >
+                  <SystemEnvironmentCard />
                 </Suspense>
               </div>
             )}
@@ -2097,9 +2121,9 @@ const AdminDashboard = () => {
                 <form onSubmit={handleSaveEmailConfig} className="space-y-4">
                   {/* Email Provider */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <span className="block text-sm font-medium text-gray-300 mb-2">
                       Email Provider
-                    </label>
+                    </span>
                     <select
                       value={emailForm.emailProvider}
                       onChange={(e) =>
@@ -2132,9 +2156,9 @@ const AdminDashboard = () => {
                     <>
                       {/* SMTP Host */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                        <span className="block text-sm font-medium text-gray-300 mb-2">
                           SMTP Host
-                        </label>
+                        </span>
                         <input
                           type="text"
                           value={emailForm.smtpHost}
@@ -2147,9 +2171,9 @@ const AdminDashboard = () => {
                       {/* SMTP Port and Secure */}
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                          <span className="block text-sm font-medium text-gray-300 mb-2">
                             SMTP Port
-                          </label>
+                          </span>
                           <input
                             type="number"
                             value={emailForm.smtpPort}
@@ -2161,9 +2185,9 @@ const AdminDashboard = () => {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                          <span className="block text-sm font-medium text-gray-300 mb-2">
                             Use SSL/TLS
-                          </label>
+                          </span>
                           <button
                             type="button"
                             onClick={() =>
@@ -2192,9 +2216,9 @@ const AdminDashboard = () => {
 
                   {/* Email Username */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <span className="block text-sm font-medium text-gray-300 mb-2">
                       Email Address
-                    </label>
+                    </span>
                     <input
                       type="email"
                       value={emailForm.emailUsername}
@@ -2208,14 +2232,14 @@ const AdminDashboard = () => {
 
                   {/* Email Password */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <span className="block text-sm font-medium text-gray-300 mb-2">
                       {emailForm.emailProvider === 'gmail' ? 'App Password' : 'Password'}
                       {settings.emailConfigured && (
                         <span className="text-gray-500 font-normal ml-2">
                           (leave blank to keep current)
                         </span>
                       )}
-                    </label>
+                    </span>
                     <div className="relative">
                       <input
                         type={showPassword ? 'text' : 'password'}
@@ -2345,9 +2369,9 @@ const AdminDashboard = () => {
             <form onSubmit={handleCreateUser} className="p-6 space-y-5">
               {/* Email */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <span className="block text-sm font-medium text-gray-300 mb-2">
                   Email Address <span className="text-red-400">*</span>
-                </label>
+                </span>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                   <input
@@ -2365,9 +2389,9 @@ const AdminDashboard = () => {
 
               {/* Password */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <span className="block text-sm font-medium text-gray-300 mb-2">
                   Password <span className="text-red-400">*</span>
-                </label>
+                </span>
                 <div className="relative">
                   <input
                     type={showCreatePassword ? 'text' : 'password'}
@@ -2395,9 +2419,9 @@ const AdminDashboard = () => {
 
               {/* Confirm Password */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <span className="block text-sm font-medium text-gray-300 mb-2">
                   Confirm Password <span className="text-red-400">*</span>
-                </label>
+                </span>
                 <input
                   type={showCreatePassword ? 'text' : 'password'}
                   value={createUserForm.confirmPassword}
@@ -2423,7 +2447,7 @@ const AdminDashboard = () => {
               {/* Name Fields Row */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">First Name</label>
+                  <span className="block text-sm font-medium text-gray-300 mb-2">First Name</span>
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                     <input
@@ -2438,7 +2462,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Last Name</label>
+                  <span className="block text-sm font-medium text-gray-300 mb-2">Last Name</span>
                   <input
                     type="text"
                     value={createUserForm.lastName}
@@ -2453,7 +2477,7 @@ const AdminDashboard = () => {
 
               {/* Phone */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Phone</label>
+                <span className="block text-sm font-medium text-gray-300 mb-2">Phone</span>
                 <div className="relative">
                   <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <input
@@ -2470,7 +2494,7 @@ const AdminDashboard = () => {
 
               {/* Company */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Company</label>
+                <span className="block text-sm font-medium text-gray-300 mb-2">Company</span>
                 <div className="relative">
                   <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <input
@@ -2487,7 +2511,7 @@ const AdminDashboard = () => {
 
               {/* Website */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Website</label>
+                <span className="block text-sm font-medium text-gray-300 mb-2">Website</span>
                 <div className="relative">
                   <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <input
@@ -2504,7 +2528,7 @@ const AdminDashboard = () => {
 
               {/* Role Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">User Role</label>
+                <span className="block text-sm font-medium text-gray-300 mb-3">User Role</span>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
