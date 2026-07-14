@@ -12,6 +12,16 @@ on:
       - '.gitignore'
       - '.dockerignore'
       - 'LICENSE'
+  pull_request:
+    branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'plans/**'
+      - 'Notes/**'
+      - 'study/**'
+      - '.gitignore'
+      - '.dockerignore'
+      - 'LICENSE'
   release:
     types: [published]
   workflow_dispatch:
@@ -143,7 +153,7 @@ jobs:
         with:
           context: .
           file: client/Dockerfile
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/arm64
@@ -195,7 +205,7 @@ jobs:
         with:
           context: .
           file: server/Dockerfile
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/arm64
@@ -207,6 +217,7 @@ jobs:
     name: Sync Readmes to Docker Hub
     needs: [set-matrix, lint]
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v6
 
@@ -233,6 +244,7 @@ jobs:
     name: Scan Images for Vulnerabilities
     needs: [set-matrix, build-frontend, build-backend]
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
     environment: ${{ (github.ref == 'refs/heads/major/k8s' || github.ref == 'refs/heads/staging') && 'beta' || 'production' }}
     steps:
       - name: Log in to Docker Hub

@@ -316,3 +316,15 @@ export const sessionManagementLimiter = rateLimit({
     },
     skip: (req) => isWhitelisted(getUserIP(req)),
 });
+
+export const devLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 500, // higher limit for dev actions/testing
+    store: createRedisStore('dev'),
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many developer actions from this IP, please try again after 15 minutes' });
+    },
+    skip: (req) => isWhitelisted(getUserIP(req)),
+});

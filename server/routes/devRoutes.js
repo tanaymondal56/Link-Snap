@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
+import { devLimiter } from '../middleware/rateLimiter.js';
 import {
   // Signup info generators
   devGetRandomSignupInfo,
@@ -28,6 +29,9 @@ import {
 } from '../controllers/devController.js';
 
 const router = express.Router();
+
+// Apply dev rate limiter to all dev routes
+router.use(devLimiter);
 
 // DOUBLE SECURITY: Failsafe middleware
 // Even if this file is loaded, strictly block access if not in development mode

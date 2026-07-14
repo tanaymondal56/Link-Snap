@@ -3,7 +3,7 @@
 > **Advanced URL Shortening, Analytics, & Bio-Link Platform with Stealth Security.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.6.5-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-7.0.0-blue.svg)](package.json)
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
 [![Docker Frontend](https://img.shields.io/badge/docker-linksnap--frontend-blue?logo=docker)](https://hub.docker.com/r/tanaymondal/linksnap-frontend)
 [![Docker Backend](https://img.shields.io/badge/docker-linksnap--backend-blue?logo=docker)](https://hub.docker.com/r/tanaymondal/linksnap-backend)

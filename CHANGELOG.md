@@ -7,27 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.6.5] - 2026-07-11
+## [7.0.0] - 2026-07-14
 
-### CI/CD Pipeline & DevOps Optimization
+### Major Overhaul: Security, Independent Deployments & Cloudflare Integration
 
-This release focuses on hardening the CI/CD pipeline, optimizing deployment workflows, and enhancing Kubernetes & Docker configurations.
+This major release completely overhauls the deployment architecture and network security, transitioning to decoupled microservice deployments while hardening the pipeline with automated security testing.
 
-### 🛡️ Security & Linting Upgrades
-- **Strict Audits:** Extracted `npm audit` into dedicated blocking jobs (`audit-client`, `audit-server`) with `--audit-level=low` in `lint.yml` to instantly fail pipelines upon detecting any vulnerability.
-- **Workflow Linter:** Integrated `actionlint` into CI to perform deep static analysis and schema validation on all GitHub Actions workflows.
-- **Dockerfile Best Practices:** Added recursive `hadolint` scanning to enforce Docker best practices across both client and server containers.
-- **Dependency & Tooling Updates:** Bumped GitHub CodeQL Action to `v4` (resolving Node 20 deprecation warnings) and upgraded all CI/CD actions to their latest major versions (e.g., `checkout@v6`, `setup-node@v6`, `setup-kubectl@v5`).
+### 🛡️ Network Security & Cloudflare Integration
+- **Cloudflare Secure Network:** Fully integrated Cloudflare Tunnel (`cloudflared`) to proxy all backend traffic, establishing a highly secure, isolated network for the backend without exposing raw IPs to the public web.
+- **Global CDN & Performance:** Leveraged Cloudflare's edge network for comprehensive CDN caching and DDoS protection.
+- **In-Cluster Redis:** Successfully deployed a fully integrated, secure in-cluster Redis caching layer to support high-speed backend data management.
 
-### 🚀 CI/CD Performance & Orchestration
-- **Concurrency Gates:** Configured `concurrency` groups across all pipelines (`deploy-k8s.yml`, `docker-publish.yml`, `lint.yml`) to cancel overlapping runs automatically, saving build minutes and preventing deployment race conditions.
-- **Path Filtering:** Optimized workflow triggers by adding `paths-ignore` for markdown docs, plans, notes, and gitignores. Commits touching only documentation bypass the multi-minute Docker compilation stages.
-- **Resolved Deadlocks:** Fixed a known GitHub Actions deadlock bug when using reusable workflows by isolating the concurrency group prefix in `lint.yml`.
+### 🏗️ Independent Deployments & Architecture
+- **Decoupled Architecture:** Shifted from a monolith approach to completely independent frontend and backend deployments, enabling zero-downtime, independent scalable rollouts.
+- **Admin Panel Telemetry:** Added Comprehensive Infrastructure info inside the Admin Panel to monitor cluster resource metrics and environment settings.
+- **Smart Path Filtering:** Implemented `dorny/paths-filter` in CI/CD to automatically skip Kubernetes rollout jobs if only frontend or documentation files are modified, saving massive amounts of deployment time.
 
-### 🐳 Infrastructure & Kubernetes
-- **Alpine Pinning Fix:** Resolved fragile `apk add` version pinning warnings during Docker builds by explicitly instructing `hadolint` to ignore rule `DL3018`.
-- **Kubeconform Fixes:** Switched regex expressions in `k8s/configmap.yaml` to single-quoted strings to resolve YAML unmarshalling escape character errors.
-- **Cross-Arch Scanning:** Injected `TRIVY_PLATFORM: linux/arm64` to prevent Trivy from failing on AMD64 runners when scanning ARM64 compiled Docker images.
+### 🔒 Automated Security Testing & CI/CD
+- **Automated Workflow Audits:** Integrated strict automated testing and security scans into the GitHub workflow, extracting `npm audit` into dedicated blocking jobs and using `actionlint` for deep static analysis of all CI files.
+- **Docker Security Scanning:** Implemented recursive `hadolint` scanning to enforce Docker security best practices and prevent insecure image builds.
+- **Unified Pipeline:** Merged separate build and deployment jobs into a single highly optimized `docker-publish.yml` pipeline with concurrency gates to prevent overlapping deployment race conditions.
+- **Resource Optimization:** Enabled the `Recreate` strategy for the Beta namespace to definitively prevent double-memory exhaustion in LXD.
 
 ## [0.6.4] - 2026-06-03
 
