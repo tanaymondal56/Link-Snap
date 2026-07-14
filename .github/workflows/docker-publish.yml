@@ -98,7 +98,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -118,7 +118,7 @@ jobs:
       image-digest: ${{ steps.build.outputs.digest }}
       image-tag: ${{ steps.meta.outputs.version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v4
@@ -174,7 +174,7 @@ jobs:
       image-digest: ${{ steps.build.outputs.digest }}
       image-tag: ${{ steps.meta.outputs.version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v4
@@ -219,7 +219,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Sync Frontend README
         continue-on-error: true
@@ -315,7 +315,7 @@ jobs:
       (github.ref == 'refs/heads/major/k8s' || github.ref == 'refs/heads/staging') &&
       needs.check-changes.outputs.backend == 'true'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: "Guard: ensure KUBE_CONFIG is set"
         env:
@@ -392,7 +392,7 @@ jobs:
       github.ref == 'refs/heads/master' &&
       needs.check-changes.outputs.backend == 'true'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: "Guard: ensure KUBE_CONFIG is set"
         env:
