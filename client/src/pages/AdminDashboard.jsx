@@ -7,6 +7,7 @@ import { useDialog } from '../components/ui/DialogProvider';
 const BanUserModal = lazy(() => import('../components/BanUserModal'));
 const UnbanUserModal = lazy(() => import('../components/UnbanUserModal'));
 const SystemHealthCard = lazy(() => import('../components/admin/SystemHealthCard'));
+const SystemEnvironmentCard = lazy(() => import('../components/admin/SystemEnvironmentCard'));
 const ChangelogManager = lazy(() => import('../components/admin/ChangelogManager'));
 import {
   Trash2,
@@ -851,6 +852,7 @@ const AdminDashboard = () => {
                   }
                 >
                   <SystemHealthCard />
+                  <SystemEnvironmentCard />
                 </Suspense>
               </div>
             )}

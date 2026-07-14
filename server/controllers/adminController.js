@@ -17,6 +17,21 @@ import { generateUserIdentity } from '../services/idService.js';
 import { scanPendingLinks, scanUncheckedLinks } from '../services/safeBrowsingService.js';
 import logger from '../utils/logger.js';
 import { getUserIP } from '../middleware/strictProxyGate.js';
+import os from 'os';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const packageJsonPath = path.join(__dirname, '..', 'package.json');
+let appVersion = 'Unknown';
+try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    appVersion = packageJson.version;
+} catch (error) {
+    logger.error('[Admin] Failed to load app version from package.json:', error.message);
+}
 
 // Helper function to calculate ban expiry date
 const calculateBanExpiry = (duration) => {
@@ -1256,6 +1271,60 @@ export const triggerSafetyScan = async (req, res, next) => {
             message: 'Scan completed', 
             details: result 
         });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get system environment information
+// @route   GET /api/admin/system-environment
+// @access  Admin
+export const getSystemEnvironment = async (req, res, next) => {
+    try {
+        const safeEnv = {};
+        const sensitiveKeywords = [
+            'SECRET', 'PASS', 'KEY', 'TOKEN', 'URI', 'URL', 'MONGO', 'REDIS', 
+            'DB', 'AUTH', 'USER', 'SMTP', 'SALT', 'JWT', 'CRED'
+        ];
+        
+        for (const [key, value] of Object.entries(process.env)) {
+            const isSensitive = sensitiveKeywords.some(keyword => key.toUpperCase().includes(keyword));
+            safeEnv[key] = isSensitive ? '[REDACTED]' : value;
+        }
+
+        const systemInfo = {
+            kubernetes: {
+                podName: process.env.K8S_POD_NAME || 'Not in Kubernetes',
+                namespace: process.env.K8S_NAMESPACE || 'N/A',
+                podUid: process.env.K8S_POD_UID || 'N/A',
+                nodeName: process.env.K8S_NODE_NAME || 'N/A',
+                serviceAccount: process.env.K8S_SERVICE_ACCOUNT || 'N/A',
+                hostIp: process.env.K8S_HOST_IP || 'N/A',
+                podIp: process.env.K8S_POD_IP || 'N/A',
+            },
+            hardwareAndOS: {
+                hostname: os.hostname(),
+                type: os.type(),
+                platform: os.platform(),
+                release: os.release(),
+                arch: os.arch(),
+                cpus: os.cpus().length,
+                cpuModel: os.cpus()[0]?.model || 'Unknown',
+                totalMemory: os.totalmem(),
+                freeMemory: os.freemem(),
+                loadAverage: os.loadavg(),
+            },
+            runtime: {
+                nodeVersion: process.version,
+                v8Version: process.versions.v8,
+                uptime: process.uptime(),
+                pid: process.pid,
+                appVersion: appVersion,
+            },
+            environment: safeEnv
+        };
+
+        res.json(systemInfo);
     } catch (error) {
         next(error);
     }
