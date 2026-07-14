@@ -274,3 +274,148 @@ jobs:
             echo "| **Frontend Tag** | \`${{ needs.build-frontend.outputs.image-tag }}\` |"
             echo "| **Backend Tag** | \`${{ needs.build-backend.outputs.image-tag }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # ─── Deploy Beta ──────────────────────────────────────────────────────────
+  deploy-beta:
+    name: Deploy Beta (major/k8s → K8s)
+    runs-on: ubuntu-latest
+    needs: [build-frontend, build-backend]
+    environment: beta
+    if: >
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/major/k8s' || github.ref == 'refs/heads/staging')
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: "Guard: ensure KUBE_CONFIG is set"
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          [[ -z "$KUBE_CONFIG" ]] && echo "❌ KUBE_CONFIG secret not set" && exit 1
+          echo "✅ KUBE_CONFIG is present"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v5
+        with:
+          version: "v1.30.0"
+
+      - name: Configure kubectl
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Resolve image SHA tag
+        id: vars
+        run: |
+          SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "sha=sha-${SHA}" >> "$GITHUB_OUTPUT"
+          echo "Deploying beta tag: sha-${SHA}"
+
+      - name: Update backend image (beta)
+        run: |
+          # Patch deployment strategy to Recreate to prevent double memory in LXD
+          kubectl patch deployment linksnap-backend -n linksnap-beta -p '{"spec":{"strategy":{"type":"Recreate"}}}'
+          # Set the new image which triggers the rollout
+          kubectl set image deployment/linksnap-backend \
+            backend=tanaymondal/linksnap-backend-beta:${{ steps.vars.outputs.sha }} \
+            -n linksnap-beta
+
+      - name: Wait for backend rollout (beta)
+        run: |
+          kubectl rollout status deployment/linksnap-backend -n linksnap-beta --timeout=5m
+
+      - name: Scale frontend to 0 in beta (CF Pages serves the SPA)
+        run: |
+          kubectl scale deployment/linksnap-frontend --replicas=0 -n linksnap-beta || true
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "⚠️ Beta deployment failed — rolling back backend..."
+          kubectl rollout undo deployment/linksnap-backend -n linksnap-beta || true
+          echo "✅ Rolled back to previous beta version."
+
+      - name: Beta Deployment Summary
+        if: success()
+        run: |
+          {
+            echo "## 🧪 Beta Deployment Complete"
+            echo "| | Value |"
+            echo "|---|---|"
+            echo "| **Namespace** | \`linksnap-beta\` |"
+            echo "| **Backend Image** | \`tanaymondal/linksnap-backend-beta:${{ steps.vars.outputs.sha }}\` |"
+            echo "| **Frontend** | Served by Cloudflare Pages (no pod) |"
+            echo "| **Commit** | \`${{ github.sha }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ─── Deploy Production ────────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy Stable (master → K8s)
+    runs-on: ubuntu-latest
+    needs: [build-frontend, build-backend]
+    environment: production
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: "Guard: ensure KUBE_CONFIG is set"
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          [[ -z "$KUBE_CONFIG" ]] && echo "❌ KUBE_CONFIG secret not set" && exit 1
+          echo "✅ KUBE_CONFIG is present"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v5
+        with:
+          version: "v1.30.0"
+
+      - name: Configure kubectl
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Resolve image SHA tag
+        id: vars
+        run: |
+          SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "sha=sha-${SHA}" >> "$GITHUB_OUTPUT"
+          echo "Deploying stable tag: sha-${SHA}"
+
+      - name: Update backend image (stable)
+        run: |
+          kubectl set image deployment/linksnap-backend \
+            backend=tanaymondal/linksnap-backend:${{ steps.vars.outputs.sha }} \
+            -n linksnap
+
+      - name: Wait for backend rollout (stable)
+        run: |
+          kubectl rollout status deployment/linksnap-backend -n linksnap --timeout=5m
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "⚠️ Production deployment failed — rolling back backend..."
+          kubectl rollout undo deployment/linksnap-backend -n linksnap || true
+          echo "✅ Rolled back to previous stable version."
+
+      - name: Production Deployment Summary
+        if: success()
+        run: |
+          {
+            echo "## 🚀 Production Deployment Complete"
+            echo "| | Value |"
+            echo "|---|---|"
+            echo "| **Namespace** | \`linksnap\` |"
+            echo "| **Backend Image** | \`tanaymondal/linksnap-backend:${{ steps.vars.outputs.sha }}\` |"
+            echo "| **Tags Also Available** | \`latest\` |"
+            echo "| **Commit** | \`${{ github.sha }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
