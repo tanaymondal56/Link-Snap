@@ -12,7 +12,13 @@ FROM node:24-alpine AS production
 
 # tini: tiny init system to forward signals and reap zombie processes
 # hadolint ignore=DL3018
-RUN apk add --no-cache tini
+RUN apk update && apk upgrade --no-cache && apk add --no-cache tini \
+    && rm -rf /usr/local/lib/node_modules/npm \
+              /usr/local/bin/npm \
+              /usr/local/bin/npx \
+              /usr/local/bin/yarn \
+              /usr/local/bin/yarnpkg \
+              /opt/yarn*
 
 WORKDIR /app
 

@@ -25,6 +25,9 @@ RUN npm run build
 # ── Stage 2: Serve with Nginx ──────────────────────────────────────────────────
 FROM nginx:1.27-alpine AS production
 
+# Update system packages to patch vulnerabilities (like CVE-2026-31789)
+RUN apk update && apk upgrade --no-cache
+
 # Remove default Nginx page
 RUN rm -rf /usr/share/nginx/html/*
 
