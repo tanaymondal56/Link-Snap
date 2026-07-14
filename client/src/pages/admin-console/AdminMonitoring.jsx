@@ -17,6 +17,7 @@ import { formatDateTime } from '../../utils/dateUtils';
 import BentoCard from '../../components/admin-console/ui/BentoCard';
 import showToast from '../../utils/toastUtils';
 import { useAuth } from '../../context/AuthContext';
+import SystemEnvironmentCard from '../../components/admin/SystemEnvironmentCard';
 
 const AdminMonitoring = () => {
   const { isAuthChecking } = useAuth();
@@ -185,8 +186,8 @@ const AdminMonitoring = () => {
                      Since last restart
                    </p>
                  </div>
-               </BentoCard>
-             </div>
+                </BentoCard>
+              </div>
 
              {/* Raw Data View */}
              <BentoCard title="Detailed Diagnostics" className="font-mono text-xs">
@@ -198,8 +199,9 @@ const AdminMonitoring = () => {
                    Last checked: {formatDateTime(lastChecked)}
                  </p>
                )}
-             </BentoCard>
-          </div>
+              </BentoCard>
+              <SystemEnvironmentCard />
+           </div>
         )}
 
         {/* Placeholders for Logs and Performance */}
