@@ -317,7 +317,7 @@ jobs:
       - name: Update backend image (beta)
         run: |
           # Patch deployment strategy to Recreate to prevent double memory in LXD
-          kubectl patch deployment linksnap-backend -n linksnap-beta -p '{"spec":{"strategy":{"type":"Recreate"}}}'
+          kubectl patch deployment linksnap-backend -n linksnap-beta -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
           # Set the new image which triggers the rollout
           kubectl set image deployment/linksnap-backend \
             backend=tanaymondal/linksnap-backend-beta:${{ steps.vars.outputs.sha }} \
