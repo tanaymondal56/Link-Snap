@@ -16,15 +16,20 @@ import {
   AlertCircle
 } from 'lucide-react';
 import showToast from '../../utils/toastUtils';
+import { useAuth } from '../../context/AuthContext';
 
 const SystemEnvironmentCard = () => {
+  const { isAuthChecking } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('kubernetes');
   const [envSearch, setEnvSearch] = useState('');
 
   useEffect(() => {
+    if (isAuthChecking) return;
+    
     const fetchEnv = async () => {
+      setLoading(true);
       try {
         const response = await api.get('/admin/system-environment');
         setData(response.data);
@@ -36,7 +41,7 @@ const SystemEnvironmentCard = () => {
       }
     };
     fetchEnv();
-  }, []);
+  }, [isAuthChecking]);
 
   if (loading) {
     return (
