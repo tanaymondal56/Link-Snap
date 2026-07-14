@@ -30,7 +30,7 @@ import {
 
 const router = express.Router();
 
-// Apply dev rate limiter to all dev routes
+// Apply developer-specific rate limiter to all developer routes
 router.use(devLimiter);
 
 // DOUBLE SECURITY: Failsafe middleware
