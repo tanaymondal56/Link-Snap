@@ -822,6 +822,16 @@ const AdminDashboard = () => {
               >
                 Performance
               </button>
+              <button
+                className={`pb-2 px-3 sm:px-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
+                  monitoringTab === 'env'
+                    ? 'text-cyan-400 border-b-2 border-cyan-400'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                onClick={() => setMonitoringTab('env')}
+              >
+                Cluster & Host Env
+              </button>
             </>
           )}
         </div>
@@ -852,6 +862,18 @@ const AdminDashboard = () => {
                   }
                 >
                   <SystemHealthCard />
+                </Suspense>
+              </div>
+            )}
+            {monitoringTab === 'env' && (
+              <div className="space-y-6">
+                <Suspense
+                  fallback={
+                    <div className="glass-dark p-6 rounded-2xl border border-white/5 h-64 flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                    </div>
+                  }
+                >
                   <SystemEnvironmentCard />
                 </Suspense>
               </div>
