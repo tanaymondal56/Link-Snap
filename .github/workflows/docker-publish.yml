@@ -3,7 +3,6 @@ name: Build and Publish Docker Images
 on:
   push:
     branches: [master, major/k8s, staging]
-    tags: ["v*.*.*"]
     paths-ignore:
       - '**.md'
       - 'plans/**'
@@ -306,7 +305,7 @@ jobs:
 
   # ─── Deploy Beta ──────────────────────────────────────────────────────────
   deploy-beta:
-    name: Deploy Beta (major/k8s → K8s)
+    name: Deploy Beta (Staging → K8s)
     runs-on: ubuntu-latest
     needs: [build-frontend, build-backend, check-changes]
     environment: beta
