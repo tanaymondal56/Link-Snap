@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
+import { useAuth } from '../../context/AuthContext';
 import {
   Server,
   HardDrive,
@@ -16,7 +17,6 @@ import {
   AlertCircle
 } from 'lucide-react';
 import showToast from '../../utils/toastUtils';
-import { useAuth } from '../../context/AuthContext';
 
 const SystemEnvironmentCard = () => {
   const { isAuthChecking } = useAuth();
@@ -27,9 +27,8 @@ const SystemEnvironmentCard = () => {
 
   useEffect(() => {
     if (isAuthChecking) return;
-    
+
     const fetchEnv = async () => {
-      setLoading(true);
       try {
         const response = await api.get('/admin/system-environment');
         setData(response.data);
