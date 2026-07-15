@@ -1,6 +1,6 @@
 import { LRUCache } from 'lru-cache';
 import logger from '../utils/logger.js';
-import { redisGet, redisSet, redisDel, getRedisClient } from '../config/redis.js';
+import { redisGet, redisSet, redisDel, getRedisClient, redisScan } from '../config/redis.js';
 
 /**
  * In-memory fallback caches for single-pod / development mode.
@@ -168,7 +168,7 @@ export const clearCache = async () => {
         
         // Scan and delete ls:url:*
         do {
-            const [nextCursor, keys] = await redis.scan(cursor, { match: 'ls:url:*', count: 100 });
+            const [nextCursor, keys] = await redisScan(cursor, 'ls:url:*', 100);
             cursor = nextCursor;
             if (keys.length > 0) {
                 await redisDel(...keys);
@@ -179,7 +179,7 @@ export const clearCache = async () => {
         // Scan and delete ls:sub:*
         cursor = 0;
         do {
-            const [nextCursor, keys] = await redis.scan(cursor, { match: 'ls:sub:*', count: 100 });
+            const [nextCursor, keys] = await redisScan(cursor, 'ls:sub:*', 100);
             cursor = nextCursor;
             if (keys.length > 0) {
                 await redisDel(...keys);

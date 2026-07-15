@@ -81,12 +81,6 @@ export const trackEdgeClick = async (req, res) => {
     }
 };
 
-/**
- * Bulk track clicks (for log processing if needed)
- * POST /api/analytics/track-bulk
- * 
- * Body: { clicks: [{ shortCode, ip, userAgent, referer, timestamp }] }
- */
 export const trackBulkClicks = async (req, res) => {
     // Respond immediately
     res.status(202).json({ message: 'Processing', count: req.body.clicks?.length || 0 });
@@ -98,18 +92,31 @@ export const trackBulkClicks = async (req, res) => {
         // Limit to prevent abuse
         const limitedClicks = clicks.slice(0, 1000);
 
+        // Fix N+1: Run ONE MongoDB query for all unique shortCodes
+        const uniqueCodes = [...new Set(limitedClicks.map(c => c.shortCode).filter(Boolean))];
+        if (uniqueCodes.length === 0) return;
+
+        const urls = await Url.find({
+            $or: [
+                { shortId: { $in: uniqueCodes } },
+                { customAlias: { $in: uniqueCodes } }
+            ]
+        }).select('_id shortId customAlias').lean();
+
+        // Build a lookup map for O(1) access
+        const urlMap = {};
+        for (const url of urls) {
+            if (url.shortId)     urlMap[url.shortId]     = url;
+            if (url.customAlias) urlMap[url.customAlias] = url;
+        }
+
+        // Process clicks using the lookup map
         for (const click of limitedClicks) {
             const { shortCode, ip, userAgent, referer } = click;
 
             if (!shortCode) continue;
 
-            const url = await Url.findOne({
-                $or: [
-                    { shortId: shortCode },
-                    { customAlias: shortCode }
-                ]
-            }).select('_id').lean();
-
+            const url = urlMap[shortCode];
             if (!url) continue;
 
             const mockReq = {

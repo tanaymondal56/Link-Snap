@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import api, { setAccessToken } from '../api/axios';
 import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
-import { Loader, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Loader, Lock, Mail, ArrowRight, ShieldCheck, Clipboard } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const VerifyOTP = () => {
@@ -149,6 +149,26 @@ const VerifyOTP = () => {
       setIsSubmitting(false);
     }
   };
+
+  const handleClipboardPaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const cleaned = text.replace(/\D/g, '').slice(0, 6);
+      if (cleaned.length === 6) {
+        const newOtp = cleaned.split('');
+        setOtp(newOtp);
+        if (inputRefs.current[5]) {
+          inputRefs.current[5].focus();
+        }
+        showToast.success('Verification code pasted!');
+      } else {
+        showToast.error('No 6-digit verification code found in clipboard');
+      }
+    } catch (err) {
+      console.error('[Clipboard Paste Error]', err);
+      showToast.error('Please allow clipboard permissions or paste manually');
+    }
+  };
   
 
   return (
@@ -188,6 +208,7 @@ const VerifyOTP = () => {
           <p className="text-gray-400 text-sm leading-relaxed">
             We sent a code to <span className="text-white font-medium">{email}</span>. 
             Enter it below or click the link in the email.
+            <br/><span className="text-amber-400/90 font-medium mt-1.5 block">Don't forget to check your spam folder!</span>
           </p>
         </div>
 
@@ -203,9 +224,20 @@ const VerifyOTP = () => {
                 onChange={(e) => handleChange(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
                 onPaste={handlePaste}
+                autoComplete="one-time-code"
                 className="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-bold bg-white/5 border border-white/10 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all duration-300 text-white placeholder-gray-600"
               />
             ))}
+          </div>
+          
+          <div className="flex justify-end -mt-4">
+            <button
+              type="button"
+              onClick={handleClipboardPaste}
+              className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <Clipboard className="w-3.5 h-3.5" /> Paste Code
+            </button>
           </div>
 
           <button

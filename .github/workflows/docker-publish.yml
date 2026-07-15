@@ -2,7 +2,7 @@ name: Build and Publish Docker Images
 
 on:
   push:
-    branches: [master, major/k8s, staging]
+    branches: [master, staging]
     paths-ignore:
       - '**.md'
       - 'plans/**'

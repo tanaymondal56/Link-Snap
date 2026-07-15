@@ -1610,7 +1610,7 @@ export const redirectUrl = async (req, res, next) => {
         // 2. Cache miss - query database
         let url = await Url.findOne({
             $or: [{ shortId }, { customAlias: shortId }],
-        });
+        }).lean();
 
         // 2b. Fallback: Case-insensitive search if strict match fails
         if (!url) {
@@ -1619,7 +1619,7 @@ export const redirectUrl = async (req, res, next) => {
                     { shortId: { $regex: new RegExp(`^${escapeRegex(shortId)}$`, 'i') } },
                     { customAlias: { $regex: new RegExp(`^${escapeRegex(shortId)}$`, 'i') } }
                 ]
-            });
+            }).lean();
         }
 
         if (!url) {
@@ -1674,7 +1674,7 @@ export const redirectUrl = async (req, res, next) => {
 
         // 4. Store in cache with ban status
         await setInCache(shortId, {
-            ...url.toObject(),
+            ...url,
             ownerId: url.createdBy,
             ownerBanned,
             disableLinksOnBan
@@ -1754,7 +1754,7 @@ export const previewUrl = async (req, res) => {
         // Query database for the URL
         let url = await Url.findOne({
             $or: [{ shortId }, { customAlias: shortId }],
-        });
+        }).lean();
 
         // Fallback: Case-insensitive search
         if (!url) {
@@ -1763,7 +1763,7 @@ export const previewUrl = async (req, res) => {
                     { shortId: { $regex: new RegExp(`^${escapeRegex(shortId)}$`, 'i') } },
                     { customAlias: { $regex: new RegExp(`^${escapeRegex(shortId)}$`, 'i') } }
                 ]
-            });
+            }).lean();
         }
 
         if (!url) {

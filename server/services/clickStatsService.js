@@ -9,6 +9,7 @@ let clickBuffer = new Map(); // Map<urlId, count> (Fallback)
 let userClickBuffer = new Map(); // Map<userId, count> (Fallback)
 let flushTimer = null;
 let isFlushing = false;
+let pendingClickCount = 0; // Opt 4: Track if this worker queued clicks to Redis
 
 /**
  * Flushes the buffered click counts to the database using bulkWrite
@@ -17,13 +18,28 @@ const flushBuffer = async () => {
     if (isFlushing) return;
 
     const redis = getRedisClient();
+    
+    // Opt 4: If using Redis and no clicks were queued by this worker recently, skip flush
+    if (redis && pendingClickCount === 0) {
+        return;
+    }
+
     const urlOps = [];
     const userOps = [];
+    let acquiredLock = false;
 
     isFlushing = true;
 
     try {
         if (redis) {
+            // Acquire distributed lock to prevent PM2 cluster race conditions
+            const lock = await redis.set('ls:lock:flush', '1', 'NX', 'EX', 10);
+            if (!lock) return; // Another worker is currently flushing
+            acquiredLock = true;
+            
+            // Reset count since we are about to flush the entire Redis queue
+            pendingClickCount = 0;
+
             // --- Process URL Clicks from Redis ---
             let urlCursor = 0;
             do {
@@ -156,6 +172,13 @@ const flushBuffer = async () => {
     } catch (error) {
         console.error('[ClickStats] Flush Error:', error);
     } finally {
+        if (acquiredLock && redis) {
+            try {
+                await redis.del('ls:lock:flush');
+            } catch (err) {
+                console.error('[ClickStats] Failed to release lock:', err.message);
+            }
+        }
         isFlushing = false;
     }
 };
@@ -183,6 +206,7 @@ export const queueClickIncrement = async (urlId) => {
         if (redis) {
             // Atomic increment with a 7-day safety TTL to protect against eviction
             await redisIncr(`ls:click:url:${idStr}`, 604800);
+            pendingClickCount++;
         } else {
             // Fallback in-memory Map
             const currentCheck = clickBuffer.get(idStr) || 0;
@@ -214,6 +238,7 @@ export const queueUserClickIncrement = async (userId) => {
         if (redis) {
             // Atomic increment with a 7-day safety TTL to protect against eviction
             await redisIncr(`ls:click:user:${idStr}`, 604800);
+            pendingClickCount++;
         } else {
             // Fallback in-memory Map
             const current = userClickBuffer.get(idStr) || 0;

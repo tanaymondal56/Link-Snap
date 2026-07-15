@@ -2,7 +2,7 @@ name: Lint
 
 on:
   push:
-    branches-ignore: [ "master", "major/k8s" ]
+    branches-ignore: [ "master" ]
     paths-ignore:
       - '**.md'
   workflow_call:

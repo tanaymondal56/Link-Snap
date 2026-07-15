@@ -23,6 +23,7 @@ server/dist/
 build/
 .next/
 out/
+client/public/sitemap.xml
 
 # Testing
 coverage/

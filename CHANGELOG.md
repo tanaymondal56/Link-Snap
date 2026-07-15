@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [7.0.1] - 2026-07-15
+
+### Security Hardening, Performance Optimizations & OTP Overhaul
+
+This patch release addresses critical performance issues, security vulnerabilities, and UX improvements in the authentication, click tracking, caching, and CI/CD systems.
+
+### 🛡️ Security Hardening
+- **Cryptographically Secure OTPs:** Replaced insecure `Math.random()` OTP generation functions with Node's native, cryptographically secure `crypto.randomInt()`.
+- **Hashed Reset Tokens:** Implemented SHA256 hashing for password reset tokens before saving them in the database to protect them against database disclosure (defense-in-depth).
+- **Zod Error Extraction:** Fixed a crash where Zod validation errors threw `Cannot read properties of undefined (reading '0')` due to Zod v4 syntax differences, ensuring clean validation errors are returned to the client.
+
+### 🚀 Performance & Optimizations
+- **N+1 Query Fix in Click Processing:** Eliminated a performance bottleneck in `trackBulkClicks` by replacing sequential `Url.findOne()` queries with a single batch `Url.find()` and a fast O(1) Map lookup.
+- **PM2 Cluster Mode:** Configured `ecosystem.config.cjs` with `instances: "max"` and `exec_mode: "cluster"` to run Node.js across all 4 CPU cores.
+- **Distributed Locking:** Added a Redis distributed lock (`ls:lock:flush` via `SET NX EX 10`) to the background `flushBuffer` cron job, preventing race conditions and duplicate writes in PM2 cluster mode.
+- **Idle Caching Bypass:** Added a `pendingClickCount` tracker to prevent doing redundant Redis scans when there are no new clicks on the server.
+- **Scan API Fix:** Replaced raw `redis.scan()` with the custom `redisScan` wrapper inside the cache clearing API to ensure compatibility with Upstash Redis REST.
+- **Redis-First OTP Caching:** Configured Redis as the primary memory cache for active verification and reset OTP codes (10 min TTL) with MongoDB acting as a backup fallback.
+
+### ✨ UX Improvements & UI Updates
+- **Interactive Password Validator:** Added an interactive, on-the-fly checklist in the registration screen that validates the password against complexity requirements (uppercase, lowercase, digits, and length) as the user types.
+- **Autofill Disabling:** Turned off browser auto-suggestions/autofill on OTP input fields using the standard `autoComplete="one-time-code"`.
+- **One-Click Paste Code:** Created a "Paste Code" button on OTP input fields using the browser Clipboard API to let users instantly copy-paste 6-digit codes.
+- **Spam Warning Highlight:** Highlighted spam folder check instructions on registration and password reset OTP screens for better visibility.
+- **Zod Schema Fix:** Added `.or(z.literal(''))` to the phone validator in profile updates to prevent saving errors when the phone number field is cleared.
+
+### 🐳 CI/CD Pipelines
+- **Trigger Hardening:** Removed the deprecated `major/k8s` branch trigger from `docker-publish.yml` to prevent accidental triggers.
+
+---
+
 ## [7.0.0] - 2026-07-14
 
 ### Major Overhaul: Security, Independent Deployments & Cloudflare Integration

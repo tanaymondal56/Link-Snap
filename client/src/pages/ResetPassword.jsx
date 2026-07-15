@@ -3,7 +3,7 @@ import { useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import api from '../api/axios';
 import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
-import { Loader, Lock, Eye, EyeOff, ArrowRight, ArrowLeft, ShieldCheck, Check, X } from 'lucide-react';
+import { Loader, Lock, Eye, EyeOff, ArrowRight, ArrowLeft, ShieldCheck, Check, X, Clipboard } from 'lucide-react';
 
 const ResetPassword = () => {
   const navigate = useNavigate();
@@ -34,6 +34,26 @@ const ResetPassword = () => {
   
   const isPasswordValid = Object.values(passwordRules).every(Boolean);
   const passwordsMatch = newPassword === confirmPassword && confirmPassword.length > 0;
+
+  const handleClipboardPaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const cleaned = text.replace(/\D/g, '').slice(0, 6);
+      if (cleaned.length === 6) {
+        const newOtp = cleaned.split('');
+        setOtp(newOtp);
+        if (inputRefs.current[5]) {
+          inputRefs.current[5].focus();
+        }
+        showToast.success('Verification code pasted!');
+      } else {
+        showToast.error('No 6-digit verification code found in clipboard');
+      }
+    } catch (err) {
+      console.error('[Clipboard Paste Error]', err);
+      showToast.error('Please allow clipboard permissions or paste manually');
+    }
+  };
 
   // Handle OTP input changes
   const handleOtpChange = (index, value) => {
@@ -174,7 +194,8 @@ const ResetPassword = () => {
                   
                   {/* OTP Inputs */}
                   <div>
-                    <span className="block text-sm text-gray-400 mb-3 text-center">Enter the 6-digit code from your email</span>
+                    <span className="block text-sm text-gray-400 mb-1 text-center">Enter the 6-digit code from your email</span>
+                    <span className="block text-xs text-amber-400/90 font-medium mb-3 text-center">Don't forget to check your spam folder!</span>
                     <div className="flex justify-between gap-2">
                       {otp.map((digit, index) => (
                         <input
@@ -187,9 +208,19 @@ const ResetPassword = () => {
                           onChange={(e) => handleOtpChange(index, e.target.value)}
                           onKeyDown={(e) => handleKeyDown(index, e)}
                           onPaste={handlePaste}
+                          autoComplete="one-time-code"
                           className="w-12 h-14 text-center text-xl font-bold bg-white/5 border border-white/10 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all text-white"
                         />
                       ))}
+                    </div>
+                    <div className="flex justify-end mt-2">
+                      <button
+                        type="button"
+                        onClick={handleClipboardPaste}
+                        className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Clipboard className="w-3.5 h-3.5" /> Paste Code
+                      </button>
                     </div>
                   </div>
                 </>

@@ -155,7 +155,9 @@ const EasterEggs = () => {
     }
 
     // Track typed characters
-    typedKeys.current += e.key.toLowerCase();
+    if (e.key) {
+      typedKeys.current += e.key.toLowerCase();
+    }
     if (typedKeys.current.length > 20) {
       typedKeys.current = typedKeys.current.slice(-20);
     }

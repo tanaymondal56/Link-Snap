@@ -33,8 +33,18 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [prevOpen, setPrevOpen] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState('idle'); // idle | checking | available | taken | invalid | reserved
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const { login, register } = useAuth();
   const navigate = useNavigate();
+
+  const passwordRules = {
+    length: password.length >= 8,
+    lowercase: /[a-z]/.test(password),
+    uppercase: /[A-Z]/.test(password),
+    number: /[0-9]/.test(password),
+  };
+  
+  const isPasswordValid = Object.values(passwordRules).every(Boolean);
 
   // Reset form when modal opens
   useEffect(() => {
@@ -407,7 +417,11 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-12 pr-12 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                onFocus={() => activeTab === 'register' && setIsPasswordFocused(true)}
+                onBlur={() => setIsPasswordFocused(false)}
+                className={`w-full pl-12 pr-12 py-3.5 bg-gray-800/50 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all ${
+                  activeTab === 'register' && password && !isPasswordValid ? 'border-red-500/50' : 'border-gray-700'
+                }`}
               />
               <button
                 type="button"
@@ -417,6 +431,30 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
             </div>
+
+            {activeTab === 'register' && (password || isPasswordFocused) && (
+              <div className="space-y-2 p-3 bg-white/5 rounded-xl border border-white/10 -mt-2">
+                <p className="text-xs text-gray-400 mb-1">Password must contain:</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className={`flex items-center gap-1 ${passwordRules.length ? 'text-green-400' : 'text-gray-500'}`}>
+                    {passwordRules.length ? <Check className="w-3.5 h-3.5 text-green-500" /> : <X className="w-3.5 h-3.5 text-gray-500" />}
+                    8+ characters
+                  </div>
+                  <div className={`flex items-center gap-1 ${passwordRules.lowercase ? 'text-green-400' : 'text-gray-500'}`}>
+                    {passwordRules.lowercase ? <Check className="w-3.5 h-3.5 text-green-500" /> : <X className="w-3.5 h-3.5 text-gray-500" />}
+                    Lowercase letter
+                  </div>
+                  <div className={`flex items-center gap-1 ${passwordRules.uppercase ? 'text-green-400' : 'text-gray-500'}`}>
+                    {passwordRules.uppercase ? <Check className="w-3.5 h-3.5 text-green-500" /> : <X className="w-3.5 h-3.5 text-gray-500" />}
+                    Uppercase letter
+                  </div>
+                  <div className={`flex items-center gap-1 ${passwordRules.number ? 'text-green-400' : 'text-gray-500'}`}>
+                    {passwordRules.number ? <Check className="w-3.5 h-3.5 text-green-500" /> : <X className="w-3.5 h-3.5 text-gray-500" />}
+                    Number
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Forgot Password Link (Login only) */}
             {activeTab === 'login' && (

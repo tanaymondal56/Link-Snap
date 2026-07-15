@@ -2,7 +2,7 @@ import User from '../models/User.js';
 import MasterAdmin from '../models/MasterAdmin.js';
 import Settings from '../models/Settings.js';
 import { getSettings } from '../utils/getSettings.js';
-import { redisDel } from '../config/redis.js';
+import { redisDel, redisSet, redisGet } from '../config/redis.js';
 import Session from '../models/Session.js';
 import LoginHistory from '../models/LoginHistory.js';
 import UsernameHistory from '../models/UsernameHistory.js';
@@ -49,7 +49,7 @@ const registerUser = async (req, res, next) => {
     const result = registerSchema.safeParse(req.body);
     if (!result.success) {
       res.status(400);
-      throw new Error(result.error.errors[0].message);
+      throw new Error(result.error.issues[0].message);
     }
 
     const { email, password, firstName, lastName, phone, company, website, username } = result.data;
@@ -112,7 +112,7 @@ const registerUser = async (req, res, next) => {
         if (username) userExists.username = username;
 
         // Generate new tokens
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otp = crypto.randomInt(100000, 1000000).toString();
         const verificationToken = crypto.randomBytes(20).toString('hex');
         const otpExpiresTime = Date.now() + 10 * 60 * 1000; // 10 minutes
 
@@ -120,6 +120,9 @@ const registerUser = async (req, res, next) => {
         userExists.otpExpires = otpExpiresTime;
         userExists.verificationToken = verificationToken;
         userExists.verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
+
+        // Primary: cache OTP in Redis
+        await redisSet(`ls:otp:verify:${email.toLowerCase()}`, 600, otp);
 
         // Debug: Log before save
         logger.debug(`[Auth] Before save - OTP for ${email}, expires: ${new Date(otpExpiresTime).toISOString()}`);
@@ -208,7 +211,7 @@ const registerUser = async (req, res, next) => {
     if (requireVerification) {
       const verificationToken = crypto.randomBytes(20).toString('hex');
       // Generate 6-digit OTP
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otp = crypto.randomInt(100000, 1000000).toString();
 
       user = await User.create({
         ...userData,
@@ -218,6 +221,9 @@ const registerUser = async (req, res, next) => {
         otp,
         otpExpires: Date.now() + 10 * 60 * 1000, // 10 minutes
       });
+
+      // Primary: cache OTP in Redis
+      await redisSet(`ls:otp:verify:${email.toLowerCase()}`, 600, otp);
 
       // Generate beautiful verification email
       const emailContent = verificationEmail(user, verificationToken, otp);
@@ -323,12 +329,12 @@ const verifyOTP = async (req, res, next) => {
     const result = verifyOtpSchema.safeParse(req.body);
     if (!result.success) {
       res.status(400);
-      throw new Error(result.error.errors[0].message);
+      throw new Error(result.error.issues[0].message);
     }
 
     const { email, otp } = result.data;
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select('+otp +otpExpires');
 
     if (!user) {
       res.status(404);
@@ -348,21 +354,41 @@ const verifyOTP = async (req, res, next) => {
     // Debug: Log OTP verification attempt (exclude actual OTP for security)
     logger.debug(`[Auth] OTP verification attempt for: ${email}`);
 
-    // Check OTP expiry first
-    if (!user.otp || user.otpExpires < Date.now()) {
-      logger.debug(`[Auth] OTP expired for ${email}`);
-      return res.status(400).json({
-        message: 'Your verification code has expired. Please request a new one.',
-        expired: true
-      });
+    // Primary: Check OTP in Redis
+    let otpValid = false;
+    let checkedWithRedis = false;
+    const redisOtp = await redisGet(`ls:otp:verify:${email.toLowerCase()}`);
+
+    if (redisOtp) {
+      checkedWithRedis = true;
+      const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
+      const storedOtpBuffer = Buffer.from(String(redisOtp).padEnd(6, '0'));
+      if (crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
+        otpValid = true;
+        await redisDel(`ls:otp:verify:${email.toLowerCase()}`);
+      }
     }
 
-    // Check OTP value using timing-safe comparison to prevent timing attacks
-    const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
-    const storedOtpBuffer = Buffer.from((user.otp || '').padEnd(6, '0'));
-    if (!crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
-      res.status(400);
-      throw new Error('Invalid verification code. Please check and try again.');
+    if (checkedWithRedis) {
+      if (!otpValid) {
+        res.status(400);
+        throw new Error('Invalid verification code. Please check and try again.');
+      }
+    } else {
+      // Fallback: Check OTP in MongoDB
+      if (!user.otp || user.otpExpires < Date.now()) {
+        logger.debug(`[Auth] OTP expired for ${email} in MongoDB fallback`);
+        return res.status(400).json({
+          message: 'Your verification code has expired. Please request a new one.',
+          expired: true
+        });
+      }
+      const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
+      const storedOtpBuffer = Buffer.from((user.otp || '').padEnd(6, '0'));
+      if (!crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
+        res.status(400);
+        throw new Error('Invalid verification code. Please check and try again.');
+      }
     }
 
     // Verify User
@@ -490,7 +516,7 @@ const loginUser = async (req, res, next) => {
     const result = loginSchema.safeParse(req.body);
     if (!result.success) {
       res.status(400);
-      throw new Error(result.error.errors[0].message);
+      throw new Error(result.error.issues[0].message);
     }
 
     const { identifier, password } = result.data;
@@ -910,7 +936,7 @@ const updateProfile = async (req, res, next) => {
     const result = updateProfileSchema.safeParse(req.body);
     if (!result.success) {
       res.status(400);
-      throw new Error(result.error.errors[0].message);
+      throw new Error(result.error.issues[0].message);
     }
 
     const { firstName, lastName, phone, company, website, bio, username } = result.data;
@@ -1090,7 +1116,7 @@ const resendOTP = async (req, res, next) => {
     }
 
     // Generate new OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = crypto.randomInt(100000, 1000000).toString();
     const verificationToken = crypto.randomBytes(20).toString('hex');
 
     user.otp = otp;
@@ -1098,6 +1124,9 @@ const resendOTP = async (req, res, next) => {
     user.verificationToken = verificationToken;
     user.verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
     await user.save();
+
+    // Primary: cache OTP in Redis
+    await redisSet(`ls:otp:verify:${email.toLowerCase()}`, 600, otp);
 
     // Send email
     const emailContent = verificationEmail(user, verificationToken, otp);
@@ -1125,7 +1154,7 @@ const forgotPassword = async (req, res, next) => {
     const result = forgotPasswordSchema.safeParse(req.body);
     if (!result.success) {
       res.status(400);
-      throw new Error(result.error.errors[0].message);
+      throw new Error(result.error.issues[0].message);
     }
 
     const { email } = result.data;
@@ -1151,7 +1180,7 @@ const forgotPassword = async (req, res, next) => {
     // Unverified user - redirect to verification first
     if (!user.isVerified) {
       // Generate new verification OTP
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otp = crypto.randomInt(100000, 1000000).toString();
       const verificationToken = crypto.randomBytes(20).toString('hex');
 
       user.otp = otp;
@@ -1159,6 +1188,9 @@ const forgotPassword = async (req, res, next) => {
       user.verificationToken = verificationToken;
       user.verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
       await user.save();
+
+      // Primary: cache OTP in Redis
+      await redisSet(`ls:otp:verify:${email.toLowerCase()}`, 600, otp);
 
       // Send verification email instead
       const emailContent = verificationEmail(user, verificationToken, otp);
@@ -1176,14 +1208,18 @@ const forgotPassword = async (req, res, next) => {
     }
 
     // 4. Generate reset tokens
-    const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const resetOtp = crypto.randomInt(100000, 1000000).toString();
     const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
 
     user.resetPasswordOtp = resetOtp;
     user.resetPasswordOtpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-    user.resetPasswordToken = resetToken;
+    user.resetPasswordToken = hashedResetToken;
     user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 hour
     await user.save();
+
+    // Primary: cache Reset OTP in Redis
+    await redisSet(`ls:otp:reset:${email.toLowerCase()}`, 600, resetOtp);
 
     // 5. Send reset email
     const emailContent = passwordResetEmail(user, resetToken, resetOtp);
@@ -1212,7 +1248,7 @@ const resetPassword = async (req, res, next) => {
     const result = resetPasswordSchema.safeParse(req.body);
     if (!result.success) {
       res.status(400);
-      throw new Error(result.error.errors[0].message);
+      throw new Error(result.error.issues[0].message);
     }
 
     const { email, token, otp, newPassword } = result.data;
@@ -1220,35 +1256,56 @@ const resetPassword = async (req, res, next) => {
 
     // 2. Find user by token OR by email+OTP
     if (token) {
+      const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
       user = await User.findOne({
-        resetPasswordToken: token,
+        resetPasswordToken: hashedToken,
         resetPasswordExpires: { $gt: Date.now() }
-      });
+      }).select('+resetPasswordToken +resetPasswordExpires');
 
       if (!user) {
         res.status(400);
         throw new Error('Invalid or expired reset link. Please request a new one.');
       }
     } else if (email && otp) {
-      user = await User.findOne({ email: email.toLowerCase() });
+      user = await User.findOne({ email: email.toLowerCase() }).select('+resetPasswordOtp +resetPasswordOtpExpires');
 
       if (!user) {
         res.status(400);
         throw new Error('Invalid email or OTP.');
       }
 
-      // Check OTP expiry
-      if (!user.resetPasswordOtp || user.resetPasswordOtpExpires < Date.now()) {
-        res.status(400);
-        throw new Error('Your reset code has expired. Please request a new one.');
+      // Primary: Check Reset OTP in Redis
+      let otpValid = false;
+      let checkedWithRedis = false;
+      const redisOtp = await redisGet(`ls:otp:reset:${email.toLowerCase()}`);
+
+      if (redisOtp) {
+        checkedWithRedis = true;
+        const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
+        const storedOtpBuffer = Buffer.from(String(redisOtp).padEnd(6, '0'));
+        if (crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
+          otpValid = true;
+          await redisDel(`ls:otp:reset:${email.toLowerCase()}`);
+        }
       }
 
-      // Timing-safe comparison for OTP
-      const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
-      const storedOtpBuffer = Buffer.from((user.resetPasswordOtp || '').padEnd(6, '0'));
-      if (!crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
-        res.status(400);
-        throw new Error('Invalid reset code. Please check and try again.');
+      if (checkedWithRedis) {
+        if (!otpValid) {
+          res.status(400);
+          throw new Error('Invalid reset code. Please check and try again.');
+        }
+      } else {
+        // Fallback: Check OTP in MongoDB
+        if (!user.resetPasswordOtp || user.resetPasswordOtpExpires < Date.now()) {
+          res.status(400);
+          throw new Error('Your reset code has expired. Please request a new one.');
+        }
+        const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
+        const storedOtpBuffer = Buffer.from((user.resetPasswordOtp || '').padEnd(6, '0'));
+        if (!crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
+          res.status(400);
+          throw new Error('Invalid reset code. Please check and try again.');
+        }
       }
     } else {
       res.status(400);

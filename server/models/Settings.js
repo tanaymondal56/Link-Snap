@@ -132,4 +132,5 @@ settingsSchema.methods.getDecryptedPassword = function () {
 
 const Settings = mongoose.model('Settings', settingsSchema);
 
+export const decryptEmailPassword = decrypt;
 export default Settings;

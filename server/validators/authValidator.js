@@ -75,7 +75,8 @@ export const updateProfileSchema = z.object({
     .trim()
     .max(20, { message: "Phone number is too long" })
     .regex(/^[\d\s\-+()]{7,}$/, { message: "Phone number must be valid and at least 7 digits" })
-    .optional(),
+    .optional()
+    .or(z.literal('')),
   company: z.string().trim().max(100).optional(),
   website: z.string()
     .trim()
