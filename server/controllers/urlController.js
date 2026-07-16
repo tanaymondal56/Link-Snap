@@ -14,6 +14,8 @@ import { checkUrlsSafety } from '../services/safeBrowsingService.js';
 import { getTimeBasedDestination } from '../services/timeService.js';
 import NotificationService from '../services/notificationService.js';
 import logger from '../utils/logger.js';
+import { invalidateAnalyticsCache } from './analyticsController.js';
+import { bloomAdd } from '../services/bloomFilterService.js';
 
 // Extract domain from URL (safe - no network request)
 const extractDomain = (url) => {
@@ -301,6 +303,12 @@ const createShortUrl = async (req, res, next) => {
                 activeStartTime: activeStartTimeData,
                 timeRedirects: timeRedirectsData,
             });
+            
+            // Add identifiers to URLs Bloom Filter
+            bloomAdd('urls', newUrl.shortId).catch(() => {});
+            if (newUrl.customAlias) {
+                bloomAdd('urls', newUrl.customAlias).catch(() => {});
+            }
         } catch (err) {
             // Handle race conditions where another pod creates the same custom alias at the exact same millisecond
             if (err.code === 11000 && err.keyPattern && err.keyPattern.customAlias) {
@@ -424,6 +432,8 @@ const deleteUrl = async (req, res, next) => {
         if (url.customAlias) {
             await invalidateCache(url.customAlias);
         }
+        // Also clear the analytics cache for this URL
+        await invalidateAnalyticsCache(url._id);
 
         await url.deleteOne();
 
@@ -797,6 +807,8 @@ const updateUrl = async (req, res, next) => {
             if (url.customAlias) await invalidateCache(url.customAlias);
             if (updatedUrl && updatedUrl.customAlias && updatedUrl.customAlias !== url.customAlias) {
                 await invalidateCache(updatedUrl.customAlias);
+                // Also ensure the new alias is in the Bloom Filter
+                bloomAdd('urls', updatedUrl.customAlias).catch(() => {});
             }
         } catch (err) {
             // Handle race conditions where another pod creates the same custom alias at the exact same millisecond

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [7.1.0] - 2026-07-16
+
+### Redis API Offloading, Custom Bloom Filters & Performance Hardening
+
+This minor release implements high-performance Redis cache-aside patterns for read-heavy endpoints, introduces a custom Redis Bloom filter engine optimized for Upstash, and hardens the application against Cache Penetration attacks.
+
+### 🧠 Custom Redis Bloom Filter Engine (Module-less Upstash Optimization)
+- **Standard Redis Bitwise Operations:** Designed a high-speed Bloom filter utilizing standard Redis `SETBIT` and `GETBIT` pipelines, bypassing the need for the native `RedisBloom` module on Upstash HTTP environments.
+- **Dynamic Case-Sensitivity:** Optimized hashing to run case-insensitively for usernames (preventing registration duplicates) and case-sensitively for short URL IDs (maximizing entropy and reducing collisions).
+- **Concurrency & Lock Control:** Gated multi-replica startup seeding with a distributed lock (`ls:lock:bf:seeding`), allowing only one pod to populate the filters.
+- **Zero-Downtime Rebuilds:** Implemented atomic swaps using Redis `RENAME` to prevent transient false-negatives during weekly background DB syncs.
+- **Shielding (Cache Penetration):** Intercepts username checks and URL redirects early; if the filter returns `false`, database and cache lookups are bypassed entirely (immediate 404/available response).
+
+### 🚀 High-Impact Redis Caching (API Offloading)
+- **Link Analytics Cache:** Cached compiled analytics response payloads (`ls:analytics:{urlId}:{tier}`) with a 3-minute TTL, utilizing subscription-tier-specific keys to prevent cross-tier data leaks.
+- **Analytics Payload Compression:** Automatically compresses cached analytics JSON responses exceeding 50KB using Gzip before saving to Redis, saving network I/O and RAM.
+- **Lander Optimization:** Cached public changelogs (`ls:changelog:public`) and roadmaps (`ls:changelog:roadmap`) in Redis with O(1) cache invalidations on admin changes.
+- **Notification Counter Caching:** Capped admin notification aggregate hits by caching unread count severity tallies with auto-invalidations on mark-as-read actions.
+- **Admin Stats Cache:** Cached expensive global cluster counts (`ls:admin:stats`) with immediate invalidations when admins create or delete users.
+- **Active Bio Invalidation:** Integrated immediate cache purges (`ls:bio:{username}`) on user dashboard profile updates, username changes, user bans, unbans, or account deletions.
+
+### ⚡ Performance & Parallelism
+- **Concurrent DB Queries:** Replaced serial MongoDB lookups with parallel `Promise.all` aggregates for global stats and notification queries.
+- **Stateless Auth Cache:** Optimized the stateless JWT authentication middleware by caching hydrated user documents (`ls:user:{id}`) instead of database sessions.
+
+---
+
 ## [7.0.1] - 2026-07-15
 
 ### Security Hardening, Performance Optimizations & OTP Overhaul
@@ -17,6 +44,13 @@ This patch release addresses critical performance issues, security vulnerabiliti
 - **Cryptographically Secure OTPs:** Replaced insecure `Math.random()` OTP generation functions with Node's native, cryptographically secure `crypto.randomInt()`.
 - **Hashed Reset Tokens:** Implemented SHA256 hashing for password reset tokens before saving them in the database to protect them against database disclosure (defense-in-depth).
 - **Zod Error Extraction:** Fixed a crash where Zod validation errors threw `Cannot read properties of undefined (reading '0')` due to Zod v4 syntax differences, ensuring clean validation errors are returned to the client.
+- **Atomic Cache Invalidation & Attempt Rate Limiter (OTP Protection):** Upgraded `authController` OTP endpoints to track failed verification attempts. Users are allowed up to 3 tries per generated OTP. If the 3-attempt limit is reached, the OTP cache is instantly deleted in Redis to prevent brute-force attacks, while showing remaining attempt counts on incorrect attempts.
+
+### 🏗️ Infrastructure & Workflows
+- **Redis 8 Upgrade:** Standardized deployments to `redis:8-alpine` to leverage throughput optimizations and updated Node helpers to utilize atomic commands across both local and Upstash drivers.
+- **K8s Storage Management:** Injected a privileged `nsenter` cleanup step in `deploy-beta` and `deploy-production` pipelines to forcefully prune unused container images (`k3s crictl rmi --prune` and `docker system prune -a`) on target nodes immediately after rollouts, preventing disk exhaustion.
+- **Lint Workflow Optimization:** Excluded the `working` branch from the `.github/workflows/lint.yml` trigger to save action minutes.
+
 
 ### 🚀 Performance & Optimizations
 - **N+1 Query Fix in Click Processing:** Eliminated a performance bottleneck in `trackBulkClicks` by replacing sequential `Url.findOne()` queries with a single batch `Url.find()` and a fast O(1) Map lookup.

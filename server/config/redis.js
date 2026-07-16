@@ -99,12 +99,13 @@ const deserialize = (raw) => {
 };
 
 export const redisGet = async (key) => {
-    if (!redisClient) return null;
+    if (!redisClient) return undefined;
     try {
-        return deserialize(await redisClient.get(key));
+        const raw = await redisClient.get(key);
+        return raw === null ? null : deserialize(raw);
     } catch (err) {
         logger.warn('[Redis] GET ' + key + ' failed: ' + err.message);
-        return null;
+        return undefined;
     }
 };
 
@@ -140,26 +141,14 @@ export const redisIncr = async (key, safetyTtlSeconds = 604800) => {
 };
 
 export const redisGetDel = async (key) => {
-    if (!redisClient) return null;
+    if (!redisClient) return undefined;
     try {
-        let raw;
-        if (redisDriver === 'tcp') {
-            // ioredis: use pipeline for atomic GET+DEL (works on Redis < 6.2 without GETDEL)
-            // Redis >= 6.2 supports GETDEL natively; pipeline is safe for all versions
-            const [[, getVal], [, delVal]] = await redisClient.pipeline()
-                .get(key)
-                .del(key)
-                .exec();
-            void delVal; // del result not needed
-            raw = getVal;
-        } else {
-            // Upstash supports getdel natively via HTTP API
-            raw = await redisClient.getdel(key);
-        }
-        return deserialize(raw);
+        // Both ioredis (since 6.2+) and Upstash Redis support GETDEL natively
+        const raw = await redisClient.getdel(key);
+        return raw === null ? null : deserialize(raw);
     } catch (err) {
         logger.warn('[Redis] GETDEL ' + key + ' failed: ' + err.message);
-        return null;
+        return undefined;
     }
 };
 

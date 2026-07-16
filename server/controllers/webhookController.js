@@ -5,6 +5,7 @@ import WebhookEvent from '../models/WebhookEvent.js';
 import SubscriptionAuditLog from '../models/SubscriptionAuditLog.js';
 import logger from '../utils/logger.js';
 import NotificationService from '../services/notificationService.js';
+import { invalidateUserAnalyticsCache } from './analyticsController.js';
 
 // Verify the signature from Lemon Squeezy
 // Docs: https://docs.lemonsqueezy.com/guides/developer-guide/webhooks#signing-requests
@@ -296,6 +297,11 @@ export const handleWebhook = async (req, res) => {
     }
 
     await user.save();
+    
+    // Invalidate analytics cache if tier changed
+    if (previousSubscription.tier !== user.subscription?.tier) {
+        await invalidateUserAnalyticsCache(user._id);
+    }
     
     // Map event names to audit actions
     const actionMap = {

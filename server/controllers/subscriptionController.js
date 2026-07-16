@@ -3,6 +3,7 @@ import { TIERS } from '../services/subscriptionService.js';
 import User from '../models/User.js';
 import axios from 'axios';
 import logger from '../utils/logger.js';
+import { invalidateUserAnalyticsCache } from './analyticsController.js';
 
 /**
  * Get localized pricing for the pricing page.
@@ -209,6 +210,11 @@ export const syncSubscription = async (req, res) => {
           'subscription.updatePaymentUrl': lsData.urls?.update_payment_method
         }
       });
+      
+      // Invalidate analytics cache if tier changed
+      if (user.subscription?.tier !== tier) {
+          await invalidateUserAnalyticsCache(user._id);
+      }
       
       logger.info(`[Sync] User ${user.snapId} synced their subscription`);
       

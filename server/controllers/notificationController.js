@@ -1,5 +1,9 @@
 import NotificationService from '../services/notificationService.js';
 import logger from '../utils/logger.js';
+import { redisGet, redisSet, redisDel } from '../config/redis.js';
+
+const NOTIFICATION_COUNT_KEY = 'ls:notifications:admin:unread';
+const NOTIFICATION_COUNT_TTL = 60; // 60 seconds — fast polling safe
 
 /**
  * Get notifications for admin panel
@@ -9,14 +13,16 @@ export const getNotifications = async (req, res) => {
   try {
     const { severity, limit = 20, skip = 0 } = req.query;
 
-    const notifications = await NotificationService.getNotifications({
-      severity: severity || null,
-      limit: parseInt(limit),
-      skip: parseInt(skip)
-    });
-
-    const unreadCounts = await NotificationService.getUnreadCountBySeverity();
-    const totalUnread = await NotificationService.getUnreadCount();
+    // Run all three DB operations concurrently instead of sequentially
+    const [notifications, unreadCounts, totalUnread] = await Promise.all([
+      NotificationService.getNotifications({
+        severity: severity || null,
+        limit: parseInt(limit),
+        skip: parseInt(skip)
+      }),
+      NotificationService.getUnreadCountBySeverity(),
+      NotificationService.getUnreadCount()
+    ]);
 
     res.json({
       notifications,
@@ -42,6 +48,8 @@ export const markAsRead = async (req, res) => {
     }
 
     await NotificationService.markAsRead(ids);
+    // Invalidate unread count cache so next poll gets a fresh count
+    await redisDel(NOTIFICATION_COUNT_KEY);
     res.json({ message: 'Notifications marked as read' });
   } catch (error) {
     logger.error(`[Notifications] Error marking read: ${error.message}`);
@@ -56,6 +64,8 @@ export const markAsRead = async (req, res) => {
 export const markAllAsRead = async (req, res) => {
   try {
     await NotificationService.markAllAsRead();
+    // Invalidate unread count cache
+    await redisDel(NOTIFICATION_COUNT_KEY);
     res.json({ message: 'All notifications marked as read' });
   } catch (error) {
     logger.error(`[Notifications] Error marking all read: ${error.message}`);
@@ -69,13 +79,21 @@ export const markAllAsRead = async (req, res) => {
  */
 export const getUnreadCount = async (req, res) => {
   try {
-    const unreadCounts = await NotificationService.getUnreadCountBySeverity();
-    const totalUnread = await NotificationService.getUnreadCount();
+    // Check Redis cache first — avoids a countDocuments on every poll
+    const cached = await redisGet(NOTIFICATION_COUNT_KEY);
+    if (cached !== null && cached !== undefined) {
+      return res.json(cached);
+    }
 
-    res.json({
-      total: totalUnread,
-      ...unreadCounts
-    });
+    const [unreadCounts, totalUnread] = await Promise.all([
+      NotificationService.getUnreadCountBySeverity(),
+      NotificationService.getUnreadCount()
+    ]);
+
+    const responseData = { total: totalUnread, ...unreadCounts };
+    await redisSet(NOTIFICATION_COUNT_KEY, NOTIFICATION_COUNT_TTL, responseData);
+
+    res.json(responseData);
   } catch (error) {
     logger.error(`[Notifications] Error fetching count: ${error.message}`);
     res.status(500).json({ message: 'Failed to fetch count' });

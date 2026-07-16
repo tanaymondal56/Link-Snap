@@ -2,7 +2,7 @@ import User from '../models/User.js';
 import MasterAdmin from '../models/MasterAdmin.js';
 import Settings from '../models/Settings.js';
 import { getSettings } from '../utils/getSettings.js';
-import { redisDel, redisSet, redisGet } from '../config/redis.js';
+import { redisDel, redisSet, redisGet, redisIncr } from '../config/redis.js';
 import Session from '../models/Session.js';
 import LoginHistory from '../models/LoginHistory.js';
 import UsernameHistory from '../models/UsernameHistory.js';
@@ -19,6 +19,7 @@ import logger from '../utils/logger.js';
 import { generateUserIdentity } from '../services/idService.js';
 import NotificationService from '../services/notificationService.js';
 import { resolveCurrentLinkUsage } from '../middleware/subscriptionMiddleware.js';
+import { bloomAdd, bloomExists } from '../services/bloomFilterService.js';
 
 // Simple email validation - ReDoS safe
 const isValidEmail = (email) => {
@@ -224,6 +225,11 @@ const registerUser = async (req, res, next) => {
 
       // Primary: cache OTP in Redis
       await redisSet(`ls:otp:verify:${email.toLowerCase()}`, 600, otp);
+      // Seed the username negative-cache so check-username queries skip DB for this username
+      if (userData.username) {
+        redisSet(`ls:username:taken:${userData.username.toLowerCase()}`, 300, true).catch(() => {});
+        bloomAdd('usernames', userData.username).catch(() => {});
+      }
 
       // Generate beautiful verification email
       const emailContent = verificationEmail(user, verificationToken, otp);
@@ -260,6 +266,12 @@ const registerUser = async (req, res, next) => {
 
       const accessToken = generateAccessToken(user._id, user.role);
       const { refreshToken } = await createSession(user._id, req);
+
+      // Seed the username negative-cache & Bloom Filter
+      if (userData.username) {
+        redisSet(`ls:username:taken:${userData.username.toLowerCase()}`, 300, true).catch(() => {});
+        bloomAdd('usernames', userData.username).catch(() => {});
+      }
 
       // Send welcome email (non-blocking)
       try {
@@ -358,21 +370,37 @@ const verifyOTP = async (req, res, next) => {
     let otpValid = false;
     let checkedWithRedis = false;
     const redisOtp = await redisGet(`ls:otp:verify:${email.toLowerCase()}`);
-
-    if (redisOtp) {
+    if (redisOtp !== undefined) {
       checkedWithRedis = true;
-      const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
-      const storedOtpBuffer = Buffer.from(String(redisOtp).padEnd(6, '0'));
-      if (crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
-        otpValid = true;
-        await redisDel(`ls:otp:verify:${email.toLowerCase()}`);
+      if (redisOtp !== null) {
+        const attemptsKey = `ls:otp:verify:attempts:${email.toLowerCase()}`;
+        const attempts = await redisIncr(attemptsKey, 600);
+
+        const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
+        const storedOtpBuffer = Buffer.from(String(redisOtp).padEnd(6, '0'));
+        if (crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
+          otpValid = true;
+          await redisDel(`ls:otp:verify:${email.toLowerCase()}`, attemptsKey);
+        } else {
+          if (attempts >= 3) {
+            await redisDel(`ls:otp:verify:${email.toLowerCase()}`, attemptsKey);
+            res.status(400);
+            throw new Error('Too many failed attempts. Your verification code has been invalidated. Please request a new one.');
+          } else {
+            const remaining = 3 - attempts;
+            res.status(400);
+            throw new Error(`Invalid verification code. ${remaining} attempt${remaining > 1 ? 's' : ''} remaining.`);
+          }
+        }
       }
     }
 
     if (checkedWithRedis) {
       if (!otpValid) {
-        res.status(400);
-        throw new Error('Invalid verification code. Please check and try again.');
+        return res.status(400).json({
+          message: 'Your verification code has expired or is invalid. Please request a new one.',
+          expired: true
+        });
       }
     } else {
       // Fallback: Check OTP in MongoDB
@@ -987,9 +1015,18 @@ const updateProfile = async (req, res, next) => {
         changedBy: null  // self-initiated
       });
 
+      const oldUsername = user.username;
       // Update username and cooldown timestamp
       user.username = username.toLowerCase();
       user.usernameChangedAt = new Date();
+
+      // Cache: mark new username as taken; release old username cache
+      // Fire-and-forget — not critical for correctness, just a performance hint
+      redisDel(`ls:username:taken:${oldUsername}`).catch(() => {});
+      redisSet(`ls:username:taken:${user.username}`, 300, true).catch(() => {});
+      bloomAdd('usernames', user.username).catch(() => {});
+      // Also invalidate the bio cache since username changed
+      redisDel(`ls:bio:${oldUsername}`).catch(() => {});
     }
 
     // Update fields
@@ -1001,6 +1038,9 @@ const updateProfile = async (req, res, next) => {
     if (bio !== undefined) user.bio = bio;
 
     await user.save();
+
+    // Invalidate the auth middleware's user cache so next request picks up fresh profile
+    await redisDel(`ls:user:${user._id}`);
 
     res.json({
       _id: user._id,
@@ -1279,20 +1319,35 @@ const resetPassword = async (req, res, next) => {
       let checkedWithRedis = false;
       const redisOtp = await redisGet(`ls:otp:reset:${email.toLowerCase()}`);
 
-      if (redisOtp) {
+      if (redisOtp !== undefined) {
         checkedWithRedis = true;
-        const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
-        const storedOtpBuffer = Buffer.from(String(redisOtp).padEnd(6, '0'));
-        if (crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
-          otpValid = true;
-          await redisDel(`ls:otp:reset:${email.toLowerCase()}`);
+        if (redisOtp !== null) {
+          const attemptsKey = `ls:otp:reset:attempts:${email.toLowerCase()}`;
+          const attempts = await redisIncr(attemptsKey, 600);
+
+          const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
+          const storedOtpBuffer = Buffer.from(String(redisOtp).padEnd(6, '0'));
+          if (crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
+            otpValid = true;
+            await redisDel(`ls:otp:reset:${email.toLowerCase()}`, attemptsKey);
+          } else {
+            if (attempts >= 3) {
+              await redisDel(`ls:otp:reset:${email.toLowerCase()}`, attemptsKey);
+              res.status(400);
+              throw new Error('Too many failed attempts. Your reset code has been invalidated. Please request a new one.');
+            } else {
+              const remaining = 3 - attempts;
+              res.status(400);
+              throw new Error(`Invalid reset code. ${remaining} attempt${remaining > 1 ? 's' : ''} remaining.`);
+            }
+          }
         }
       }
 
       if (checkedWithRedis) {
         if (!otpValid) {
           res.status(400);
-          throw new Error('Invalid reset code. Please check and try again.');
+          throw new Error('Your reset code has expired or is invalid. Please request a new one.');
         }
       } else {
         // Fallback: Check OTP in MongoDB
@@ -1356,18 +1411,35 @@ const checkUsernameAvailability = async (req, res) => {
       return res.json({ available: false, reason: 'invalid' });
     }
 
-    // Check reserved words
+    // Check reserved words (no DB needed)
     if (isReservedWord(usernameLower)) {
       return res.json({ available: false, reason: 'reserved' });
     }
 
-    // Check if exists in database
-    const exists = await User.findOne({ username: usernameLower });
+    // Check Bloom Filter first: if it doesn't exist, it's definitely available
+    const isTakenBloom = await bloomExists('usernames', usernameLower);
+    if (!isTakenBloom) {
+      return res.json({ available: true, reason: null });
+    }
 
-    res.json({
-      available: !exists,
-      reason: exists ? 'taken' : null
-    });
+    // Check Redis negative-cache: if we know the username is taken, skip DB
+    // We only cache "taken" results — never "available" to avoid stale false-positives.
+    const cacheKey = `ls:username:taken:${usernameLower}`;
+    const cachedTaken = await redisGet(cacheKey);
+    if (cachedTaken === true) {
+      return res.json({ available: false, reason: 'taken' });
+    }
+
+    // Check if exists in database
+    const exists = await User.findOne({ username: usernameLower }).select('_id').lean();
+
+    if (exists) {
+      // Cache "taken" for 5 minutes — username won't suddenly become available
+      await redisSet(cacheKey, 300, true);
+      return res.json({ available: false, reason: 'taken' });
+    }
+
+    res.json({ available: true, reason: null });
   } catch (error) {
     logger.error('[Auth] Username check error:', error);
     res.status(500).json({ available: false, reason: 'error' });

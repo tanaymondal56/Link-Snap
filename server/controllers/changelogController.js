@@ -3,6 +3,15 @@ import mongoose from 'mongoose';
 import { z } from 'zod';
 import validator from 'validator';
 import logger from '../utils/logger.js';
+import { redisGet, redisSet, redisDel } from '../config/redis.js';
+
+// Cache keys
+const CACHE_KEYS = {
+    publicList: (skip, limit) => `ls:changelog:public:${skip}:${limit}`,
+    roadmap: (page, limit) => `ls:changelog:roadmap:${page}:${limit}`,
+    latestVersion: 'ls:changelog:version',
+};
+const CHANGELOG_TTL = 120; // 2 minutes
 
 // Helper to validate ObjectId
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
@@ -41,6 +50,21 @@ const createChangelogSchema = z.object({
 
 const updateChangelogSchema = createChangelogSchema.partial();
 
+/**
+ * Invalidate all paginated changelog and roadmap Redis cache keys.
+ * Since pages are keyed by skip/limit, we delete by prefix scan pattern.
+ */
+const invalidateChangelogCaches = async () => {
+    await redisDel(
+        CACHE_KEYS.latestVersion,
+        // Common first-page keys for changelog and roadmap
+        CACHE_KEYS.publicList(0, 20),
+        CACHE_KEYS.publicList(0, 50),
+        CACHE_KEYS.roadmap(1, 20),
+        CACHE_KEYS.roadmap(1, 50),
+    );
+};
+
 // @desc    Get published changelogs (Public)
 // @route   GET /api/changelog
 // @access  Public
@@ -49,6 +73,13 @@ export const getPublicChangelogs = async (req, res, next) => {
         // Pagination (default: 20, max: 50)
         const limit = Math.min(parseInt(req.query.limit) || 20, 50);
         const skip = parseInt(req.query.skip) || 0;
+
+        const cacheKey = CACHE_KEYS.publicList(skip, limit);
+        const cached = await redisGet(cacheKey);
+        if (cached) {
+            res.set('Cache-Control', 'public, max-age=60');
+            return res.json(cached);
+        }
 
         const [changelogs, total] = await Promise.all([
             Changelog.find({ isPublished: true })
@@ -59,12 +90,7 @@ export const getPublicChangelogs = async (req, res, next) => {
             Changelog.countDocuments({ isPublished: true })
         ]);
 
-        // Set cache headers for public endpoint
-        res.set({
-            'Cache-Control': 'public, max-age=60', // 1 minute cache
-        });
-        
-        res.json({
+        const responseData = {
             changelogs,
             pagination: {
                 total,
@@ -72,7 +98,13 @@ export const getPublicChangelogs = async (req, res, next) => {
                 skip,
                 hasMore: skip + changelogs.length < total
             }
-        });
+        };
+
+        await redisSet(cacheKey, CHANGELOG_TTL, responseData);
+
+        // Set cache headers for public endpoint
+        res.set('Cache-Control', 'public, max-age=60');
+        res.json(responseData);
     } catch (error) {
         next(error);
     }
@@ -86,6 +118,13 @@ export const getPublicRoadmap = async (req, res, next) => {
         const page = Math.max(1, parseInt(req.query.page) || 1);
         const limit = Math.min(50, parseInt(req.query.limit) || 20); // Default 20, max 50
         const skip = (page - 1) * limit;
+
+        const cacheKey = CACHE_KEYS.roadmap(page, limit);
+        const cached = await redisGet(cacheKey);
+        if (cached) {
+            res.set('Cache-Control', 'public, max-age=60');
+            return res.json(cached);
+        }
 
         // Base query for roadmap items
         const query = { 
@@ -132,12 +171,7 @@ export const getPublicRoadmap = async (req, res, next) => {
             if (grouped[status]) grouped[status].push(item);
         });
 
-        // Set cache headers
-        res.set({
-            'Cache-Control': 'public, max-age=60', // 1 minute cache
-        });
-
-        res.json({
+        const responseData = {
             items: roadmapItems,
             grouped, // Paginated grouping
             counts,  // GLOBAL counts for buttons
@@ -149,7 +183,13 @@ export const getPublicRoadmap = async (req, res, next) => {
                 hasMore: (skip + roadmapItems.length) < totalItems
             },
             timestamp: new Date().toISOString()
-        });
+        };
+
+        await redisSet(cacheKey, CHANGELOG_TTL, responseData);
+
+        // Set cache headers
+        res.set('Cache-Control', 'public, max-age=60');
+        res.json(responseData);
     } catch (error) {
         next(error);
     }
@@ -228,7 +268,8 @@ export const createChangelog = async (req, res, next) => {
             }]
         });
 
-
+        // Invalidate public changelog + roadmap caches
+        await invalidateChangelogCaches();
 
         res.status(201).json(changelog);
     } catch (error) {
@@ -313,7 +354,8 @@ export const updateChangelog = async (req, res, next) => {
 
         await changelog.save();
 
-
+        // Invalidate public changelog + roadmap caches
+        await invalidateChangelogCaches();
 
         res.json(changelog);
     } catch (error) {
@@ -337,6 +379,9 @@ export const deleteChangelog = async (req, res, next) => {
         if (!changelog) {
             return res.status(404).json({ message: 'Changelog not found' });
         }
+
+        // Invalidate public changelog + roadmap caches
+        await invalidateChangelogCaches();
 
         res.json({ message: 'Changelog deleted successfully' });
     } catch (error) {

@@ -99,7 +99,7 @@ services:
 
   # Distributed cache (Rate limiting / WebAuthn state)
   linksnap-redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: linksnap-redis
     command: redis-server --requirepass your_redis_password
     restart: unless-stopped

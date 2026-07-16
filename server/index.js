@@ -45,6 +45,7 @@ import { flushAnalyticsAndStop } from './services/analyticsService.js';
 import compression from 'compression';
 import mongoose from 'mongoose';
 import { connectRedis, checkRedisConnection, disconnectRedis, isRedisConfigured } from './config/redis.js';
+import { seedBloomFilters } from './services/bloomFilterService.js';
 
 const app = express();
 
@@ -379,6 +380,11 @@ const startServer = async () => {
 
     // Initialise Upstash Redis (non-blocking — falls back gracefully if not configured)
     connectRedis();
+
+    // Seed Bloom Filters in the background
+    seedBloomFilters().catch(err => {
+        logger.error(`[BloomFilter] Background seeding error: ${err.message}`);
+    });
 
     // ═══════════════════════════════════════════════════════════════════════════
     // VALIDATE PROXY GATE CONFIGURATION

@@ -4,7 +4,7 @@ import Url from '../models/Url.js';
 import Analytics from '../models/Analytics.js';
 import Settings from '../models/Settings.js';
 import { getSettings as getGlobalSettings, invalidateSettings } from '../utils/getSettings.js';
-import { redisDel } from '../config/redis.js';
+import { redisDel, redisGet, redisSet } from '../config/redis.js';
 import BanHistory from '../models/BanHistory.js';
 import Appeal from '../models/Appeal.js';
 import Feedback from '../models/Feedback.js';
@@ -83,11 +83,25 @@ const sendBanNotificationEmail = async (user, isBanned, reason, bannedUntil) => 
 // @access  Admin
 export const getSystemStats = async (req, res, next) => {
     try {
-        const totalUsers = await User.countDocuments(); // Accurate count for users (usually smaller collection)
-        const totalUrls = await Url.estimatedDocumentCount(); // Fast estimate for large collection
-        const totalClicks = await Analytics.estimatedDocumentCount(); // Fast estimate for very large collection
+        const STATS_CACHE_KEY = 'ls:admin:stats';
+        const STATS_TTL = 300; // 5 minutes
 
-        // Get recent users (last 5) - now uses createdAt index for efficient sorting
+        const cached = await redisGet(STATS_CACHE_KEY);
+
+        let totalUsers, totalUrls, totalClicks;
+        if (cached) {
+            ({ totalUsers, totalUrls, totalClicks } = cached);
+        } else {
+            [totalUsers, totalUrls, totalClicks] = await Promise.all([
+                User.countDocuments(),           // Accurate count for users
+                Url.estimatedDocumentCount(),    // Fast estimate for large collection
+                Analytics.estimatedDocumentCount() // Fast estimate for very large collection
+            ]);
+            // Cache only aggregate counts (recentUsers always freshly fetched)
+            await redisSet(STATS_CACHE_KEY, STATS_TTL, { totalUsers, totalUrls, totalClicks });
+        }
+
+        // Recent users always freshly fetched — admins need to see the latest signups
         const recentUsers = await User.find()
             .sort({ createdAt: -1 })
             .limit(5)
@@ -304,7 +318,8 @@ export const updateUserStatus = async (req, res, next) => {
                     }
                 }
             );
-            await redisDel(`ls:user:${user._id}`);
+            // Invalidate both the auth user cache and the public bio cache
+            await redisDel(`ls:user:${user._id}`, `ls:bio:${user.username?.toLowerCase()}`);
 
             // Log ban history
             await BanHistory.create({
@@ -333,7 +348,8 @@ export const updateUserStatus = async (req, res, next) => {
             }
             
             await User.findByIdAndUpdate(user._id, updateOps);
-            await redisDel(`ls:user:${user._id}`);
+            // Invalidate both the auth user cache and the public bio cache
+            await redisDel(`ls:user:${user._id}`, `ls:bio:${user.username?.toLowerCase()}`);
 
             // Log unban history
             await BanHistory.create({
@@ -503,7 +519,7 @@ export const deleteUser = async (req, res, next) => {
 
         // Delete the user
         await User.findByIdAndDelete(req.params.userId);
-        await redisDel(`ls:user:${req.params.userId}`);
+        await redisDel(`ls:user:${req.params.userId}`, `ls:bio:${user.username?.toLowerCase()}`);
 
         res.json({ message: 'User and associated data removed' });
     } catch (error) {
@@ -751,6 +767,9 @@ export const createUser = async (req, res, next) => {
             idNumber: eliteIdData.idNumber,
         });
 
+        // Invalidate global stats cache because a new user was created
+        await redisDel('ls:admin:stats');
+
         // Return user without sensitive data
         res.status(201).json({
             _id: user._id,
@@ -878,7 +897,7 @@ export const respondToAppeal = async (req, res, next) => {
                         $set: { isActive: true, disableLinksOnBan: false },
                         $unset: { bannedAt: 1, bannedReason: 1, bannedUntil: 1, bannedBy: 1 }
                     });
-                    await redisDel(`ls:user:${user._id}`);
+                    await redisDel(`ls:user:${user._id}`, `ls:bio:${user.username?.toLowerCase()}`);
 
                     // Log in ban history
                     await BanHistory.create({

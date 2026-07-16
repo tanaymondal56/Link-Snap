@@ -326,7 +326,7 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v5
         with:
-          version: "v1.30.0"
+          version: "v1.36.2"
 
       - name: Configure kubectl
         env:
@@ -367,6 +367,29 @@ jobs:
           kubectl rollout undo deployment/linksnap-backend -n linksnap-beta || true
           echo "✅ Rolled back to previous beta version."
 
+      - name: Prune Unused Images on K8s Node
+        if: always()
+        run: |
+          echo "Triggering image prune on the K8s node..."
+          cat <<EOF | kubectl apply -n linksnap-beta -f -
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: prune-images-${{ github.run_id }}
+          spec:
+            ttlSecondsAfterFinished: 10
+            template:
+              spec:
+                hostPID: true
+                restartPolicy: Never
+                containers:
+                - name: pruner
+                  image: alpine
+                  securityContext:
+                    privileged: true
+                  command: ["nsenter", "--mount=/proc/1/ns/mnt", "--", "sh", "-c", "k3s crictl rmi --prune || docker image prune -a -f || true"]
+          EOF
+
       - name: Beta Deployment Summary
         if: success()
         run: |
@@ -403,7 +426,7 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v5
         with:
-          version: "v1.30.0"
+          version: "v1.36.2"
 
       - name: Configure kubectl
         env:
@@ -436,6 +459,29 @@ jobs:
           echo "⚠️ Production deployment failed — rolling back backend..."
           kubectl rollout undo deployment/linksnap-backend -n linksnap || true
           echo "✅ Rolled back to previous stable version."
+
+      - name: Prune Unused Images on K8s Node
+        if: always()
+        run: |
+          echo "Triggering image prune on the K8s node..."
+          cat <<EOF | kubectl apply -n linksnap -f -
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: prune-images-${{ github.run_id }}
+          spec:
+            ttlSecondsAfterFinished: 10
+            template:
+              spec:
+                hostPID: true
+                restartPolicy: Never
+                containers:
+                - name: pruner
+                  image: alpine
+                  securityContext:
+                    privileged: true
+                  command: ["nsenter", "--mount=/proc/1/ns/mnt", "--", "sh", "-c", "k3s crictl rmi --prune || docker image prune -a -f || true"]
+          EOF
 
       - name: Production Deployment Summary
         if: success()

@@ -8,6 +8,7 @@ import { queueClickIncrement } from '../services/clickStatsService.js';
 import { isLinkActive, getTimeBasedDestination } from '../services/timeService.js';
 import { hasFeature } from '../services/subscriptionService.js';
 import { sanitizeAlias } from '../utils/urlSecurity.js';
+import { bloomExists } from '../services/bloomFilterService.js';
 
 // Helper to escape HTML to prevent XSS
 const escapeHtml = (unsafe) => {
@@ -1493,6 +1494,12 @@ export const redirectUrl = async (req, res, next) => {
         return next();
     }
 
+    // Check Bloom Filter first: if definitely doesn't exist, bypass cache/DB entirely
+    const existsBloom = await bloomExists('urls', shortId);
+    if (!existsBloom) {
+        return next();
+    }
+
     try {
         // 1. Check cache first (fast path)
         const cached = await getFromCache(shortId);
@@ -1748,6 +1755,12 @@ export const previewUrl = async (req, res) => {
     // Avoids ReDoS vulnerability from /[+/]+$/ regex
     while (shortId.length > 0 && (shortId.endsWith('+') || shortId.endsWith('/'))) {
         shortId = shortId.slice(0, -1);
+    }
+
+    // Check Bloom Filter first: if definitely doesn't exist, skip DB lookup
+    const existsBloom = await bloomExists('urls', shortId);
+    if (!existsBloom) {
+        return res.status(404).send(getLinkNotFoundPage(shortId));
     }
 
     try {
