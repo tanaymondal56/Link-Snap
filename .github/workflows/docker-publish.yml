@@ -333,7 +333,7 @@ jobs:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
           mkdir -p "$HOME/.kube"
-          echo "$KUBE_CONFIG" > "$HOME/.kube/config"
+          printf "%s" "$KUBE_CONFIG" | tr -d '\r' > "$HOME/.kube/config"
           chmod 600 "$HOME/.kube/config"
 
       - name: Resolve image SHA tag
@@ -433,7 +433,7 @@ jobs:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
           mkdir -p "$HOME/.kube"
-          echo "$KUBE_CONFIG" > "$HOME/.kube/config"
+          printf "%s" "$KUBE_CONFIG" | tr -d '\r' > "$HOME/.kube/config"
           chmod 600 "$HOME/.kube/config"
 
       - name: Resolve image SHA tag
