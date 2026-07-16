@@ -23,7 +23,7 @@ RUN npm run build
 
 
 # ── Stage 2: Serve with Nginx ──────────────────────────────────────────────────
-FROM nginx:1.27-alpine AS production
+FROM nginx:1.31-alpine AS production
 
 # Update system packages to patch vulnerabilities (like CVE-2026-31789)
 RUN apk update && apk upgrade --no-cache
@@ -47,9 +47,9 @@ RUN addgroup -S linksnap && adduser -S -G linksnap linksnap \
 
 USER linksnap
 
-EXPOSE 80
+EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:80/index.html || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/index.html || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

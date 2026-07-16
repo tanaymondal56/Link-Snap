@@ -7,74 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [7.1.0] - 2026-07-16
+## [0.7.1] - 2026-07-16
 
-### Redis API Offloading, Custom Bloom Filters & Performance Hardening
+### Redis Cache Offloading, Custom Bloom Filters & Core Performance Overhaul
 
-This minor release implements high-performance Redis cache-aside patterns for read-heavy endpoints, introduces a custom Redis Bloom filter engine optimized for Upstash, and hardens the application against Cache Penetration attacks.
+This release implements high-performance Redis cache-aside patterns, introduces a custom Redis Bloom filter engine optimized for Upstash, and hardens the application's authentication and rate-limiting flows.
 
 ### 🧠 Custom Redis Bloom Filter Engine (Module-less Upstash Optimization)
-- **Standard Redis Bitwise Operations:** Designed a high-speed Bloom filter utilizing standard Redis `SETBIT` and `GETBIT` pipelines, bypassing the need for the native `RedisBloom` module on Upstash HTTP environments.
-- **Dynamic Case-Sensitivity:** Optimized hashing to run case-insensitively for usernames (preventing registration duplicates) and case-sensitively for short URL IDs (maximizing entropy and reducing collisions).
-- **Concurrency & Lock Control:** Gated multi-replica startup seeding with a distributed lock (`ls:lock:bf:seeding`), allowing only one pod to populate the filters.
-- **Zero-Downtime Rebuilds:** Implemented atomic swaps using Redis `RENAME` to prevent transient false-negatives during weekly background DB syncs.
-- **Shielding (Cache Penetration):** Intercepts username checks and URL redirects early; if the filter returns `false`, database and cache lookups are bypassed entirely (immediate 404/available response).
+- **High-Speed Bitwise Filters:** Built using standard Redis `SETBIT` / `GETBIT` to bypass the need for native `RedisBloom` modules on Upstash.
+- **Dynamic Case-Sensitivity & Shielding:** Optimized username lookups (case-insensitive) and short URL redirects (case-sensitive) to block invalid DB lookups early.
+- **Concurrency Controls:** Gated seeding on startup with a distributed lock and implemented zero-downtime swaps using Redis `RENAME`.
 
-### 🚀 High-Impact Redis Caching (API Offloading)
-- **Link Analytics Cache:** Cached compiled analytics response payloads (`ls:analytics:{urlId}:{tier}`) with a 3-minute TTL, utilizing subscription-tier-specific keys to prevent cross-tier data leaks.
-- **Analytics Payload Compression:** Automatically compresses cached analytics JSON responses exceeding 50KB using Gzip before saving to Redis, saving network I/O and RAM.
-- **Lander Optimization:** Cached public changelogs (`ls:changelog:public`) and roadmaps (`ls:changelog:roadmap`) in Redis with O(1) cache invalidations on admin changes.
-- **Notification Counter Caching:** Capped admin notification aggregate hits by caching unread count severity tallies with auto-invalidations on mark-as-read actions.
-- **Admin Stats Cache:** Cached expensive global cluster counts (`ls:admin:stats`) with immediate invalidations when admins create or delete users.
-- **Active Bio Invalidation:** Integrated immediate cache purges (`ls:bio:{username}`) on user dashboard profile updates, username changes, user bans, unbans, or account deletions.
+### 🚀 High-Impact Redis Caching & Performance Optimizations
+- **API Offloading:** Cached link analytics (subscription-tier keyed, compressed over 50KB), lander roads/logs, notification counters, and admin stats.
+- **Active Invalidation & DB Parallelism:** Integrated immediate bio cache invalidations and replaced serial MongoDB lookups with parallel queries.
+- **Session & Auth Cache:** Optimized JWT auth middleware by caching hydrated user documents and shifted active verification OTP codes to Redis-first storage.
+- **N+1 Query & Cron Fixes:** Resolved sequential click queries with batch maps, added distributed locks for background cron flushes in PM2 cluster mode, and added a custom scan wrapper for Upstash REST compatibility.
 
-### ⚡ Performance & Parallelism
-- **Concurrent DB Queries:** Replaced serial MongoDB lookups with parallel `Promise.all` aggregates for global stats and notification queries.
-- **Stateless Auth Cache:** Optimized the stateless JWT authentication middleware by caching hydrated user documents (`ls:user:{id}`) instead of database sessions.
+### 🛡️ Auth Security & UX Hardening
+- **OTP Hardening:** Implemented cryptographically secure `crypto.randomInt` OTPs, SHA256 hashed password reset tokens, and a 3-attempt limit that instantly deletes OTP cache on violation.
+- **UI/UX Updates:** Added interactive password complexity validation on registration, "Paste Code" clipboard integration, autofill disabling on verification fields, and spam warning highlights.
+- **Infrastructure:** Upgraded to Redis 8, added container image prunes after deployment rollouts, and optimized lint checks on workflows.
 
----
+### 🛡️ Remediation Hardening & Security Fixes
+- **Safe Browsing Hash Keys:** Hardened Safe Browsing cache security by replacing 30-byte URL truncation with SHA-256 keys, eliminating cache collision bypass vectors.
+- **Alias Hijacking prevention:** Removed case-insensitive DB fallbacks in `redirectController.js` to align DB lookups with the case-sensitive Bloom Filter, preventing case-squatting alias exploits.
+- **Click Usage Lock-In:** Shifted click-tracking middleware to atomic Redis `INCR` commands to solve concurrent click usage lost-update conditions.
+- **Client-Side Validation Checks:** Implemented strict manual date validation checks in `CreateLinkModal`/`EditLinkModal` to block mobile users from scheduling past expiration dates.
+- **Cross-Tab Authentication Sync:** Added a `storage` listener in `AuthContext` to immediately synchronize logout events across multiple open tabs.
 
-## [7.0.1] - 2026-07-15
-
-### Security Hardening, Performance Optimizations & OTP Overhaul
-
-This patch release addresses critical performance issues, security vulnerabilities, and UX improvements in the authentication, click tracking, caching, and CI/CD systems.
-
-### 🛡️ Security Hardening
-- **Cryptographically Secure OTPs:** Replaced insecure `Math.random()` OTP generation functions with Node's native, cryptographically secure `crypto.randomInt()`.
-- **Hashed Reset Tokens:** Implemented SHA256 hashing for password reset tokens before saving them in the database to protect them against database disclosure (defense-in-depth).
-- **Zod Error Extraction:** Fixed a crash where Zod validation errors threw `Cannot read properties of undefined (reading '0')` due to Zod v4 syntax differences, ensuring clean validation errors are returned to the client.
-- **Atomic Cache Invalidation & Attempt Rate Limiter (OTP Protection):** Upgraded `authController` OTP endpoints to track failed verification attempts. Users are allowed up to 3 tries per generated OTP. If the 3-attempt limit is reached, the OTP cache is instantly deleted in Redis to prevent brute-force attacks, while showing remaining attempt counts on incorrect attempts.
-
-### 🏗️ Infrastructure & Workflows
-- **Redis 8 Upgrade:** Standardized deployments to `redis:8-alpine` to leverage throughput optimizations and updated Node helpers to utilize atomic commands across both local and Upstash drivers.
-- **K8s Storage Management:** Injected a privileged `nsenter` cleanup step in `deploy-beta` and `deploy-production` pipelines to forcefully prune unused container images (`k3s crictl rmi --prune` and `docker system prune -a`) on target nodes immediately after rollouts, preventing disk exhaustion.
-- **Lint Workflow Optimization:** Excluded the `working` branch from the `.github/workflows/lint.yml` trigger to save action minutes.
-
-
-### 🚀 Performance & Optimizations
-- **N+1 Query Fix in Click Processing:** Eliminated a performance bottleneck in `trackBulkClicks` by replacing sequential `Url.findOne()` queries with a single batch `Url.find()` and a fast O(1) Map lookup.
-- **PM2 Cluster Mode:** Configured `ecosystem.config.cjs` with `instances: "max"` and `exec_mode: "cluster"` to run Node.js across all 4 CPU cores.
-- **Distributed Locking:** Added a Redis distributed lock (`ls:lock:flush` via `SET NX EX 10`) to the background `flushBuffer` cron job, preventing race conditions and duplicate writes in PM2 cluster mode.
-- **Idle Caching Bypass:** Added a `pendingClickCount` tracker to prevent doing redundant Redis scans when there are no new clicks on the server.
-- **Scan API Fix:** Replaced raw `redis.scan()` with the custom `redisScan` wrapper inside the cache clearing API to ensure compatibility with Upstash Redis REST.
-- **Redis-First OTP Caching:** Configured Redis as the primary memory cache for active verification and reset OTP codes (10 min TTL) with MongoDB acting as a backup fallback.
-
-### ✨ UX Improvements & UI Updates
-- **Interactive Password Validator:** Added an interactive, on-the-fly checklist in the registration screen that validates the password against complexity requirements (uppercase, lowercase, digits, and length) as the user types.
-- **Autofill Disabling:** Turned off browser auto-suggestions/autofill on OTP input fields using the standard `autoComplete="one-time-code"`.
-- **One-Click Paste Code:** Created a "Paste Code" button on OTP input fields using the browser Clipboard API to let users instantly copy-paste 6-digit codes.
-- **Spam Warning Highlight:** Highlighted spam folder check instructions on registration and password reset OTP screens for better visibility.
-- **Zod Schema Fix:** Added `.or(z.literal(''))` to the phone validator in profile updates to prevent saving errors when the phone number field is cleared.
-
-### 🐳 CI/CD Pipelines
-- **Trigger Hardening:** Removed the deprecated `major/k8s` branch trigger from `docker-publish.yml` to prevent accidental triggers.
+### ⚙️ Container & K8s Infrastructure Hardening
+- **Docker Rootless Hardening:** Configured frontend Nginx deployment configurations to execute on port `8080`, preventing Permission Denied crashes under rootless environments.
+- **OOM Prevention limits:** Passed `--max-old-space-size=400` to Node.js V8 execution inside the server Dockerfile, preventing memory leaks from causing cluster OOMKills.
+- **Rollout Sync (CronJobs):** Automated pipeline releases to simultaneously roll out new image tags to both the core backend deployment and `ban-scheduler` / `safe-browsing` CronJobs.
+- **PWA & Nginx SPA Routes:** Fixed PWA routing failures by excluding SPA routes from the cache-first denylist regex, and added missing redirection routes (`/u` and easter eggs) to the Nginx fallback route file.
+- **UI Performance Rendering:** Optimized search query execution in `UserDashboard.jsx` using `useMemo` for client-side filtering.
 
 ---
 
-## [7.0.0] - 2026-07-14
+## [0.7.0] - 2026-07-14
 
 ### Major Overhaul: Security, Independent Deployments & Cloudflare Integration
+
+> [!WARNING]
+> **Versioning Correction & Apology:**
+> We sincerely apologize for a versioning blunder where this release was accidentally published as version `7.0.0`. 
+> To restore standard Semantic Versioning, the repository has been updated to use the `0.7.x` schema going forward.
+> Please note that **the `0.7.0` version tag is NOT available as a Docker image**(You can refer exact commit tag as a image). If you need to reference the exact release commit, please check the corresponding GitHub release tags.
 
 This major release completely overhauls the deployment architecture and network security, transitioning to decoupled microservice deployments while hardening the pipeline with automated security testing.
 

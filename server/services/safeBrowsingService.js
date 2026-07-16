@@ -2,6 +2,7 @@ import { redisGet, redisSet, getRedisClient } from '../config/redis.js';
 import axios from 'axios';
 import Url from '../models/Url.js';
 import { getSettings } from '../utils/getSettings.js';
+import crypto from 'crypto';
 
 const SAFE_BROWSING_API_URL = 'https://safebrowsing.googleapis.com/v4/threatMatches:find';
 
@@ -64,8 +65,9 @@ export const checkUrlsSafety = async (urls) => {
 
         if (redis) {
             for (const url of validUrls) {
-                // Generate safe unique key
-                const safeKey = `ls:sb:${Buffer.from(url).toString('base64').substring(0, 40)}`;
+                // Generate safe unique key using SHA-256
+                const hash = crypto.createHash('sha256').update(url).digest('hex');
+                const safeKey = `ls:sb:${hash}`;
                 const cached = await redisGet(safeKey);
                 if (cached) {
                     results.push(cached);
@@ -103,7 +105,8 @@ export const checkUrlsSafety = async (urls) => {
                 results.push(result);
 
                 if (redis) {
-                    const safeKey = `ls:sb:${Buffer.from(url).toString('base64').substring(0, 40)}`;
+                    const hash = crypto.createHash('sha256').update(url).digest('hex');
+                    const safeKey = `ls:sb:${hash}`;
                     const ttl = status === 'safe' ? 3600 : 86400; // 1 hour for safe, 24 hours for threats
                     await redisSet(safeKey, ttl, result);
                 }

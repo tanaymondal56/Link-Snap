@@ -20,6 +20,16 @@ import { generateUserIdentity } from '../services/idService.js';
 import NotificationService from '../services/notificationService.js';
 import { resolveCurrentLinkUsage } from '../middleware/subscriptionMiddleware.js';
 import { bloomAdd, bloomExists } from '../services/bloomFilterService.js';
+import { getEffectiveTier } from '../services/subscriptionService.js';
+
+const getSubscriptionResponse = (user) => {
+  if (!user.subscription) return { tier: 'free', status: 'active' };
+  const sub = typeof user.subscription.toObject === 'function' ? user.subscription.toObject() : user.subscription;
+  return {
+    ...sub,
+    tier: getEffectiveTier(user)
+  };
+};
 
 // Simple email validation - ReDoS safe
 const isValidEmail = (email) => {
@@ -320,7 +330,7 @@ const registerUser = async (req, res, next) => {
         role: user.role,
         createdAt: user.createdAt,
         lastLoginAt: user.lastLoginAt,
-        subscription: user.subscription || { tier: 'free', status: 'active' },
+        subscription: getSubscriptionResponse(user),
         linkUsage: user.linkUsage || { count: 0, hardCount: 0, resetAt: new Date() },
         clickUsage: user.clickUsage || { count: 0, resetAt: new Date() },
         accessToken,
@@ -444,7 +454,7 @@ const verifyOTP = async (req, res, next) => {
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
-      subscription: user.subscription || { tier: 'free', status: 'active' },
+      subscription: getSubscriptionResponse(user),
       linkUsage: await resolveCurrentLinkUsage(user),
       accessToken,
     });
@@ -526,7 +536,7 @@ const verifyEmail = async (req, res, next) => {
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
-      subscription: user.subscription || { tier: 'free', status: 'active' },
+      subscription: getSubscriptionResponse(user),
       linkUsage: await resolveCurrentLinkUsage(user),
       accessToken,
     });
@@ -712,7 +722,7 @@ const loginUser = async (req, res, next) => {
         role: user.role,
         createdAt: user.createdAt,
         lastLoginAt: user.lastLoginAt,
-        subscription: user.subscription || { tier: 'free', status: 'active' },
+        subscription: getSubscriptionResponse(user),
         linkUsage: await resolveCurrentLinkUsage(user),
         clickUsage: user.clickUsage || { count: 0, resetAt: new Date() },
         accessToken,
@@ -890,7 +900,7 @@ const refreshAccessToken = async (req, res, next) => {
         role: user.role,
         createdAt: user.createdAt,
         lastLoginAt: user.lastLoginAt,
-        subscription: user.subscription || { tier: 'free', status: 'active' },
+        subscription: getSubscriptionResponse(user),
         linkUsage: await resolveCurrentLinkUsage(user),
         clickUsage: user.clickUsage || { count: 0, resetAt: new Date() },
       };
@@ -949,7 +959,7 @@ const getMe = async (req, res) => {
     createdAt: req.user.createdAt,
     lastLoginAt: req.user.lastLoginAt,
     // Subscription & Usage data for frontend
-    subscription: req.user.subscription || { tier: 'free', status: 'active' },
+    subscription: getSubscriptionResponse(req.user),
     linkUsage: await resolveCurrentLinkUsage(req.user),
     clickUsage: req.user.clickUsage || { count: 0, resetAt: new Date() },
   };

@@ -329,6 +329,11 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
         if (expiresAction === 'never') {
           payload.removeExpiration = true;
         } else if (expiresAction === 'custom' && customExpiresAt) {
+          if (isPastDate(customExpiresAt)) {
+            showToast.error('Expiration date must be in the future');
+            setActiveTab('settings');
+            return;
+          }
           payload.expiresAt = new Date(customExpiresAt).toISOString();
         } else if (expiresAction !== 'keep' && expiresAction !== 'custom') {
           payload.expiresIn = expiresAction;

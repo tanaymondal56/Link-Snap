@@ -307,7 +307,7 @@ jobs:
   deploy-beta:
     name: Deploy Beta (Staging → K8s)
     runs-on: ubuntu-latest
-    needs: [build-frontend, build-backend, check-changes]
+    needs: [build-backend, check-changes]
     environment: beta
     if: >
       github.event_name == 'push' &&
@@ -350,6 +350,12 @@ jobs:
           # Set the new image which triggers the rollout
           kubectl set image deployment/linksnap-backend \
             backend=tanaymondal/linksnap-backend-beta:${{ steps.vars.outputs.sha }} \
+            -n linksnap-beta
+          kubectl set image cronjob/linksnap-ban-scheduler \
+            ban-scheduler=tanaymondal/linksnap-backend-beta:${{ steps.vars.outputs.sha }} \
+            -n linksnap-beta
+          kubectl set image cronjob/linksnap-safe-browsing-scan \
+            safe-browsing=tanaymondal/linksnap-backend-beta:${{ steps.vars.outputs.sha }} \
             -n linksnap-beta
 
       - name: Wait for backend rollout (beta)
@@ -407,7 +413,7 @@ jobs:
   deploy-production:
     name: Deploy Stable (master → K8s)
     runs-on: ubuntu-latest
-    needs: [build-frontend, build-backend, check-changes]
+    needs: [build-backend, check-changes]
     environment: production
     if: >
       github.event_name == 'push' &&
@@ -447,6 +453,12 @@ jobs:
         run: |
           kubectl set image deployment/linksnap-backend \
             backend=tanaymondal/linksnap-backend:${{ steps.vars.outputs.sha }} \
+            -n linksnap
+          kubectl set image cronjob/linksnap-ban-scheduler \
+            ban-scheduler=tanaymondal/linksnap-backend:${{ steps.vars.outputs.sha }} \
+            -n linksnap
+          kubectl set image cronjob/linksnap-safe-browsing-scan \
+            safe-browsing=tanaymondal/linksnap-backend:${{ steps.vars.outputs.sha }} \
             -n linksnap
 
       - name: Wait for backend rollout (stable)

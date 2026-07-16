@@ -444,6 +444,11 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
       // Add expiration (Pro)
       if (!expirationField.isLocked) {
         if (expiresIn === 'custom' && customExpiresAt) {
+          if (isPastDate(customExpiresAt)) {
+            showToast.error('Expiration date must be in the future');
+            setActiveTab('settings');
+            return;
+          }
           payload.expiresAt = new Date(customExpiresAt).toISOString();
         } else if (expiresIn && expiresIn !== 'never' && expiresIn !== 'custom') {
           payload.expiresIn = expiresIn;

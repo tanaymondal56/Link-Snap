@@ -30,7 +30,7 @@ spec:
           image: tanaymondal/linksnap-frontend:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 80
+            - containerPort: 8080
           resources:
             requests:
               cpu: "50m"
@@ -41,13 +41,13 @@ spec:
           livenessProbe:
             httpGet:
               path: /index.html
-              port: 80
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 30
           readinessProbe:
             httpGet:
               path: /index.html
-              port: 80
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10
       # No imagePullSecrets needed — Docker Hub public registry

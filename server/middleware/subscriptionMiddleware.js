@@ -5,7 +5,7 @@ import AnonUsage from '../models/AnonUsage.js';
 import { getAnonFingerprint } from '../utils/fingerprint.js';
 import { queueUserClickIncrement } from '../services/clickStatsService.js';
 import { LRUCache } from 'lru-cache';
-import { redisGet, redisSet, getRedisClient, redisDel } from '../config/redis.js';
+import { redisGet, redisSet, getRedisClient, redisDel, redisIncr } from '../config/redis.js';
 
 /**
  * Middleware to check if user has reached their monthly link creation limit
@@ -341,6 +341,7 @@ export const checkAndIncrementClickUsage = async (userId) => {
         
         if (redis) {
             await redisSet(cacheKey, 60, user); // 60 seconds
+            await redisDel(`ls:usage_incr:${userIdStr}`); // Reset the increment counter on cache miss
         } else {
             usageCache.set(userIdStr, user);
         }
@@ -411,26 +412,33 @@ export const checkAndIncrementClickUsage = async (userId) => {
     // Soft Cap for Business (Allow up to 120%)
     // Fast path: if limit is Infinity (Business), immediately allow without math/checks
     if (limit === Infinity) {
+        // Queue DB Increment (Buffered) even if we skip local limit check
+        queueUserClickIncrement(user._id);
         return { allowed: true };
     }
     const effectiveLimit = tier === 'business' ? Math.floor(limit * 1.2) : limit;
 
     // Defensive check for clickUsage existence
-    const currentClickCount = user.clickUsage?.count ?? 0;
+    let currentClickCount = user.clickUsage?.count ?? 0;
+    
+    if (redis) {
+        // Eagerly increment to prevent race conditions and lost updates
+        const incr = await redisIncr(`ls:usage_incr:${userIdStr}`, 60);
+        // The effective count is the DB count + whatever has been incremented since cache miss
+        currentClickCount += (incr || 1) - 1; 
+    }
 
     if (currentClickCount >= effectiveLimit) {
         if (tier === 'business') logger.warn(`[Soft Cap] Business User ${user.snapId} click hard limit reached: ${effectiveLimit}`);
         return { allowed: false, limit: effectiveLimit, usage: currentClickCount };
     }
 
-    // 2. Allowed: Increment Memory Cache (for strict local limiting)
-    if (!user.clickUsage) {
-        user.clickUsage = { count: 0, resetAt: null };
-    }
-    user.clickUsage.count += 1;
-    if (redis) {
-        await redisSet(cacheKey, 60, user);
-    } else {
+    // 2. Allowed: Update Memory Cache if not using Redis
+    if (!redis) {
+        if (!user.clickUsage) {
+            user.clickUsage = { count: 0, resetAt: null };
+        }
+        user.clickUsage.count += 1;
         usageCache.set(userIdStr, user);
     }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense, useMemo } from 'react';
 import { getTierConfig } from '../config/subscriptionTiers';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
@@ -55,7 +55,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 const VIRTUAL_SCROLL_THRESHOLD = 30; // Only virtualize when list exceeds this count
 
 const UserDashboard = () => {
-  const { user, isAuthChecking } = useAuth();
+  const { user, isAuthChecking, setUser } = useAuth();
   const confirm = useConfirm();
   const [links, setLinks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -152,6 +152,18 @@ const UserDashboard = () => {
   const handleLinkCreated = (newLink) => {
     setLinks([newLink, ...links]);
     setCreatedLink(newLink);
+    
+    // Sync usage stats with AuthContext
+    if (user) {
+      setUser(prev => ({
+        ...prev,
+        linkUsage: {
+          ...prev.linkUsage,
+          count: (prev.linkUsage?.count || 0) + 1,
+          hardCount: (prev.linkUsage?.hardCount || 0) + 1
+        }
+      }));
+    }
     // Don't show toast here, the success modal will handle it
   };
 
@@ -174,6 +186,18 @@ const UserDashboard = () => {
     try {
       await api.delete(`/url/${id}`);
       setLinks(links.filter((link) => link._id !== id));
+      
+      // Sync usage stats with AuthContext (only decrement active count)
+      if (user && user.linkUsage?.count > 0) {
+        setUser(prev => ({
+          ...prev,
+          linkUsage: {
+            ...prev.linkUsage,
+            count: prev.linkUsage.count - 1
+          }
+        }));
+      }
+      
       showToast.success('Link has been removed', 'Deleted');
     } catch (error) {
       console.error(error);
@@ -189,14 +213,17 @@ const UserDashboard = () => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const filteredLinks = links.filter(
-    (link) =>
-      link.originalUrl.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      link.shortId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (link.title && link.title.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredLinks = useMemo(() => {
+    const lowerSearch = searchTerm.toLowerCase();
+    return links.filter(
+      (link) =>
+        link.originalUrl.toLowerCase().includes(lowerSearch) ||
+        link.shortId.toLowerCase().includes(lowerSearch) ||
+        (link.title && link.title.toLowerCase().includes(lowerSearch))
+    );
+  }, [links, searchTerm]);
 
-  const totalClicks = links.reduce((acc, link) => acc + link.clicks, 0);
+  const totalClicks = useMemo(() => links.reduce((acc, link) => acc + link.clicks, 0), [links]);
 
   if (isLoading) {
     return (

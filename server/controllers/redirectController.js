@@ -21,12 +21,7 @@ const escapeHtml = (unsafe) => {
         .replace(/'/g, "&#039;");
 };
 
-// Helper to escape regex special characters from user input
-// Prevents regex injection attacks when using user input in RegExp
-const escapeRegex = (str) => {
-    if (!str) return '';
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-};
+
 
 // Beautiful HTML page for link preview (when user adds + or / at end)
 const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCustom, nonce = '') => {
@@ -1619,15 +1614,7 @@ export const redirectUrl = async (req, res, next) => {
             $or: [{ shortId }, { customAlias: shortId }],
         }).lean();
 
-        // 2b. Fallback: Case-insensitive search if strict match fails
-        if (!url) {
-            url = await Url.findOne({
-                $or: [
-                    { shortId: { $regex: new RegExp(`^${escapeRegex(shortId)}$`, 'i') } },
-                    { customAlias: { $regex: new RegExp(`^${escapeRegex(shortId)}$`, 'i') } }
-                ]
-            }).lean();
-        }
+        // Removed case-insensitive fallback to prevent alias hijacking
 
         if (!url) {
             // Return proper 404 page for short URL patterns
@@ -1769,15 +1756,7 @@ export const previewUrl = async (req, res) => {
             $or: [{ shortId }, { customAlias: shortId }],
         }).lean();
 
-        // Fallback: Case-insensitive search
-        if (!url) {
-            url = await Url.findOne({
-                $or: [
-                    { shortId: { $regex: new RegExp(`^${escapeRegex(shortId)}$`, 'i') } },
-                    { customAlias: { $regex: new RegExp(`^${escapeRegex(shortId)}$`, 'i') } }
-                ]
-            }).lean();
-        }
+        // Removed case-insensitive fallback to prevent alias hijacking
 
         if (!url) {
             // Return proper 404 page for preview of non-existent links

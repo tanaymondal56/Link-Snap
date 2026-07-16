@@ -3,7 +3,7 @@
 > **Secure Express.js REST API for the Link-Snap URL Platform, optimized and containerized with Node.js Alpine and Tini.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-7.0.0-blue.svg)](https://github.com/tanaymondal56/Link-Snap)
+[![Version](https://img.shields.io/badge/version-0.7.1-blue.svg)](https://github.com/tanaymondal56/Link-Snap)
 [![Docker Frontend](https://img.shields.io/badge/docker-linksnap--frontend-blue?logo=docker)](https://hub.docker.com/r/tanaymondal/linksnap-frontend)
 [![Docker Backend](https://img.shields.io/badge/docker-linksnap--backend-blue?logo=docker)](https://hub.docker.com/r/tanaymondal/linksnap-backend)
 

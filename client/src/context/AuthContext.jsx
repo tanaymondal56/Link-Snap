@@ -65,6 +65,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, [user]);
 
+
   // Track if background auth check is in progress
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
@@ -146,6 +147,34 @@ export const AuthProvider = ({ children }) => {
 
     return promise;
   }, []);
+
+  // Handle multi-tab auth sync
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'ls_auth_user') {
+        if (!e.newValue) {
+          // User was logged out in another tab
+          setAccessToken(null);
+          setUser(null);
+        } else {
+          // User was logged in or updated in another tab
+          try {
+            setUser(JSON.parse(e.newValue));
+            // We don't have the memory token, so we should refresh it
+            // if we are transitioning from logged out to logged in
+            if (!user) {
+              checkAuth();
+            }
+          } catch {
+            /* ignore parse errors */
+          }
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [user, checkAuth]);
 
   // Initial auth check on mount - runs in background
   useEffect(() => {
