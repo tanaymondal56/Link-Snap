@@ -209,6 +209,11 @@ export const verifyPayment = async (req, res) => {
         billingCycle: interval,
         currentPeriodStart: updatedUser.subscription.currentPeriodStart,
         currentPeriodEnd:   updatedUser.subscription.currentPeriodEnd,
+        gateway:            'razorpay',
+        subscriptionId:     updatedUser.subscription.subscriptionId || null,
+        customerId:         updatedUser.subscription.customerId || null,
+        variantId:          updatedUser.subscription.variantId || null,
+        razorpay:           updatedUser.subscription.razorpay || null,
       },
     }).catch(err => logger.error(`[Razorpay Audit Log Error] ${err.message}`));
 

@@ -119,7 +119,7 @@ export default function BioSettings() {
     let interval;
     if (isLocked) {
       interval = setInterval(() => {
-        refreshUser();
+        refreshUser(true);
       }, 5000);
     }
     return () => clearInterval(interval);
@@ -127,7 +127,7 @@ export default function BioSettings() {
 
   const handleManualRefresh = async () => {
     setCheckingStatus(true);
-    await refreshUser();
+    await refreshUser(true);
     setTimeout(() => setCheckingStatus(false), 1000);
   };
 
