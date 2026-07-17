@@ -133,8 +133,10 @@ export const ipWhitelist = async (req, res, next) => {
           }
         }
       } catch (jwtErr) {
-        // Log token validation failures at debug level and let it fall through to standard IP check
-        logger.debug(`[IP Whitelist] Token bypass failed: ${jwtErr.message}`);
+        // If JWT validation fails (expired or invalid), return 401 Unauthorized
+        // so the frontend refresh token interceptor can renew the token
+        logger.warn(`[IP Whitelist] Token bypass failed: ${jwtErr.message}`);
+        return res.status(401).json({ message: 'Session expired. Re-authentication required.' });
       }
     }
 
