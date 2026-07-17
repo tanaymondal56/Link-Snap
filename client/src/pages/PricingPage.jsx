@@ -3,15 +3,18 @@ import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../context/AuthContext';
 import { Check, X, Shield, Zap, Globe, Lock, Hammer, Star, Building2, Users, KeyRound, Webhook, HeadsetIcon, BarChart3, FlaskConical, QrCode, Crown } from 'lucide-react';
 import api from '../api/axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import showToast from '../utils/toastUtils';
+import { useRazorpay } from '../hooks/useRazorpay';
 
 const PricingPage = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [checkoutLoading, setCheckoutLoading] = useState(null); // null | 'pro' | 'business'
   const [pricing, setPricing] = useState(null);
-  const [billingInterval, setBillingInterval] = useState('monthly'); // 'monthly' | 'yearly'
+  const [billingInterval, setBillingInterval] = useState('monthly'); // 'monthly' | 'yearly' | 'one_time'
+  const { initiatePayment, processing: rzpProcessing } = useRazorpay();
 
   useEffect(() => {
     const fetchPricing = async () => {
@@ -29,33 +32,39 @@ const PricingPage = () => {
 
   const handleCheckout = async (tier, interval) => {
     if (!user) {
-        // Trigger generic login/signup flow
-        // Ideally pass state to redirect back here
         navigate('/login', { state: { from: '/pricing' } });
         return;
     }
-    
-    setLoading(true);
-    try {
-        const selectedTier = pricing.tiers[tier];
-        const plan = interval === 'monthly' ? selectedTier.monthly : selectedTier.yearly;
-        
-        const { data } = await api.post('/subscription/checkout', {
-            variantId: plan.variantId,
-            redirectUrl: `${window.location.origin}/dashboard/settings?upgrade=success` 
-        });
-        
-    if (data.url) {
-            window.location.href = data.url;
-            // Don't setLoading(false) - keep loading screen while redirecting
-        } else {
-            showToast.error('Failed to initiate checkout. Please try again.');
-            setLoading(false);
-        }
-    } catch {
-        showToast.error("Couldn't start checkout. Please check your connection.");
-        setLoading(false);
+    if (!pricing?.tiers?.[tier]) {
+        showToast.error('Pricing information unavailable. Please refresh.');
+        return;
     }
+    // Synchronous guard prevents double-click before React state update propagates
+    if (checkoutLoading || rzpProcessing) return;
+    
+    setCheckoutLoading(tier);
+    initiatePayment(
+      {
+        tier,
+        interval,
+        userName: user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user.username,
+        userEmail: user.email,
+      },
+      () => {
+        showToast.success('🎉 Payment successful! Your Pro plan is now active.');
+        setCheckoutLoading(null);
+        // Refresh auth context so Pro features unlock immediately across the app
+        refreshUser(true).catch(() => {}).finally(() => {
+          navigate('/dashboard/settings?upgrade=success');
+        });
+      },
+      (err) => {
+        if (err?.message !== 'Payment cancelled') {
+          showToast.error(err?.response?.data?.message || err.message || 'Payment failed. Please try again.');
+        }
+        setCheckoutLoading(null);
+      }
+    );
   };
 
   const handleManage = () => {
@@ -71,9 +80,9 @@ const PricingPage = () => {
       return <div className="min-h-screen flex items-center justify-center bg-[#0f172a] text-white">Loading...</div>;
   }
 
-  const proPrice = billingInterval === 'monthly' 
-      ? pricing?.tiers?.pro?.monthly 
-      : pricing?.tiers?.pro?.yearly;
+  const proPrice = billingInterval === 'yearly' 
+      ? pricing?.tiers?.pro?.yearly 
+      : pricing?.tiers?.pro?.monthly; // both one_time and monthly share the same base price
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-white py-20 px-4 sm:px-6 lg:px-8">
@@ -111,6 +120,13 @@ const PricingPage = () => {
                   className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${billingInterval === 'yearly' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-gray-200'}`}
                 >
                   Yearly <span className="ml-1 text-xs text-green-300 font-normal">-17%</span>
+                </button>
+                <button 
+                  onClick={() => setBillingInterval('one_time')}
+                  className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${billingInterval === 'one_time' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-gray-200'}`}
+                  title="Pay manually for exactly 1 month. No auto-renewal."
+                >
+                  1 Month (One-time)
                 </button>
              </div>
           </div>
@@ -201,7 +217,10 @@ const PricingPage = () => {
             </div>
             <div className="mb-6">
                 <span className="text-4xl font-bold">{proPrice?.display || '$9.00'}</span>
-                <span className="text-gray-500">/{billingInterval === 'monthly' ? 'mo' : 'yr'}</span>
+                <span className="text-gray-500">/{billingInterval === 'monthly' ? 'mo' : billingInterval === 'yearly' ? 'yr' : '1 month (No renewal)'}</span>
+                <div className="text-sm text-gray-400 mt-1">
+                    {billingInterval === 'monthly' ? '₹750 / mo' : billingInterval === 'yearly' ? '₹7,500 / yr' : '₹750 for 1 month'} (India)
+                </div>
             </div>
             <button 
                 onClick={() => {
@@ -213,7 +232,7 @@ const PricingPage = () => {
                         handleCheckout('pro', billingInterval);
                     }
                 }}
-                disabled={isCurrentPlan('pro') && user?.subscription?.billingCycle === billingInterval}
+                disabled={(isCurrentPlan('pro') && user?.subscription?.billingCycle === billingInterval) || checkoutLoading === 'pro' || rzpProcessing}
                 className={`w-full py-3 rounded-xl font-bold mb-8 transition-all ${
                     isCurrentPlan('pro') && user?.subscription?.billingCycle === billingInterval
                     ? 'bg-green-600/20 text-green-400 border border-green-500/50 cursor-default'
@@ -288,12 +307,12 @@ const PricingPage = () => {
                         <Hammer size={12} className="text-amber-400" /> API Access
                     </li>
                 </ul>
-                <a 
-                    href="/roadmap" 
+                <Link 
+                    to="/roadmap" 
                     className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mt-3 transition-colors"
                 >
                     View full roadmap →
-                </a>
+                </Link>
             </div>
              <p className="text-xs text-gray-500 mt-4 text-center">
                 * Local pricing calculated at checkout.
@@ -387,7 +406,7 @@ const PricingPage = () => {
               {/* frosted footer */}
               <div className="mt-6 pt-4 border-t border-white/5">
                 <p className="text-xs text-gray-500 text-center">
-                  Interested? <a href="/roadmap" className="text-amber-400/70 hover:text-amber-300 transition-colors">View our roadmap</a> for launch timeline.
+                  Interested? <Link to="/roadmap" className="text-amber-400/70 hover:text-amber-300 transition-colors">View our roadmap</Link> for launch timeline.
                 </p>
               </div>
             </div>

@@ -1,5 +1,6 @@
-// eslint-disable-next-line no-unused-vars -- User imported for JSDoc type hints
 import User from '../models/User.js';
+import SubscriptionAuditLog from '../models/SubscriptionAuditLog.js';
+import logger from '../utils/logger.js';
 
 export const TIERS = {
   free: {
@@ -284,5 +285,66 @@ export const getEffectiveTier = (user) => {
   // Handle expired/unpaid explicitly if needed, but default fallback handles it
   if (['expired', 'unpaid'].includes(sub.status)) return 'free';
   
-  return tier;
+  return tier || 'free';
+};
+
+/**
+ * Cron job handler to physically downgrade expired subscriptions in the database.
+ * This aligns the DB state with getEffectiveTier so the UI and analytics are accurate.
+ * Uses .find() and .save() to trigger Mongoose Versioning (preventing race conditions)
+ * and to explicitly write Audit Logs.
+ */
+export const processExpiredSubscriptions = async () => {
+  try {
+    const graceMs = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const graceDays = parseInt(process.env.SUBSCRIPTION_GRACE_PERIOD_DAYS) || 7;
+    const pastDueGraceMs = graceDays * 24 * 60 * 60 * 1000;
+    
+    // Find all expired subscriptions across different statuses
+    const expiredUsers = await User.find({
+      $or: [
+        { 'subscription.status': 'active', 'subscription.currentPeriodEnd': { $lt: new Date(now - graceMs) } },
+        { 'subscription.status': 'past_due', 'subscription.currentPeriodEnd': { $lt: new Date(now - pastDueGraceMs) } },
+        { 'subscription.status': { $in: ['cancelled', 'paused'] }, 'subscription.currentPeriodEnd': { $lt: new Date(now) } }
+      ]
+    });
+
+    let totalModified = 0;
+
+    for (const user of expiredUsers) {
+      const previousTier = user.subscription.tier;
+      const previousStatus = user.subscription.status;
+      
+      user.subscription.status = 'expired';
+      user.subscription.tier = 'free';
+      
+      try {
+        await user.save(); // Throws VersionError if modified concurrently by a webhook
+        
+        await SubscriptionAuditLog.create({
+          userId: user._id,
+          action: 'expired',
+          previousTier,
+          newTier: 'free',
+          gateway: user.subscription.gateway,
+          details: `Subscription auto-expired from status '${previousStatus}' via daily cron sweep.`
+        });
+        
+        totalModified++;
+      } catch (err) {
+        if (err.name === 'VersionError') {
+          logger.warn(`[Subscription Expiry] Race condition mitigated for user ${user._id} - document was updated concurrently.`);
+        } else {
+          logger.error(`[Subscription Expiry] Failed to save expired state for user ${user._id}: ${err.message}`);
+        }
+      }
+    }
+
+    if (totalModified > 0) {
+      logger.info(`[Subscription Expiry] Successfully expired ${totalModified} subscriptions.`);
+    }
+  } catch (error) {
+    logger.error(`[Subscription Expiry Error] ${error.message}`);
+  }
 };

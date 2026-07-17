@@ -28,15 +28,21 @@ export const getPricing = async (req, res) => {
            monthly: {
              amount: 900, // $9.00
              display: '$9.00',
-             variantId: parseInt(process.env.LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID),
+             variantId: process.env.LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID,
              interval: 'month'
            },
            yearly: {
              amount: 9000, // $90.00
              display: '$90.00',
-             variantId: parseInt(process.env.LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID),
+             variantId: process.env.LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID,
              interval: 'year',
              saving: '17%' // (108 - 90) / 108
+           },
+           one_time: {
+             amount: 900, // $9.00
+             display: '$9.00',
+             variantId: process.env.LEMONSQUEEZY_PRO_ONETIME_VARIANT_ID,
+             interval: 'one_time'
            }
          },
          business: {
@@ -75,8 +81,10 @@ export const createCheckoutSession = async (req, res) => {
       const validVariantIds = [
           process.env.LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID,
           process.env.LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID,
+          process.env.LEMONSQUEEZY_PRO_ONETIME_VARIANT_ID,
           process.env.LEMONSQUEEZY_BUSINESS_MONTHLY_VARIANT_ID,
           process.env.LEMONSQUEEZY_BUSINESS_YEARLY_VARIANT_ID,
+          process.env.LEMONSQUEEZY_BUSINESS_ONETIME_VARIANT_ID,
       ].filter(Boolean); // filter(Boolean) removes undefined env vars gracefully
       
       if (!validVariantIds.includes(variantId.toString())) {
@@ -86,7 +94,8 @@ export const createCheckoutSession = async (req, res) => {
       const variantIdStr = variantId.toString();
       let tierName = 'pro'; // default
       if (variantIdStr === process.env.LEMONSQUEEZY_BUSINESS_MONTHLY_VARIANT_ID ||
-          variantIdStr === process.env.LEMONSQUEEZY_BUSINESS_YEARLY_VARIANT_ID) {
+          variantIdStr === process.env.LEMONSQUEEZY_BUSINESS_YEARLY_VARIANT_ID ||
+          variantIdStr === process.env.LEMONSQUEEZY_BUSINESS_ONETIME_VARIANT_ID) {
         tierName = 'business';
       }
 
@@ -102,7 +111,18 @@ export const createCheckoutSession = async (req, res) => {
                   },
                   product_options: {
                       // Redirect back to dashboard after success
-                      redirect_url: redirectUrl || `${process.env.CLIENT_URL}/dashboard/settings`,
+                      // Security: Validate redirectUrl is on our own domain (prevent open redirect)
+                      redirect_url: (() => {
+                        const defaultUrl = `${process.env.CLIENT_URL}/dashboard/settings`;
+                        if (!redirectUrl) return defaultUrl;
+                        try {
+                          const allowed = new URL(process.env.CLIENT_URL);
+                          const supplied = new URL(redirectUrl);
+                          return supplied.hostname === allowed.hostname ? redirectUrl : defaultUrl;
+                        } catch {
+                          return defaultUrl;
+                        }
+                      })(),
                   }
               },
               relationships: {
@@ -143,7 +163,10 @@ export const createCheckoutSession = async (req, res) => {
           }
       });
       
-      const checkoutUrl = response.data.data.attributes.url;
+      const checkoutUrl = response.data?.data?.attributes?.url;
+      if (!checkoutUrl) {
+          throw new Error('Lemon Squeezy returned a null checkout URL');
+      }
       res.json({ url: checkoutUrl });
 
   } catch (error) {
@@ -164,6 +187,14 @@ export const syncSubscription = async (req, res) => {
   try {
     const user = req.user;
     
+    if (user.subscription?.gateway === 'razorpay') {
+      return res.json({
+        message: 'Subscription managed via Razorpay. Manual sync is not required.',
+        status: user.subscription.status,
+        tier: user.subscription.tier,
+      });
+    }
+
     if (!user.subscription?.subscriptionId) {
       return res.status(400).json({ 
         message: 'No linked subscription found. If you purchased recently, please wait a few minutes.' 

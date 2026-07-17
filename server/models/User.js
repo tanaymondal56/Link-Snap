@@ -135,6 +135,15 @@ const userSchema = new mongoose.Schema({
 
   // Subscription & Billing
   subscription: {
+    gateway: {
+      type: String,
+      enum: ['lemonsqueezy', 'razorpay', null],
+      default: null
+    },
+    razorpay: {
+      orderId: { type: String, index: true },
+      paymentId: { type: String, index: true },
+    },
     customerId: { type: String, index: true }, // lemon_squeezy_customer_id
     subscriptionId: { type: String, index: true }, // lemon_squeezy_subscription_id
     variantId: String, // lemon_squeezy_variant_id
@@ -266,6 +275,11 @@ userSchema.index(
     weights: { email: 10, username: 5, firstName: 2, lastName: 2 },
     name: 'user_search_text_index'
   }
+);
+// Idempotency index for Razorpay orders
+userSchema.index(
+  { 'subscription.razorpay.orderId': 1 },
+  { unique: true, sparse: true, name: 'razorpay_order_idempotency' }
 );
 
 

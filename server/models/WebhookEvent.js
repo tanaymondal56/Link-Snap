@@ -32,8 +32,8 @@ const webhookEventSchema = new mongoose.Schema({
   // Processing status
   status: {
     type: String,
-    enum: ['processed', 'failed', 'pending'],
-    default: 'processed',
+    enum: ['processed', 'failed', 'pending', 'ignored'],
+    default: 'pending', // Default to pending; updated to 'processed'/'failed'/'ignored' after processing
   },
 
   // Error message if processing failed

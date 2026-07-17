@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   CreditCard,
   Zap,
@@ -30,18 +30,23 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
   const [validating, setValidating] = useState(false);
   const [validationData, setValidationData] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  // Guard: prevent the success modal from re-firing if searchParams changes for unrelated reasons
+  const handledSuccessRef = useRef(false);
 
   useEffect(() => {
+    if (handledSuccessRef.current) return;
     const upgradeSuccess = searchParams.get('upgrade') === 'success';
     const redeemSuccess = searchParams.get('redeem') === 'success';
 
     if (upgradeSuccess || redeemSuccess) {
+      handledSuccessRef.current = true;
       setShowSuccessModal(true);
       setSuccessType(redeemSuccess ? 'redeem' : 'upgrade');
 
-      // Fire confetti
+      // Fire confetti (with RAF handle so it can be cancelled on unmount)
       const duration = 3000;
       const end = Date.now() + duration;
+      let rafId;
 
       const frame = () => {
         confetti({
@@ -60,10 +65,10 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
         });
 
         if (Date.now() < end) {
-          requestAnimationFrame(frame);
+          rafId = requestAnimationFrame(frame);
         }
       };
-      frame();
+      rafId = requestAnimationFrame(frame);
 
       // Clean URL
       setSearchParams((params) => {
@@ -71,6 +76,9 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
         params.delete('redeem');
         return params;
       });
+
+      // Cleanup: cancel confetti RAF if component unmounts before animation finishes
+      return () => cancelAnimationFrame(rafId);
     }
   }, [searchParams, setSearchParams]);
 
@@ -111,9 +119,6 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
     try {
       const { data } = await api.post('/subscription/redeem', { code: redeemCode.trim() });
       showToast.success(data.message);
-      setRedeemCode('');
-      setShowConfirmModal(false);
-
       setRedeemCode('');
       setShowConfirmModal(false);
 
@@ -385,7 +390,9 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                 ['monthly', 'yearly'].includes(profile?.subscription?.billingCycle) && (
                   <button
                     onClick={() => {
-                      if (profile?.subscription?.customerPortalUrl) {
+                      if (profile?.subscription?.gateway === 'razorpay') {
+                        showToast.info('To manage or cancel your Razorpay subscription, please contact support.');
+                      } else if (profile?.subscription?.customerPortalUrl) {
                         window.location.href = profile.subscription.customerPortalUrl;
                       } else {
                         showToast.error('Billing portal unavailable');
@@ -398,13 +405,13 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
                       border: '1px solid var(--glass-border)',
                     }}
                   >
-                    Manage Subscription
+                    {profile?.subscription?.gateway === 'razorpay' ? 'Contact Support' : 'Manage Subscription'}
                   </button>
                 )
               )}
 
               {/* Sync Button */}
-              {profile?.subscription?.subscriptionId &&
+              {profile?.subscription?.subscriptionId && profile?.subscription?.gateway !== 'razorpay' &&
                 ['monthly', 'yearly'].includes(
                   profile?.subscription?.billingCycle || 'monthly'
                 ) && (

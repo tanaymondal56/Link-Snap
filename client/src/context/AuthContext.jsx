@@ -75,7 +75,7 @@ export const AuthProvider = ({ children }) => {
   const MIN_CHECK_AUTH_INTERVAL = 5000; // 5s minimum between checks
 
   // Check if user is logged in (background verification)
-  const checkAuth = useCallback(async () => {
+  const checkAuth = useCallback(async (force = false) => {
     const now = Date.now();
 
     // If a check is already in progress, return the existing promise
@@ -83,9 +83,9 @@ export const AuthProvider = ({ children }) => {
       return checkAuthPromiseRef.current;
     }
 
-    // Throttle: skip if last completed check was very recent
-    if (now - lastCheckAuthRef.current < MIN_CHECK_AUTH_INTERVAL) {
-      return;
+    // Throttle: skip if last completed check was very recent (unless forced, e.g. after payment)
+    if (!force && now - lastCheckAuthRef.current < MIN_CHECK_AUTH_INTERVAL) {
+      return Promise.resolve(); // Return resolved Promise so callers can safely use .finally()
     }
 
     const promise = new Promise((resolve) => {
@@ -163,7 +163,9 @@ export const AuthProvider = ({ children }) => {
             // We don't have the memory token, so we should refresh it
             // if we are transitioning from logged out to logged in
             if (!user) {
-              checkAuth();
+              checkAuth().catch(() => {
+                // Ignore background check failures
+              });
             }
           } catch {
             /* ignore parse errors */
@@ -388,8 +390,8 @@ export const AuthProvider = ({ children }) => {
         authModal,
         openAuthModal,
         closeAuthModal,
-        // Expose manual refresh
-        refreshUser: () => checkAuth(),
+        // Expose manual refresh — pass force=true to bypass throttle (e.g., after payment)
+        refreshUser: (force) => checkAuth(force),
         isAdmin: user?.role === 'admin' || user?.role === 'master_admin',
       }}
     >

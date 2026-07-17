@@ -39,6 +39,7 @@ import bioRoutes from './routes/bioRoutes.js';
 import deviceAuthRoutes from './routes/deviceAuthRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
+import razorpayRoutes from './routes/razorpayRoutes.js';
 import { flushAndStop } from './services/clickStatsService.js';
 import { stopDeviceAuthIntervals } from './controllers/deviceAuthController.js';
 import { flushAnalyticsAndStop } from './services/analyticsService.js';
@@ -127,12 +128,14 @@ app.use(helmet({
       scriptSrc: [
         "'self'",
         (req, res) => `'nonce-${res.locals.nonce}'`,
+        'https://checkout.razorpay.com',
         ...(process.env.NODE_ENV === 'development' ? ["'unsafe-inline'"] : []),
       ],
       styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: dynamicConnectSrc,
+      connectSrc: [...dynamicConnectSrc, 'https://api.razorpay.com'],
       fontSrc: ["'self'", "https:", "data:"],
+      frameSrc: ["'self'", 'https://api.razorpay.com', 'https://checkout.razorpay.com'],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
     },
@@ -350,6 +353,7 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/razorpay', razorpayRoutes);
 app.use('/api/bio', bioRoutes);
 // Short URL redirect routes (This must be after all API routes)
 app.use('/', redirectRoutes);

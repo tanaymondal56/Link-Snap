@@ -42,4 +42,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:5000/api/health || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "--max-old-space-size=400", "index.js"]
+CMD ["node", "--max-old-space-size=350", "index.js"]

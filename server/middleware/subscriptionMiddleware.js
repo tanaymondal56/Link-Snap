@@ -378,21 +378,25 @@ export const checkAndIncrementClickUsage = async (userId) => {
     } else {
         // For free tier, reset on the 1st of each calendar month (matches UI and link creation logic)
         const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const resetResult = await User.findOneAndUpdate(
-            {
-                _id: user._id,
-                $or: [
-                    { 'clickUsage.resetAt': { $lt: startOfCurrentMonth } },
-                    { 'clickUsage.resetAt': null },
-                    { 'clickUsage.resetAt': { $exists: false } }
-                ]
-            },
-            {
-                $set: { 'clickUsage.count': 0, 'clickUsage.resetAt': now }
-            },
-            { new: true }
-        );
-        resetPerformed = !!resetResult;
+        // Pre-check before hitting DB (mirrors paid-tier guard) — avoids a DB call on every click
+        const needsReset = !resetAt || new Date(resetAt) < startOfCurrentMonth;
+        if (needsReset) {
+            const resetResult = await User.findOneAndUpdate(
+                {
+                    _id: user._id,
+                    $or: [
+                        { 'clickUsage.resetAt': { $lt: startOfCurrentMonth } },
+                        { 'clickUsage.resetAt': null },
+                        { 'clickUsage.resetAt': { $exists: false } }
+                    ]
+                },
+                {
+                    $set: { 'clickUsage.count': 0, 'clickUsage.resetAt': now }
+                },
+                { new: true }
+            );
+            resetPerformed = !!resetResult;
+        }
     }
 
     // Update cache if reset was performed

@@ -29,7 +29,8 @@ const subscriptionAuditLogSchema = new mongoose.Schema({
       'paused',       // Subscription paused
       'deleted',      // Admin permanently deleted
       'overridden',   // Admin manually changed tier/status
-      'synced'        // Admin synced with LemonSqueezy
+      'synced',       // Admin synced with LemonSqueezy
+      'razorpay_payment' // Razorpay payment verified
     ],
     required: true,
     index: true
@@ -64,7 +65,8 @@ const subscriptionAuditLogSchema = new mongoose.Schema({
     currentPeriodEnd: Date,
     billingCycle: String,
     customerPortalUrl: String,
-    cancelledAt: Date
+    cancelledAt: Date,
+    gateway: String
   },
   
   // Snapshot AFTER the action
@@ -79,7 +81,8 @@ const subscriptionAuditLogSchema = new mongoose.Schema({
     currentPeriodEnd: Date,
     billingCycle: String,
     customerPortalUrl: String,
-    cancelledAt: Date
+    cancelledAt: Date,
+    gateway: String
   },
   
   // LemonSqueezy event data (for webhook actions)
@@ -102,7 +105,7 @@ subscriptionAuditLogSchema.index({ userId: 1, createdAt: -1 });
 subscriptionAuditLogSchema.index({ 'performedBy.adminId': 1, createdAt: -1 });
 subscriptionAuditLogSchema.index({ action: 1, createdAt: -1 });
 subscriptionAuditLogSchema.index({ source: 1, createdAt: -1 });
-subscriptionAuditLogSchema.index({ createdAt: -1 }); // General sorting index
+// NOTE: Removed redundant standalone { createdAt: -1 } — covered by compound indexes above
 subscriptionAuditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 730 * 24 * 60 * 60 }); // Retention: 2 years
 
 export default mongoose.model('SubscriptionAuditLog', subscriptionAuditLogSchema);

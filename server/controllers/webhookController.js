@@ -44,7 +44,8 @@ const isValidSignature = (req) => {
       Buffer.from(signature, 'utf8')
     );
     if (!valid) {
-      logger.error(`Signature mismatch. Computed: ${digest}, Received: ${signature}`);
+      // Only log truncated prefix — never log the full HMAC digest (timing/replay risk)
+      logger.error(`Signature mismatch. Computed[0:8]: ${digest.slice(0, 8)}..., Received[0:8]: ${signature.slice(0, 8)}...`);
     }
     return valid;
   } catch (err) {
@@ -189,7 +190,19 @@ export const handleWebhook = async (req, res) => {
         return res.status(200).json({ message: 'User not found, event logged.' });
     }
 
-    // 4. Process Event
+    // 4. CRITICAL: Gateway guard — never let a LemonSqueezy webhook overwrite a Razorpay subscription.
+    // A user who paid via Razorpay has subscription.gateway === 'razorpay'. LemonSqueezy has no
+    // knowledge of this subscription and could send stale/unrelated events that would corrupt it.
+    if (user.subscription?.gateway === 'razorpay') {
+      logger.warn(`[Webhook] Ignoring LS event "${eventName}" for Razorpay user ${user.snapId}. Gateway conflict prevented.`);
+      await WebhookEvent.updateOne(
+        { remoteId: webhookId },
+        { $set: { status: 'ignored', snapId: user.snapId, error: 'Gateway conflict: user is on razorpay gateway' } }
+      );
+      return res.status(200).json({ message: 'Event ignored: user subscribed via different gateway.' });
+    }
+
+    // 5. Process Event
     const attributes = data.attributes;
     const variantId = attributes.variant_id?.toString();
     
@@ -203,6 +216,9 @@ export const handleWebhook = async (req, res) => {
     } else if (variantId === process.env.LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID) {
         tier = 'pro';
         cycle = 'yearly';
+    } else if (variantId === process.env.LEMONSQUEEZY_PRO_ONETIME_VARIANT_ID) {
+        tier = 'pro';
+        cycle = 'one_time';
     } 
     
     // Store previous subscription state BEFORE any modifications
@@ -220,42 +236,54 @@ export const handleWebhook = async (req, res) => {
     
     // Update Logic
     switch (eventName) {
+      case 'order_created':                  // LS event for one-time purchases
       case 'subscription_created':
       case 'subscription_updated':
       case 'subscription_resumed':
-      case 'subscription_payment_success':
+      case 'subscription_payment_recovered': // LS event for recovered failed payments
+      case 'subscription_renewed':           // LS event for successful recurring billing
       case 'subscription_unpaused': // Treated same as resume
-        user.subscription = {
-            ...user.subscription,
-            customerId: attributes.customer_id.toString(),
-            subscriptionId: attributes.subscription_id?.toString() || data.id,
-            variantId: variantId || user.subscription.variantId, // Keep existing if update doesn't have it
-            tier: tier !== 'free' ? tier : user.subscription.tier, // Don't overwrite with free if mapping fails/missing
-            billingCycle: cycle,
-            status: attributes.status, // active, on_trial
-            currentPeriodStart: new Date(attributes.renews_at || attributes.created_at), 
-            currentPeriodEnd: new Date(attributes.renews_at || attributes.ends_at),
-            updatePaymentUrl: attributes.urls?.update_payment_method,
-            customerPortalUrl: attributes.urls?.customer_portal,
-            cancelledAt: null,
-        };
-        
-        if (attributes.status === 'active' && user.subscription.status === 'on_trial') {
-            user.hasUsedTrial = true;
+        {
+          // Capture old status BEFORE overwriting (for hasUsedTrial check)
+          const wasOnTrial = user.subscription?.status === 'on_trial';
+
+          user.subscription = {
+              ...user.subscription,
+              gateway: 'lemonsqueezy',  // Always mark gateway on LS events
+              customerId: attributes.customer_id.toString(),
+              subscriptionId: attributes.subscription_id?.toString() || (data.type === 'subscriptions' ? data.id.toString() : user.subscription.subscriptionId),
+              variantId: variantId || user.subscription.variantId, // Keep existing if update doesn't have it
+              tier: tier !== 'free' ? tier : user.subscription.tier, // Don't overwrite with free if mapping fails/missing
+              billingCycle: cycle,
+              status: attributes.status === 'paid' ? 'active' : (attributes.status || 'active'), // one-time orders have 'paid' status, subscriptions have 'active'
+              currentPeriodStart: new Date(attributes.created_at), // Period start (NOT renews_at which is a future date)
+              currentPeriodEnd: cycle === 'one_time' 
+                  ? new Date(new Date(attributes.created_at).setMonth(new Date(attributes.created_at).getMonth() + 1))
+                  : new Date(attributes.renews_at || attributes.ends_at),
+              updatePaymentUrl: attributes.urls?.update_payment_method,
+              customerPortalUrl: attributes.urls?.customer_portal,
+              cancelledAt: null,
+          };
+          
+          // Check old status (before overwrite) to correctly detect trial→active transition
+          if (attributes.status === 'active' && wasOnTrial) {
+              user.hasUsedTrial = true;
+          }
+
+          // Notify Admin: New Subscription
+          if (eventName === 'subscription_created') {
+              NotificationService.subscriptionCreated(user._id, user.email, tier).catch(err => {
+                   logger.error(`[Webhook] Failed to send sub created notification: ${err.message}`);
+              });
+          }
+          break;
         }
 
-        // Notify Admin: New Subscription
-        if (eventName === 'subscription_created') {
-            NotificationService.subscriptionCreated(user._id, user.email, tier).catch(err => {
-                 logger.error(`[Webhook] Failed to send sub created notification: ${err.message}`);
-            });
-        }
-        break;
-
-        case 'subscription_cancelled':
-        user.subscription.status = attributes.status; // 'cancelled'
-        user.subscription.cancelledAt = new Date(attributes.cancelled_at || Date.now());
-        user.subscription.currentPeriodEnd = new Date(attributes.ends_at);
+      case 'order_refunded':
+      case 'subscription_cancelled':
+        user.subscription.status = 'cancelled'; // Override status for refunds and cancellations
+        user.subscription.cancelledAt = new Date(attributes.cancelled_at || attributes.updated_at || Date.now());
+        user.subscription.currentPeriodEnd = new Date(attributes.ends_at || Date.now());
 
         // Notify Admin: Subscription Cancelled
         NotificationService.subscriptionCancelled(user._id, user.email, user.subscription.tier, 'User cancelled via portal').catch(err => {
@@ -281,7 +309,7 @@ export const handleWebhook = async (req, res) => {
          logger.warn(`[Webhook] Payment failed for ${user.snapId}. Grace period active.`);
          
          // Notify Admin: Payment Failed (Critical)
-         NotificationService.paymentFailed(user._id, user.email, 'Subscription', 'Payment declied/failed').catch(err => {
+         NotificationService.paymentFailed(user._id, user.email, 'Subscription', 'Payment declined/failed').catch(err => {
               logger.error(`[Webhook] Failed to send payment failed notification: ${err.message}`);
          });
          break;
