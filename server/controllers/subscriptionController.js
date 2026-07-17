@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import axios from 'axios';
 import logger from '../utils/logger.js';
 import { invalidateUserAnalyticsCache } from './analyticsController.js';
+import { redisDel } from '../config/redis.js';
 
 /**
  * Get localized pricing for the pricing page.
@@ -242,9 +243,10 @@ export const syncSubscription = async (req, res) => {
         }
       });
       
-      // Invalidate analytics cache if tier changed
+      // Invalidate analytics and user cache if tier changed
       if (user.subscription?.tier !== tier) {
           await invalidateUserAnalyticsCache(user._id);
+          await redisDel(`ls:user:${user._id}`);
       }
       
       logger.info(`[Sync] User ${user.snapId} synced their subscription`);

@@ -3,6 +3,7 @@ import { getEffectiveTier } from '../services/subscriptionService.js';
 import SubscriptionAuditLog from '../models/SubscriptionAuditLog.js';
 import logger from '../utils/logger.js';
 import { invalidateUserAnalyticsCache } from './analyticsController.js';
+import { redisDel } from '../config/redis.js';
 import {
   createRazorpayOrder,
   createRazorpaySubscription,
@@ -189,8 +190,9 @@ export const verifyPayment = async (req, res) => {
       return res.json({ success: true, message: 'Payment already verified' });
     }
 
-    // 5. Invalidate analytics cache if tier changed
+    // 5. Invalidate analytics and user cache if tier changed
     await invalidateUserAnalyticsCache(userId);
+    await redisDel(`ls:user:${userId}`);
 
     // 6. Write audit log
     await SubscriptionAuditLog.create({

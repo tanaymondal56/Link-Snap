@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import SubscriptionAuditLog from '../models/SubscriptionAuditLog.js';
 import logger from '../utils/logger.js';
+import { redisDel } from '../config/redis.js';
 
 export const TIERS = {
   free: {
@@ -330,6 +331,8 @@ export const processExpiredSubscriptions = async () => {
           gateway: user.subscription.gateway,
           details: `Subscription auto-expired from status '${previousStatus}' via daily cron sweep.`
         });
+        
+        await redisDel(`ls:user:${user._id}`);
         
         totalModified++;
       } catch (err) {

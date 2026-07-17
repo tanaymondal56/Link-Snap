@@ -6,6 +6,7 @@ import SubscriptionAuditLog from '../models/SubscriptionAuditLog.js';
 import logger from '../utils/logger.js';
 import NotificationService from '../services/notificationService.js';
 import { invalidateUserAnalyticsCache } from './analyticsController.js';
+import { redisDel } from '../config/redis.js';
 
 // Verify the signature from Lemon Squeezy
 // Docs: https://docs.lemonsqueezy.com/guides/developer-guide/webhooks#signing-requests
@@ -326,10 +327,11 @@ export const handleWebhook = async (req, res) => {
 
     await user.save();
     
-    // Invalidate analytics cache if tier changed
+    // Invalidate analytics and user cache if tier changed
     if (previousSubscription.tier !== user.subscription?.tier) {
         await invalidateUserAnalyticsCache(user._id);
     }
+    await redisDel(`ls:user:${user._id}`);
     
     // Map event names to audit actions
     const actionMap = {

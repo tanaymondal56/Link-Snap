@@ -7,11 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.7.1] - 2026-07-16
+## [0.7.1] - 2026-07-17
 
 ### Redis Cache Offloading, Custom Bloom Filters & Core Performance Overhaul
 
-This release implements high-performance Redis cache-aside patterns, introduces a custom Redis Bloom filter engine optimized for Upstash, and hardens the application's authentication and rate-limiting flows.
+This release implements high-performance Redis cache-aside patterns, introduces a custom Redis Bloom filter engine optimized for Upstash, overhauls Razorpay to support recurring billing with fallback safety, adds one-time monthly purchase tiers, and hardens the daily database subscription expiry checks.
+
+### 💳 Razorpay & Lemon Squeezy Billing Engine Overhaul
+- **Razorpay Subscriptions (Recurring):** Integrated the Razorpay Subscriptions API (`razorpay.subscriptions.create`) to establish true recurring billing cycles for monthly and yearly tiers.
+- **Verification Signature Engine:** Created dual signature validators (Order Hashing vs. Subscription Hashing) for secure, timing-safe webhook processing.
+- **Fail-safe Fallback:** Engineered a fallback layer where missing environment configuration Plan IDs automatically convert checkouts to standard Orders, preventing client-side blocker errors.
+- **One-Time Monthly Billing:** Introduced a "1 Month (One-time)" billing toggle. Integrated Lemon Squeezy `order_created` and `order_refunded` events to support one-off USD checkouts with calendar-correct 1-month expirations.
+- **Modal Dismiss Recovery:** Resolved a frontend lockup where closing the Razorpay checkout modal left the pricing page frozen; modal closing now cleanly resets the checkout state.
+
+### 🧹 Hardened Enterprise Subscription Expiry Sweeper
+- **Race Condition Prevention:** Refactored the sweeper script from raw `updateMany` updates to sequentially fetch and `.save()` users. This activates Mongoose's Optimistic Concurrency Control (`__v`), stopping the sweeper from overwriting fresh payments processed by webhooks concurrently.
+- **Audit Trails:** Set up automated generation of compliance history records in `SubscriptionAuditLog` for every automated downgrade performed by the daily sweep.
 
 ### 🧠 Custom Redis Bloom Filter Engine (Module-less Upstash Optimization)
 - **High-Speed Bitwise Filters:** Built using standard Redis `SETBIT` / `GETBIT` to bypass the need for native `RedisBloom` modules on Upstash.

@@ -4,6 +4,7 @@ import SubscriptionAuditLog from '../models/SubscriptionAuditLog.js';
 import logger from '../utils/logger.js';
 import { invalidateUserAnalyticsCache } from './analyticsController.js';
 import { RAZORPAY_PRICING } from '../services/razorpayService.js';
+import { redisDel } from '../config/redis.js';
 
 export const handleRazorpayWebhook = async (req, res) => {
   try {
@@ -124,8 +125,9 @@ export const handleRazorpayWebhook = async (req, res) => {
       return res.status(200).send('Already processed');
     }
 
-    // Invalidate analytics cache if tier changed
+    // Invalidate analytics and user cache if tier changed
     await invalidateUserAnalyticsCache(userId);
+    await redisDel(`ls:user:${userId}`);
 
     // Write audit log
     await SubscriptionAuditLog.create({
