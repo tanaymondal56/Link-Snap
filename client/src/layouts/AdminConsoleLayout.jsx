@@ -20,7 +20,7 @@ import { applyTierTheme } from '../utils/tierTheme';
 const NotificationDropdown = lazy(() => import('../components/admin-console/NotificationDropdown'));
 
 const AdminConsoleLayout = () => {
-  const { user, logout, loading } = useAuth();
+  const { user, logout, loading, isAuthChecking } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -113,7 +113,7 @@ const AdminConsoleLayout = () => {
           <div className="flex items-center gap-3 self-end md:self-auto">
             {/* Notifications */}
             <Suspense fallback={<div className="w-10 h-10"></div>}>
-              <NotificationDropdown />
+              {!isAuthChecking && <NotificationDropdown />}
             </Suspense>
 
             {/* Profile Dropdown */}

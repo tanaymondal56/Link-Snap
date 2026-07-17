@@ -271,7 +271,11 @@ export const redeemCode = async (req, res) => {
     // Step 2: Code successfully claimed - now safely upgrade user subscription
     // Calculate dates for subscription
     let startDate = now;
-    if (user.subscription?.currentPeriodEnd && user.subscription.status === 'active') {
+    if (
+      user.subscription?.currentPeriodEnd && 
+      user.subscription.status === 'active' && 
+      currentTier === redeemCodeDoc.tier
+    ) {
       const existingEnd = new Date(user.subscription.currentPeriodEnd);
       if (existingEnd > now) {
         startDate = existingEnd;
@@ -352,14 +356,18 @@ export const validateRedeemCode = async (req, res) => {
 
     const now = new Date();
     let startDate = now;
-    if (user.subscription?.currentPeriodEnd && user.subscription.status === 'active') {
+    const currentTier = user.subscription?.tier || 'free';
+    if (
+      user.subscription?.currentPeriodEnd && 
+      user.subscription.status === 'active' && 
+      currentTier === redeemCodeDoc.tier
+    ) {
       const existingEnd = new Date(user.subscription.currentPeriodEnd);
       if (existingEnd > now) startDate = existingEnd;
     }
 
     const newExpiry = calculateEndDate(startDate, redeemCodeDoc.duration);
 
-    const currentTier = user.subscription?.tier || 'free';
     const currentExpiry = user.subscription?.currentPeriodEnd || null;
 
     res.json({
