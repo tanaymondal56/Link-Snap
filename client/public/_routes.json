@@ -16,6 +16,8 @@
     "/sw.js",
     "/robots.txt",
     "/sitemap.xml",
-    "/og-image.png"
+    "/og-image.png",
+    "/pwa-192x192.png",
+    "/pwa-512x512.png"
   ]
 }
