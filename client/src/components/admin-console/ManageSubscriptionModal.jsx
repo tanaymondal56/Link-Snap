@@ -120,6 +120,7 @@ const ManageSubscriptionModal = ({ isOpen, onClose, user, onUpdate }) => {
     setDeleting(true);
     try {
       const { data } = await api.delete(`/admin/users/${user._id}/subscription`, {
+        params: { reason: deleteReason, confirmationText: deleteConfirmText },
         data: { reason: deleteReason, confirmationText: deleteConfirmText },
       });
       showToast.success('Subscription permanently deleted and logged for audit');

@@ -396,7 +396,12 @@ export const syncUserSubscription = async (req, res) => {
 export const deleteUserSubscription = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { reason, confirmationText } = req.body;
+    
+    // Fall back to query parameters (req.query) in case proxy/ingress strips the DELETE request body
+    const body = req.body || {};
+    const query = req.query || {};
+    const reason = body.reason || query.reason;
+    const confirmationText = body.confirmationText || query.confirmationText;
     
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(userId)) {

@@ -109,27 +109,32 @@ export const ipWhitelist = async (req, res, next) => {
 
     // === BYPASS: Check for valid Admin Token ===
     if (req.headers.authorization?.startsWith('Bearer')) {
-      const token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+      try {
+        const token = req.headers.authorization.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
 
-      // Check if user is a regular admin
-      const user = await User.findById(decoded.id).select('role isActive');
+        // Check if user is a regular admin
+        const user = await User.findById(decoded.id).select('role isActive');
 
-      if (user && user.role === 'admin' && user.isActive) {
-        logger.info(`[IP Whitelist] 🔓 Bypass by Admin Token: ${user._id} (${clientIP})`);
-        return next();
-      }
-
-      // Also check if it's a MasterAdmin (different model)
-      if (decoded.type === 'master' || decoded.role === 'master_admin') {
-        // Import dynamically to avoid circular dependency issues
-        const MasterAdmin = (await import('../models/MasterAdmin.js')).default;
-        const masterAdmin = await MasterAdmin.findById(decoded.id).select('_id');
-        
-        if (masterAdmin) {
-          logger.info(`[IP Whitelist] 🔓 Bypass by Master Admin Token: ${masterAdmin._id} (${clientIP})`);
+        if (user && user.role === 'admin' && user.isActive) {
+          logger.info(`[IP Whitelist] 🔓 Bypass by Admin Token: ${user._id} (${clientIP})`);
           return next();
         }
+
+        // Also check if it's a MasterAdmin (different model)
+        if (decoded.type === 'master' || decoded.role === 'master_admin') {
+          // Import dynamically to avoid circular dependency issues
+          const MasterAdmin = (await import('../models/MasterAdmin.js')).default;
+          const masterAdmin = await MasterAdmin.findById(decoded.id).select('_id');
+          
+          if (masterAdmin) {
+            logger.info(`[IP Whitelist] 🔓 Bypass by Master Admin Token: ${masterAdmin._id} (${clientIP})`);
+            return next();
+          }
+        }
+      } catch (jwtErr) {
+        // Log token validation failures at debug level and let it fall through to standard IP check
+        logger.debug(`[IP Whitelist] Token bypass failed: ${jwtErr.message}`);
       }
     }
 
