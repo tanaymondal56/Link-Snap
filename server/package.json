@@ -62,7 +62,7 @@
     "globals": "^17.7.0",
     "nodemon": "^3.1.14",
     "picomatch": "^4.0.5",
-    "prettier": "^3.9.5"
+    "prettier": "^3.9.6"
   },
   "overrides": {
     "minimatch": "10.2.4"
