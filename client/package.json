@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@simplewebauthn/browser": "^13.3.0",
-    "@tanstack/react-virtual": "^3.14.6",
+    "@tanstack/react-virtual": "^3.14.7",
     "axios": "^1.18.1",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
