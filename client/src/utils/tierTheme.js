@@ -73,96 +73,96 @@ export const TIER_THEMES = {
     '--input-focus':    'rgba(59,130,246,0.5)',
   },
 
-  /* ── Pro ── Emerald / Teal — extremely striking, distinct from Free ───── */
+  /* ── Pro ── Electric Sapphire & Neon Violet — sleek, ultra-modern, high-tech ───── */
   pro: {
-    '--orb-1': '#059669',
-    '--orb-2': '#0891b2',
-    '--orb-3': '#10b981',
+    '--orb-1': '#0284c7', // Sapphire Cyan
+    '--orb-2': '#4f46e5', // Electric Indigo
+    '--orb-3': '#c026d3', // Neon Fuchsia
 
-    '--accent-from': '#10b981',
-    '--accent-to':   '#06b6d4',
+    '--accent-from': '#38bdf8',
+    '--accent-to':   '#818cf8',
 
-    '--nav-active-bg':   'rgba(16,185,129,0.18)',
-    '--nav-active-text': '#6ee7b7',
-    '--nav-active-icon': '#34d399',
+    '--nav-active-bg':   'rgba(56, 189, 248, 0.18)',
+    '--nav-active-text': '#7dd3fc',
+    '--nav-active-icon': '#38bdf8',
 
-    '--card-border':    'rgba(16,185,129,0.15)',
-    '--sidebar-border': 'rgba(16,185,129,0.12)',
+    '--card-border':    'rgba(56, 189, 248, 0.16)',
+    '--sidebar-border': 'rgba(56, 189, 248, 0.12)',
 
-    '--avatar-from': '#10b981',
-    '--avatar-to':   '#06b6d4',
+    '--avatar-from': '#38bdf8',
+    '--avatar-to':   '#818cf8',
 
-    '--selection': 'rgba(16,185,129,0.3)',
+    '--selection': 'rgba(56, 189, 248, 0.3)',
 
-    '--bg-radial': 'rgba(4,120,87,0.25)',
+    '--bg-radial': 'rgba(2, 132, 199, 0.25)',
 
-    '--scrollbar': 'rgb(4,120,87)',
+    '--scrollbar': 'rgb(2, 132, 199)',
 
-    '--cta-shadow': 'rgba(16,185,129,0.3)',
+    '--cta-shadow': 'rgba(56, 189, 248, 0.3)',
 
-    '--topbar-accent': 'linear-gradient(90deg, #10b981, #06b6d4)',
+    '--topbar-accent': 'linear-gradient(90deg, #38bdf8, #818cf8)',
 
-    // ── Extended: emerald tinted glass ──
-    '--glass-bg':       'rgba(5,40,30,0.65)',
-    '--glass-border':   'rgba(16,185,129,0.12)',
-    '--card-hover-bg':  'rgba(6,78,59,0.5)',
-    '--stat-icon-bg':   'rgba(16,185,129,0.2)',
-    '--stat-icon-color': '#34d399',
-    '--progress-from':  '#10b981',
-    '--progress-to':    '#06b6d4',
-    '--heading-color':  '#ecfdf5',
-    '--subtext-color':  '#a7f3d0',
-    '--sidebar-bg':     'rgba(2,20,15,0.96)',
-    '--topbar-bg':      'rgba(1,15,10,0.85)',
-    '--divider-color':  'rgba(16,185,129,0.08)',
-    '--input-border':   'rgba(4,120,87,0.4)',
-    '--input-focus':    'rgba(16,185,129,0.5)',
+    // ── Extended: Sapphire frosted glass ──
+    '--glass-bg':       'rgba(10, 22, 40, 0.7)',
+    '--glass-border':   'rgba(56, 189, 248, 0.15)',
+    '--card-hover-bg':  'rgba(15, 32, 60, 0.5)',
+    '--stat-icon-bg':   'rgba(56, 189, 248, 0.2)',
+    '--stat-icon-color': '#38bdf8',
+    '--progress-from':  '#38bdf8',
+    '--progress-to':    '#818cf8',
+    '--heading-color':  '#f0f9ff',
+    '--subtext-color':  '#bae6fd',
+    '--sidebar-bg':     'rgba(6, 15, 30, 0.96)',
+    '--topbar-bg':      'rgba(3, 10, 20, 0.85)',
+    '--divider-color':  'rgba(56, 189, 248, 0.08)',
+    '--input-border':   'rgba(2, 132, 199, 0.4)',
+    '--input-focus':    'rgba(56, 189, 248, 0.5)',
   },
 
-  /* ── Business ── Gold / amber / bronze — ultra-premium black-card ──────── */
+  /* ── Business ── Executive Gold & Titanium Black Card — luxury, ultra-sleek ──────── */
   business: {
-    '--orb-1': '#b45309',
-    '--orb-2': '#92400e',
-    '--orb-3': '#78350f',
+    '--orb-1': '#d97706', // Rich Gold
+    '--orb-2': '#92400e', // Deep Amber
+    '--orb-3': '#b45309', // Warm Bronze
 
-    '--accent-from': '#d97706',
-    '--accent-to':   '#eab308',
+    '--accent-from': '#fbbf24',
+    '--accent-to':   '#f59e0b',
 
-    '--nav-active-bg':   'rgba(245,158,11,0.18)',
-    '--nav-active-text': '#fcd34d',
+    '--nav-active-bg':   'rgba(251, 191, 36, 0.18)',
+    '--nav-active-text': '#fef08a',
     '--nav-active-icon': '#fbbf24',
 
-    '--card-border':    'rgba(245,158,11,0.12)',
-    '--sidebar-border': 'rgba(245,158,11,0.1)',
+    '--card-border':    'rgba(251, 191, 36, 0.15)',
+    '--sidebar-border': 'rgba(251, 191, 36, 0.12)',
 
-    '--avatar-from': '#d97706',
-    '--avatar-to':   '#eab308',
+    '--avatar-from': '#fbbf24',
+    '--avatar-to':   '#d97706',
 
-    '--selection': 'rgba(245,158,11,0.3)',
+    '--selection': 'rgba(251, 191, 36, 0.3)',
 
-    '--bg-radial': 'rgba(120,53,15,0.25)',
+    '--bg-radial': 'rgba(180, 83, 9, 0.22)',
 
-    '--scrollbar': 'rgb(120,53,15)',
+    '--scrollbar': 'rgb(180, 83, 9)',
 
-    '--cta-shadow': 'rgba(217,119,6,0.3)',
+    '--cta-shadow': 'rgba(251, 191, 36, 0.3)',
 
-    '--topbar-accent': 'linear-gradient(90deg, #d97706, #eab308)',
+    '--topbar-accent': 'linear-gradient(90deg, #fbbf24, #d97706)',
 
-    // ── Extended: warm executive gold glass ──
-    '--glass-bg':       'rgba(25,15,5,0.7)',
-    '--glass-border':   'rgba(245,158,11,0.1)',
-    '--card-hover-bg':  'rgba(60,35,10,0.5)',
-    '--stat-icon-bg':   'rgba(217,119,6,0.2)',
+    // ── Extended: Executive Gold Black Card glass ──
+    '--glass-bg':       'rgba(24, 18, 10, 0.72)',
+    '--glass-border':   'rgba(251, 191, 36, 0.14)',
+    '--card-hover-bg':  'rgba(45, 32, 15, 0.55)',
+    '--stat-icon-bg':   'rgba(251, 191, 36, 0.2)',
     '--stat-icon-color': '#fbbf24',
-    '--progress-from':  '#d97706',
-    '--progress-to':    '#eab308',
-    '--heading-color':  '#fef3c7',
-    '--subtext-color':  '#fde68a',
-    '--sidebar-bg':     'rgba(10,5,2,0.97)',
-    '--topbar-bg':      'rgba(8,4,1,0.88)',
-    '--divider-color':  'rgba(217,119,6,0.08)',
-    '--input-border':   'rgba(180,83,9,0.3)',
-    '--input-focus':    'rgba(245,158,11,0.5)',
+    '--progress-from':  '#fbbf24',
+    '--progress-to':    '#d97706',
+    '--heading-color':  '#fefce8',
+    '--subtext-color':  '#fef08a',
+    '--sidebar-bg':     'rgba(14, 10, 5, 0.97)',
+    '--topbar-bg':      'rgba(10, 7, 3, 0.88)',
+    '--divider-color':  'rgba(251, 191, 36, 0.08)',
+    '--input-border':   'rgba(217, 119, 6, 0.4)',
+    '--input-focus':    'rgba(251, 191, 36, 0.5)',
   },
 
   /* ── Master Admin ── Crimson / orange / gold (migrated from .master-theme) */

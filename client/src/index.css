@@ -667,11 +667,11 @@ input[type='datetime-local'] {
   }
 }
 
-/* Pro badge — Violet */
+/* Pro badge — Electric Sapphire */
 .badge-pro {
-  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-  color: #e9d5ff;
-  box-shadow: 0 0 8px rgba(124, 58, 237, 0.4);
+  background: linear-gradient(135deg, #0284c7 0%, #4f46e5 100%);
+  color: #e0f2fe;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
 }
 
 /* Business badge — Gold */

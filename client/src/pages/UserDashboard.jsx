@@ -54,6 +54,21 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 
 const VIRTUAL_SCROLL_THRESHOLD = 30; // Only virtualize when list exceeds this count
 
+// Custom hook isolating TanStack Virtualizer for virtualized link rendering
+const useVirtualLinkList = (count, scrollRef, enabled) => {
+  const getScrollElement = useCallback(() => scrollRef.current, [scrollRef]);
+  const estimateSize = useCallback(() => 200, []);
+
+  // eslint-disable-next-line react-hooks/incompatible-library
+  return useVirtualizer({
+    count: enabled ? count : 0,
+    getScrollElement,
+    estimateSize,
+    overscan: 5,
+    enabled,
+  });
+};
+
 const UserDashboard = () => {
   const { user, isAuthChecking, setUser } = useAuth();
   const confirm = useConfirm();
@@ -78,17 +93,27 @@ const UserDashboard = () => {
   useScrollLock(!!qrModalLink);
   const { exportToPng } = useQrWorker();
 
+  // Filter links locally by search term
+  const filteredLinks = useMemo(() => {
+    if (!searchTerm.trim()) return links;
+    const lowerSearch = searchTerm.toLowerCase();
+    return links.filter(
+      (link) =>
+        link.originalUrl.toLowerCase().includes(lowerSearch) ||
+        link.shortId.toLowerCase().includes(lowerSearch) ||
+        (link.title && link.title.toLowerCase().includes(lowerSearch))
+    );
+  }, [links, searchTerm]);
+
   // Virtual scrolling refs and setup
   const scrollContainerRef = useRef(null);
   const useVirtual = showAll && filteredLinks.length > VIRTUAL_SCROLL_THRESHOLD;
 
-  const virtualizer = useVirtualizer({
-    count: useVirtual ? filteredLinks.length : 0,
-    getScrollElement: () => scrollContainerRef.current,
-    estimateSize: useCallback(() => 200, []), // Estimated card height — measureElement refines it
-    overscan: 5,
-    enabled: useVirtual,
-  });
+  const virtualizer = useVirtualLinkList(
+    filteredLinks.length,
+    scrollContainerRef,
+    useVirtual
+  );
 
   // Scroll to top when search term changes (prevents blank screen in virtual list)
   useEffect(() => {
@@ -96,15 +121,6 @@ const UserDashboard = () => {
       scrollContainerRef.current.scrollTop = 0;
     }
   }, [searchTerm, useVirtual]);
-
-  useEffect(() => {
-    // Wait for auth check to complete (ensure token is ready)
-    // IMPORTANT: If isAuthChecking is true, we simply wait.
-    // Even in offline mode, isAuthChecking will eventually become false (after retries fail).
-    if (!isAuthChecking) {
-      fetchLinks(showAll ? 1 : page, showAll);
-    }
-  }, [page, showAll, isAuthChecking]);
 
   const fetchLinks = async (pageNum = 1, loadAll = false) => {
     try {
@@ -141,6 +157,15 @@ const UserDashboard = () => {
       setIsRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    // Wait for auth check to complete (ensure token is ready)
+    // IMPORTANT: If isAuthChecking is true, we simply wait.
+    // Even in offline mode, isAuthChecking will eventually become false (after retries fail).
+    if (!isAuthChecking) {
+      fetchLinks(showAll ? 1 : page, showAll);
+    }
+  }, [page, showAll, isAuthChecking]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -212,16 +237,6 @@ const UserDashboard = () => {
     showToast.success('Link copied to clipboard!', 'Copied');
     setTimeout(() => setCopiedId(null), 2000);
   };
-
-  const filteredLinks = useMemo(() => {
-    const lowerSearch = searchTerm.toLowerCase();
-    return links.filter(
-      (link) =>
-        link.originalUrl.toLowerCase().includes(lowerSearch) ||
-        link.shortId.toLowerCase().includes(lowerSearch) ||
-        (link.title && link.title.toLowerCase().includes(lowerSearch))
-    );
-  }, [links, searchTerm]);
 
   const totalClicks = useMemo(() => links.reduce((acc, link) => acc + link.clicks, 0), [links]);
 

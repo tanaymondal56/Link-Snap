@@ -12,6 +12,9 @@ import {
   Shield,
   Globe,
   Lock,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { getEffectiveTier } from '../utils/subscriptionUtils';
@@ -30,6 +33,17 @@ const DashboardLayout = () => {
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    return localStorage.getItem('ls_sidebar_collapsed') === 'true';
+  });
+
+  const toggleCollapsed = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('ls_sidebar_collapsed', String(next));
+      return next;
+    });
+  };
 
   const [createdLink, setCreatedLink] = useState(null);
   const adminTriggerTimer = useRef(null); // For hidden admin recovery trigger
@@ -153,51 +167,72 @@ const DashboardLayout = () => {
       {/* Sidebar - Fixed */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 backdrop-blur-xl flex flex-col shadow-2xl lg:shadow-none will-change-transform',
+          'fixed inset-y-0 left-0 z-50 backdrop-blur-xl flex flex-col shadow-2xl lg:shadow-none will-change-[width,transform] transition-[width,transform] duration-300 ease-in-out',
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
-          'transition-transform duration-300 ease-out'
+          isCollapsed ? 'lg:w-20' : 'lg:w-64',
+          'w-64'
         )}
         style={{ borderRight: '1px solid var(--sidebar-border)', backgroundColor: 'var(--sidebar-bg)' }}
       >
-        <div className="h-20 flex items-center px-6" style={{ borderBottom: '1px solid var(--divider-color)' }}>
+        <div className={cn('h-20 flex items-center px-4 transition-all duration-300', isCollapsed ? 'lg:justify-center lg:px-2' : 'justify-between px-6')} style={{ borderBottom: '1px solid var(--divider-color)' }}>
           <Link to="/" className="flex items-center gap-3 group">
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center shadow-lg transition-all"
+              className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg transition-all shrink-0"
               style={{ background: `linear-gradient(to bottom right, var(--accent-from), var(--accent-to))`, boxShadow: `0 4px 12px var(--cta-shadow)` }}
             >
-              <LinkIcon size={18} className="text-white" />
+              <LinkIcon size={20} className="text-white" />
             </div>
-            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+            {!isCollapsed && (
+              <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 hidden lg:inline">
+                LinkSnap
+              </span>
+            )}
+            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 lg:hidden">
               LinkSnap
             </span>
           </Link>
-          <button
-            className="ml-auto lg:hidden text-gray-400 hover:text-white transition-colors"
-            onClick={() => setIsSidebarOpen(false)}
-            aria-label="Close sidebar menu"
-          >
-            <X size={24} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={toggleCollapsed}
+              className="hidden lg:flex p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+              aria-label={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+              {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            </button>
+            <button
+              className="lg:hidden text-gray-400 hover:text-white transition-colors p-2"
+              onClick={() => setIsSidebarOpen(false)}
+              aria-label="Close sidebar menu"
+            >
+              <X size={24} />
+            </button>
+          </div>
         </div>
 
-        <div className="p-6">
+        <div className={cn('p-4 transition-all duration-300', isCollapsed ? 'lg:px-3' : 'p-6')}>
           <button
             onClick={() => {
               setIsCreateModalOpen(true);
-              setIsSidebarOpen(false); // Close sidebar on mobile when clicked
+              setIsSidebarOpen(false);
             }}
-            className="w-full text-white py-3 px-4 rounded-xl font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+            title={isCollapsed ? "New Link" : undefined}
+            className={cn(
+              'w-full text-white rounded-xl font-semibold transition-all hover:scale-[1.03] active:scale-[0.97] flex items-center justify-center gap-2 shadow-lg',
+              isCollapsed ? 'lg:h-12 lg:w-12 lg:p-0 mx-auto py-3 px-4' : 'py-3 px-4'
+            )}
             style={{
               background: `linear-gradient(to right, var(--accent-from), var(--accent-to))`,
               boxShadow: `0 4px 12px var(--cta-shadow)`,
             }}
           >
-            <LinkIcon size={18} />
-            <span>New Link</span>
+            <LinkIcon size={18} className="shrink-0" />
+            {!isCollapsed && <span className="hidden lg:inline">New Link</span>}
+            <span className="lg:hidden">New Link</span>
           </button>
         </div>
 
-        <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 px-3 space-y-2 overflow-y-auto">
           {navigation.map((item) => {
             const isActive = location.pathname === item.href;
             return (
@@ -205,15 +240,17 @@ const DashboardLayout = () => {
                 key={item.name}
                 to={item.href}
                 onClick={() => setIsSidebarOpen(false)}
+                title={isCollapsed ? item.name : undefined}
                 className={cn(
-                  'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200',
+                  'flex items-center gap-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 group',
+                  isCollapsed ? 'lg:justify-center lg:px-0 lg:w-12 lg:h-12 lg:mx-auto px-4' : 'px-4',
                   isActive
                     ? item.isAdmin
                       ? 'bg-amber-500/20 text-amber-300 shadow-inner border border-amber-500/30'
                       : 'shadow-inner border'
                     : item.isAdmin
-                      ? 'text-amber-400/70 hover:bg-amber-500/10 hover:text-amber-300 hover:translate-x-1'
-                      : 'text-gray-400 hover:bg-white/5 hover:text-white hover:translate-x-1'
+                      ? 'text-amber-400/70 hover:bg-amber-500/10 hover:text-amber-300'
+                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
                 )}
                 style={isActive && !item.isAdmin ? {
                   backgroundColor: 'var(--nav-active-bg)',
@@ -224,6 +261,7 @@ const DashboardLayout = () => {
                 <item.icon
                   size={20}
                   className={cn(
+                    'shrink-0',
                     isActive
                       ? item.isAdmin
                         ? 'text-amber-400'
@@ -234,7 +272,15 @@ const DashboardLayout = () => {
                   )}
                   style={isActive && !item.isAdmin ? { color: 'var(--nav-active-icon)' } : undefined}
                 />
-                <span className="flex items-center gap-2">
+                {!isCollapsed && (
+                  <span className="hidden lg:flex items-center gap-2 truncate">
+                    {item.name}
+                    {item.isProFeature && userTier === 'free' && (
+                      <Lock size={14} className="text-amber-400/70" />
+                    )}
+                  </span>
+                )}
+                <span className="lg:hidden flex items-center gap-2 truncate">
                   {item.name}
                   {item.isProFeature && userTier === 'free' && (
                     <Lock size={14} className="text-amber-400/70" />
@@ -245,19 +291,45 @@ const DashboardLayout = () => {
           })}
         </nav>
 
-        <div className="p-4 bg-black/20" style={{ borderTop: '1px solid var(--divider-color)' }}>
+        <div className={cn('p-3 bg-black/20 transition-all duration-300', isCollapsed ? 'lg:px-2' : 'p-4')} style={{ borderTop: '1px solid var(--divider-color)' }}>
           <div
             ref={userCardRef}
-            className="flex items-center gap-3 px-3 py-2 mb-3 rounded-lg bg-white/5"
+            className={cn(
+              'flex items-center gap-3 py-2 mb-3 rounded-lg bg-white/5 transition-all',
+              isCollapsed ? 'lg:justify-center lg:px-0 lg:w-12 lg:h-12 lg:mx-auto px-3' : 'px-3'
+            )}
             style={{ border: '1px solid var(--card-border)' }}
+            title={isCollapsed ? `${user.firstName || user.email} (${userTier.toUpperCase()})` : undefined}
           >
             <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold shadow-inner"
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold shadow-inner shrink-0"
               style={{ background: `linear-gradient(to bottom right, var(--avatar-from), var(--avatar-to))` }}
             >
               {user.firstName ? user.firstName[0].toUpperCase() : user.email[0].toUpperCase()}
             </div>
-            <div className="flex-1 min-w-0">
+            {!isCollapsed && (
+              <div className="hidden lg:block flex-1 min-w-0">
+                {(user.firstName || user.lastName) && (
+                  <p className="text-sm font-semibold text-white truncate">
+                    {user.firstName} {user.lastName}
+                  </p>
+                )}
+                <p
+                  className={`text-sm ${user.firstName || user.lastName ? 'text-gray-400' : 'text-white font-medium'} truncate`}
+                >
+                  {user.email}
+                </p>
+                <p className="text-xs text-gray-400 capitalize flex items-center gap-1.5">
+                  {user.role}
+                  {tierBadge && (
+                    <span className={`tier-badge ${tierBadge.className}`}>
+                      {tierBadge.label}
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
+            <div className="lg:hidden flex-1 min-w-0">
               {(user.firstName || user.lastName) && (
                 <p className="text-sm font-semibold text-white truncate">
                   {user.firstName} {user.lastName}
@@ -280,14 +352,19 @@ const DashboardLayout = () => {
           </div>
           <button
             onClick={logout}
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+            title={isCollapsed ? "Sign Out" : undefined}
+            className={cn(
+              'w-full flex items-center gap-3 py-2 text-sm font-medium text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors',
+              isCollapsed ? 'lg:justify-center lg:px-0 lg:w-12 lg:h-10 lg:mx-auto px-3' : 'px-3'
+            )}
           >
-            <LogOut size={18} />
-            Sign Out
+            <LogOut size={18} className="shrink-0" />
+            {!isCollapsed && <span className="hidden lg:inline">Sign Out</span>}
+            <span className="lg:hidden">Sign Out</span>
           </button>
           {/* Hidden Admin Recovery Trigger - Long press for 3s */}
           <p
-            className="text-[10px] text-gray-400 text-center mt-4 select-none cursor-default"
+            className={cn('text-[10px] text-gray-400 text-center mt-4 select-none cursor-default', isCollapsed ? 'lg:hidden' : '')}
             onTouchStart={() => {
               adminTriggerTimer.current = setTimeout(() => {
                 if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
@@ -314,10 +391,23 @@ const DashboardLayout = () => {
         </div>
       </aside>
 
-      {/* Main Content - With left margin for sidebar */}
-      <div className="flex-1 flex flex-col min-w-0 lg:ml-64" style={{ background: `radial-gradient(ellipse at top right, var(--bg-radial), rgb(3,7,18) 50%, rgb(3,7,18))` }}>
+      {/* Main Content - With dynamic left margin for sidebar */}
+      <div
+        className={cn(
+          'flex-1 flex flex-col min-w-0 relative overflow-hidden transition-[margin] duration-300 ease-in-out',
+          isCollapsed ? 'lg:ml-20' : 'lg:ml-64'
+        )}
+        style={{ background: `radial-gradient(ellipse at top right, var(--bg-radial), rgb(3,7,18) 50%, rgb(3,7,18))` }}
+      >
+        {/* Dynamic Background Mesh Orbs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          <div className="mesh-orb orb-1 opacity-25"></div>
+          <div className="mesh-orb orb-2 opacity-25"></div>
+          <div className="mesh-orb orb-3 opacity-20"></div>
+        </div>
+
         {/* Topbar - Fixed */}
-        <header className="h-16 flex items-center justify-between px-4 lg:px-8 backdrop-blur-sm flex-shrink-0 relative" style={{ borderBottom: '1px solid var(--sidebar-border)', backgroundColor: 'var(--topbar-bg)' }}>
+        <header className="h-16 flex items-center justify-between px-4 lg:px-8 backdrop-blur-sm flex-shrink-0 relative z-10" style={{ borderBottom: '1px solid var(--sidebar-border)', backgroundColor: 'var(--topbar-bg)' }}>
           {/* Topbar accent line — changes color per tier */}
           <div className="topbar-accent-line" />
           <button
@@ -328,7 +418,16 @@ const DashboardLayout = () => {
             <Menu size={24} />
           </button>
 
-          <div className="flex-1 px-4 flex justify-end">
+          <div className="flex-1 px-4 flex items-center justify-end gap-3">
+            {/* Tier Perk Status Pill */}
+            {userTier !== 'free' && (
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-[var(--card-border)] text-xs font-semibold backdrop-blur-md shadow-sm transition-all hover:scale-105">
+                <Sparkles className="w-3.5 h-3.5 text-[var(--stat-icon-color)] animate-pulse" />
+                <span className="bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(to right, var(--accent-from), var(--accent-to))` }}>
+                  {userTier === 'pro' ? 'PRO UNLOCKED' : userTier === 'business' ? 'BUSINESS VIP' : 'ADMIN ACCESS'}
+                </span>
+              </div>
+            )}
             {/* Placeholder for global search or notifications */}
             <div className="flex items-center gap-4">
               {/* Hide settings button when already on settings page */}

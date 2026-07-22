@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 This release implements high-performance Redis cache-aside patterns, introduces a custom Redis Bloom filter engine optimized for Upstash, overhauls Razorpay to support recurring billing with fallback safety, adds one-time monthly purchase tiers, and hardens the daily database subscription expiry checks.
 
+### 💎 Ultra-Premium Tier Themes, Collapsible Mini-Sidebar & Modernization Blueprint
+- **Collapsible Mini-Sidebar:** Added a desktop sidebar collapse/expand toggle button in `DashboardLayout` with persistent `localStorage` user preferences. Supports 48x48px icon mini-buttons with native hover tooltips.
+- **Electric Sapphire & Executive Gold Themes:** Overhauled Pro (Electric Sapphire Cyan & Neon Violet) and Business (Executive Titanium Gold & 24K Black Card) themes in `tierTheme.js` and `index.css`.
+- **Atmospheric Background Mesh Orbs:** Integrated floating background mesh halos (`mesh-orb`) and a Topbar Tier Perk Status Pill (`PRO UNLOCKED` / `BUSINESS VIP`).
+- **PWA & Webhook Fixes:** Excluded PWA icons in Cloudflare Pages `_routes.json` and whitelisted public `/api/webhooks` in `strictProxyGate.js` to fix Razorpay 403 delivery errors.
+
 ### 💳 Razorpay & Lemon Squeezy Billing Engine Overhaul
 - **Razorpay Subscriptions (Recurring):** Integrated the Razorpay Subscriptions API (`razorpay.subscriptions.create`) to establish true recurring billing cycles for monthly and yearly tiers.
 - **Verification Signature Engine:** Created dual signature validators (Order Hashing vs. Subscription Hashing) for secure, timing-safe webhook processing.

@@ -12,19 +12,19 @@ export const useScrollLock = (isOpen) => {
     const mainContent = document.getElementById('main-content');
     
     if (isOpen) {
-      // Save current scroll position
-      const scrollY = window.scrollY;
-      const scrollX = window.scrollX;
-      
       // Set modal-open attribute (disables PullToRefresh)
       document.body.setAttribute('data-modal-open', 'true');
       
-      // Lock body with position fixed to prevent scroll
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.left = `-${scrollX}px`;
-      document.body.style.right = '0';
-      document.body.style.overflow = 'hidden';
+      // Only set fixed position and save top offset if body is not already fixed by another open modal
+      if (document.body.style.position !== 'fixed') {
+        const scrollY = window.scrollY;
+        const scrollX = window.scrollX;
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollY}px`;
+        document.body.style.left = `-${scrollX}px`;
+        document.body.style.right = '0';
+        document.body.style.overflow = 'hidden';
+      }
       
       // Lock main content container (mobile/dashboard layout)
       if (mainContent) {

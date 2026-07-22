@@ -312,7 +312,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
     try {
       const payload = {
         originalUrl: normalizeUrl(url),
-        title: title || undefined,
+        title: title.trim() === '' ? null : title.trim(),
       };
 
       // Handle custom alias (Pro feature) - only if user has access
@@ -1012,7 +1012,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
                 customAlias !== link.customAlias &&
                 aliasStatus.available === false) ||
               (expiresAction === 'custom' && !customExpiresAt) ||
-              (passwordAction === 'set' && password.length > 0 && password.length < 4)
+              (passwordAction === 'set' && password.length < 4)
             }
             className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium rounded-xl shadow-lg hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-95 flex items-center gap-2"
           >

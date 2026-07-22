@@ -239,6 +239,7 @@ export const strictProxyGate = (req, res, next) => {
         '/api/users/public',     // Public profile data
         '/api/.d/',              // Hidden device auth routes (has its own ipWhitelist)
         '/api/analytics/track',  // Internal analytics from Nginx mirror (uses X-Internal-Analytics-Secret)
+        '/api/webhooks',         // External webhooks (Razorpay/LemonSqueezy) - secure via signature verification
     ];
 
     const isPublicApi = publicApiPaths.some(path => req.path.startsWith(path));

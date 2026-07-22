@@ -148,6 +148,12 @@ export const AuthProvider = ({ children }) => {
     return promise;
   }, []);
 
+  // User ref to prevent stale closures in event listeners
+  const userRef = useRef(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
   // Handle multi-tab auth sync
   useEffect(() => {
     const handleStorageChange = (e) => {
@@ -162,7 +168,7 @@ export const AuthProvider = ({ children }) => {
             setUser(JSON.parse(e.newValue));
             // We don't have the memory token, so we should refresh it
             // if we are transitioning from logged out to logged in
-            if (!user) {
+            if (!userRef.current) {
               checkAuth().catch(() => {
                 // Ignore background check failures
               });
@@ -176,7 +182,7 @@ export const AuthProvider = ({ children }) => {
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [user, checkAuth]);
+  }, [checkAuth]);
 
   // Initial auth check on mount - runs in background
   useEffect(() => {

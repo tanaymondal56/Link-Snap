@@ -310,11 +310,15 @@ const AdminDashboard = () => {
     }
   };
 
-  // Fetch links when tab changes to links
+  // Fetch links when tab changes or search query changes (debounced)
   useEffect(() => {
-    if (activeTab === 'links') {
+    if (activeTab !== 'links') return;
+    
+    const handler = setTimeout(() => {
       fetchLinks();
-    }
+    }, 300);
+
+    return () => clearTimeout(handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, linkSearch]);
 
