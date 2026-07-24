@@ -361,36 +361,28 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
+      // 1. Post to server to invalidate HTTP session & DBSC hardware session
       await api.post('/auth/logout');
-      // Clear bio auth timestamp (24h re-auth policy)
-      try {
-        localStorage.removeItem('ls_bio_auth_at');
-      } catch {
-        /* ignore */
-      }
-
-      // Redirect FIRST before clearing state to prevent ErrorBoundary flashes
-      window.location.replace('/');
-
-      setTimeout(() => {
-        setAccessToken(null);
-        setUser(null);
-      }, 0);
     } catch {
-      // Logout error - still clear local state and redirect
+      /* ignore server logout errors, proceed with local cleanup */
+    } finally {
+      // 2. Clear token in memory
+      setAccessToken(null);
+
+      // 3. Clear user state (triggers useEffect to wipe ls_auth_user & ls_auth_cached_at)
+      setUser(null);
+
+      // 4. Clean up auxiliary local storage keys
       try {
+        localStorage.removeItem('ls_auth_user');
+        localStorage.removeItem('ls_auth_cached_at');
         localStorage.removeItem('ls_bio_auth_at');
       } catch {
-        /* ignore */
+        /* ignore storage errors */
       }
 
-      // Redirect FIRST before clearing state to prevent ErrorBoundary flashes
+      // 5. Navigate to homepage AFTER state and storage are completely wiped
       window.location.replace('/');
-
-      setTimeout(() => {
-        setAccessToken(null);
-        setUser(null);
-      }, 0);
     }
   };
 

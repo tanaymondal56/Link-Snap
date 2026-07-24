@@ -413,6 +413,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
               </div>
               <input
                 type={showPassword ? 'text' : 'password'}
+                autoComplete={activeTab === 'login' ? 'current-password' : 'new-password'}
                 required
                 placeholder="Password"
                 value={password}
