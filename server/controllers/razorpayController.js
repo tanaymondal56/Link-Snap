@@ -184,7 +184,7 @@ export const verifyPayment = async (req, res) => {
         updatePayload['subscription.razorpay.orderId'] = razorpay_order_id;
       }
 
-      updatedUser = await User.findOneAndUpdate(query, { $set: updatePayload }, { new: true });
+      updatedUser = await User.findOneAndUpdate(query, { $set: updatePayload }, { returnDocument: 'after' });
     } catch (dupErr) {
       if (dupErr.code === 11000) {
         logger.info(`[Razorpay] Duplicate verify for ${targetId} — already processed`);

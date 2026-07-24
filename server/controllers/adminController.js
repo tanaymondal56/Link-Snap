@@ -448,7 +448,7 @@ export const updateUserRole = async (req, res, next) => {
         const updatedUser = await User.findByIdAndUpdate(
             user._id,
             { $set: { role: newRole } },
-            { new: true }
+            { returnDocument: 'after' }
         );
         if (updatedUser) await redisDel(`ls:user:${updatedUser._id}`);
 

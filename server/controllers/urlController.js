@@ -810,7 +810,7 @@ const updateUrl = async (req, res, next) => {
             updatedUrl = await Url.findByIdAndUpdate(
                 url._id,
                 updateOperation,
-                { new: true }
+                { returnDocument: 'after' }
             );
 
             // Centralized Cache Invalidation: clear cache for both old and new aliases

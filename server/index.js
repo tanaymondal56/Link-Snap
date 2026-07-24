@@ -68,7 +68,7 @@ const getTrustProxySetting = () => {
     // Production: Trust only the specific Azure Tailscale IPs
     const trustedIPs = process.env.TRUSTED_PROXY_IPS
       ? process.env.TRUSTED_PROXY_IPS.split(',').map(ip => ip.trim())
-      : ['127.0.0.1']; // Fallback to localhost only
+      : ['127.0.0.1', '10.42.0.0/16', '10.244.0.0/16', '10.0.0.0/8']; // Fallback to localhost + common K8s CNI/VPC subnets
     return trustedIPs;
   }
 

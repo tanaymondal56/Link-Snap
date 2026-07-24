@@ -153,7 +153,7 @@ export const updateLinkStatus = async (req, res) => {
         const updatedUrl = await Url.findByIdAndUpdate(
             req.params.linkId,
             { $set: { isActive: newStatus } },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         // Invalidate cache so the new status takes effect immediately
@@ -234,7 +234,7 @@ export const overrideLinkSafety = async (req, res) => {
                     manualSafetyOverride: true  // Flag to prevent auto-scan from changing
                 }
             },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         // CRITICAL: Invalidate cache immediately so blocking takes effect
@@ -299,7 +299,7 @@ export const rescanLinkSafety = async (req, res) => {
                     manualSafetyOverride: false  // Clear override flag since this is a fresh scan
                 }
             },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         // Invalidate cache

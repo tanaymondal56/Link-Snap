@@ -84,7 +84,7 @@ redeemCodeSchema.statics.redeem = async function(code, userId, snapId) {
         } 
       }
     },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
   if (!updatedCode) {

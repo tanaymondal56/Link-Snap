@@ -346,7 +346,7 @@ export const devVerifySelf = async (req, res) => {
         verificationToken: null,
         verificationTokenExpires: null
       },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('-password');
     
     logger.info(`[DEV] User ${user.email} self-verified`);
@@ -593,7 +593,7 @@ export const devUpgradeSelf = async (req, res) => {
           'subscription.billingCycle': 'monthly'
         }
       },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('-password');
 
     logger.info(`[DEV] User ${user.email} self-upgraded to PRO via DevTools`);
@@ -644,7 +644,7 @@ export const devResetSelf = async (req, res) => {
           'subscription.billingCycle': null
         }
       },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('-password');
 
     logger.info(`[DEV] User ${user.email} self-reset to FREE via DevTools`);

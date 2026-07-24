@@ -72,7 +72,7 @@ export const checkLinkLimit = async (req, res, next) => {
                             'linkUsage.resetAt': now
                         }
                     },
-                    { new: true }
+                    { returnDocument: 'after' }
                 );
                 resetPerformed = !!resetResult;
             }
@@ -99,7 +99,7 @@ export const checkLinkLimit = async (req, res, next) => {
                             'linkUsage.resetAt': now
                         }
                     },
-                    { new: true }
+                    { returnDocument: 'after' }
                 );
                 resetPerformed = !!resetResult;
             }
@@ -284,7 +284,7 @@ export const resolveCurrentLinkUsage = async (user) => {
     const updated = await User.findOneAndUpdate(
         condition,
         { $set: { 'linkUsage.hardCount': 0, 'linkUsage.resetAt': now } },
-        { new: true, select: 'linkUsage' }
+        { returnDocument: 'after', select: 'linkUsage' }
     );
 
     await redisDel(`ls:user:${user._id}`);
@@ -371,7 +371,7 @@ export const checkAndIncrementClickUsage = async (userId) => {
                 {
                     $set: { 'clickUsage.count': 0, 'clickUsage.resetAt': now }
                 },
-                { new: true }
+                { returnDocument: 'after' }
             );
             resetPerformed = !!resetResult;
         }
@@ -393,7 +393,7 @@ export const checkAndIncrementClickUsage = async (userId) => {
                 {
                     $set: { 'clickUsage.count': 0, 'clickUsage.resetAt': now }
                 },
-                { new: true }
+                { returnDocument: 'after' }
             );
             resetPerformed = !!resetResult;
         }

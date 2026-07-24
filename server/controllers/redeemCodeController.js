@@ -126,7 +126,7 @@ export const updateRedeemCode = async (req, res) => {
     const updatedCode = await RedeemCode.findByIdAndUpdate(
       id,
       { $set: updates },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     logger.info(`[Redeem Code] Admin ${req.user.snapId} updated code ${updatedCode.code}`);
@@ -155,7 +155,7 @@ export const deactivateRedeemCode = async (req, res) => {
     const code = await RedeemCode.findByIdAndUpdate(
       id,
       { isActive: false },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!code) {
@@ -255,7 +255,7 @@ export const redeemCode = async (req, res) => {
           }
         }
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     // If claim failed, code was fully used or user already redeemed
@@ -300,7 +300,7 @@ export const redeemCode = async (req, res) => {
           'subscription.updatePaymentUrl': null,
         }
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     // Code was already claimed in Step 1, no rollback needed

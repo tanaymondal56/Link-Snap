@@ -138,7 +138,7 @@ feedbackSchema.methods.addVote = async function(userId) {
       $addToSet: { votes: { user: userId } },
       $inc: { voteCount: 1 }
     },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
   if (!updated) {
@@ -164,7 +164,7 @@ feedbackSchema.methods.removeVote = async function(userId) {
       $pull: { votes: { user: userId } },
       $inc: { voteCount: -1 }
     },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
   if (!updated) {

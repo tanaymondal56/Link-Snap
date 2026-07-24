@@ -206,7 +206,7 @@ router.post('/:id/vote', verifyToken, voteLimiter, async (req, res) => {
         $push: { votes: { user: req.user._id } },
         $inc: { voteCount: 1 }
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
     
     if (!feedback) {
@@ -251,7 +251,7 @@ router.delete('/:id/vote', verifyToken, voteLimiter, async (req, res) => {
         $pull: { votes: { user: req.user._id } },
         $inc: { voteCount: -1 }
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
     
     if (!feedback) {

@@ -204,7 +204,7 @@ export const updateSessionName = async (req, res) => {
     const session = await Session.findOneAndUpdate(
       { _id: sessionId, userId },
       { customName: sanitizedName },
-      { new: true }
+      { returnDocument: 'after' }
     );
     
     if (!session) {
@@ -246,7 +246,7 @@ export const toggleTrustSession = async (req, res) => {
     const session = await Session.findOneAndUpdate(
       { _id: sessionId, userId },
       { isTrusted: trusted },
-      { new: true }
+      { returnDocument: 'after' }
     );
     
     if (!session) {

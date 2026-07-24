@@ -117,7 +117,7 @@ export const handleRazorpayWebhook = async (req, res) => {
             'subscription.lastWebhookTimestamp': webhookTimestamp,
           },
         },
-        { new: true }
+        { returnDocument: 'after' }
       );
     } catch (dupErr) {
       if (dupErr.code === 11000) {

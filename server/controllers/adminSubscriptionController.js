@@ -203,7 +203,7 @@ export const overrideUserSubscription = async (req, res) => {
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { $set: updateObj },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('email snapId subscription');
     
     // Create audit log for the override
@@ -330,7 +330,7 @@ export const syncUserSubscription = async (req, res) => {
           'subscription.updatePaymentUrl': lsData.urls?.update_payment_method,
           'subscription.cancelledAt': lsData.cancelled ? new Date(lsData.cancelled_at) : null
         }
-      }, { new: true }).select('email snapId subscription');
+      }, { returnDocument: 'after' }).select('email snapId subscription');
       
       // Create audit log for sync
       try {
@@ -504,7 +504,7 @@ export const deleteUserSubscription = async (req, res) => {
           'subscription.cancelledAt': null
         }
       },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('email snapId subscription');
     
     logger.warn(`[SUBSCRIPTION DELETED] Admin ${req.user.snapId} permanently deleted subscription for user ${user.snapId} (${user.email}). Previous tier: ${user.subscription?.tier}. Reason: ${reason.trim()}`);
