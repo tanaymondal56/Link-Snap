@@ -176,7 +176,12 @@ export const refreshSessionActivity = async (session, req) => {
  */
 export const terminateSession = async (token) => {
   const tokenHash = hashToken(token);
-  const session = await Session.findOneAndDelete({ tokenHash });
+  const session = await Session.findOneAndDelete({
+    $or: [
+      { tokenHash: tokenHash },
+      { previousTokenHash: tokenHash }
+    ]
+  });
   return session;
 };
 
