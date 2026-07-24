@@ -838,26 +838,23 @@ const logoutUser = async (req, res, next) => {
     // 2. Clear cookie-session middleware state
     req.session = null;
 
-    // 3. Exhaustively wipe all auth & CSRF cookies across all SameSite/Secure variations
-    // (This guarantees deletion even if cookies were set under Lax, Strict, or None)
-    const clearCookieGlobally = (name, isHttpOnly = true) => {
-      ['lax', 'strict', 'none'].forEach(sameSite => {
-        [true, false].forEach(secure => {
-          res.clearCookie(name, {
-            path: '/',
-            httpOnly: isHttpOnly,
-            secure,
-            sameSite,
-          });
-        });
-      });
+    // 3. Clear cookies using exact options used during creation
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: getCookieSameSite(),
+      path: '/'
     };
 
-    clearCookieGlobally('jwt', true);
-    clearCookieGlobally('access_token', true);
-    clearCookieGlobally('session', true);
-    clearCookieGlobally('session.sig', true);
-    clearCookieGlobally('XSRF-TOKEN', false);
+    res.clearCookie('jwt', cookieOptions);
+    res.clearCookie('access_token', cookieOptions);
+    res.clearCookie('session', cookieOptions);
+    res.clearCookie('session.sig', cookieOptions);
+    
+    res.clearCookie('XSRF-TOKEN', {
+      ...cookieOptions,
+      httpOnly: false
+    });
 
     res.status(200).json({ message: 'Logged out successfully' });
   } catch (error) {
