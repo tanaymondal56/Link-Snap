@@ -423,6 +423,12 @@ export const updateUserStatus = async (req, res, next) => {
 // @access  Admin
 export const updateUserRole = async (req, res, next) => {
     try {
+        const { role: newRole } = req.body;
+        
+        if (!newRole || !['user', 'admin'].includes(newRole)) {
+             return res.status(400).json({ message: 'Invalid or missing role in request body' });
+        }
+
         const user = await User.findById(req.params.userId);
 
         if (!user) {
@@ -434,8 +440,11 @@ export const updateUserRole = async (req, res, next) => {
             return res.status(400).json({ message: 'Cannot change your own role' });
         }
 
-        // Toggle role between 'user' and 'admin' using atomic operation
-        const newRole = user.role === 'admin' ? 'user' : 'admin';
+        // Only master_admin can demote an admin
+        if (user.role === 'admin' && req.user.role !== 'master_admin') {
+            return res.status(403).json({ message: 'Only master admins can demote other admins' });
+        }
+
         const updatedUser = await User.findByIdAndUpdate(
             user._id,
             { $set: { role: newRole } },
@@ -839,13 +848,26 @@ export const getAllAppeals = async (req, res, next) => {
             : null;
         const filter = status ? { status } : {};
 
+        const page = parseInt(req.query.page, 10) || 1;
+        const limit = parseInt(req.query.limit, 10) || 10;
+        const skip = (page - 1) * limit;
+
         // Uses compound index { status: 1, createdAt: -1 } for efficient sorting
         const appeals = await Appeal.find(filter)
             .populate('userId', 'email firstName lastName bannedAt bannedReason')
             .populate('reviewedBy', 'email firstName lastName')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
 
-        res.json(appeals);
+        const total = await Appeal.countDocuments(filter);
+
+        res.json({
+            appeals,
+            total,
+            page,
+            pages: Math.ceil(total / limit)
+        });
     } catch (error) {
         next(error);
     }

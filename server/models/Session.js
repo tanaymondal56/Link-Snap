@@ -12,6 +12,14 @@ const sessionSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+  previousTokenHash: {
+    type: String,
+    default: null
+  },
+  previousTokenValidUntil: {
+    type: Date,
+    default: null
+  },
   deviceInfo: {
     browser: { type: String, default: 'Unknown' },
     browserVersion: { type: String, default: '' },
@@ -49,6 +57,27 @@ const sessionSchema = new mongoose.Schema({
     default: ''
   },
   isTrusted: {
+    type: Boolean,
+    default: false
+  },
+  dbscPublicKeyJwk: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  dbscSessionId: {
+    type: String,
+    sparse: true,
+    index: true  // Required for DBSC lookups — prevents full collection scans
+  },
+  // Stores the one-time challenge nonce issued during DBSC refresh.
+  // Verified on proof submission to prevent replay attacks.
+  dbscChallenge: {
+    type: String,
+    default: null
+  },
+  // Set to true after a device key has been successfully registered via DBSC.
+  // Only when this is true does authMiddleware enforce hardware binding.
+  dbscEnforced: {
     type: Boolean,
     default: false
   },

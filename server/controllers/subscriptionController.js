@@ -219,25 +219,37 @@ export const syncSubscription = async (req, res) => {
       
       // Map variant to tier
       let tier = 'free';
+      let cycle = 'monthly';
       const variantId = lsData.variant_id?.toString();
-      if (variantId === process.env.LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID || 
-          variantId === process.env.LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID) {
-        tier = 'pro';
-      } else if (variantId === process.env.LEMONSQUEEZY_BUSINESS_MONTHLY_VARIANT_ID || 
-                 variantId === process.env.LEMONSQUEEZY_BUSINESS_YEARLY_VARIANT_ID) {
-        tier = 'business';
+      if (variantId === process.env.LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID) {
+        tier = 'pro'; cycle = 'monthly';
+      } else if (variantId === process.env.LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID) {
+        tier = 'pro'; cycle = 'yearly';
+      } else if (variantId === process.env.LEMONSQUEEZY_PRO_ONETIME_VARIANT_ID) {
+        tier = 'pro'; cycle = 'one_time';
+      } else if (variantId === process.env.LEMONSQUEEZY_BUSINESS_MONTHLY_VARIANT_ID) {
+        tier = 'business'; cycle = 'monthly';
+      } else if (variantId === process.env.LEMONSQUEEZY_BUSINESS_YEARLY_VARIANT_ID) {
+        tier = 'business'; cycle = 'yearly';
+      } else if (variantId === process.env.LEMONSQUEEZY_BUSINESS_ONETIME_VARIANT_ID) {
+        tier = 'business'; cycle = 'one_time';
       }
       
       // Refresh portal URL if needed (URLs expire after 24h)
       let portalUrl = lsData.urls?.customer_portal;
       
+      const currentPeriodEnd = cycle === 'one_time'
+          ? new Date(new Date(lsData.created_at).setFullYear(new Date(lsData.created_at).getFullYear() + 100))
+          : new Date(lsData.renews_at || lsData.ends_at);
+
       // Update user
       await User.findByIdAndUpdate(user._id, {
         $set: {
           'subscription.status': lsData.status,
           'subscription.tier': tier,
+          'subscription.billingCycle': cycle,
           'subscription.currentPeriodStart': new Date(lsData.created_at),
-          'subscription.currentPeriodEnd': new Date(lsData.renews_at || lsData.ends_at),
+          'subscription.currentPeriodEnd': currentPeriodEnd,
           'subscription.customerPortalUrl': portalUrl,
           'subscription.updatePaymentUrl': lsData.urls?.update_payment_method
         }

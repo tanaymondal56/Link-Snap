@@ -1,7 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 export const usePullToRefresh = (onRefresh) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefreshRef = useRef(onRefresh);
+
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
   
   useEffect(() => {
     let startY = 0;
@@ -57,7 +62,7 @@ export const usePullToRefresh = (onRefresh) => {
       if (diff > 80 && window.scrollY === 0) { // Threshold for refresh
         setIsRefreshing(true);
         try {
-          await onRefresh();
+          if (onRefreshRef.current) await onRefreshRef.current();
         } finally {
           setIsRefreshing(false);
           // Optional: Vibrate on success
@@ -77,7 +82,7 @@ export const usePullToRefresh = (onRefresh) => {
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [onRefresh]);
+  }, []);
 
   return isRefreshing;
 };

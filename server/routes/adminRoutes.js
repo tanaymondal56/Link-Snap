@@ -2,6 +2,7 @@ import express from 'express';
 import { verifyToken } from '../middleware/authMiddleware.js';
 import { verifyAdmin } from '../middleware/verifyAdmin.js';
 import { ipWhitelist } from '../middleware/ipWhitelist.js';
+import { forgotPasswordLimiter } from '../middleware/rateLimiter.js';
 import {
     getSystemStats,
     getAllUsers,
@@ -87,7 +88,7 @@ router.delete('/links/:linkId', deleteLinkAdmin);
 router.get('/settings', getSettings);
 router.put('/settings', updateSettings);
 router.patch('/settings', updateSettings);  // Support partial updates
-router.post('/settings/test-email', testEmailConfiguration);
+router.post('/settings/test-email', forgotPasswordLimiter, testEmailConfiguration);
 router.post('/settings/scan', triggerSafetyScan);
 
 // Cache

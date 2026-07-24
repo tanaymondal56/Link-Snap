@@ -133,20 +133,31 @@ const getConnectingIP = (req) => {
  * @returns {string} The real user's IP address
  */
 const getRealUserIP = (req) => {
-    // Check explicit real-ip header first (most reliable)
-    const realIp = req.headers[CONFIG.realIpHeader];
-    if (realIp && typeof realIp === 'string') {
-        return realIp.trim();
+    const connectingIP = getConnectingIP(req);
+
+    // SECURITY: Only trust proxy-injected IP headers when the underlying TCP
+    // connection actually comes from a known/trusted proxy.
+    // Without this check, any client reaching the server directly could inject
+    // X-Real-IP: 127.0.0.1 to spoof a whitelisted IP and bypass all rate limits.
+    const isFromTrustedProxy = isTrustedIP(connectingIP) || isTailscaleSubnet(connectingIP);
+
+    if (isFromTrustedProxy) {
+        // Safe to trust headers — they were set by our Nginx/Tailscale proxy
+        const realIp = req.headers[CONFIG.realIpHeader];
+        if (realIp && typeof realIp === 'string') {
+            return realIp.trim();
+        }
+
+        // Fall back to X-Forwarded-For (first IP = original client)
+        const forwardedFor = req.headers['x-forwarded-for'];
+        if (forwardedFor && typeof forwardedFor === 'string') {
+            return forwardedFor.split(',')[0].trim();
+        }
     }
 
-    // Fall back to X-Forwarded-For (first IP in chain is original client)
-    const forwardedFor = req.headers['x-forwarded-for'];
-    if (forwardedFor && typeof forwardedFor === 'string') {
-        return forwardedFor.split(',')[0].trim();
-    }
-
-    // Final fallback to direct connection IP
-    return getConnectingIP(req);
+    // Untrusted or direct connection: use the actual socket address.
+    // DO NOT trust X-Real-IP or X-Forwarded-For from unknown sources.
+    return connectingIP;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -456,7 +467,6 @@ export const validateProxyGateConfig = () => {
         // Redacted for security (CWE-312) - Log count instead of values
         console.log(`[ProxyGate]   • Trusted Proxies: ${CONFIG.trustedProxyIPs.length} configured`);
         console.log(`[ProxyGate]   • Real IP Header: ${CONFIG.realIpHeader}`);
-        console.log(`[ProxyGate]   • Health Check: GET ${CONFIG.healthCheckPath} (bypasses auth)`);
         console.log(`[ProxyGate]   • Health Check: GET ${CONFIG.healthCheckPath} (bypasses auth)`);
         // Redacted for security (CWE-312) - Do not log secret values or metadata derived from them
         console.log('[ProxyGate]   • Secret Token: Configured');

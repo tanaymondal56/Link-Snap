@@ -26,15 +26,12 @@ const api = axios.create({
   timeout: 10000, // 10 seconds timeout
 });
 
-// In-memory access token storage
-let accessToken = null;
-
-export const setAccessToken = (token) => {
-  accessToken = token;
+export const setAccessToken = () => {
+  // No-op
 };
 
 export const getAccessToken = () => {
-  return accessToken;
+  return null;
 };
 
 // Flag to prevent multiple refresh attempts
@@ -63,10 +60,7 @@ const getCookie = (name) => {
 // Request interceptor to attach access token and CSRF token
 api.interceptors.request.use(
   (config) => {
-    // Attach Bearer token if available
-    if (accessToken) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
-    }
+    // Using HttpOnly cookies instead of Authorization header for access tokens
     
     // Attach CSRF token for state-changing requests
     const method = config.method?.toUpperCase();
@@ -91,7 +85,6 @@ api.interceptors.response.use(
     // Handle 403 Banned User - Immediate logout and redirect
     if (error.response?.status === 403 && error.response?.data?.banned) {
       // Clear all auth data immediately
-      accessToken = null;
       localStorage.removeItem('ls_auth_user');
       localStorage.removeItem('ls_auth_cached_at');
 
@@ -119,15 +112,18 @@ api.interceptors.response.use(
     // Skip refresh logic for auth endpoints to avoid loops, EXCEPT for /auth/me which is a normal protected route
     const isAuthEndpoint = originalRequest.url.includes('/auth/') && !originalRequest.url.includes('/auth/me');
 
-    // If error is 401 (Unauthorized) and we haven't tried to refresh yet
-    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+    // If error is 401 (Unauthorized) with TOKEN_EXPIRED code and we haven't tried to refresh yet.
+    // Only refresh on expired tokens; do not refresh on DBSC failures or other auth errors.
+    const isTokenExpired = error.response?.status === 401 && 
+      (error.response?.data?.code === 'TOKEN_EXPIRED' || !error.response?.data?.code);
+    if (isTokenExpired && !originalRequest._retry && !isAuthEndpoint) {
 
       if (isRefreshing) {
         // If already refreshing, queue this request
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
-        }).then(token => {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
+        }).then(() => {
+          originalRequest._retry = true;
           return api(originalRequest);
         }).catch(err => Promise.reject(err));
       }
@@ -136,12 +132,11 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Call refresh endpoint (cookie is sent automatically)
-        const { data } = await api.get('/auth/refresh');
+        // Call refresh endpoint with POST (cookie is sent automatically)
+        const { data } = await api.post('/auth/refresh');
 
         // Check if banned response from refresh endpoint
         if (data.banned) {
-          accessToken = null;
           localStorage.removeItem('ls_auth_user');
           localStorage.removeItem('ls_auth_cached_at');
           sessionStorage.setItem('banMessage', data.message || 'Your account has been suspended.');
@@ -153,19 +148,14 @@ api.interceptors.response.use(
           return Promise.reject(new Error('Account suspended'));
         }
 
-        // Save new access token to memory
-        accessToken = data.accessToken;
-
         // Process queued requests
         processQueue(null, data.accessToken);
 
-        // Update header and retry original request
-        originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+        // Retry original request (cookie is sent automatically)
         return api(originalRequest);
       } catch (refreshError) {
         // Check if refresh failed due to ban
         if (refreshError.response?.status === 403 && refreshError.response?.data?.banned) {
-          accessToken = null;
           localStorage.removeItem('ls_auth_user');
           localStorage.removeItem('ls_auth_cached_at');
           const banData = refreshError.response.data;
@@ -180,8 +170,8 @@ api.interceptors.response.use(
         // Only clear token on explicit auth failures (401/403), NOT on network errors
         // This prevents logout when server is temporarily unavailable
         if (refreshError.response?.status === 401 || refreshError.response?.status === 403) {
+          window.dispatchEvent(new Event('auth:logout'));
           processQueue(refreshError, null);
-          accessToken = null;
         } else {
           // Network error or server unavailable - keep token and let user retry
           processQueue(refreshError, null);

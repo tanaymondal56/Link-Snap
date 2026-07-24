@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense, useMemo } from 'react';
+import { sanitizeHref } from '../utils/urlUtils';
 import { getTierConfig } from '../config/subscriptionTiers';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
@@ -122,11 +123,26 @@ const UserDashboard = () => {
     }
   }, [searchTerm, useVirtual]);
 
+  const abortControllerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+    };
+  }, []);
+
   const fetchLinks = async (pageNum = 1, loadAll = false) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
       setError(null);
       const limit = loadAll ? 1000 : 10; // Load up to 1000 when showing all
-      const { data } = await api.get(`/url/my-links?page=${pageNum}&limit=${limit}`);
+      const { data } = await api.get(`/url/my-links?page=${pageNum}&limit=${limit}`, {
+        signal: abortControllerRef.current.signal
+      });
       setLinks(data.urls);
       setTotalPages(data.pages);
       setTotalLinks(data.total || data.urls.length);
@@ -134,6 +150,7 @@ const UserDashboard = () => {
       // Cache the links for offline use (only cache first page for now or strategy needs update)
       if (pageNum === 1 && !loadAll) cacheLinks(data.urls);
     } catch (error) {
+      if (error?.name === 'CanceledError' || error?.name === 'AbortError' || error?.code === 'ERR_CANCELED') return;
       console.error(error);
 
       // If offline, try to load from cache
@@ -175,7 +192,7 @@ const UserDashboard = () => {
 
   // Handle new link created from modal
   const handleLinkCreated = (newLink) => {
-    setLinks([newLink, ...links]);
+    setLinks(prev => [newLink, ...prev]);
     setCreatedLink(newLink);
     
     // Sync usage stats with AuthContext
@@ -194,7 +211,7 @@ const UserDashboard = () => {
 
   // Handle link updated from edit modal
   const handleLinkUpdated = (updatedLink) => {
-    setLinks(links.map((link) => (link._id === updatedLink._id ? updatedLink : link)));
+    setLinks(prev => prev.map((link) => (link._id === updatedLink._id ? updatedLink : link)));
     showToast.success('Link has been updated!', 'Changes Saved');
   };
 
@@ -210,7 +227,7 @@ const UserDashboard = () => {
 
     try {
       await api.delete(`/url/${id}`);
-      setLinks(links.filter((link) => link._id !== id));
+      setLinks(prev => prev.filter((link) => link._id !== id));
       
       // Sync usage stats with AuthContext (only decrement active count)
       if (user && user.linkUsage?.count > 0) {
@@ -230,12 +247,16 @@ const UserDashboard = () => {
     }
   };
 
-  const copyToClipboard = (shortId) => {
+  const copyToClipboard = async (shortId) => {
     const shortUrl = getShortUrl(shortId);
-    navigator.clipboard.writeText(shortUrl);
-    setCopiedId(shortId);
-    showToast.success('Link copied to clipboard!', 'Copied');
-    setTimeout(() => setCopiedId(null), 2000);
+    try {
+      await navigator.clipboard.writeText(shortUrl);
+      setCopiedId(shortId);
+      showToast.success('Link copied to clipboard!', 'Copied');
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      showToast.error('Failed to copy to clipboard', 'Error');
+    }
   };
 
   const totalClicks = useMemo(() => links.reduce((acc, link) => acc + link.clicks, 0), [links]);
@@ -550,6 +571,8 @@ const UserDashboard = () => {
                     width: '100%',
                     transform: `translateY(${virtualRow.start}px)`,
                     paddingBottom: '16px', // gap between cards
+                    contentVisibility: 'auto',
+                    containIntrinsicSize: '200px',
                   }}
                   role="listitem"
                   aria-setsize={filteredLinks.length}
@@ -1018,7 +1041,7 @@ const UserDashboard = () => {
                               <span className="hidden xs:inline sm:inline">Short</span>
                             </a>
                             <a
-                              href={link.originalUrl}
+                              href={sanitizeHref(link.originalUrl)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-gray-700/50 hover:bg-gray-700 text-gray-300 rounded-lg text-[10px] sm:text-xs font-medium transition-colors"
@@ -1207,7 +1230,7 @@ const UserDashboard = () => {
                                             <Copy size={10} className="sm:w-3 sm:h-3" />
                                           </button>
                                           <a
-                                            href={rule.url}
+                                            href={sanitizeHref(rule.url)}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="p-1 sm:p-1.5 bg-black/20 hover:bg-black/30 rounded transition-colors"
@@ -1316,7 +1339,7 @@ const UserDashboard = () => {
                                         <Copy size={10} className="sm:w-3 sm:h-3" />
                                       </button>
                                       <a
-                                        href={rule.destination}
+                                        href={sanitizeHref(rule.destination)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="p-1 sm:p-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded transition-colors"
@@ -1718,7 +1741,7 @@ const UserDashboard = () => {
                             <span className="hidden xs:inline sm:inline">Short</span>
                           </a>
                           <a
-                            href={link.originalUrl}
+                            href={sanitizeHref(link.originalUrl)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 bg-gray-700/50 hover:bg-gray-700 text-gray-300 rounded-lg text-[10px] sm:text-xs font-medium transition-colors"

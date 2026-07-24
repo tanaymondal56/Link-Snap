@@ -4,6 +4,7 @@ import { getAnonFingerprint } from '../utils/fingerprint.js';
 import { getUserIP } from './strictProxyGate.js';
 import RedisStore from 'rate-limit-redis';
 import { getRedisClient, isRedisConfigured } from '../config/redis.js';
+import ipaddr from 'ipaddr.js';
 
 // IPs that bypass rate limiting
 const envAllowedIPs = process.env.RATE_LIMIT_WHITELIST_IPS ? process.env.RATE_LIMIT_WHITELIST_IPS.split(',').map(ip => ip.trim()) : [];
@@ -109,6 +110,21 @@ export const authLimiter = rateLimit({
     store: createRedisStore('auth'),
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many login attempts from this IP, please try again after an hour' });
+    },
+    skip: (req) => isWhitelisted(getUserIP(req)),
+});
+
+// Global Circuit Breaker for Registrations (Botnet Mitigation)
+export const globalRegisterCircuitBreaker = rateLimit({
+    windowMs: 5 * 60 * 1000, // 5 minutes
+    max: 100, // max 100 signups per 5 mins globally
+    store: createRedisStore('circuit:register'),
+    keyGenerator: () => 'global_register', // All requests share this bucket
+    handler: (req, res) => {
+        res.status(429).json({ 
+            message: 'Due to high traffic, new registrations are temporarily paused. Please try again in a few minutes.',
+            circuitBreaker: true 
+        });
     },
     skip: (req) => isWhitelisted(getUserIP(req)),
 });
@@ -328,3 +344,103 @@ export const devLimiter = rateLimit({
     },
     skip: (req) => isWhitelisted(getUserIP(req)),
 });
+
+// ─── Webhook Rate Limiting ───────────────────────────────────────────────────
+// Payment providers (Razorpay, LemonSqueezy) are trusted and get unlimited throughput.
+// All other sources are heavily restricted to prevent CPU-exhaustion DoS via
+// expensive HMAC-SHA256 signature verification on garbage payloads.
+//
+// Configure trusted provider IPs in env:
+//   WEBHOOK_TRUSTED_IPS=1.2.3.4,5.6.7.8,... (comma-separated)
+//
+const WEBHOOK_PROVIDER_IPS_RAW = process.env.WEBHOOK_TRUSTED_IPS
+    ? process.env.WEBHOOK_TRUSTED_IPS.split(',').map(ip => ip.trim()).filter(Boolean)
+    : [];
+
+const parsedWebhookIPs = WEBHOOK_PROVIDER_IPS_RAW.map(ip => {
+    try {
+        if (ip.includes('/')) return { type: 'cidr', value: ipaddr.parseCIDR(ip) };
+        return { type: 'ip', value: ipaddr.parse(ip) };
+    } catch {
+        return null;
+    }
+}).filter(Boolean);
+
+const isWebhookProvider = (ipStr) => {
+    if (!ipStr) return false;
+    try {
+        const incomingIp = ipaddr.parse(ipStr.replace(/^::ffff:/, ''));
+        return parsedWebhookIPs.some(allowed => {
+            if (allowed.type === 'cidr') {
+                return incomingIp.kind() === allowed.value[0].kind() && incomingIp.match(allowed.value);
+            }
+            return incomingIp.toString() === allowed.value.toString();
+        });
+    } catch {
+        return false;
+    }
+};
+
+// Permissive limiter for known payment providers (anti-runaway DoS only)
+const webhookProviderLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 1000,
+    store: createRedisStore('webhook_provider'),
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Webhook rate limit exceeded.' });
+    },
+    skip: (req) => isWhitelisted(getUserIP(req)),
+});
+
+// Strict limiter for unknown/untrusted webhook sources (increased for LemonSqueezy dynamic IPs)
+const webhookStrictLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 100, // Increased to 100 to accommodate dynamic IPs from LemonSqueezy
+    store: createRedisStore('webhook_strict'),
+    handler: (req, res) => {
+        // Return 403 not 429 to not reveal rate limiting details to probing attackers
+        res.status(403).json({ message: 'Access denied.' });
+    },
+    skip: (req) => {
+        const ip = getUserIP(req);
+        return isWhitelisted(ip) || isWebhookProvider(ip);
+    },
+});
+
+/**
+ * Dynamic webhook rate limiter.
+ * - Known payment provider IPs (WEBHOOK_TRUSTED_IPS): permissive (1000/min)
+ * - All other sources: strict (5/min) — prevents CPU-exhaustion DoS
+ */
+export const webhookLimiter = (req, res, next) => {
+    const ip = getUserIP(req);
+    if (isWebhookProvider(ip)) {
+        return webhookProviderLimiter(req, res, next);
+    }
+    return webhookStrictLimiter(req, res, next);
+};
+
+// ─── Public Bio Page Rate Limiting ──────────────────────────────────────────
+// Prevents scraping of user bio pages / username enumeration
+export const bioPublicLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 60,
+    store: createRedisStore('bio_public'),
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many requests. Please slow down.' });
+    },
+    skip: (req) => isWhitelisted(getUserIP(req)),
+});
+
+// ─── Biometric Auth Rate Limiting ────────────────────────────────────────────
+// Applied to public challenge/verify endpoints for device (WebAuthn) auth
+export const biometricAuthLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10,
+    store: createRedisStore('biometric'),
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many authentication attempts. Please try again later.' });
+    },
+    skip: (req) => isWhitelisted(getUserIP(req)),
+});
+

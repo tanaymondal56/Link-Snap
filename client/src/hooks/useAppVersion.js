@@ -30,6 +30,8 @@ getAppVersionAsync().then((latestVersion) => {
     currentVersion = latestVersion;
     notifyListeners();
   }
+}).catch((err) => {
+  console.warn('Failed to fetch app version:', err);
 });
 
 /**

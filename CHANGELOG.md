@@ -7,58 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.7.1] - 2026-07-17
+## [0.7.1] - 2026-07-24
 
-### Redis Cache Offloading, Custom Bloom Filters & Core Performance Overhaul
+### HttpOnly Cookie Auth, DBSC Protocol, BullMQ Webhook Queue & Dual-Layer Security Overhaul
 
-This release implements high-performance Redis cache-aside patterns, introduces a custom Redis Bloom filter engine optimized for Upstash, overhauls Razorpay to support recurring billing with fallback safety, adds one-time monthly purchase tiers, and hardens the daily database subscription expiry checks.
+This release delivers major architectural and DevSecOps security overhauls across the application stack: migrating entirely to HttpOnly Cookie Authentication, implementing Device Bound Session Credentials (DBSC) protocol support, introducing an asynchronous BullMQ fail-fast webhook queueing architecture, building a dual-layer anti-bot rate limiter with Redis pipelining, and introducing DOM list virtualization with native CSS off-screen rendering.
 
-### 💎 Ultra-Premium Tier Themes, Collapsible Mini-Sidebar & Modernization Blueprint
-- **Collapsible Mini-Sidebar:** Added a desktop sidebar collapse/expand toggle button in `DashboardLayout` with persistent `localStorage` user preferences. Supports 48x48px icon mini-buttons with native hover tooltips.
-- **Electric Sapphire & Executive Gold Themes:** Overhauled Pro (Electric Sapphire Cyan & Neon Violet) and Business (Executive Titanium Gold & 24K Black Card) themes in `tierTheme.js` and `index.css`.
-- **Atmospheric Background Mesh Orbs:** Integrated floating background mesh halos (`mesh-orb`) and a Topbar Tier Perk Status Pill (`PRO UNLOCKED` / `BUSINESS VIP`).
-- **PWA & Webhook Fixes:** Excluded PWA icons in Cloudflare Pages `_routes.json` and whitelisted public `/api/webhooks` in `strictProxyGate.js` to fix Razorpay 403 delivery errors.
+### 🔒 HttpOnly Cookie Auth & DBSC Session Hardening
+- **HttpOnly Cookie Auth Migration:** Completely eliminated in-memory and `localStorage` access token storage in favor of strict `HttpOnly` cookies (`ls_access_token`, `ls_refresh_token`). Removed `accessToken` fields from JSON response payloads across all authentication endpoints (`/login`, `/verify-otp`, `/verify-email`, `/refresh`).
+- **Device Bound Session Credentials (DBSC):** Integrated DBSC protocol support (`/api/auth/dbsc/register` and `/api/auth/dbsc/refresh`) with cryptographic proof verification headers (`Sec-Session-Response`), public key challenge binding, and anti-replay challenge nonces.
+- **Centralized Auth Logout Event Bus:** Added a global `auth:logout` custom event listener between Axios response interceptors and `AuthContext` to handle 401/403 token revocations cleanly without memory leaks or state race conditions.
+- **Interceptor Loop Protection:** Fixed Axios retry queue resolution by explicitly flagging retried requests with `_retry = true`, preventing infinite token refresh loops.
 
-### 💳 Razorpay & Lemon Squeezy Billing Engine Overhaul
-- **Razorpay Subscriptions (Recurring):** Integrated the Razorpay Subscriptions API (`razorpay.subscriptions.create`) to establish true recurring billing cycles for monthly and yearly tiers.
-- **Verification Signature Engine:** Created dual signature validators (Order Hashing vs. Subscription Hashing) for secure, timing-safe webhook processing.
-- **Fail-safe Fallback:** Engineered a fallback layer where missing environment configuration Plan IDs automatically convert checkouts to standard Orders, preventing client-side blocker errors.
-- **One-Time Monthly Billing:** Introduced a "1 Month (One-time)" billing toggle. Integrated Lemon Squeezy `order_created` and `order_refunded` events to support one-off USD checkouts with calendar-correct 1-month expirations.
-- **Modal Dismiss Recovery:** Resolved a frontend lockup where closing the Razorpay checkout modal left the pricing page frozen; modal closing now cleanly resets the checkout state.
+### ⚡ Asynchronous Webhook Queue Architecture & Atomic Idempotency (BullMQ + Redis)
+- **Fail-Fast Webhook Processing:** Overhauled LemonSqueezy and Razorpay webhook handlers to return instant fail-fast `200 ACK` responses (<50ms delivery), offloading heavy I/O processing to background BullMQ workers (`webhookQueue`).
+- **BullMQ Native Job Locking:** Enforced native job deduplication by binding `webhookId` as the BullMQ `jobId`, preventing concurrent duplicate event executions in Redis.
+- **Atomic MongoDB Idempotency:** Implemented `$setOnInsert` atomic claims via `WebhookEvent.findOneAndUpdate` to handle retry concurrency safely.
+- **Multi-Gateway Isolation Guard:** Built strict gateway conflict guards preventing LemonSqueezy webhooks from overwriting active Razorpay subscriptions.
 
-### 🧹 Hardened Enterprise Subscription Expiry Sweeper
-- **Race Condition Prevention:** Refactored the sweeper script from raw `updateMany` updates to sequentially fetch and `.save()` users. This activates Mongoose's Optimistic Concurrency Control (`__v`), stopping the sweeper from overwriting fresh payments processed by webhooks concurrently.
-- **Audit Trails:** Set up automated generation of compliance history records in `SubscriptionAuditLog` for every automated downgrade performed by the daily sweep.
+### 🛡️ Dual-Layer Anti-Bot Rate Limiting & Security Shield
+- **Multi-IP & Credential Stuffing Shield:** Created `dualLayerAuthRateLimiter.js` combining account-level lockouts (across all devices/IPs) and global IP blocking against botnets and credential stuffing attacks.
+- **Redis Pipelining Optimization:** Batched rate-limiting `SADD`, `EXPIRE`, and `SCARD` commands via `redis.pipeline()` to eliminate network roundtrip latency over Upstash HTTP.
+- **CIDR Trusted Webhook IP Whitelisting:** Integrated `ipaddr.js` to parse comma-separated `WEBHOOK_TRUSTED_IPS` supporting CIDR blocks (e.g. `18.96.225.0/26`).
+- **XSS URL Sanitization Utility:** Created `client/src/utils/urlUtils.js` (`sanitizeHref`) to strip `javascript:`, `data:`, `vbscript:`, and `file:` vectors (including control character padding).
 
-### 🧠 Custom Redis Bloom Filter Engine (Module-less Upstash Optimization)
-- **High-Speed Bitwise Filters:** Built using standard Redis `SETBIT` / `GETBIT` to bypass the need for native `RedisBloom` modules on Upstash.
-- **Dynamic Case-Sensitivity & Shielding:** Optimized username lookups (case-insensitive) and short URL redirects (case-sensitive) to block invalid DB lookups early.
-- **Concurrency Controls:** Gated seeding on startup with a distributed lock and implemented zero-downtime swaps using Redis `RENAME`.
+### 🚀 Performance, UI Virtualization & Redis Fixes
+- **Upstash Double-Serialization Fix:** Updated `server/config/redis.js` to check `getRedisDriver() === 'tcp'` before stringifying values, resolving Upstash REST auto-serialization duplication.
+- **Native Off-Screen Rendering:** Applied CSS `content-visibility: auto` and `contain-intrinsic-size: 200px` to virtualized dashboard list items, reducing main-thread INP rendering work.
+- **AbortController & Memory Leak Cleanup:** Added `useEffect` unmount cleanup for `abortControllerRef` in `UserDashboard.jsx` and ref tracking in `usePullToRefresh.js`.
 
-### 🚀 High-Impact Redis Caching & Performance Optimizations
-- **API Offloading:** Cached link analytics (subscription-tier keyed, compressed over 50KB), lander roads/logs, notification counters, and admin stats.
-- **Active Invalidation & DB Parallelism:** Integrated immediate bio cache invalidations and replaced serial MongoDB lookups with parallel queries.
-- **Session & Auth Cache:** Optimized JWT auth middleware by caching hydrated user documents and shifted active verification OTP codes to Redis-first storage.
-- **N+1 Query & Cron Fixes:** Resolved sequential click queries with batch maps, added distributed locks for background cron flushes in PM2 cluster mode, and added a custom scan wrapper for Upstash REST compatibility.
+### 💎 Ultra-Premium Tier Themes, Collapsible Mini-Sidebar & Razorpay Overhaul
+- **Collapsible Mini-Sidebar:** Added desktop sidebar collapse/expand toggle button in `DashboardLayout` with persistent `localStorage` user preferences.
+- **Electric Sapphire & Executive Gold Themes:** Overhauled Pro and Business themes in `tierTheme.js` and `index.css` with specular glass highlights and animated background mesh orbs.
+- **Razorpay Subscriptions (Recurring):** Integrated Razorpay Subscriptions API (`razorpay.subscriptions.create`) for true recurring monthly and yearly billing with dual signature validators.
+- **Fail-safe Fallback & One-Time Monthly:** Engineered fallback layer for missing Plan IDs and added one-time 1-month checkout option.
 
-### 🛡️ Auth Security & UX Hardening
-- **OTP Hardening:** Implemented cryptographically secure `crypto.randomInt` OTPs, SHA256 hashed password reset tokens, and a 3-attempt limit that instantly deletes OTP cache on violation.
-- **UI/UX Updates:** Added interactive password complexity validation on registration, "Paste Code" clipboard integration, autofill disabling on verification fields, and spam warning highlights.
-- **Infrastructure:** Upgraded to Redis 8, added container image prunes after deployment rollouts, and optimized lint checks on workflows.
-
-### 🛡️ Remediation Hardening & Security Fixes
-- **Safe Browsing Hash Keys:** Hardened Safe Browsing cache security by replacing 30-byte URL truncation with SHA-256 keys, eliminating cache collision bypass vectors.
-- **Alias Hijacking prevention:** Removed case-insensitive DB fallbacks in `redirectController.js` to align DB lookups with the case-sensitive Bloom Filter, preventing case-squatting alias exploits.
-- **Click Usage Lock-In:** Shifted click-tracking middleware to atomic Redis `INCR` commands to solve concurrent click usage lost-update conditions.
-- **Client-Side Validation Checks:** Implemented strict manual date validation checks in `CreateLinkModal`/`EditLinkModal` to block mobile users from scheduling past expiration dates.
-- **Cross-Tab Authentication Sync:** Added a `storage` listener in `AuthContext` to immediately synchronize logout events across multiple open tabs.
-
-### ⚙️ Container & K8s Infrastructure Hardening
-- **Docker Rootless Hardening:** Configured frontend Nginx deployment configurations to execute on port `8080`, preventing Permission Denied crashes under rootless environments.
-- **OOM Prevention limits:** Passed `--max-old-space-size=400` to Node.js V8 execution inside the server Dockerfile, preventing memory leaks from causing cluster OOMKills.
-- **Rollout Sync (CronJobs):** Automated pipeline releases to simultaneously roll out new image tags to both the core backend deployment and `ban-scheduler` / `safe-browsing` CronJobs.
-- **PWA & Nginx SPA Routes:** Fixed PWA routing failures by excluding SPA routes from the cache-first denylist regex, and added missing redirection routes (`/u` and easter eggs) to the Nginx fallback route file.
-- **UI Performance Rendering:** Optimized search query execution in `UserDashboard.jsx` using `useMemo` for client-side filtering.
+### 🧠 Custom Redis Bloom Filter & Enterprise Sweeper
+- **High-Speed Bitwise Bloom Filters:** Built using standard Redis `SETBIT` / `GETBIT` to bypass `RedisBloom` module dependency on Upstash.
+- **Optimistic Concurrency Sweeper:** Hardened daily database subscription expiry checks with Mongoose Optimistic Concurrency Control (`__v`) and compliance audit trails (`SubscriptionAuditLog`).
 
 ---
 

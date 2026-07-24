@@ -7,7 +7,7 @@ import Session from '../models/Session.js';
 import LoginHistory from '../models/LoginHistory.js';
 import UsernameHistory from '../models/UsernameHistory.js';
 import { generateAccessToken } from '../utils/generateToken.js';
-import { createSession, validateSession, refreshSessionActivity, terminateSession, hashToken, terminateAllUserSessions } from '../utils/sessionHelper.js';
+import { createSession, validateSession, terminateSession, hashToken, terminateAllUserSessions, rotateRefreshToken } from '../utils/sessionHelper.js';
 import { registerSchema, loginSchema, updateProfileSchema, verifyOtpSchema, forgotPasswordSchema, resetPasswordSchema } from '../validators/authValidator.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
@@ -21,6 +21,8 @@ import NotificationService from '../services/notificationService.js';
 import { resolveCurrentLinkUsage } from '../middleware/subscriptionMiddleware.js';
 import { bloomAdd, bloomExists } from '../services/bloomFilterService.js';
 import { getEffectiveTier } from '../services/subscriptionService.js';
+import { recordFailedAuthAttempt, recordSuccessfulAuthAttempt, recordUsernameCheck } from '../middleware/dualLayerAuthRateLimiter.js';
+import { getUserIP } from '../middleware/strictProxyGate.js';
 
 const getSubscriptionResponse = (user) => {
   if (!user.subscription) return { tier: 'free', status: 'active' };
@@ -67,12 +69,15 @@ const registerUser = async (req, res, next) => {
 
     // Validate username if provided (required by schema update, but handle safely)
     if (!username) {
+      await recordFailedAuthAttempt(email, req);
       res.status(400);
       throw new Error('Username is required');
     }
 
     // Check reserved words
     if (isReservedWord(username)) {
+      await recordFailedAuthAttempt(email, req);
+      // Only penalize by email — counting username separately leads to false IP blocks
       res.status(400);
       throw new Error('This username is not available');
     }
@@ -83,6 +88,8 @@ const registerUser = async (req, res, next) => {
     // Check for existing user by username
     const usernameExists = await User.findOne({ username });
     if (usernameExists) {
+      await recordFailedAuthAttempt(email, req);
+      // Only penalize by email — counting username separately leads to false IP blocks
       res.status(400);
       // Explicitly reveal this error as it's a public conflict check
       throw new Error('Username is already taken');
@@ -107,22 +114,23 @@ const registerUser = async (req, res, next) => {
           // Don't error out, just continue to return the generic message
         }
       } else {
-        // Option 2: User exists but is unverified - Update their info and Resend Verification Email
+        // SECURITY: Do NOT overwrite any existing profile data (password, name, etc.)
+        // Doing so would allow an attacker to silently change an unverified user's
+        // password and hijack their account when they later complete verification.
+        // Only regenerate and resend OTP tokens.
         logger.debug(`[Auth] Registration attempt for existing unverified user: ${email}`);
 
-        // Update user profile with new form data (in case they changed password/name)
-        userExists.password = password; // Will be hashed by pre-save hook
-        if (firstName) userExists.firstName = firstName;
-        if (lastName) userExists.lastName = lastName;
-        if (phone) userExists.phone = phone;
-        if (company) userExists.company = company;
-        if (website) userExists.website = website;
-        // Don't update username for existing user unless they are re-registering unverified? 
-        // Logic: if unverified, they effectively own the account slot, so maybe update it?
-        // Let's allow updating it if they are unverified.
-        if (username) userExists.username = username;
+        // Rate limiting: Prevent spamming OTP resends via the registration endpoint
+        // (60 second debounce window - OTP valid for 10 min, this blocks the last 9 min)
+        if (userExists.otpExpires && userExists.otpExpires > Date.now() + 9 * 60 * 1000) {
+          return res.status(429).json({
+            message: 'Please wait before requesting another verification email.',
+            requireVerification: true,
+            email: email
+          });
+        }
 
-        // Generate new tokens
+        // Generate new verification tokens
         const otp = crypto.randomInt(100000, 1000000).toString();
         const verificationToken = crypto.randomBytes(20).toString('hex');
         const otpExpiresTime = Date.now() + 10 * 60 * 1000; // 10 minutes
@@ -135,12 +143,9 @@ const registerUser = async (req, res, next) => {
         // Primary: cache OTP in Redis
         await redisSet(`ls:otp:verify:${email.toLowerCase()}`, 600, otp);
 
-        // Debug: Log before save
         logger.debug(`[Auth] Before save - OTP for ${email}, expires: ${new Date(otpExpiresTime).toISOString()}`);
 
         await userExists.save();
-
-        // Debug logging removed for production - OTP details should not be logged
 
         try {
           const emailContent = verificationEmail(userExists, verificationToken, otp);
@@ -274,8 +279,11 @@ const registerUser = async (req, res, next) => {
         isVerified: true,
       });
 
-      const accessToken = generateAccessToken(user._id, user.role);
-      const { refreshToken } = await createSession(user._id, req);
+      const { refreshToken, dbscSessionId } = await createSession(user._id, req);
+      const challengeNonce = crypto.randomBytes(16).toString("hex");
+      res.setHeader("Secure-Session-Registration", `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`);
+
+      const accessToken = generateAccessToken(user._id, user.role, dbscSessionId);
 
       // Seed the username negative-cache & Bloom Filter
       if (userData.username) {
@@ -310,37 +318,56 @@ const registerUser = async (req, res, next) => {
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       });
 
-      res.status(201).json({
-        _id: user._id,
-        internalId: user.internalId,
-        eliteId: user.eliteId,
-        snapId: user.snapId,
-        idTier: user.idTier,
-        idNumber: user.idNumber,
-        email: user.email,
-        username: user.username,
-        usernameChangedAt: user.usernameChangedAt,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        phone: user.phone,
-        company: user.company,
-        website: user.website,
-        bio: user.bio,
-        avatar: user.avatar,
-        role: user.role,
-        createdAt: user.createdAt,
-        lastLoginAt: user.lastLoginAt,
-        subscription: getSubscriptionResponse(user),
-        linkUsage: user.linkUsage || { count: 0, hardCount: 0, resetAt: new Date() },
-        clickUsage: user.clickUsage || { count: 0, resetAt: new Date() },
-        accessToken,
-        requireVerification: false
-      });
-    }
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: getCookieSameSite(),
+      maxAge: 15 * 60 * 1000,
+    });
 
-  } catch (error) {
-    next(error);
+    res.status(201).json({
+      _id: user._id,
+      internalId: user.internalId,
+      eliteId: user.eliteId,
+      snapId: user.snapId,
+      idTier: user.idTier,
+      idNumber: user.idNumber,
+      email: user.email,
+      username: user.username,
+      usernameChangedAt: user.usernameChangedAt,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
+      company: user.company,
+      website: user.website,
+      bio: user.bio,
+      avatar: user.avatar,
+      role: user.role,
+      createdAt: user.createdAt,
+      lastLoginAt: user.lastLoginAt,
+      subscription: getSubscriptionResponse(user),
+      linkUsage: user.linkUsage || { count: 0, hardCount: 0, resetAt: new Date() },
+      clickUsage: user.clickUsage || { count: 0, resetAt: new Date() },
+      requireVerification: false
+    });
   }
+
+} catch (error) {
+  if (error.code === 11000) {
+    // TOCTOU Race Condition Mitigation
+    // If concurrent requests create the same user, DB unique index throws 11000.
+    if (error.keyPattern && error.keyPattern.username) {
+      return res.status(400).json({ message: 'Username is already taken' });
+    }
+    // For email duplicates, we return generic success to prevent email enumeration
+    return res.status(201).json({
+      message: 'If this email is not already registered, you will receive a verification email shortly.',
+      requireVerification: true,
+      email: req.body.email
+    });
+  }
+  next(error);
+}
 };
 
 // @desc    Verify Email via OTP
@@ -392,6 +419,7 @@ const verifyOTP = async (req, res, next) => {
           otpValid = true;
           await redisDel(`ls:otp:verify:${email.toLowerCase()}`, attemptsKey);
         } else {
+          await recordFailedAuthAttempt(email, req);
           if (attempts >= 3) {
             await redisDel(`ls:otp:verify:${email.toLowerCase()}`, attemptsKey);
             res.status(400);
@@ -407,6 +435,7 @@ const verifyOTP = async (req, res, next) => {
 
     if (checkedWithRedis) {
       if (!otpValid) {
+        await recordFailedAuthAttempt(email, req);
         return res.status(400).json({
           message: 'Your verification code has expired or is invalid. Please request a new one.',
           expired: true
@@ -416,6 +445,7 @@ const verifyOTP = async (req, res, next) => {
       // Fallback: Check OTP in MongoDB
       if (!user.otp || user.otpExpires < Date.now()) {
         logger.debug(`[Auth] OTP expired for ${email} in MongoDB fallback`);
+        await recordFailedAuthAttempt(email, req);
         return res.status(400).json({
           message: 'Your verification code has expired. Please request a new one.',
           expired: true
@@ -424,12 +454,14 @@ const verifyOTP = async (req, res, next) => {
       const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
       const storedOtpBuffer = Buffer.from((user.otp || '').padEnd(6, '0'));
       if (!crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
+        await recordFailedAuthAttempt(email, req);
         res.status(400);
         throw new Error('Invalid verification code. Please check and try again.');
       }
     }
 
-    // Verify User
+    // Verify User & Clear Rate Limit Locks
+    await recordSuccessfulAuthAttempt(email, req);
     user.isVerified = true;
     user.verificationToken = undefined;
     user.verificationTokenExpires = undefined;
@@ -437,15 +469,23 @@ const verifyOTP = async (req, res, next) => {
     user.otpExpires = undefined;
     await user.save();
 
-    // Generate access token and create session
-    const accessToken = generateAccessToken(user._id);
-    const { refreshToken } = await createSession(user._id, req);
-
+    // Create session and generate access token
+    const { refreshToken, dbscSessionId } = await createSession(user._id, req);
+    const challengeNonce = crypto.randomBytes(16).toString("hex");
+    res.setHeader("Secure-Session-Registration", `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`);
+    const accessToken = generateAccessToken(user._id, 'user', dbscSessionId);
     res.cookie('jwt', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: getCookieSameSite(),
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: getCookieSameSite(),
+      maxAge: 15 * 60 * 1000,
     });
 
     res.status(200).json({
@@ -456,7 +496,6 @@ const verifyOTP = async (req, res, next) => {
       role: user.role,
       subscription: getSubscriptionResponse(user),
       linkUsage: await resolveCurrentLinkUsage(user),
-      accessToken,
     });
 
   } catch (error) {
@@ -515,16 +554,24 @@ const verifyEmail = async (req, res, next) => {
     user.otpExpires = undefined;
     await user.save();
 
-    // Generate access token and create session
-    const accessToken = generateAccessToken(user._id);
-    const { refreshToken } = await createSession(user._id, req);
-
+    // Create session and generate access token
+    const { refreshToken, dbscSessionId } = await createSession(user._id, req);
+    const challengeNonce = crypto.randomBytes(16).toString("hex");
+    res.setHeader("Secure-Session-Registration", `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`);
+    const accessToken = generateAccessToken(user._id, 'user', dbscSessionId);
     // Set refresh token cookie
     res.cookie('jwt', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: getCookieSameSite(),
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: getCookieSameSite(),
+      maxAge: 15 * 60 * 1000,
     });
 
     res.status(200).json({
@@ -538,7 +585,6 @@ const verifyEmail = async (req, res, next) => {
       role: user.role,
       subscription: getSubscriptionResponse(user),
       linkUsage: await resolveCurrentLinkUsage(user),
-      accessToken,
     });
   } catch (error) {
     next(error);
@@ -597,7 +643,7 @@ const loginUser = async (req, res, next) => {
         await LoginHistory.create({
           userId: user._id,
           email: user.email,
-          ip: req.ip,
+          ip: getUserIP(req),
           userAgent: req.headers['user-agent'],
           status: 'failed',
           failureReason: 'User is banned'
@@ -634,7 +680,7 @@ const loginUser = async (req, res, next) => {
         await LoginHistory.create({
           userId: user._id,
           email: user.email,
-          ip: req.ip,
+          ip: getUserIP(req),
           userAgent: req.headers['user-agent'],
           status: 'failed',
           failureReason: 'Email not verified'
@@ -650,8 +696,10 @@ const loginUser = async (req, res, next) => {
       // --- MASTER ADMIN CHECK ---
       if (role === 'master_admin') {
         // Create session for Master Admin
-        const accessToken = generateAccessToken(user._id, 'master_admin');
-        const { refreshToken } = await createSession(user._id, req);
+        const { refreshToken, dbscSessionId } = await createSession(user._id, req);
+        const challengeNonce = crypto.randomBytes(16).toString("hex");
+        res.setHeader("Secure-Session-Registration", `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`);
+        const accessToken = generateAccessToken(user._id, 'master_admin', dbscSessionId);
 
         // Helper for lastLoginAt
         await MasterAdmin.findByIdAndUpdate(user._id, { $set: { lastLoginAt: new Date() } });
@@ -663,6 +711,13 @@ const loginUser = async (req, res, next) => {
           maxAge: 30 * 24 * 60 * 60 * 1000,
         });
 
+        res.cookie('access_token', accessToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: getCookieSameSite(),
+          maxAge: 15 * 60 * 1000,
+        });
+
         return res.json({
           _id: user._id,
           email: user.email, // Real email (no -ma)
@@ -672,15 +727,15 @@ const loginUser = async (req, res, next) => {
           role: 'master_admin',
           subscription: { tier: 'pro', status: 'active' },
           linkUsage: { count: 0, resetAt: new Date() },
-          accessToken,
         });
       }
 
       // --- STANDARD USER LOGIN ---
-      const accessToken = generateAccessToken(user._id, user.role);
-
       // Create session with device info
-      const { refreshToken } = await createSession(user._id, req);
+      const { refreshToken, dbscSessionId } = await createSession(user._id, req);
+      const challengeNonce = crypto.randomBytes(16).toString("hex");
+      res.setHeader("Secure-Session-Registration", `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`);
+      const accessToken = generateAccessToken(user._id, user.role, dbscSessionId);
 
       // Update lastLoginAt
       await User.findByIdAndUpdate(user._id, { $set: { lastLoginAt: new Date() } });
@@ -690,16 +745,26 @@ const loginUser = async (req, res, next) => {
       await LoginHistory.create({
         userId: user._id,
         email: user.email,
-        ip: req.ip,
+        ip: getUserIP(req),
         userAgent: req.headers['user-agent'],
         status: 'success'
       });
+
+      await recordSuccessfulAuthAttempt(user.email, req);
+      if (user.username) await recordSuccessfulAuthAttempt(user.username, req);
 
       res.cookie('jwt', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: getCookieSameSite(),
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+
+      res.cookie('access_token', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: getCookieSameSite(),
+        maxAge: 15 * 60 * 1000, // 15 minutes
       });
 
       res.json({
@@ -725,18 +790,22 @@ const loginUser = async (req, res, next) => {
         subscription: getSubscriptionResponse(user),
         linkUsage: await resolveCurrentLinkUsage(user),
         clickUsage: user.clickUsage || { count: 0, resetAt: new Date() },
-        accessToken,
       });
     } else {
       // Log failed login attempt (invalid credentials)
       await LoginHistory.create({
         userId: user ? user._id : null,
         email: user ? user.email : identifier,
-        ip: req.ip,
+        ip: getUserIP(req),
         userAgent: req.headers['user-agent'],
         status: 'failed',
         failureReason: 'Invalid credentials'
       });
+
+      await recordFailedAuthAttempt(identifier, req);
+      if (user && user.email !== identifier) {
+        await recordFailedAuthAttempt(user.email, req);
+      }
 
       res.status(401);
       throw new Error('Invalid email or password');
@@ -762,6 +831,11 @@ const logoutUser = async (req, res, next) => {
     }
 
     res.clearCookie('jwt', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: getCookieSameSite(),
+    });
+    res.clearCookie('access_token', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: getCookieSameSite(),
@@ -834,7 +908,7 @@ const refreshAccessToken = async (req, res, next) => {
 
     // Verify the JWT (for additional security)
     try {
-      const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+      const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, { algorithms: ['HS256'] });
       if (user._id.toString() !== decoded.id) {
         // Token user ID mismatch
         await terminateSession(refreshToken);
@@ -856,11 +930,35 @@ const refreshAccessToken = async (req, res, next) => {
       return res.sendStatus(403);
     }
 
-    // Update session activity (last active time, IP if changed)
-    await refreshSessionActivity(session, req);
+    // Security: Rotate the refresh token to prevent replay attacks
+    const rotationResult = await rotateRefreshToken(refreshToken, req);
+    if (!rotationResult) {
+      // Race condition or token was already rotated - invalidate cookie
+      res.clearCookie('jwt', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: getCookieSameSite(),
+      });
+      return res.sendStatus(403);
+    }
 
-    // Generate new access token (NOT a new refresh token - prevents race conditions)
+    // Generate new access token
     const accessToken = generateAccessToken(user._id, role);
+
+    // Set new refresh token cookie
+    res.cookie('jwt', rotationResult.newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: getCookieSameSite(),
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: getCookieSameSite(),
+      maxAge: 15 * 60 * 1000,
+    });
 
     // Prepare user data (unified with getMe response)
     let userDataResponse;
@@ -907,10 +1005,9 @@ const refreshAccessToken = async (req, res, next) => {
     }
 
     res.json({
-      accessToken,
-      user: userDataResponse
+      accessToken: undefined, // ensure it's fully omitted if referenced
+      user: userDataResponse,
     });
-
   } catch (error) {
     next(error);
   }
@@ -1097,6 +1194,7 @@ const changePassword = async (req, res, next) => {
     // Verify current password
     const isMatch = await user.matchPassword(currentPassword);
     if (!isMatch) {
+      await recordFailedAuthAttempt(req.user.email, req);
       res.status(401);
       throw new Error('Current password is incorrect');
     }
@@ -1104,6 +1202,9 @@ const changePassword = async (req, res, next) => {
     // Update password
     user.password = newPassword;
     await user.save();
+    
+    // Clear only email failed attempt lock (do not double-count username)
+    await recordSuccessfulAuthAttempt(req.user.email);
 
     // Security: Terminate all other sessions after password change
     // Keep the current session active
@@ -1341,6 +1442,7 @@ const resetPassword = async (req, res, next) => {
             otpValid = true;
             await redisDel(`ls:otp:reset:${email.toLowerCase()}`, attemptsKey);
           } else {
+            await recordFailedAuthAttempt(email, req);
             if (attempts >= 3) {
               await redisDel(`ls:otp:reset:${email.toLowerCase()}`, attemptsKey);
               res.status(400);
@@ -1356,18 +1458,21 @@ const resetPassword = async (req, res, next) => {
 
       if (checkedWithRedis) {
         if (!otpValid) {
+          await recordFailedAuthAttempt(email, req);
           res.status(400);
           throw new Error('Your reset code has expired or is invalid. Please request a new one.');
         }
       } else {
         // Fallback: Check OTP in MongoDB
         if (!user.resetPasswordOtp || user.resetPasswordOtpExpires < Date.now()) {
+          await recordFailedAuthAttempt(email, req);
           res.status(400);
           throw new Error('Your reset code has expired. Please request a new one.');
         }
         const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
         const storedOtpBuffer = Buffer.from((user.resetPasswordOtp || '').padEnd(6, '0'));
         if (!crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
+          await recordFailedAuthAttempt(email, req);
           res.status(400);
           throw new Error('Invalid reset code. Please check and try again.');
         }
@@ -1377,17 +1482,21 @@ const resetPassword = async (req, res, next) => {
       throw new Error('Provide either reset token or email + OTP.');
     }
 
-    // 3. Update password
+    // 3. Update password & clear security rate limits
+    await recordSuccessfulAuthAttempt(user.email, req);
     user.password = newPassword; // Will be hashed by pre-save hook
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
     user.resetPasswordOtp = undefined;
     user.resetPasswordOtpExpires = undefined;
+    await user.save();
+
+    // Security: Terminate all active sessions on password reset
+    const terminatedCount = await terminateAllUserSessions(user._id);
+    logger.info(`[Security] Password reset for user ${user._id}, terminated ${terminatedCount} sessions`);
 
     // Optionally clear all refresh tokens to force re-login everywhere
     // user.refreshTokens = [];
-
-    await user.save();
 
     res.status(200).json({
       message: 'Password reset successful. You can now log in with your new password.'
@@ -1404,6 +1513,8 @@ const resetPassword = async (req, res, next) => {
 const checkUsernameAvailability = async (req, res) => {
   try {
     const { username } = req.params;
+    const ip = getUserIP(req);
+    await recordUsernameCheck(ip);
 
     if (!username) {
       return res.json({ available: false, reason: 'invalid' });

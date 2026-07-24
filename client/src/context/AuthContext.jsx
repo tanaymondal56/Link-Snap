@@ -94,7 +94,7 @@ export const AuthProvider = ({ children }) => {
         // This relies on the httpOnly cookie being present
         try {
           // Attempt to get a new access token using the refresh token cookie
-          const { data: refreshData } = await api.get('/auth/refresh');
+          const { data: refreshData } = await api.post('/auth/refresh');
 
           // If successful, set the token in memory
           setAccessToken(refreshData.accessToken);
@@ -183,6 +183,17 @@ export const AuthProvider = ({ children }) => {
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [checkAuth]);
+
+  // Centralized event listener for forced logouts (e.g. from Axios interceptors)
+  useEffect(() => {
+    const handleAuthLogoutEvent = () => {
+      setAccessToken(null);
+      setUser(null);
+    };
+
+    window.addEventListener('auth:logout', handleAuthLogoutEvent);
+    return () => window.removeEventListener('auth:logout', handleAuthLogoutEvent);
+  }, []);
 
   // Initial auth check on mount - runs in background
   useEffect(() => {

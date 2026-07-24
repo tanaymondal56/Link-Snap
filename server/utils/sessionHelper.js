@@ -91,12 +91,16 @@ export const createSession = async (userId, req) => {
     }
   }
   
+  // Generate DBSC tracking ID
+  const dbscSessionId = crypto.randomUUID();
+
   // Create session document
   const session = await Session.create({
     userId,
     tokenHash,
     deviceInfo,
     ipAddress,
+    dbscSessionId,
     userAgent: userAgentString.substring(0, 500), // Limit length
     lastActiveAt: new Date(),
     expiresAt: new Date(Date.now() + SESSION_DURATION_MS)
@@ -104,7 +108,7 @@ export const createSession = async (userId, req) => {
   
   logger.info(`[Session] Created new session for user ${userId}: ${deviceInfo.browser} on ${deviceInfo.os}`);
   
-  return { refreshToken, session };
+  return { refreshToken, session, dbscSessionId };
 };
 
 /**
@@ -114,7 +118,17 @@ export const createSession = async (userId, req) => {
  */
 export const validateSession = async (token) => {
   const tokenHash = hashToken(token);
-  const session = await Session.findOne({ tokenHash });
+  
+  // Find either by current token, or by previous token (if still in the 30-second grace window)
+  const session = await Session.findOne({
+    $or: [
+      { tokenHash: tokenHash },
+      { 
+        previousTokenHash: tokenHash, 
+        previousTokenValidUntil: { $gt: new Date() } 
+      }
+    ]
+  });
   
   if (!session) {
     return null;
@@ -124,6 +138,13 @@ export const validateSession = async (token) => {
   if (session.expiresAt < new Date()) {
     await session.deleteOne();
     return null;
+  }
+  
+  // If the user authenticated with the previous token during the grace period,
+  // we still return the session, but we also indicate this was a grace period hit
+  // so the controller knows to rotate the token immediately again.
+  if (session.previousTokenHash === tokenHash) {
+     session.isGracePeriodHit = true;
   }
   
   return session;
@@ -169,6 +190,84 @@ export const terminateAllUserSessions = async (userId) => {
   logger.info(`[Session] Terminated ${result.deletedCount} sessions for user ${userId}`);
   return result.deletedCount;
 };
+
+/**
+ * Rotate a refresh token for security.
+ * Atomically replaces the old tokenHash with a new one in the session document.
+ * Uses optimistic locking: if another concurrent request already rotated the token,
+ * this will return null (the session won't be found by the old hash).
+ *
+ * This prevents replay attacks: a stolen refresh token can only be used ONCE.
+ *
+ * @param {string} oldToken - The current (old) refresh token from cookie
+ * @param {Object} req - Express request (for IP logging)
+ * @returns {{ newRefreshToken: string, session: Object }|null} Null if token already used
+ */
+export const rotateRefreshToken = async (oldToken, req) => {
+  const oldTokenHash = hashToken(oldToken);
+
+  // Find the session while it's still valid (has old hash, not expired)
+  const existingSession = await Session.findOne({
+    tokenHash: oldTokenHash,
+    expiresAt: { $gt: new Date() }
+  });
+
+  if (!existingSession) return null;
+
+  // Generate a fresh refresh token for this user
+  const newRefreshToken = generateRefreshToken(existingSession.userId);
+  const newTokenHash = hashToken(newRefreshToken);
+
+  // Security: Device Binding Check
+  // Ensure the User-Agent hasn't drastically changed (indicates token theft)
+  const incomingUA = req.headers['user-agent'] || '';
+  const incomingDeviceInfo = parseUserAgent(incomingUA);
+  const sessionDeviceInfo = existingSession.deviceInfo;
+  
+  if (
+    incomingDeviceInfo.os !== sessionDeviceInfo.os ||
+    incomingDeviceInfo.browser !== sessionDeviceInfo.browser
+  ) {
+    logger.warn(`[Security] Session hijack attempt detected for user ${existingSession.userId}. UA mismatch: ${sessionDeviceInfo.os}/${sessionDeviceInfo.browser} vs ${incomingDeviceInfo.os}/${incomingDeviceInfo.browser}`);
+    await Session.deleteOne({ _id: existingSession._id });
+    return null;
+  }
+
+  const currentIP = getClientIP(req);
+  const ipUpdates = currentIP !== existingSession.ipAddress && currentIP !== 'Unknown'
+    ? { ipAddress: currentIP }
+    : {};
+
+  // Atomic conditional update: only succeeds if the session STILL has the old hash.
+  // If two concurrent requests reach here simultaneously, only one will win.
+  // The loser will receive null, triggering a re-authentication.
+  // However, because we set previousTokenHash, if the loser retries or a parallel request
+  // sends the old token, validateSession will still accept it for 30 seconds.
+  const gracePeriodEnd = new Date(Date.now() + 30 * 1000); // 30 seconds
+  const updated = await Session.findOneAndUpdate(
+    { _id: existingSession._id, tokenHash: oldTokenHash }, // Condition: still the old token
+    { 
+       tokenHash: newTokenHash, 
+       lastActiveAt: new Date(),
+       previousTokenHash: oldTokenHash,
+       previousTokenValidUntil: gracePeriodEnd,
+       ...ipUpdates 
+    },
+    { new: false } // Return old doc (we just need to confirm it matched)
+  );
+
+  if (!updated) {
+    // Race condition: another request already rotated this token.
+    // In our new architecture, validateSession allows the old token for 30s,
+    // so this parallel request would have succeeded initially. But for the rotate,
+    // we just safely ignore and let the first rotation win.
+    logger.warn(`[Session] Refresh token rotation race condition detected for session ${existingSession._id}. Handled gracefully.`);
+    return null;
+  }
+
+  return { newRefreshToken, session: existingSession };
+};
+
 
 /**
  * Format session for API response

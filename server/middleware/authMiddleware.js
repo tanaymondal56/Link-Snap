@@ -6,14 +6,30 @@ import { redisGet, redisSet, getRedisClient } from '../config/redis.js';
 const protect = async (req, res, next) => {
   let token;
 
-  if (
+  if (req.cookies && req.cookies.access_token) {
+    token = req.cookies.access_token;
+  } else if (
     req.headers.authorization &&
     req.headers.authorization.startsWith('Bearer')
   ) {
-    try {
-      token = req.headers.authorization.split(' ')[1];
+    token = req.headers.authorization.split(' ')[1];
+  }
 
-      const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] });
+
+      // DBSC Hardware Binding Check.
+      // ONLY enforced after a device key has been successfully registered (dbscEnforced === true).
+      // Standard browsers that don't support DBSC never set this flag, so they're unaffected.
+      // This prevents breaking all non-DBSC browsers while still protecting DBSC-enrolled sessions.
+      if (decoded.dbscEnforced === true) {
+        const clientSessionId = req.cookies?.['__Host-session'] || req.headers['sec-secure-session-id'];
+        if (!clientSessionId || clientSessionId !== decoded.dbscSessionId) {
+          res.status(401);
+          throw new Error('DBSC Binding Failed: Session cookie mismatch or missing');
+        }
+      }
 
       if (decoded.type === 'master' || decoded.role === 'master_admin') {
           // --- MASTER ADMIN LOOKUP ---
@@ -68,9 +84,19 @@ const protect = async (req, res, next) => {
 
       next();
     } catch (error) {
-      // Don't log expected token expiration errors (frontend handles refresh)
-      // Only log unexpected errors like malformed tokens or server issues
-      if (error.name !== 'TokenExpiredError') {
+      // Propagate TokenExpiredError with a specific code so the Axios interceptor
+      // can distinguish expired tokens (trigger refresh) from tampered tokens (force logout).
+      if (error.name === 'TokenExpiredError') {
+        if (!res.headersSent) {
+          return res.status(401).json({ 
+            message: 'Token expired', 
+            code: 'TOKEN_EXPIRED' 
+          });
+        }
+        return;
+      }
+
+      if (error.message !== 'DBSC Binding Failed: Session cookie mismatch or missing') {
         console.error('🔐 Auth Error:', error.message);
       }
       
@@ -88,8 +114,9 @@ const protect = async (req, res, next) => {
   }
 };
 
+
 const admin = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
+  if (req.user && (req.user.role === 'admin' || req.user.role === 'master_admin')) {
     next();
   } else {
     res.status(403); // Forbidden

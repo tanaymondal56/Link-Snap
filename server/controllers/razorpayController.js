@@ -151,9 +151,16 @@ export const verifyPayment = async (req, res) => {
 
     let updatedUser;
     try {
+      const requestTimestamp = new Date();
       const query = isSubscription
         ? { _id: userId, 'subscription.subscriptionId': { $ne: razorpay_subscription_id } }
         : { _id: userId, 'subscription.razorpay.orderId': { $ne: razorpay_order_id } };
+
+      query.$or = [
+        { 'subscription.lastWebhookTimestamp': { $lt: requestTimestamp } },
+        { 'subscription.lastWebhookTimestamp': null },
+        { 'subscription.lastWebhookTimestamp': { $exists: false } }
+      ];
 
       const updatePayload = {
         'subscription.tier':                  tier,
@@ -168,6 +175,7 @@ export const verifyPayment = async (req, res) => {
           return d;
         })(),
         'subscription.razorpay.paymentId':    razorpay_payment_id,
+        'subscription.lastWebhookTimestamp':  requestTimestamp,
       };
 
       if (isSubscription) {

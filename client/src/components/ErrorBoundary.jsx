@@ -59,10 +59,8 @@ class ErrorBoundary extends Component {
         await Promise.all(registrations.map((reg) => reg.unregister()));
       }
 
-      // Clear localStorage (but preserve essential data)
-      const accessToken = localStorage.getItem('accessToken');
+      // Clear localStorage
       localStorage.clear();
-      if (accessToken) localStorage.setItem('accessToken', accessToken);
 
       // Reload the page
       window.location.reload();

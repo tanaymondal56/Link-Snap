@@ -164,6 +164,7 @@ const userSchema = new mongoose.Schema({
     cancelledAt: Date,
     customerPortalUrl: String,
     updatePaymentUrl: String,
+    lastWebhookTimestamp: Date,
   },
 
   // Usage Tracking

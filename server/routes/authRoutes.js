@@ -15,22 +15,23 @@ import {
   checkUsernameAvailability,
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
-import { authLimiter, verifyOtpLimiter, forgotPasswordLimiter, resetPasswordLimiter, refreshLimiter, profileUpdateLimiter, usernameCheckLimiter, passwordChangeLimiter, logoutLimiter } from '../middleware/rateLimiter.js';
+import { globalRegisterCircuitBreaker, authLimiter, verifyOtpLimiter, forgotPasswordLimiter, resetPasswordLimiter, refreshLimiter, profileUpdateLimiter, usernameCheckLimiter, passwordChangeLimiter, logoutLimiter } from '../middleware/rateLimiter.js';
+import { dualLayerLoginLimiter, dualLayerAuthActionLimiter } from '../middleware/dualLayerAuthRateLimiter.js';
 
 const router = express.Router();
 
-router.post('/register', authLimiter, registerUser);
-router.post('/login', authLimiter, loginUser);
+router.post('/register', globalRegisterCircuitBreaker, authLimiter, dualLayerAuthActionLimiter, registerUser);
+router.post('/login', authLimiter, dualLayerLoginLimiter, loginUser);
 router.post('/logout', logoutLimiter, logoutUser);
-router.get('/refresh', refreshLimiter, refreshAccessToken);
+router.post('/refresh', refreshLimiter, refreshAccessToken);
 router.get('/me', protect, getMe);
 router.put('/me', protect, profileUpdateLimiter, updateProfile);
-router.put('/change-password', protect, passwordChangeLimiter, changePassword);
-router.get('/verify-email/:token', verifyEmail);
-router.post('/verify-otp', verifyOtpLimiter, verifyOTP);
-router.post('/resend-otp', verifyOtpLimiter, resendOTP);
-router.post('/forgot-password', forgotPasswordLimiter, forgotPassword);
-router.post('/reset-password', resetPasswordLimiter, resetPassword);
+router.put('/change-password', protect, passwordChangeLimiter, dualLayerAuthActionLimiter, changePassword);
+router.get('/verify-email/:token', verifyOtpLimiter, verifyEmail);
+router.post('/verify-otp', verifyOtpLimiter, dualLayerAuthActionLimiter, verifyOTP);
+router.post('/resend-otp', verifyOtpLimiter, dualLayerAuthActionLimiter, resendOTP);
+router.post('/forgot-password', forgotPasswordLimiter, dualLayerAuthActionLimiter, forgotPassword);
+router.post('/reset-password', resetPasswordLimiter, dualLayerAuthActionLimiter, resetPassword);
 router.get('/check-username/:username', usernameCheckLimiter, checkUsernameAvailability);
 
 export default router;

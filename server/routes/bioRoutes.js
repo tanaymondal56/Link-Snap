@@ -1,6 +1,6 @@
 import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
-import { profileUpdateLimiter } from '../middleware/rateLimiter.js';
+import { profileUpdateLimiter, bioPublicLimiter } from '../middleware/rateLimiter.js';
 import { checkFeature } from '../middleware/subscriptionMiddleware.js';
 import { 
   getPublicProfile, 
@@ -21,7 +21,7 @@ router.put('/me', protect, checkFeature('bio_page'), profileUpdateLimiter, updat
 router.patch('/me/toggle', protect, checkFeature('bio_page'), profileUpdateLimiter, toggleBioVisibility);
 
 // Public route - Get user's bio page (MUST be last - catches all)
-router.get('/:username', getPublicProfile);
+router.get('/:username', bioPublicLimiter, getPublicProfile);
 
 export default router;
 

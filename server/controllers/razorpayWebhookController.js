@@ -93,10 +93,16 @@ export const handleRazorpayWebhook = async (req, res) => {
 
     let updatedUser;
     try {
+      const webhookTimestamp = event.created_at ? new Date(event.created_at * 1000) : new Date();
       updatedUser = await User.findOneAndUpdate(
         {
           _id: userId,
           'subscription.razorpay.orderId': { $ne: orderId }, // Idempotency guard
+          $or: [
+            { 'subscription.lastWebhookTimestamp': { $lt: webhookTimestamp } },
+            { 'subscription.lastWebhookTimestamp': null },
+            { 'subscription.lastWebhookTimestamp': { $exists: false } }
+          ]
         },
         {
           $set: {
@@ -108,6 +114,7 @@ export const handleRazorpayWebhook = async (req, res) => {
             'subscription.currentPeriodEnd': periodEnd,
             'subscription.razorpay.orderId': orderId,
             'subscription.razorpay.paymentId': paymentId,
+            'subscription.lastWebhookTimestamp': webhookTimestamp,
           },
         },
         { new: true }

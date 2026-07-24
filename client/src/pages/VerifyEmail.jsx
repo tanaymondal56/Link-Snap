@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api, { setAccessToken } from '../api/axios';
+import api from '../api/axios';
 import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';
@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 const VerifyEmail = () => {
   const { token } = useParams();
   const navigate = useNavigate();
-  const { setUser } = useAuth();
+  const { refreshUser } = useAuth();
   const [status, setStatus] = useState('verifying'); // verifying, success, error
   const [message, setMessage] = useState('Verifying your email...');
   const [resendEmail, setResendEmail] = useState('');
@@ -59,17 +59,12 @@ const VerifyEmail = () => {
           setMessage('Your email is already verified! Redirecting to login...');
           showToast.success('Your email is already verified', 'Verified');
           setTimeout(() => navigate('/login'), 2000);
-        } else if (response.data?.accessToken) {
+        } else if (response.data?._id || response.data?.message?.includes('verified')) {
           // New: Auto-login with returned tokens
-          setAccessToken(response.data.accessToken);
-          const userData = {
-            _id: response.data._id,
-            email: response.data.email,
-            firstName: response.data.firstName,
-            lastName: response.data.lastName,
-            role: response.data.role,
-          };
-          setUser?.(userData);
+          // Fetch complete hydrated user profile from backend
+          if (typeof refreshUser === 'function') {
+            await refreshUser(true);
+          }
           
           setStatus('success');
           setMessage('Email verified! Logging you in...');
@@ -124,7 +119,7 @@ const VerifyEmail = () => {
     return () => {
       abortController.abort();
     };
-  }, [token, navigate, setUser]);
+  }, [token, navigate, refreshUser]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white p-4">

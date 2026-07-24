@@ -300,7 +300,7 @@ jobs:
 
       - name: Upload backend Trivy results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
+        if: always() && needs.build-backend.result == 'success'
         with:
           sarif_file: trivy-backend.sarif
           category: trivy-backend

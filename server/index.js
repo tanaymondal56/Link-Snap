@@ -40,6 +40,7 @@ import deviceAuthRoutes from './routes/deviceAuthRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import razorpayRoutes from './routes/razorpayRoutes.js';
+import dbscRoutes from './routes/dbscRoutes.js';
 import { flushAndStop } from './services/clickStatsService.js';
 import { stopDeviceAuthIntervals } from './controllers/deviceAuthController.js';
 import { flushAnalyticsAndStop } from './services/analyticsService.js';
@@ -179,10 +180,13 @@ const allowedOrigins = Array.from(new Set([
   normalizeOrigin(process.env.CLIENT_URL),
   ...parseCsvOrigins(process.env.ALLOWED_ORIGINS),
   ...productionDefaultOrigins,
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
+  // Only allow localhost in development mode to prevent cross-origin attacks in production
+  ...(process.env.NODE_ENV !== 'production' ? [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ] : []),
 ].filter(Boolean)));
 
 app.use(cors({
@@ -208,7 +212,12 @@ app.use(cors({
     // Example: ^https:\/\/(.*?\.)?yourdomain\.com$
     if (process.env.DYNAMIC_ALLOWED_DOMAINS_REGEX) {
       try {
-        const regex = new RegExp(process.env.DYNAMIC_ALLOWED_DOMAINS_REGEX, 'i');
+        let regexStr = process.env.DYNAMIC_ALLOWED_DOMAINS_REGEX;
+        // Security: Enforce strict anchoring to prevent partial matches 
+        // e.g., https://attacker.com/?q=https://allowed.com
+        if (!regexStr.startsWith('^')) regexStr = '^' + regexStr;
+        if (!regexStr.endsWith('$')) regexStr = regexStr + '$';
+        const regex = new RegExp(regexStr, 'i');
         if (regex.test(normalizedOrigin)) {
           return callback(null, true);
         }
@@ -234,6 +243,7 @@ app.use(cors({
 
 // Use JSON parser with raw body capture for webhooks
 app.use(express.json({
+  limit: '10kb',
   verify: (req, res, buf) => {
     // Store raw body for webhook signature verification
     if (req.originalUrl.startsWith('/api/webhooks')) {
@@ -334,8 +344,10 @@ app.get('/api/health/deep', async (req, res) => {
 app.use('/api', apiLimiter);
 // app.use('/api/auth', authLimiter); // Moved to specific routes in authRoutes.js
 
+
 // Routes (API routes first)
 app.use('/api/auth', authRoutes);
+app.use('/api/dbsc', dbscRoutes);
 app.use('/api/url', urlRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
@@ -359,8 +371,8 @@ app.use('/api/bio', bioRoutes);
 app.use('/', redirectRoutes);
 
 
-  // Development mode - catch-all for 404s
-  app.get('/{*splat}', (req, res) => {
+  // Catch-all for 404s (Express 4 compatible syntax)
+  app.get('*', (req, res) => {
     // Return proper 404 response for invalid short URLs
     res.status(404).json({
       message: 'Short link not found',

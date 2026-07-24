@@ -560,6 +560,13 @@ export const verifyAuthentication = async (req, res) => {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: getCookieSameSite(),
+      maxAge: 15 * 60 * 1000,
+    });
+
     // Create Audit Log (LoginHistory)
     await LoginHistory.create({
       userId: user._id,
@@ -586,7 +593,6 @@ export const verifyAuthentication = async (req, res) => {
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
-      accessToken,
       deviceId: device._id,
       message: 'Authentication successful',
     });

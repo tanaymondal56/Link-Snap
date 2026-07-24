@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { sanitizeHref } from '../utils/urlUtils';
 const ClickChart = lazy(() => import('../components/charts/ClickChart'));
 const DeviceChart = lazy(() => import('../components/charts/DeviceChart'));
 const LocationChart = lazy(() => import('../components/charts/LocationChart'));
@@ -114,7 +115,7 @@ const AnalyticsPage = () => {
             Analytics for <span className="text-blue-400">/{url.shortId}</span>
           </h1>
           <a
-            href={url.originalUrl}
+            href={sanitizeHref(url.originalUrl)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-gray-500 hover:text-gray-300 truncate max-w-md block mt-1"

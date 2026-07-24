@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import api, { setAccessToken } from '../api/axios';
+import api from '../api/axios';
 import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
 import { Loader, Lock, Mail, ArrowRight, ShieldCheck, Clipboard } from 'lucide-react';
@@ -9,9 +9,7 @@ import { useAuth } from '../context/AuthContext';
 const VerifyOTP = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setUser } = useAuth();
-  
-  // Get email from router state or internal storage
+  const { refreshUser } = useAuth();
   // If user refreshes, we might lose state, so session storage backup is good
   const [email, setEmail] = useState('');
   
@@ -104,29 +102,18 @@ const VerifyOTP = () => {
       // Success!
       
       // Check if user was already verified (and thus no tokens returned)
-      if (data.message === 'Email already verified' || !data.accessToken) {
+      if (data.message === 'Email already verified') {
         showToast.info('Email already verified. Please login.', 'Account Verified');
         sessionStorage.removeItem('verifyEmail');
         navigate('/login');
         return;
       }
 
-      // Log them in
-      setAccessToken(data.accessToken);
+      // We need to fetch the complete user object from the backend
+      if (typeof refreshUser === 'function') {
+        await refreshUser(true);
+      }
       
-      // Update AuthContext user
-      const userData = {
-        _id: data._id,
-        email: data.email,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        role: data.role,
-      };
-      // We need to update user context - but we can't easily access setUser directly here 
-      // if it's not exposed properly. 
-      // Assumption: useAuth exposes setUser based on previous reads, if not we'll rely on silent refresh redirect
-      setUser?.(userData);
-
       showToast.success('Account verified successfully!', 'Welcome');
       sessionStorage.removeItem('verifyEmail');
       navigate('/dashboard');

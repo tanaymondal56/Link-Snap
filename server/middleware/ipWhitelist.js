@@ -111,7 +111,7 @@ export const ipWhitelist = async (req, res, next) => {
     if (req.headers.authorization?.startsWith('Bearer')) {
       try {
         const token = req.headers.authorization.split(' ')[1];
-        const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] });
 
         // Check if user is a regular admin
         const user = await User.findById(decoded.id).select('role isActive');
@@ -133,10 +133,9 @@ export const ipWhitelist = async (req, res, next) => {
           }
         }
       } catch (jwtErr) {
-        // If JWT validation fails (expired or invalid), return 401 Unauthorized
-        // so the frontend refresh token interceptor can renew the token
-        logger.warn(`[IP Whitelist] Token bypass failed: ${jwtErr.message}`);
-        return res.status(401).json({ message: 'Session expired. Re-authentication required.' });
+        // Return 404 (not 401) to preserve Ghost Mode — 401 would confirm the admin route exists
+        logger.warn(`[IP Whitelist] Token bypass failed from non-whitelisted IP ${clientIP}: ${jwtErr.message}`);
+        return res.status(404).json({ message: 'Not Found' });
       }
     }
 

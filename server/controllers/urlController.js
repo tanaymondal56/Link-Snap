@@ -16,6 +16,7 @@ import NotificationService from '../services/notificationService.js';
 import logger from '../utils/logger.js';
 import { invalidateAnalyticsCache } from './analyticsController.js';
 import { bloomAdd } from '../services/bloomFilterService.js';
+import { queueClickIncrement } from '../services/clickStatsService.js';
 
 // Extract domain from URL (safe - no network request)
 const extractDomain = (url) => {
@@ -347,16 +348,26 @@ const createShortUrl = async (req, res, next) => {
                     const safetyResult = await checkUrlsSafety(urlsToCheck);
                     
                     if (safetyResult.status !== 'safe' && safetyResult.status !== 'pending') {
-                         await Url.findByIdAndUpdate(newUrl._id, {
-                             safetyStatus: safetyResult.status,
-                             safetyDetails: safetyResult.details,
-                             lastCheckedAt: new Date()
-                         });
+                         await Url.findOneAndUpdate(
+                             { _id: newUrl._id, updatedAt: newUrl.updatedAt },
+                             {
+                                 $set: {
+                                     safetyStatus: safetyResult.status,
+                                     safetyDetails: safetyResult.details,
+                                     lastCheckedAt: new Date()
+                                 }
+                             }
+                         );
                     } else if (safetyResult.status === 'safe') {
-                         await Url.findByIdAndUpdate(newUrl._id, {
-                             safetyStatus: 'safe',
-                             lastCheckedAt: new Date()
-                         });
+                         await Url.findOneAndUpdate(
+                             { _id: newUrl._id, updatedAt: newUrl.updatedAt },
+                             {
+                                 $set: {
+                                     safetyStatus: 'safe',
+                                     lastCheckedAt: new Date()
+                                 }
+                             }
+                         );
                     }
                 } else {
                     await Url.findByIdAndUpdate(newUrl._id, { safetyStatus: 'unchecked' });
@@ -846,16 +857,26 @@ const updateUrl = async (req, res, next) => {
                         const safetyResult = await checkUrlsSafety(urlsToCheck);
                         
                         if (safetyResult.status !== 'safe' && safetyResult.status !== 'pending') {
-                                await Url.findByIdAndUpdate(url._id, {
-                                    safetyStatus: safetyResult.status,
-                                    safetyDetails: safetyResult.details,
-                                    lastCheckedAt: new Date()
-                                });
+                                await Url.findOneAndUpdate(
+                                    { _id: url._id, updatedAt: fullDoc.updatedAt },
+                                    {
+                                        $set: {
+                                            safetyStatus: safetyResult.status,
+                                            safetyDetails: safetyResult.details,
+                                            lastCheckedAt: new Date()
+                                        }
+                                    }
+                                );
                         } else if (safetyResult.status === 'safe') {
-                                await Url.findByIdAndUpdate(url._id, {
-                                    safetyStatus: 'safe',
-                                    lastCheckedAt: new Date()
-                                });
+                                await Url.findOneAndUpdate(
+                                    { _id: url._id, updatedAt: fullDoc.updatedAt },
+                                    {
+                                        $set: {
+                                            safetyStatus: 'safe',
+                                            lastCheckedAt: new Date()
+                                        }
+                                    }
+                                );
                         }
                     } else {
                         await Url.findByIdAndUpdate(url._id, { safetyStatus: 'unchecked' });
@@ -913,7 +934,7 @@ const verifyLinkPassword = async (req, res, next) => {
         }
 
         // Password correct - increment clicks and track visit
-        Url.findByIdAndUpdate(url._id, { $inc: { clicks: 1 } }).exec();
+        queueClickIncrement(url._id.toString());
 
         // Check Time-Based Redirect first (Pro feature)
         // Import getTimeBasedDestination at top if not already

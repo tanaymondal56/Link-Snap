@@ -624,6 +624,10 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
     <div class="copy-toast" id="copyToast">✓ Link copied to clipboard!</div>
     
     <script data-cfasync="false" nonce="${nonce}">
+        const safeShortUrlJS = ${JSON.stringify(shortUrl || '')};
+        const safeRandomUrlJS = ${JSON.stringify(randomUrl || '')};
+        const safeCustomUrlJS = ${JSON.stringify(customUrl || '')};
+
         // Favicon error handler
         document.querySelectorAll('.favicon img').forEach(img => {
             img.addEventListener('error', function() {
@@ -644,14 +648,14 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
         const copyShortLinkBtn = document.getElementById('copyShortLinkBtn');
         if (copyShortLinkBtn) {
             copyShortLinkBtn.addEventListener('click', () => {
-                navigator.clipboard.writeText('${safeShortUrl}').then(showToast);
+                navigator.clipboard.writeText(safeShortUrlJS).then(showToast);
             });
         }
 
         const altLinkUrl = document.getElementById('alternateLinkUrl');
         const altLinkCopy = document.getElementById('alternateLinkCopy');
         if (altLinkUrl) {
-            const copyAlt = () => navigator.clipboard.writeText('${safeRandomUrl}').then(showToast);
+            const copyAlt = () => navigator.clipboard.writeText(safeRandomUrlJS).then(showToast);
             altLinkUrl.addEventListener('click', copyAlt);
             if (altLinkCopy) altLinkCopy.addEventListener('click', copyAlt);
         }
@@ -659,7 +663,7 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
         const custLinkUrl = document.getElementById('customLinkUrl');
         const custLinkCopy = document.getElementById('customLinkCopy');
         if (custLinkUrl) {
-            const copyCust = () => navigator.clipboard.writeText('${safeCustomUrl}').then(showToast);
+            const copyCust = () => navigator.clipboard.writeText(safeCustomUrlJS).then(showToast);
             custLinkUrl.addEventListener('click', copyCust);
             if (custLinkCopy) custLinkCopy.addEventListener('click', copyCust);
         }
@@ -1259,9 +1263,8 @@ const getScheduledLinkPage = (shortId, activeStartTime, nonce = '') => {
 // HTML page for password-protected links
 const getPasswordEntryPage = (shortId, title, nonce = '') => {
     const safeTitle = escapeHtml(title || shortId);
-    // Escape shortId for use in JavaScript string to prevent XSS
-    // Must escape backslashes first, then quotes to prevent breaking out of string
-    const safeShortId = escapeHtml(shortId).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    // Escape shortId for use in JavaScript string is no longer needed 
+    // since we use JSON.stringify for safe injection.
     return `
 <!DOCTYPE html>
 <html lang="en">
@@ -1365,6 +1368,7 @@ const getPasswordEntryPage = (shortId, title, nonce = '') => {
     </div>
     <style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
     <script data-cfasync="false" nonce="${nonce}">
+        const targetShortId = ${JSON.stringify(shortId)};
         const form = document.getElementById('passwordForm');
         const passwordInput = document.getElementById('password');
         const errorMsg = document.getElementById('errorMsg');
@@ -1396,7 +1400,7 @@ const getPasswordEntryPage = (shortId, title, nonce = '') => {
             errorMsg.classList.remove('show');
             
             try {
-                const res = await fetch('/api/url/${safeShortId}/verify-password', {
+                const res = await fetch('/api/url/' + encodeURIComponent(targetShortId) + '/verify-password', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ password })
@@ -1404,7 +1408,9 @@ const getPasswordEntryPage = (shortId, title, nonce = '') => {
                 const data = await res.json();
                 
                 if (res.ok && data.success) {
-                    window.location.href = data.originalUrl;
+                    const separator = data.originalUrl.includes('?') ? '&' : '?';
+                    const qs = window.location.search.substring(1);
+                    window.location.href = qs ? data.originalUrl + separator + qs : data.originalUrl;
                 } else {
                     throw new Error(data.message || 'Incorrect password');
                 }
@@ -1479,6 +1485,8 @@ const getLimitReachedPage = () => `
 </html>
 `;
 
+const inflightRequests = new Map();
+
 export const redirectUrl = async (req, res, next) => {
     const { shortId } = req.params;
 
@@ -1490,9 +1498,13 @@ export const redirectUrl = async (req, res, next) => {
     }
 
     // Check Bloom Filter first: if definitely doesn't exist, bypass cache/DB entirely
-    const existsBloom = await bloomExists('urls', shortId);
-    if (!existsBloom) {
-        return next();
+    try {
+        const existsBloom = await bloomExists('urls', shortId);
+        if (!existsBloom) {
+            return next();
+        }
+    } catch (err) {
+        console.warn('[BloomFilter] Check failed, falling back to DB lookup', err.message);
     }
 
     try {
@@ -1609,10 +1621,18 @@ export const redirectUrl = async (req, res, next) => {
             return res.redirect(finalUrl);
         }
 
-        // 2. Cache miss - query database
-        let url = await Url.findOne({
-            $or: [{ shortId }, { customAlias: shortId }],
-        }).lean();
+        // 2. Cache miss - query database (with request coalescing to prevent Cache Stampede)
+        let url;
+        if (inflightRequests.has(shortId)) {
+            url = await inflightRequests.get(shortId);
+        } else {
+            const fetchPromise = Url.findOne({
+                $or: [{ shortId }, { customAlias: shortId }],
+            }).lean().finally(() => inflightRequests.delete(shortId));
+            
+            inflightRequests.set(shortId, fetchPromise);
+            url = await fetchPromise;
+        }
 
         // Removed case-insensitive fallback to prevent alias hijacking
 
@@ -1745,9 +1765,13 @@ export const previewUrl = async (req, res) => {
     }
 
     // Check Bloom Filter first: if definitely doesn't exist, skip DB lookup
-    const existsBloom = await bloomExists('urls', shortId);
-    if (!existsBloom) {
-        return res.status(404).send(getLinkNotFoundPage(shortId));
+    try {
+        const existsBloom = await bloomExists('urls', shortId);
+        if (!existsBloom) {
+            return res.status(404).send(getLinkNotFoundPage(shortId));
+        }
+    } catch (err) {
+        console.warn('[BloomFilter] Check failed, falling back to DB lookup', err.message);
     }
 
     try {

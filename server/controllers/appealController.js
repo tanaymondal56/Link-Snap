@@ -28,7 +28,7 @@ export const submitAppeal = async (req, res) => {
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const token = authHeader.split(' ')[1];
             try {
-                const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+                const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] });
                 if (decoded.type !== 'appeal') {
                     return res.status(401).json({ message: 'Invalid token type' });
                 }

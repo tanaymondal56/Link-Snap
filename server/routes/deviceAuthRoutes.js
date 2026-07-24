@@ -2,6 +2,8 @@ import express from 'express';
 import { verifyToken } from '../middleware/authMiddleware.js';
 import { verifyAdmin } from '../middleware/verifyAdmin.js';
 import { ipWhitelist, strictIpWhitelist } from '../middleware/ipWhitelist.js';
+import { biometricAuthLimiter } from '../middleware/rateLimiter.js';
+import { dualLayerAuthActionLimiter } from '../middleware/dualLayerAuthRateLimiter.js';
 import {
   getRegistrationOptions,
   verifyRegistration,
@@ -32,11 +34,11 @@ const router = express.Router();
 
 // PUBLIC: Get authentication challenge (no auth required)
 // This is called BEFORE login to start biometric flow
-router.post('/challenge', getAuthenticationOptions);
+router.post('/challenge', biometricAuthLimiter, getAuthenticationOptions);
 
 // PUBLIC: Verify biometric authentication
 // This validates the biometric response
-router.post('/verify', verifyAuthentication);
+router.post('/verify', biometricAuthLimiter, dualLayerAuthActionLimiter, verifyAuthentication);
 
 // ============================================
 // PROTECTED: Require IP whitelist + auth + admin

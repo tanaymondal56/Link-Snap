@@ -112,7 +112,9 @@ export const redisGet = async (key) => {
 export const redisSet = async (key, ttlSeconds, value) => {
     if (!redisClient) return;
     try {
-        const payload = typeof value === 'string' ? value : JSON.stringify(value);
+        const payload = getRedisDriver() === 'tcp' && typeof value !== 'string' 
+            ? JSON.stringify(value) 
+            : value;
         await redisClient.setex(key, ttlSeconds, payload);
     } catch (err) {
         logger.warn('[Redis] SET ' + key + ' failed: ' + err.message);
