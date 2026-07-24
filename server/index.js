@@ -262,11 +262,12 @@ app.use(cookieParser());
 // ─── Cross-Origin Cookie Mode ──────────────────────────────────────────────
 // When frontend is hosted on a DIFFERENT domain (CF Pages, Vercel, external CDN),
 // cookies MUST use SameSite=None + Secure to be sent in cross-origin requests.
-// When frontend is on the SAME domain, SameSite=Strict is safer.
-// Set CROSS_ORIGIN_FRONTEND=true in configmap.yaml to enable cross-origin mode.
+// When frontend is on the SAME domain (or same site like beta.lksnp and api.lksnp), 
+// SameSite=Lax (or Strict) is dramatically safer than None.
+// Since beta.lksnp.qzz.io and api.lksnp.qzz.io are same-site (lksnp.qzz.io), Lax works flawlessly.
 const isCrossOriginFrontend = process.env.CROSS_ORIGIN_FRONTEND === 'true';
-const cookieSameSite = isCrossOriginFrontend ? 'none' : 'strict';
-const cookieSecure  = isCrossOriginFrontend ? true : (process.env.NODE_ENV === 'production');
+const cookieSameSite = isCrossOriginFrontend ? 'lax' : 'strict'; // Hardened from 'none' -> 'lax'
+const cookieSecure  = process.env.NODE_ENV === 'production' || isCrossOriginFrontend;
 
 app.use(cookieSession({
   name: 'session',

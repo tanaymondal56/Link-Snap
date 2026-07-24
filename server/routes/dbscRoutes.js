@@ -67,15 +67,12 @@ router.post('/registration', async (req, res) => {
     session.dbscChallenge = null; // Clear any pending challenge
     await session.save();
 
-    // Chrome DBSC specification defaults to the registration context origin if `origin` is omitted.
-    // This perfectly bypasses any cross-origin proxy mismatches (e.g. Vite proxy).
-    // Note: include_site must be false for localhost/IPs because they do not have a registrable domain (eTLD+1).
-    const isLocalhost = req.get('host').includes('localhost') || req.get('host').includes('127.0.0.1');
-    
+    // Chrome DBSC specification: include_site must be false for public suffix domains (e.g. qzz.io, vercel.app, github.io)
+    // and localhost, to prevent session scope leakage across un-owned subdomains.
     return res.status(200).json({ 
       session_identifier: session.dbscSessionId,
       scope: {
-        include_site: !isLocalhost
+        include_site: false
       },
       credentials: [
         {
