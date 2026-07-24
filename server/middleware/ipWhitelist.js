@@ -27,17 +27,23 @@ const localhostPatterns = [
 ];
 
 /**
- * Check if IP is in Tailscale's CGNAT subnet (100.64.0.0/10)
- * Range: 100.64.0.0 - 100.127.255.255
+ * Check if IP is in K8s CNI or Tailscale subnet
  */
-const isTailscaleSubnet = (ip) => {
+const isInternalProxySubnet = (ip) => {
   if (!ip || typeof ip !== 'string') return false;
   const normalized = ip.replace(/^::ffff:/, '');
+  
+  // K8s Flannel/Calico/VPC subnets (10.42.*, 10.244.*, 10.0.*)
+  if (normalized.startsWith('10.42.') || normalized.startsWith('10.244.') || normalized.startsWith('10.0.')) return true;
+
+  // Tailscale CGNAT subnet (100.64.0.0/10)
   const parts = normalized.split('.');
-  if (parts.length !== 4) return false;
-  const firstOctet = parseInt(parts[0], 10);
-  const secondOctet = parseInt(parts[1], 10);
-  return firstOctet === 100 && secondOctet >= 64 && secondOctet <= 127;
+  if (parts.length === 4) {
+    const first = parseInt(parts[0], 10);
+    const second = parseInt(parts[1], 10);
+    if (first === 100 && second >= 64 && second <= 127) return true;
+  }
+  return false;
 };
 
 // Helper: Check IP Logic
@@ -47,15 +53,12 @@ const checkIpAccess = (req) => {
   const normalizedSocketIP = socketIP.replace(/^::ffff:/, '');
 
   // Check if request is coming from a trusted proxy:
-  // - localhost
-  // - explicitly configured TRUSTED_PROXIES
-  // - Tailscale subnet (100.64.0.0/10) - for Azure proxy
   const isFromTrustedProxy = localhostPatterns.includes(socketIP) ||
     localhostPatterns.includes(normalizedSocketIP) ||
     normalizedSocketIP === '127.0.0.1' ||
     normalizedSocketIP.startsWith('127.') ||
     envTrustedProxies.includes(normalizedSocketIP) ||
-    isTailscaleSubnet(normalizedSocketIP);  // ← Added Tailscale detection
+    isInternalProxySubnet(normalizedSocketIP); // ← Added K8s/Tailscale detection
 
   // Get client IP - prefer realUserIP set by strictProxyGate middleware
   let clientIP;

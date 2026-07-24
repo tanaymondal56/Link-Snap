@@ -47,7 +47,7 @@ export const processWebhookJob = async (jobData) => {
             signature: 'enqueued_valid',
           }
         },
-        { upsert: true, new: false, rawResult: true }
+        { upsert: true, returnDocument: 'before', rawResult: true }
       );
 
       // If it existed (value is not null)

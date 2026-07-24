@@ -46,6 +46,13 @@ export const connectRedis = async () => {
             client.options.maxRetriesPerRequest = 3;
             client.options.retryStrategy = (times) => Math.min(times * 200, 5000);
             
+            // Programmatically enforce noeviction to prevent BullMQ job loss and warnings
+            try {
+                await client.config('SET', 'maxmemory-policy', 'noeviction');
+            } catch (configErr) {
+                logger.warn('[Redis] Could not set maxmemory-policy to noeviction. If using managed Redis, ignore this. ' + configErr.message);
+            }
+            
             client.on('error', (err) => {
                 if (err.code === 'ECONNREFUSED' && !process.env.REDIS_URL && !process.env.REDIS_HOST) return; // Mute log noise locally
                 logger.warn('[Redis] TCP client error: ' + err.message);

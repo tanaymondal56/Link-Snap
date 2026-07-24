@@ -253,7 +253,7 @@ export const rotateRefreshToken = async (oldToken, req) => {
        previousTokenValidUntil: gracePeriodEnd,
        ...ipUpdates 
     },
-    { new: false } // Return old doc (we just need to confirm it matched)
+    { returnDocument: 'before' } // Return old doc (we just need to confirm it matched)
   );
 
   if (!updated) {
