@@ -179,7 +179,7 @@ const freeCreateLimiter = rateLimit({
     windowMs: 60 * 60 * 1000,
     max: 10,
     store: createRedisStore('create:free'),
-    keyGenerator: (req) => `user:${req.user?._id || req.ip}`,
+    keyGenerator: (req) => `user:${req.user?._id || getUserIP(req)}`,
     handler: (req, res) => res.status(429).json({
         type: 'rate_limit',
         message: 'Free limit reached (10/hour). Upgrade for more!',

@@ -19,6 +19,7 @@
 
 import Url from '../models/Url.js';
 import { trackVisit } from '../services/analyticsService.js';
+import { getUserIP } from '../middleware/strictProxyGate.js';
 
 /**
  * Track a click from edge proxy mirror
@@ -58,7 +59,7 @@ export const trackEdgeClick = async (req, res) => {
 
         // Create a mock request object for trackVisit compatibility
         // Set realUserIP for proxy-aware extraction (matches strictProxyGate pattern)
-        const realIP = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
+        const realIP = getUserIP(req);
         const mockReq = {
             headers: {
                 'user-agent': req.headers['user-agent'] || 'Unknown',
