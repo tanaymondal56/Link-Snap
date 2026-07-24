@@ -826,29 +826,38 @@ const logoutUser = async (req, res, next) => {
     if (refreshToken) {
       const terminatedSession = await terminateSession(refreshToken);
       if (terminatedSession?.dbscSessionId) {
-        // Inform Chrome DBSC engine to immediately purge the hardware key binding
-        res.setHeader("Sec-Session-Response", `(terminate); id="${terminatedSession.dbscSessionId}"`);
-        res.setHeader("Secure-Session-Registration", `(terminate); id="${terminatedSession.dbscSessionId}"`);
+        // Inform Chrome DBSC engine to immediately purge the hardware key binding across all specification header variants
+        const termHeader = `(terminate); id="${terminatedSession.dbscSessionId}"`;
+        res.setHeader("Sec-Session-Response", termHeader);
+        res.setHeader("Secure-Session-Response", termHeader);
+        res.setHeader("Sec-Session-Registration", termHeader);
+        res.setHeader("Secure-Session-Registration", termHeader);
       }
     }
 
-    // 2. Clear cookie-session middleware state (session & session.sig)
-    if (req.session) {
-      req.session = null;
-    }
+    // 2. Clear cookie-session middleware state
+    req.session = null;
 
-    // 3. Explicitly wipe all auth & CSRF cookies
-    const cookieOpts = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: getCookieSameSite(),
+    // 3. Exhaustively wipe all auth & CSRF cookies across all SameSite/Secure variations
+    // (This guarantees deletion even if cookies were set under Lax, Strict, or None)
+    const clearCookieGlobally = (name, isHttpOnly = true) => {
+      ['lax', 'strict', 'none'].forEach(sameSite => {
+        [true, false].forEach(secure => {
+          res.clearCookie(name, {
+            path: '/',
+            httpOnly: isHttpOnly,
+            secure,
+            sameSite,
+          });
+        });
+      });
     };
 
-    res.clearCookie('jwt', cookieOpts);
-    res.clearCookie('access_token', cookieOpts);
-    res.clearCookie('session', cookieOpts);
-    res.clearCookie('session.sig', cookieOpts);
-    res.clearCookie('XSRF-TOKEN', { ...cookieOpts, httpOnly: false });
+    clearCookieGlobally('jwt', true);
+    clearCookieGlobally('access_token', true);
+    clearCookieGlobally('session', true);
+    clearCookieGlobally('session.sig', true);
+    clearCookieGlobally('XSRF-TOKEN', false);
 
     res.status(200).json({ message: 'Logged out successfully' });
   } catch (error) {

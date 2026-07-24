@@ -66,8 +66,9 @@ const checkIpAccess = (req) => {
     // strictProxyGate already extracted the real user IP
     clientIP = req.realUserIP;
   } else if (isFromTrustedProxy) {
-    // Request is from localhost/proxy, trust the forwarded headers
+    // Request is from localhost/proxy, trust the forwarded headers (Cloudflare CF-Connecting-IP first)
     clientIP =
+      req.headers['cf-connecting-ip'] ||
       req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
       req.headers['x-real-ip'] ||
       req.ip ||
@@ -160,8 +161,8 @@ export const ipWhitelist = async (req, res, next) => {
   }
 };
 
-// 2. Strict IP Whitelist (NO Bypass)
-export const strictIpWhitelist = (req, res, next) => {
+// 2. Strict IP Whitelist (With Token Bypass for Authenticated Admins)
+export const strictIpWhitelist = async (req, res, next) => {
   try {
     const { isAllowed, clientIP, socketIP, normalizedIP } = checkIpAccess(req);
 
@@ -170,6 +171,36 @@ export const strictIpWhitelist = (req, res, next) => {
     if (isAllowed) {
       logger.debug(`[Strict IP] ✅ Allowed: ${clientIP} (socket: ${socketIP}, normalized: ${normalizedIP})`);
       return next();
+    }
+
+    // === BYPASS: Check for valid Admin Token ===
+    let token = req.cookies?.access_token;
+    if (!token && req.headers.authorization?.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] });
+        const user = await User.findById(decoded.id).select('role isActive');
+
+        if (user && user.role === 'admin' && user.isActive) {
+          logger.info(`[Strict IP] 🔓 Bypass by Admin Token: ${user._id} (${clientIP})`);
+          return next();
+        }
+
+        if (decoded.type === 'master' || decoded.role === 'master_admin') {
+          const MasterAdmin = (await import('../models/MasterAdmin.js')).default;
+          const masterAdmin = await MasterAdmin.findById(decoded.id).select('_id');
+          if (masterAdmin) {
+            logger.info(`[Strict IP] 🔓 Bypass by Master Admin Token: ${masterAdmin._id} (${clientIP})`);
+            return next();
+          }
+        }
+      } catch (jwtErr) {
+        logger.warn(`[Strict IP] Token bypass failed from non-whitelisted IP ${clientIP}: ${jwtErr.message}`);
+        return res.status(404).json({ message: 'Not Found' });
+      }
     }
 
     logger.warn(`[Strict IP] 🚫 BLOCKED critical action from: ${clientIP} (socket: ${socketIP}, normalized: ${normalizedIP})`);
