@@ -180,6 +180,13 @@ export default defineConfig(async ({ mode }) => {
     server: {
       port: 3000,
       host: true,
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'X-Frame-Options': 'DENY',
+        'X-Content-Type-Options': 'nosniff',
+        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' http://localhost:5000 ws://localhost:5000 ws://localhost:3000 https://api.lksnp.qzz.io wss://api.lksnp.qzz.io https://lksnp.qzz.io;"
+      },
       proxy: {
         '/api': {
           target: 'http://localhost:5000',

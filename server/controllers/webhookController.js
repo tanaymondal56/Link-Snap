@@ -15,6 +15,7 @@
 import crypto from 'crypto';
 import logger from '../utils/logger.js';
 import { webhookQueue } from '../services/webhookQueueService.js';
+import { processWebhookJob } from './webhookProcessor.js';
 
 /**
  * Verify the HMAC-SHA256 signature from LemonSqueezy.
@@ -105,13 +106,33 @@ export const handleWebhook = async (req, res) => {
       : null;
       
     if (webhookId) {
-        await webhookQueue.add('process_lemon_squeezy_webhook', {
-            webhookId,
-            eventName,
-            customData,
-            payload: req.body
-        }, { jobId: webhookId });
-        logger.info(`[Webhook] Enqueued ${eventName} with ID ${webhookId}`);
+        try {
+            // Explicitly check connection to prevent BullMQ/ioredis offline queue from hanging indefinitely
+            const client = await webhookQueue.client;
+            if (!client || client.status !== 'ready') {
+                throw new Error('BullMQ TCP client is not connected');
+            }
+
+            await webhookQueue.add('process_lemon_squeezy_webhook', {
+                webhookId,
+                eventName,
+                customData,
+                payload: req.body
+            }, { jobId: webhookId });
+            logger.info(`[Webhook] Enqueued ${eventName} with ID ${webhookId}`);
+        } catch (queueErr) {
+            logger.warn(`[Webhook] Queue unavailable (${queueErr.message}). Processing synchronously...`);
+            
+            // Artificial delay to prevent DB timing races for new user creation (simulating queue backoff)
+            await new Promise(r => setTimeout(r, 2000));
+            
+            await processWebhookJob({
+                webhookId,
+                eventName,
+                customData,
+                payload: req.body
+            });
+        }
     } else {
         logger.warn('[Webhook] Invalid or missing webhook ID - could not enqueue');
     }

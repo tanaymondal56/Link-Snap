@@ -285,11 +285,14 @@ app.use(cookieSession({
 }));
 
 // Configure CSRF with double-submit cookie pattern
+// Note: XSRF-TOKEN is intentionally httpOnly: false so SPA client JS (Axios) 
+// can read it from document.cookie and include it in the X-XSRF-TOKEN header.
+// All sensitive session/auth cookies (jwt, access_token, session) remain strictly HttpOnly.
 app.use(lusca.csrf({
   cookie: {
     name: 'XSRF-TOKEN',
     options: {
-      httpOnly: false, // Allow client to read for header inclusion
+      httpOnly: false,
       secure: cookieSecure,
       sameSite: cookieSameSite,
     }
@@ -297,7 +300,9 @@ app.use(lusca.csrf({
   header: 'X-XSRF-TOKEN',
   blacklist: [
     { type: 'startsWith', path: '/api/webhooks' }, // Webhooks use signature verification
-    { type: 'startsWith', path: '/api/url/' } // Public redirect and password verification endpoints
+    { type: 'startsWith', path: '/api/url/' }, // Public redirect and password verification endpoints
+    { type: 'startsWith', path: '/api/dbsc' }, // Browser native DBSC protocol (sent by browser C++ network stack)
+    { type: 'exact', path: '/api/auth/refresh' } // Auth refresh uses HttpOnly refresh token + session rotation
   ]
 }));
 
@@ -371,8 +376,8 @@ app.use('/api/bio', bioRoutes);
 app.use('/', redirectRoutes);
 
 
-  // Catch-all for 404s (Express 4 compatible syntax)
-  app.get('*', (req, res) => {
+  // Catch-all for 404s (Express 5 path-to-regexp compatible syntax)
+  app.get('{*path}', (req, res) => {
     // Return proper 404 response for invalid short URLs
     res.status(404).json({
       message: 'Short link not found',
@@ -394,8 +399,8 @@ const startServer = async () => {
   try {
     await connectDB();
 
-    // Initialise Upstash Redis (non-blocking — falls back gracefully if not configured)
-    connectRedis();
+    // Initialise Upstash Redis / Local Redis (non-blocking fallback gracefully if not configured)
+    await connectRedis();
 
     // Seed Bloom Filters in the background
     seedBloomFilters().catch(err => {
@@ -438,8 +443,12 @@ const startServer = async () => {
           logger.info('[Shutdown] Flushing analytics buffer...');
           await flushAnalyticsAndStop();
 
-          // 4. Release Redis HTTP client
-          disconnectRedis();
+          // 4. Gracefully shutdown BullMQ & Redis
+          const { webhookQueue, webhookWorker } = await import('./services/webhookQueueService.js');
+          logger.info('[Shutdown] Closing BullMQ workers and queues...');
+          await webhookWorker.close();
+          await webhookQueue.close();
+          await disconnectRedis();
 
           // 5. Close MongoDB connection cleanly
           await mongoose.connection.close(false);

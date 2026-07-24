@@ -38,9 +38,29 @@ const createRedisStore = (prefix) => {
 
     return new RedisStore({
         sendCommand: async (...args) => {
-            const redis = getRedisClient();
+            let redis = getRedisClient();
             if (!redis) {
-                throw new Error('Redis client is not available');
+                const { connectRedis } = await import('../config/redis.js');
+                redis = await connectRedis();
+            }
+
+            const { getRedisDriver } = await import('../config/redis.js');
+
+            // Bypass rate limiting entirely if Redis is completely unavailable OR if using Upstash REST.
+            // Using Upstash REST for high-throughput rate-limiting middleware adds excessive HTTP latency (50-200ms per request).
+            if (!redis || getRedisDriver() !== 'tcp') {
+                const cmd = args[0].toLowerCase();
+                if (cmd === 'script') {
+                    // express-rate-limit runs 'script load' on init.
+                    // Return a fake SHA string to suppress 'async error during store initialization' log spam.
+                    return 'mock_sha';
+                }
+                if (cmd === 'evalsha' || cmd === 'eval') {
+                    // express-rate-limit relies on Lua script return values: [tokens_remaining, reset_time]
+                    // Returning [1, 0] simulates a successful hit that didn't exceed the limit
+                    return [1, 0];
+                }
+                throw new Error('Redis client is not available or not TCP');
             }
 
             // ioredis TCP client: native .call() passthrough — most efficient path

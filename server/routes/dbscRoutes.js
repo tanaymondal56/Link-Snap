@@ -39,16 +39,23 @@ router.post('/registration', async (req, res) => {
 
     // Convert JWK public key to PEM and verify signature against challenge JTI
     const publicKeyPem = crypto.createPublicKey({ format: "jwk", key: jwk }).export({ format: "pem", type: "spki" });
-    jwt.verify(proofHeader, publicKeyPem, { algorithms: ["ES256"] });
+    jwt.verify(proofHeader, publicKeyPem, { algorithms: ["ES256", "RS256"] });
 
     // The browser sends the session ID via cookie or custom header
-    const sessionId = req.cookies?.['__Host-session'] || req.headers["sec-secure-session-id"];
+    const dbscSessionId = req.headers["sec-secure-session-id"];
+    const jwtCookie = req.cookies?.['jwt'];
     
-    if (!sessionId) {
+    if (!dbscSessionId && !jwtCookie) {
       return res.status(400).json({ error: "Missing session identifier" });
     }
 
-    const session = await Session.findOne({ dbscSessionId: sessionId });
+    let session;
+    if (dbscSessionId) {
+      session = await Session.findOne({ dbscSessionId });
+    } else {
+      const tokenHash = crypto.createHash('sha256').update(jwtCookie).digest('hex');
+      session = await Session.findOne({ tokenHash });
+    }
 
     if (!session) {
       return res.status(404).json({ error: "Session not found" });
@@ -60,11 +67,30 @@ router.post('/registration', async (req, res) => {
     session.dbscChallenge = null; // Clear any pending challenge
     await session.save();
 
-    // MANDATORY: Return HTTP 200 with JSON response { continue: true }
-    return res.status(200).json({ continue: true, session_identifier: sessionId });
+    // Chrome DBSC specification defaults to the registration context origin if `origin` is omitted.
+    // This perfectly bypasses any cross-origin proxy mismatches (e.g. Vite proxy).
+    // Note: include_site must be false for localhost/IPs because they do not have a registrable domain (eTLD+1).
+    const isLocalhost = req.get('host').includes('localhost') || req.get('host').includes('127.0.0.1');
+    
+    return res.status(200).json({ 
+      session_identifier: session.dbscSessionId,
+      scope: {
+        include_site: !isLocalhost
+      },
+      credentials: [
+        {
+          type: "cookie",
+          name: "session"
+        },
+        {
+          type: "cookie",
+          name: "jwt"
+        }
+      ]
+    });
   } catch (err) {
     logger.error('[DBSC Registration Error]', err.message);
-    return res.status(401).json({ error: "DBSC proof verification failed" });
+    return res.status(401).json({ error: "DBSC proof verification failed", details: err.message, stack: err.stack });
   }
 });
 
@@ -81,19 +107,26 @@ router.post('/registration', async (req, res) => {
  * The stored challenge is single-use (cleared after verification) to prevent replay attacks.
  */
 router.post('/refresh', async (req, res) => {
-  const sessionId = req.headers["sec-secure-session-id"] || req.cookies?.['__Host-session'];
+  const dbscSessionId = req.headers["sec-secure-session-id"];
+  const jwtCookie = req.cookies?.['jwt'];
   const proofHeader = req.headers["secure-session-response"];
 
-  if (!sessionId) {
+  if (!dbscSessionId && !jwtCookie) {
     return res.status(400).json({ error: "Missing session identifier" });
   }
 
-  const session = await Session.findOne({ dbscSessionId: sessionId });
+  let session;
+  if (dbscSessionId) {
+    session = await Session.findOne({ dbscSessionId });
+  } else {
+    const tokenHash = crypto.createHash('sha256').update(jwtCookie).digest('hex');
+    session = await Session.findOne({ tokenHash });
+  }
 
   if (!session || !session.dbscPublicKeyJwk) {
     // Session not found or no DBSC key registered — issue a fresh challenge
     const newChallenge = crypto.randomBytes(16).toString("hex");
-    res.setHeader("Secure-Session-Challenge", `challenge="${newChallenge}"; id="${sessionId}"`);
+    res.setHeader("Secure-Session-Challenge", `challenge="${newChallenge}"; id="${dbscSessionId || 'unknown'}"`);
     return res.status(403).json({ error: "DBSC challenge required" });
   }
 
@@ -102,7 +135,7 @@ router.post('/refresh', async (req, res) => {
     const newChallenge = crypto.randomBytes(16).toString("hex");
     session.dbscChallenge = newChallenge;
     await session.save();
-    res.setHeader("Secure-Session-Challenge", `challenge="${newChallenge}"; id="${sessionId}"`);
+    res.setHeader("Secure-Session-Challenge", `challenge="${newChallenge}"; id="${session.dbscSessionId}"`);
     return res.status(403).json({ error: "DBSC challenge required" });
   }
 
@@ -116,13 +149,13 @@ router.post('/refresh', async (req, res) => {
 
     // Verify the jti matches the stored (single-use) challenge
     if (!session.dbscChallenge || decodedProof.payload.jti !== session.dbscChallenge) {
-      logger.warn(`[DBSC] Replay attack detected for session ${sessionId}: jti mismatch`);
+      logger.warn(`[DBSC] Replay attack detected for session ${session.dbscSessionId}: jti mismatch`);
       return res.status(401).json({ error: "Replay attack detected: challenge mismatch" });
     }
 
     // Now verify the cryptographic signature
     const publicKeyPem = crypto.createPublicKey({ format: "jwk", key: session.dbscPublicKeyJwk }).export({ format: "pem", type: "spki" });
-    jwt.verify(proofHeader, publicKeyPem, { algorithms: ["ES256"] });
+    jwt.verify(proofHeader, publicKeyPem, { algorithms: ["ES256", "RS256"] });
 
     // Challenge consumed — clear it immediately (single-use)
     session.dbscChallenge = null;
@@ -132,7 +165,7 @@ router.post('/refresh', async (req, res) => {
     return res.status(200).json({ continue: true });
   } catch (err) {
     logger.error(`[DBSC Refresh Error] ${err.message}`);
-    return res.status(401).json({ error: "Invalid device signature" });
+    return res.status(401).json({ error: "Invalid device signature", details: err.message, stack: err.stack });
   }
 });
 

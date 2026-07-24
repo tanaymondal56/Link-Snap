@@ -5,53 +5,82 @@ import logger from '../utils/logger.js';
 let redisClient = null;
 let redisDriver = null;
 
-export const isRedisConfigured = () => Boolean(
-    process.env.REDIS_URL ||
-    (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
-);
+let connectionPromise = null;
 
-export const connectRedis = () => {
+export const isRedisConfigured = () => true; // Always attempt connection (TCP fallback -> Upstash -> Memory)
+
+export const connectRedis = async () => {
     if (redisClient) return redisClient;
+    if (connectionPromise) return connectionPromise;
 
-    const tcpUrl = process.env.REDIS_URL;
-    if (tcpUrl) {
+    connectionPromise = (async () => {
+        // 1. Prefer Local or explicit TCP Redis first
+        const tcpUrl = process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || '127.0.0.1'}:${process.env.REDIS_PORT || 6379}`;
+        
         try {
-            redisClient = new Redis(tcpUrl, {
+            logger.info(`[Redis] Attempting TCP connection to ${tcpUrl}...`);
+            const client = new Redis(tcpUrl, {
                 enableReadyCheck: true,
-                maxRetriesPerRequest: 3,
+                maxRetriesPerRequest: 1, // Only retry once during probing
+                retryStrategy: (times) => {
+                    if (times > 0) return null; // Stop retrying immediately if probe fails
+                    return 0; 
+                }
             });
-            redisDriver = 'tcp';
-            redisClient.on('error', (err) => {
+
+            // Wait for connection to succeed or fail
+            await new Promise((resolve, reject) => {
+                const onReady = () => {
+                    client.removeListener('error', onError);
+                    resolve();
+                };
+                const onError = (err) => {
+                    client.removeListener('ready', onReady);
+                    reject(err);
+                };
+                client.once('ready', onReady);
+                client.once('error', onError);
+            });
+
+            // Success! Reconfigure for normal resilient operation
+            client.options.maxRetriesPerRequest = 3;
+            client.options.retryStrategy = (times) => Math.min(times * 200, 5000);
+            
+            client.on('error', (err) => {
+                if (err.code === 'ECONNREFUSED' && !process.env.REDIS_URL && !process.env.REDIS_HOST) return; // Mute log noise locally
                 logger.warn('[Redis] TCP client error: ' + err.message);
             });
-            logger.info('[Redis] Local TCP Redis client initialised.');
+
+            redisClient = client;
+            redisDriver = 'tcp';
+            logger.info('[Redis] TCP Redis client initialised and connected.');
             return redisClient;
         } catch (err) {
-            logger.error('[Redis] Failed to initialise TCP client: ' + err.message);
-            redisClient = null;
-            redisDriver = null;
-            return null;
+            logger.warn(`[Redis] TCP connection to ${tcpUrl} failed: ${err.message}. Falling back...`);
         }
-    }
 
-    const url = process.env.UPSTASH_REDIS_REST_URL;
-    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-    if (url && token) {
-        try {
-            redisClient = new UpstashRedis({ url, token });
-            redisDriver = 'upstash';
-            logger.info('[Redis] Upstash Redis client initialised (HTTP mode).');
-            return redisClient;
-        } catch (err) {
-            logger.error('[Redis] Failed to initialise Upstash client: ' + err.message);
-            redisClient = null;
-            redisDriver = null;
-            return null;
+        // 2. Try Upstash HTTP REST fallback if TCP failed
+        const url = process.env.UPSTASH_REDIS_REST_URL;
+        const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+        if (url && token) {
+            try {
+                redisClient = new UpstashRedis({ url, token });
+                redisDriver = 'upstash';
+                logger.info('[Redis] Upstash Redis client initialised (HTTP mode).');
+                return redisClient;
+            } catch (err) {
+                logger.error('[Redis] Failed to initialise Upstash client: ' + err.message);
+            }
         }
-    }
 
-    logger.warn('[Redis] No Redis configuration found. Running in-memory fallbacks.');
-    return null;
+        // 3. Complete Fallback
+        logger.warn('[Redis] No Redis configuration succeeded. Running in-memory fallbacks.');
+        redisClient = null;
+        redisDriver = null;
+        return null;
+    })();
+
+    return connectionPromise;
 };
 
 export const getRedisClient = () => redisClient;
@@ -99,9 +128,10 @@ const deserialize = (raw) => {
 };
 
 export const redisGet = async (key) => {
-    if (!redisClient) return undefined;
+    const client = redisClient;
+    if (!client) return undefined;
     try {
-        const raw = await redisClient.get(key);
+        const raw = await client.get(key);
         return raw === null ? null : deserialize(raw);
     } catch (err) {
         logger.warn('[Redis] GET ' + key + ' failed: ' + err.message);
@@ -110,31 +140,34 @@ export const redisGet = async (key) => {
 };
 
 export const redisSet = async (key, ttlSeconds, value) => {
-    if (!redisClient) return;
+    const client = redisClient;
+    if (!client) return;
     try {
         const payload = getRedisDriver() === 'tcp' && typeof value !== 'string' 
             ? JSON.stringify(value) 
             : value;
-        await redisClient.setex(key, ttlSeconds, payload);
+        await client.setex(key, ttlSeconds, payload);
     } catch (err) {
         logger.warn('[Redis] SET ' + key + ' failed: ' + err.message);
     }
 };
 
 export const redisDel = async (...keys) => {
-    if (!redisClient || keys.length === 0) return;
+    const client = redisClient;
+    if (!client || keys.length === 0) return;
     try {
-        await redisClient.del(...keys);
+        await client.del(...keys);
     } catch (err) {
         logger.warn('[Redis] DEL ' + keys.join(',') + ' failed: ' + err.message);
     }
 };
 
 export const redisIncr = async (key, safetyTtlSeconds = 604800) => {
-    if (!redisClient) return null;
+    const client = redisClient;
+    if (!client) return null;
     try {
-        const count = await redisClient.incr(key);
-        if (count === 1) await redisClient.expire(key, safetyTtlSeconds);
+        const count = await client.incr(key);
+        if (count === 1) await client.expire(key, safetyTtlSeconds);
         return count;
     } catch (err) {
         logger.warn('[Redis] INCR ' + key + ' failed: ' + err.message);
@@ -143,10 +176,11 @@ export const redisIncr = async (key, safetyTtlSeconds = 604800) => {
 };
 
 export const redisGetDel = async (key) => {
-    if (!redisClient) return undefined;
+    const client = redisClient;
+    if (!client) return undefined;
     try {
         // Both ioredis (since 6.2+) and Upstash Redis support GETDEL natively
-        const raw = await redisClient.getdel(key);
+        const raw = await client.getdel(key);
         return raw === null ? null : deserialize(raw);
     } catch (err) {
         logger.warn('[Redis] GETDEL ' + key + ' failed: ' + err.message);
@@ -155,12 +189,13 @@ export const redisGetDel = async (key) => {
 };
 
 export const redisScan = async (cursor, matchPattern, count = 100) => {
-    if (!redisClient) return [0, []];
+    const client = redisClient;
+    if (!client) return [0, []];
     try {
         if (redisDriver === 'tcp') {
-            return await redisClient.scan(cursor, 'MATCH', matchPattern, 'COUNT', count);
+            return await client.scan(cursor, 'MATCH', matchPattern, 'COUNT', count);
         } else {
-            return await redisClient.scan(cursor, { match: matchPattern, count });
+            return await client.scan(cursor, { match: matchPattern, count });
         }
     } catch (err) {
         logger.warn('[Redis] SCAN failed: ' + err.message);
@@ -168,8 +203,7 @@ export const redisScan = async (cursor, matchPattern, count = 100) => {
     }
 };
 
-// Auto-initialize connection so it is available immediately for rate limiters
-connectRedis();
+// Export functions for external use
 
 export default {
     connect: connectRedis,

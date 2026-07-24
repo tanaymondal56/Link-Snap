@@ -8,7 +8,7 @@ const run = async () => {
   logger.info('[CronJob] Running Safe Browsing Scans...');
   try {
     await connectDB();
-    connectRedis();
+    await connectRedis();
     await scanPendingLinks();
     await scanUncheckedLinks();
     logger.info('[CronJob] Safe Browsing Scans finished successfully.');

@@ -53,8 +53,22 @@ const getRedisConnectionOptions = () => {
       ...baseOptions,
       maxRetriesPerRequest: null, // Required by BullMQ
       retryStrategy: (times) => {
-          const delay = Math.min(times * 200, 5000); // Exponential backoff up to 5s
-          logger.warn(`[WebhookQueue] Redis disconnected. Retrying in ${delay}ms...`);
+          // If no explicit TCP Redis URL is set and local Redis fails 3 times,
+          // gracefully stop retrying to prevent terminal log flooding in local development.
+          if (!process.env.REDIS_URL && !process.env.REDIS_HOST && times > 3) {
+              if (!global.__bullmq_paused_logged) {
+                  global.__bullmq_paused_logged = true;
+                  logger.warn('[WebhookQueue] Local TCP Redis unavailable on 127.0.0.1:6379. Queue paused (webhooks will run synchronously in fallback mode).');
+              }
+              return false;
+          }
+          const delay = Math.min(times * 500, 5000);
+          if (times <= 3) {
+              if (!global[`__bullmq_retry_${times}`]) {
+                  global[`__bullmq_retry_${times}`] = true;
+                  logger.warn(`[WebhookQueue] TCP Redis disconnected. Retrying (${times}/3)...`);
+              }
+          }
           return delay;
       },
       reconnectOnError: (err) => {
@@ -112,6 +126,13 @@ export const webhookWorker = new Worker('webhookProcessingQueue', async (job) =>
     concurrency: 5 // Process 5 webhooks concurrently
 });
 
+webhookQueue.on('error', err => {
+    if (err.code === 'ECONNREFUSED' && !process.env.REDIS_URL && !process.env.REDIS_HOST) {
+        return; // Suppress repeated ECONNREFUSED log noise from Queue in local dev
+    }
+    logger.error(`[WebhookQueue] Queue error: ${err.message}`);
+});
+
 webhookWorker.on('completed', job => {
     logger.info(`[WebhookWorker] Job ${job.id} (${job.data?.eventName}) completed successfully`);
 });
@@ -121,5 +142,8 @@ webhookWorker.on('failed', (job, err) => {
 });
 
 webhookWorker.on('error', err => {
+    if (err.code === 'ECONNREFUSED' && !process.env.REDIS_URL && !process.env.REDIS_HOST) {
+        return; // Suppress repeated ECONNREFUSED log noise in local dev
+    }
     logger.error(`[WebhookWorker] Worker error: ${err.message}`);
 });

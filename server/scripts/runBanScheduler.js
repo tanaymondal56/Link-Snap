@@ -9,7 +9,7 @@ const run = async () => {
   logger.info('[CronJob] Running Ban Expiry, Subscription Expiry & Changelog Publisher...');
   try {
     await connectDB();
-    connectRedis();
+    await connectRedis();
     await processExpiredBans();
     await processScheduledChangelogs();
     await processExpiredSubscriptions();
