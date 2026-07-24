@@ -132,11 +132,15 @@ const getConnectingIP = (req) => {
  * @param {import('express').Request} req - Express request object
  * @returns {string} The real user's IP address
  */
+const isCloudflareEgressIP = (ip) => {
+    if (!ip || typeof ip !== 'string') return false;
+    const normalized = ip.replace(/^::ffff:/, '').trim();
+    return normalized.startsWith('2a06:98c0:');
+};
+
 const getRealUserIP = (req) => {
     const connectingIP = getConnectingIP(req);
 
-    // SECURITY: Only trust proxy-injected IP headers when the underlying TCP
-    // connection actually comes from a known/trusted proxy (Localhost, Tailscale, or K8s CNI subnets).
     const isLocalhostOrInternal = connectingIP === '127.0.0.1' || 
         connectingIP.startsWith('127.') || 
         connectingIP.startsWith('10.42.') || 
@@ -146,22 +150,38 @@ const getRealUserIP = (req) => {
     const isFromTrustedProxy = isTrustedIP(connectingIP) || isTailscaleSubnet(connectingIP) || isLocalhostOrInternal;
 
     if (isFromTrustedProxy) {
-        // Cloudflare real IP header first
-        const cfIp = req.headers['cf-connecting-ip'];
-        if (cfIp && typeof cfIp === 'string') {
-            return cfIp.trim();
+        // 1. Check True-Client-IP (Cloudflare Enterprise / Access header)
+        const trueClient = req.headers['true-client-ip'];
+        if (trueClient && typeof trueClient === 'string' && !isCloudflareEgressIP(trueClient)) {
+            return trueClient.trim();
         }
 
-        // Safe to trust headers — set by Nginx / Cloudflare / K8s Ingress
+        // 2. Check X-Forwarded-For for the first real eyeball client IP
+        const forwardedFor = req.headers['x-forwarded-for'];
+        if (forwardedFor && typeof forwardedFor === 'string') {
+            const ips = forwardedFor.split(',').map(i => i.trim());
+            const realEyeball = ips.find(ip => 
+                !isCloudflareEgressIP(ip) && 
+                !ip.startsWith('10.42.') && 
+                !ip.startsWith('10.244.') && 
+                !ip.startsWith('10.0.') && 
+                !ip.startsWith('127.') && 
+                ip !== '::1'
+            );
+            if (realEyeball) return realEyeball;
+            if (ips[0]) return ips[0];
+        }
+
+        // 3. Check X-Real-IP
         const realIp = req.headers[CONFIG.realIpHeader];
-        if (realIp && typeof realIp === 'string') {
+        if (realIp && typeof realIp === 'string' && !isCloudflareEgressIP(realIp)) {
             return realIp.trim();
         }
 
-        // Fall back to X-Forwarded-For (first IP = original client)
-        const forwardedFor = req.headers['x-forwarded-for'];
-        if (forwardedFor && typeof forwardedFor === 'string') {
-            return forwardedFor.split(',')[0].trim();
+        // 4. CF-Connecting-IP fallback
+        const cfIp = req.headers['cf-connecting-ip'];
+        if (cfIp && typeof cfIp === 'string') {
+            return cfIp.trim();
         }
     }
 

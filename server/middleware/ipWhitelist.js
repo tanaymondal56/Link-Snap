@@ -66,14 +66,29 @@ const checkIpAccess = (req) => {
     // strictProxyGate already extracted the real user IP
     clientIP = req.realUserIP;
   } else if (isFromTrustedProxy) {
-    // Request is from localhost/proxy, trust the forwarded headers (Cloudflare CF-Connecting-IP first)
-    clientIP =
-      req.headers['cf-connecting-ip'] ||
-      req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-      req.headers['x-real-ip'] ||
-      req.ip ||
-      socketIP ||
-      'unknown';
+    const isCfEgress = (ip) => ip && typeof ip === 'string' && ip.replace(/^::ffff:/, '').trim().startsWith('2a06:98c0:');
+    
+    // 1. True-Client-IP header
+    const trueClient = req.headers['true-client-ip'];
+    if (trueClient && !isCfEgress(trueClient)) {
+      clientIP = trueClient.trim();
+    } else if (req.headers['x-forwarded-for']) {
+      // 2. First real eyeball IP in X-Forwarded-For
+      const ips = req.headers['x-forwarded-for'].split(',').map(i => i.trim());
+      const realEyeball = ips.find(ip => 
+        !isCfEgress(ip) && 
+        !ip.startsWith('10.42.') && 
+        !ip.startsWith('10.244.') && 
+        !ip.startsWith('10.0.') && 
+        !ip.startsWith('127.') && 
+        ip !== '::1'
+      );
+      clientIP = realEyeball || ips[0];
+    } else if (req.headers['x-real-ip'] && !isCfEgress(req.headers['x-real-ip'])) {
+      clientIP = req.headers['x-real-ip'].trim();
+    } else {
+      clientIP = req.headers['cf-connecting-ip'] || req.ip || socketIP || 'unknown';
+    }
   } else {
     // Direct connection - use socket IP, ignore headers (prevent spoofing)
     clientIP = socketIP || 'unknown';
