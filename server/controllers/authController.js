@@ -821,25 +821,35 @@ const loginUser = async (req, res, next) => {
 const logoutUser = async (req, res, next) => {
   try {
     const refreshToken = req.cookies.jwt;
-    if (!refreshToken) return res.sendStatus(204); // No content
-
-    // Terminate the session in database
-    const terminated = await terminateSession(refreshToken);
-
-    if (!terminated) {
-      logger.debug('[Logout] Session not found, clearing cookie anyway');
+    
+    // 1. Terminate DBSC hardware session & DB record if token is present
+    if (refreshToken) {
+      const terminatedSession = await terminateSession(refreshToken);
+      if (terminatedSession?.dbscSessionId) {
+        // Inform Chrome DBSC engine to immediately purge the hardware key binding
+        res.setHeader("Sec-Session-Response", `(terminate); id="${terminatedSession.dbscSessionId}"`);
+        res.setHeader("Secure-Session-Registration", `(terminate); id="${terminatedSession.dbscSessionId}"`);
+      }
     }
 
-    res.clearCookie('jwt', {
+    // 2. Clear cookie-session middleware state (session & session.sig)
+    if (req.session) {
+      req.session = null;
+    }
+
+    // 3. Explicitly wipe all auth & CSRF cookies
+    const cookieOpts = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: getCookieSameSite(),
-    });
-    res.clearCookie('access_token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: getCookieSameSite(),
-    });
+    };
+
+    res.clearCookie('jwt', cookieOpts);
+    res.clearCookie('access_token', cookieOpts);
+    res.clearCookie('session', cookieOpts);
+    res.clearCookie('session.sig', cookieOpts);
+    res.clearCookie('XSRF-TOKEN', { ...cookieOpts, httpOnly: false });
+
     res.status(200).json({ message: 'Logged out successfully' });
   } catch (error) {
     next(error);

@@ -176,8 +176,8 @@ export const refreshSessionActivity = async (session, req) => {
  */
 export const terminateSession = async (token) => {
   const tokenHash = hashToken(token);
-  const result = await Session.deleteOne({ tokenHash });
-  return result.deletedCount > 0;
+  const session = await Session.findOneAndDelete({ tokenHash });
+  return session;
 };
 
 /**
