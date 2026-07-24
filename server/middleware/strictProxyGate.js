@@ -136,13 +136,23 @@ const getRealUserIP = (req) => {
     const connectingIP = getConnectingIP(req);
 
     // SECURITY: Only trust proxy-injected IP headers when the underlying TCP
-    // connection actually comes from a known/trusted proxy.
-    // Without this check, any client reaching the server directly could inject
-    // X-Real-IP: 127.0.0.1 to spoof a whitelisted IP and bypass all rate limits.
-    const isFromTrustedProxy = isTrustedIP(connectingIP) || isTailscaleSubnet(connectingIP);
+    // connection actually comes from a known/trusted proxy (Localhost, Tailscale, or K8s CNI subnets).
+    const isLocalhostOrInternal = connectingIP === '127.0.0.1' || 
+        connectingIP.startsWith('127.') || 
+        connectingIP.startsWith('10.42.') || 
+        connectingIP.startsWith('10.244.') || 
+        connectingIP.startsWith('10.0.');
+
+    const isFromTrustedProxy = isTrustedIP(connectingIP) || isTailscaleSubnet(connectingIP) || isLocalhostOrInternal;
 
     if (isFromTrustedProxy) {
-        // Safe to trust headers — they were set by our Nginx/Tailscale proxy
+        // Cloudflare real IP header first
+        const cfIp = req.headers['cf-connecting-ip'];
+        if (cfIp && typeof cfIp === 'string') {
+            return cfIp.trim();
+        }
+
+        // Safe to trust headers — set by Nginx / Cloudflare / K8s Ingress
         const realIp = req.headers[CONFIG.realIpHeader];
         if (realIp && typeof realIp === 'string') {
             return realIp.trim();
@@ -155,8 +165,6 @@ const getRealUserIP = (req) => {
         }
     }
 
-    // Untrusted or direct connection: use the actual socket address.
-    // DO NOT trust X-Real-IP or X-Forwarded-For from unknown sources.
     return connectingIP;
 };
 
@@ -287,8 +295,8 @@ export const strictProxyGate = (req, res, next) => {
     // When PROXY_GATE_ENABLED=false, skip all security checks
     // Use this for local development where you're not behind a proxy
     if (!CONFIG.enabled) {
-        // In dev mode, use direct connection IP as "real" IP
-        req.realUserIP = getConnectingIP(req);
+        // In dev mode / K8s mode without ProxyGate, extract real IP via headers (Cloudflare / Ingress)
+        req.realUserIP = getRealUserIP(req);
         return next();
     }
 
