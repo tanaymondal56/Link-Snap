@@ -105,14 +105,6 @@ router.post('/registration', async (req, res) => {
         {
           type: "cookie",
           name: "__Host-session"
-        },
-        {
-          type: "cookie",
-          name: "jwt"
-        },
-        {
-          type: "cookie",
-          name: "access_token"
         }
       ]
     });
