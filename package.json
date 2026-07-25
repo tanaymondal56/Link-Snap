@@ -40,7 +40,7 @@
     "dev:toggle-verification": "curl -X POST http://localhost:5000/api/dev/toggle-verification"
   },
   "devDependencies": {
-    "concurrently": "^10.0.3",
+    "concurrently": "^10.0.4",
     "wait-on": "^9.0.10"
   },
   "dependencies": {
