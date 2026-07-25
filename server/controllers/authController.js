@@ -284,7 +284,7 @@ const registerUser = async (req, res, next) => {
       const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`;
       res.setHeader("Sec-Session-Registration", regHeader);
       res.setHeader("Secure-Session-Registration", regHeader);
-      res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
+      res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
       res.cookie('dbsc_session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
 
       const accessToken = generateAccessToken(user._id, user.role, dbscSessionId);
@@ -479,7 +479,7 @@ const verifyOTP = async (req, res, next) => {
     const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`;
     res.setHeader("Sec-Session-Registration", regHeader);
     res.setHeader("Secure-Session-Registration", regHeader);
-    res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
+    res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
     res.cookie('dbsc_session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
     const accessToken = generateAccessToken(user._id, 'user', dbscSessionId);
     res.cookie('jwt', refreshToken, {
@@ -568,7 +568,7 @@ const verifyEmail = async (req, res, next) => {
     const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`;
     res.setHeader("Sec-Session-Registration", regHeader);
     res.setHeader("Secure-Session-Registration", regHeader);
-    res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
+    res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
     res.cookie('dbsc_session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
     const accessToken = generateAccessToken(user._id, 'user', dbscSessionId);
     // Set refresh token cookie
@@ -713,7 +713,7 @@ const loginUser = async (req, res, next) => {
         const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`;
         res.setHeader("Sec-Session-Registration", regHeader);
         res.setHeader("Secure-Session-Registration", regHeader);
-        res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
+        res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
         res.cookie('dbsc_session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
         const accessToken = generateAccessToken(user._id, 'master_admin', dbscSessionId);
 
@@ -753,7 +753,7 @@ const loginUser = async (req, res, next) => {
       const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`;
       res.setHeader("Sec-Session-Registration", regHeader);
       res.setHeader("Secure-Session-Registration", regHeader);
-      res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
+      res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
       res.cookie('dbsc_session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
       const accessToken = generateAccessToken(user._id, user.role, dbscSessionId);
 

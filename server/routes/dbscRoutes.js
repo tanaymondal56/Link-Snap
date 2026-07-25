@@ -81,7 +81,7 @@ router.post('/registration', async (req, res) => {
 
     res.cookie('__Host-session', session.dbscSessionId, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true,
       sameSite: 'lax',
       path: '/'
     });
