@@ -59,9 +59,10 @@ export const maskIP = (ip) => {
  * Create a new session for a user
  * @param {string} userId - User's MongoDB ID
  * @param {Object} req - Express request object (for IP and User-Agent)
- * @returns {Object} { refreshToken, session }
+ * @param {string|null} [challengeNonce=null] - Optional DBSC challenge nonce to persist for registration verification
+ * @returns {Object} { refreshToken, session, dbscSessionId }
  */
-export const createSession = async (userId, req) => {
+export const createSession = async (userId, req, challengeNonce = null) => {
   // Generate refresh token
   const refreshToken = generateRefreshToken(userId);
   const tokenHash = hashToken(refreshToken);
@@ -94,13 +95,14 @@ export const createSession = async (userId, req) => {
   // Generate DBSC tracking ID
   const dbscSessionId = crypto.randomUUID();
 
-  // Create session document
+  // Create session document — persist challenge nonce if provided so /api/dbsc/registration can verify it
   const session = await Session.create({
     userId,
     tokenHash,
     deviceInfo,
     ipAddress,
     dbscSessionId,
+    dbscChallenge: challengeNonce || null, // Persist nonce so registration endpoint can verify jti
     userAgent: userAgentString.substring(0, 500), // Limit length
     lastActiveAt: new Date(),
     expiresAt: new Date(Date.now() + SESSION_DURATION_MS)

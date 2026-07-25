@@ -87,6 +87,27 @@ export const setDbscSessionCookies = (res, dbscSessionId) => {
   });
 };
 
+/**
+ * Atomically generate a DBSC registration challenge, persist it to the session document,
+ * set the required __Host-session / dbsc_session cookies, and emit the Sec-Session-Registration
+ * header to Chrome. Must be called BEFORE the response is sent.
+ *
+ * @param {import('express').Response} res - Express response object
+ * @param {import('mongoose').Document} session - Mongoose session document (must be saveable)
+ * @returns {Promise<string>} The challengeNonce that was persisted
+ */
+export const issueDbscRegistration = async (res, session) => {
+  const challengeNonce = crypto.randomBytes(16).toString('hex');
+  // Persist nonce so /api/dbsc/registration can verify the signed jti matches
+  session.dbscChallenge = challengeNonce;
+  await session.save();
+  const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${session.dbscSessionId}"`;
+  res.setHeader('Sec-Session-Registration', regHeader);
+  res.setHeader('Secure-Session-Registration', regHeader);
+  setDbscSessionCookies(res, session.dbscSessionId);
+  return challengeNonce;
+};
+
 // @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public
@@ -314,13 +335,8 @@ const registerUser = async (req, res, next) => {
         isVerified: true,
       });
 
-      const { refreshToken, dbscSessionId } = await createSession(user._id, req);
-      const challengeNonce = crypto.randomBytes(16).toString("hex");
-      const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`;
-      res.setHeader("Sec-Session-Registration", regHeader);
-      res.setHeader("Secure-Session-Registration", regHeader);
-      res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
-      res.cookie('dbsc_session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
+      const { refreshToken, session: newSession, dbscSessionId } = await createSession(user._id, req);
+      await issueDbscRegistration(res, newSession);
 
       const accessToken = generateAccessToken(user._id, user.role, dbscSessionId);
 
@@ -509,13 +525,8 @@ const verifyOTP = async (req, res, next) => {
     await user.save();
 
     // Create session and generate access token
-    const { refreshToken, dbscSessionId } = await createSession(user._id, req);
-    const challengeNonce = crypto.randomBytes(16).toString("hex");
-    const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`;
-    res.setHeader("Sec-Session-Registration", regHeader);
-    res.setHeader("Secure-Session-Registration", regHeader);
-    res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
-    res.cookie('dbsc_session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
+    const { refreshToken, session: verifySession, dbscSessionId } = await createSession(user._id, req);
+    await issueDbscRegistration(res, verifySession);
     const accessToken = generateAccessToken(user._id, 'user', dbscSessionId);
     res.cookie('jwt', refreshToken, {
       httpOnly: true,
@@ -598,13 +609,8 @@ const verifyEmail = async (req, res, next) => {
     await user.save();
 
     // Create session and generate access token
-    const { refreshToken, dbscSessionId } = await createSession(user._id, req);
-    const challengeNonce = crypto.randomBytes(16).toString("hex");
-    const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`;
-    res.setHeader("Sec-Session-Registration", regHeader);
-    res.setHeader("Secure-Session-Registration", regHeader);
-    res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
-    res.cookie('dbsc_session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
+    const { refreshToken, session: otpSession, dbscSessionId } = await createSession(user._id, req);
+    await issueDbscRegistration(res, otpSession);
     const accessToken = generateAccessToken(user._id, 'user', dbscSessionId);
     // Set refresh token cookie
     res.cookie('jwt', refreshToken, {
@@ -743,13 +749,8 @@ const loginUser = async (req, res, next) => {
       // --- MASTER ADMIN CHECK ---
       if (role === 'master_admin') {
         // Create session for Master Admin
-        const { refreshToken, dbscSessionId } = await createSession(user._id, req);
-        const challengeNonce = crypto.randomBytes(16).toString("hex");
-        const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`;
-        res.setHeader("Sec-Session-Registration", regHeader);
-        res.setHeader("Secure-Session-Registration", regHeader);
-        res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
-        res.cookie('dbsc_session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
+        const { refreshToken, session: maSession, dbscSessionId } = await createSession(user._id, req);
+        await issueDbscRegistration(res, maSession);
         const accessToken = generateAccessToken(user._id, 'master_admin', dbscSessionId);
 
         // Helper for lastLoginAt
@@ -783,13 +784,8 @@ const loginUser = async (req, res, next) => {
 
       // --- STANDARD USER LOGIN ---
       // Create session with device info
-      const { refreshToken, dbscSessionId } = await createSession(user._id, req);
-      const challengeNonce = crypto.randomBytes(16).toString("hex");
-      const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`;
-      res.setHeader("Sec-Session-Registration", regHeader);
-      res.setHeader("Secure-Session-Registration", regHeader);
-      res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
-      res.cookie('dbsc_session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
+      const { refreshToken, session: loginSession, dbscSessionId } = await createSession(user._id, req);
+      await issueDbscRegistration(res, loginSession);
       const accessToken = generateAccessToken(user._id, user.role, dbscSessionId);
 
       // Update lastLoginAt
@@ -1002,13 +998,9 @@ const refreshAccessToken = async (req, res, next) => {
     if (!rotationResult.session?.dbscEnforced) {
       if (!rotationResult.session.dbscSessionId) {
         rotationResult.session.dbscSessionId = crypto.randomUUID();
-        await rotationResult.session.save();
       }
-      // If session is not yet DBSC-enforced (e.g. user logged in prior to DBSC enablement), send registration header to upgrade session
-      const challengeNonce = crypto.randomBytes(16).toString("hex");
-      const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${rotationResult.session.dbscSessionId}"`;
-      res.setHeader("Sec-Session-Registration", regHeader);
-      res.setHeader("Secure-Session-Registration", regHeader);
+      // Persist challenge nonce and set cookies so Chrome can complete the registration flow
+      await issueDbscRegistration(res, rotationResult.session);
     }
 
     // Generate new access token
@@ -1096,13 +1088,9 @@ const getMe = async (req, res) => {
       if (session && !session.dbscEnforced) {
         if (!session.dbscSessionId) {
           session.dbscSessionId = crypto.randomUUID();
-          await session.save();
         }
-        setDbscSessionCookies(res, session.dbscSessionId);
-        const challengeNonce = crypto.randomBytes(16).toString("hex");
-        const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${session.dbscSessionId}"`;
-        res.setHeader("Sec-Session-Registration", regHeader);
-        res.setHeader("Secure-Session-Registration", regHeader);
+        // issueDbscRegistration persists the nonce AND sets cookies — critical for Chrome to find the session
+        await issueDbscRegistration(res, session);
       }
     } catch (e) {
       // Ignore if session check fails during getMe

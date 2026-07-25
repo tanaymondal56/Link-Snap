@@ -68,6 +68,12 @@ router.post('/registration', async (req, res) => {
       return res.status(404).json({ error: "Session not found" });
     }
 
+    // Verify the challenge nonce — prevents a malicious JWS from registering a key to an arbitrary session
+    if (!session.dbscChallenge || payload.jti !== session.dbscChallenge) {
+      logger.warn(`[DBSC Registration] Challenge mismatch for session ${session.dbscSessionId}`);
+      return res.status(401).json({ error: "Registration challenge mismatch: jti does not match stored nonce" });
+    }
+
     // Cryptographically bind public key to this session and mark DBSC as enforced
     session.dbscPublicKeyJwk = jwk;
     session.dbscEnforced = true;  // From this point, authMiddleware enforces hardware binding
