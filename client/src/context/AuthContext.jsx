@@ -115,10 +115,13 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
           // Only treat 401/403 as definitive "not logged in"
           if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+            localStorage.removeItem('ls_auth_user');
+            localStorage.removeItem('ls_auth_cached_at');
             setUser(null);
             setAccessToken(null);
             setLoading(false);
             setIsAuthChecking(false);
+            api.post('/auth/logout').catch(() => {});
             resolve();
           } else {
             // For network errors (server restarting), retry up to 2 times (reduced from 5)
@@ -187,8 +190,11 @@ export const AuthProvider = ({ children }) => {
   // Centralized event listener for forced logouts (e.g. from Axios interceptors)
   useEffect(() => {
     const handleAuthLogoutEvent = () => {
+      localStorage.removeItem('ls_auth_user');
+      localStorage.removeItem('ls_auth_cached_at');
       setAccessToken(null);
       setUser(null);
+      api.post('/auth/logout').catch(() => {});
     };
 
     window.addEventListener('auth:logout', handleAuthLogoutEvent);

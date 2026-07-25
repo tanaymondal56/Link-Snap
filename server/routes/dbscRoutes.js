@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import Session from '../models/Session.js';
 import logger from '../utils/logger.js';
+import { setDbscSessionCookies } from '../controllers/authController.js';
 
 const router = express.Router();
 
@@ -86,12 +87,7 @@ router.post('/registration', async (req, res) => {
     res.setHeader("Sec-Session-Response", termHeader);
     res.setHeader("Secure-Session-Response", termHeader);
 
-    res.cookie('__Host-session', session.dbscSessionId, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      path: '/'
-    });
+    setDbscSessionCookies(res, session.dbscSessionId);
 
     res.cookie('access_token', accessToken, {
       httpOnly: true,
@@ -195,6 +191,7 @@ router.post('/refresh', async (req, res) => {
     session.dbscChallenge = null;
     session.dbscLastVerifiedAt = new Date();
     await session.save();
+    setDbscSessionCookies(res, session.dbscSessionId);
 
     // The token is valid. Return 200 OK to tell the browser to unpause the queued requests.
     return res.status(200).json({ continue: true });

@@ -52,6 +52,41 @@ const getCookieSameSite = () => {
   return process.env.NODE_ENV === 'production' ? 'strict' : 'lax';
 };
 
+export const clearAllAuthCookies = (res) => {
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: getCookieSameSite(),
+    path: '/'
+  };
+  res.clearCookie('jwt', cookieOptions);
+  res.clearCookie('access_token', cookieOptions);
+  res.clearCookie('__Host-session', cookieOptions);
+  res.clearCookie('dbsc_session', cookieOptions);
+  res.clearCookie('session', cookieOptions);
+  res.clearCookie('session.sig', cookieOptions);
+  res.clearCookie('XSRF-TOKEN', {
+    ...cookieOptions,
+    httpOnly: false
+  });
+};
+
+export const setDbscSessionCookies = (res, dbscSessionId) => {
+  if (!dbscSessionId) return;
+  res.cookie('__Host-session', dbscSessionId, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/'
+  });
+  res.cookie('dbsc_session', dbscSessionId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/'
+  });
+};
+
 // @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public
@@ -858,25 +893,8 @@ const logoutUser = async (req, res, next) => {
     // 2. Clear cookie-session middleware state
     req.session = null;
 
-    // 3. Clear cookies using exact options used during creation
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: getCookieSameSite(),
-      path: '/'
-    };
-
-    res.clearCookie('jwt', cookieOptions);
-    res.clearCookie('access_token', cookieOptions);
-    res.clearCookie('__Host-session', cookieOptions);
-    res.clearCookie('dbsc_session', cookieOptions);
-    res.clearCookie('session', cookieOptions);
-    res.clearCookie('session.sig', cookieOptions);
-    
-    res.clearCookie('XSRF-TOKEN', {
-      ...cookieOptions,
-      httpOnly: false
-    });
+    // 3. Clear all auth and session cookies
+    clearAllAuthCookies(res);
 
     res.status(200).json({ message: 'Logged out successfully' });
   } catch (error) {
@@ -919,11 +937,7 @@ const refreshAccessToken = async (req, res, next) => {
     if (!user) {
       // User was deleted
       await terminateSession(refreshToken);
-      res.clearCookie('jwt', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: getCookieSameSite(),
-      });
+      clearAllAuthCookies(res);
       return res.sendStatus(403);
     }
 
@@ -931,12 +945,7 @@ const refreshAccessToken = async (req, res, next) => {
     if (!user.isActive) {
       // Terminate all sessions for banned user
       await terminateAllUserSessions(user._id);
-
-      res.clearCookie('jwt', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: getCookieSameSite(),
-      });
+      clearAllAuthCookies(res);
       return res.status(403).json({
         message: 'Your account has been suspended. Please contact support for assistance.',
         banned: true,
@@ -950,49 +959,51 @@ const refreshAccessToken = async (req, res, next) => {
       if (user._id.toString() !== decoded.id) {
         // Token user ID mismatch
         await terminateSession(refreshToken);
-        res.clearCookie('jwt', {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: getCookieSameSite(),
-        });
+        clearAllAuthCookies(res);
         return res.sendStatus(403);
       }
     } catch {
       // JWT verification failed (expired or invalid)
       await terminateSession(refreshToken);
-      res.clearCookie('jwt', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: getCookieSameSite(),
-      });
+      clearAllAuthCookies(res);
       return res.sendStatus(403);
+    }
+
+    // Check session validity before rotation
+    const existingSession = await validateSession(refreshToken);
+    if (!existingSession) {
+      clearAllAuthCookies(res);
+      return res.sendStatus(403);
+    }
+
+    // If session IS DBSC-enforced, verify hardware proof of possession BEFORE rotating token in DB
+    // This stops cookie theft & deleted tokens without causing a race condition on challenge retry
+    if (existingSession.dbscEnforced && existingSession.dbscPublicKeyJwk) {
+      const lastVerified = existingSession.dbscLastVerifiedAt ? new Date(existingSession.dbscLastVerifiedAt).getTime() : 0;
+      const now = Date.now();
+      // If the TPM key hasn't been cryptographically verified recently (within 5 minutes / 300 seconds), challenge it!
+      if (now - lastVerified > 5 * 60 * 1000) {
+        const challengeNonce = crypto.randomBytes(16).toString("hex");
+        existingSession.dbscChallenge = challengeNonce;
+        await existingSession.save();
+        res.setHeader("Secure-Session-Challenge", `challenge="${challengeNonce}"; id="${existingSession.dbscSessionId}"`);
+        return res.status(403).json({ error: "DBSC hardware challenge required for token rotation" });
+      }
     }
 
     // Security: Rotate the refresh token to prevent replay attacks
     const rotationResult = await rotateRefreshToken(refreshToken, req);
     if (!rotationResult) {
-      // Race condition or token was already rotated - invalidate cookie
-      res.clearCookie('jwt', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: getCookieSameSite(),
-      });
+      // Race condition or token was already rotated - invalidate cookies
+      clearAllAuthCookies(res);
       return res.sendStatus(403);
     }
 
-    // If session IS DBSC-enforced, verify hardware proof of possession to stop cookie theft & deleted tokens
-    if (rotationResult.session?.dbscEnforced && rotationResult.session?.dbscPublicKeyJwk) {
-      const lastVerified = rotationResult.session.dbscLastVerifiedAt ? new Date(rotationResult.session.dbscLastVerifiedAt).getTime() : 0;
-      const now = Date.now();
-      // If the TPM key hasn't been cryptographically verified recently (within 5 minutes / 300 seconds), challenge it!
-      if (now - lastVerified > 5 * 60 * 1000) {
-        const challengeNonce = crypto.randomBytes(16).toString("hex");
-        rotationResult.session.dbscChallenge = challengeNonce;
+    if (!rotationResult.session?.dbscEnforced) {
+      if (!rotationResult.session.dbscSessionId) {
+        rotationResult.session.dbscSessionId = crypto.randomUUID();
         await rotationResult.session.save();
-        res.setHeader("Secure-Session-Challenge", `challenge="${challengeNonce}"; id="${rotationResult.session.dbscSessionId}"`);
-        return res.status(403).json({ error: "DBSC hardware challenge required for token rotation" });
       }
-    } else if (!rotationResult.session?.dbscEnforced && rotationResult.session?.dbscSessionId) {
       // If session is not yet DBSC-enforced (e.g. user logged in prior to DBSC enablement), send registration header to upgrade session
       const challengeNonce = crypto.randomBytes(16).toString("hex");
       const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${rotationResult.session.dbscSessionId}"`;
@@ -1017,6 +1028,9 @@ const refreshAccessToken = async (req, res, next) => {
       sameSite: getCookieSameSite(),
       maxAge: 15 * 60 * 1000,
     });
+
+    // Ensure session cookies are set so legacy existing users receive them for DBSC binding
+    setDbscSessionCookies(res, rotationResult.session?.dbscSessionId);
 
     // Prepare user data (unified with getMe response)
     let userDataResponse;
@@ -1084,6 +1098,7 @@ const getMe = async (req, res) => {
           session.dbscSessionId = crypto.randomUUID();
           await session.save();
         }
+        setDbscSessionCookies(res, session.dbscSessionId);
         const challengeNonce = crypto.randomBytes(16).toString("hex");
         const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${session.dbscSessionId}"`;
         res.setHeader("Sec-Session-Registration", regHeader);
