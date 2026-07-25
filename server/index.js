@@ -128,13 +128,21 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: [
         "'self'",
+        "'unsafe-inline'",
+        "'unsafe-eval'",
         (req, res) => `'nonce-${res.locals.nonce}'`,
         'https://checkout.razorpay.com',
-        ...(process.env.NODE_ENV === 'development' ? ["'unsafe-inline'"] : []),
+        'https://static.cloudflareinsights.com',
+        'https://ajax.cloudflare.com',
       ],
       styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: [...dynamicConnectSrc, 'https://api.razorpay.com'],
+      connectSrc: [
+        ...dynamicConnectSrc,
+        'https://api.razorpay.com',
+        'https://cloudflareinsights.com',
+        'https://static.cloudflareinsights.com',
+      ],
       fontSrc: ["'self'", "https:", "data:"],
       frameSrc: ["'self'", 'https://api.razorpay.com', 'https://checkout.razorpay.com'],
       objectSrc: ["'none'"],
@@ -376,6 +384,11 @@ app.use('/api/bio', bioRoutes);
 // Short URL redirect routes (This must be after all API routes)
 app.use('/', redirectRoutes);
 
+
+  // Return 204 No Content for missing root favicons/assets instead of API 404 JSON errors
+  app.get(['/favicon.ico', '/favicon.svg', '/favicon-16x16.png', '/favicon-32x32.png', '/apple-touch-icon.png', '/apple-touch-icon-precomposed.png'], (req, res) => {
+    res.status(204).end();
+  });
 
   // Catch-all for 404s (Express 5 path-to-regexp compatible syntax)
   app.get('{*path}', (req, res) => {
