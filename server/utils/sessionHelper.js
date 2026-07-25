@@ -238,6 +238,10 @@ export const rotateRefreshToken = async (oldToken, req) => {
     return null;
   }
 
+  if (!existingSession.dbscSessionId) {
+    existingSession.dbscSessionId = crypto.randomUUID();
+  }
+
   const currentIP = getClientIP(req);
   const ipUpdates = currentIP !== existingSession.ipAddress && currentIP !== 'Unknown'
     ? { ipAddress: currentIP }
@@ -252,6 +256,7 @@ export const rotateRefreshToken = async (oldToken, req) => {
   const updated = await Session.findOneAndUpdate(
     { _id: existingSession._id, tokenHash: oldTokenHash }, // Condition: still the old token
     { 
+       dbscSessionId: existingSession.dbscSessionId,
        tokenHash: newTokenHash, 
        lastActiveAt: new Date(),
        previousTokenHash: oldTokenHash,

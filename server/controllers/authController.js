@@ -565,7 +565,11 @@ const verifyEmail = async (req, res, next) => {
     // Create session and generate access token
     const { refreshToken, dbscSessionId } = await createSession(user._id, req);
     const challengeNonce = crypto.randomBytes(16).toString("hex");
-    res.setHeader("Secure-Session-Registration", `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`);
+    const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${dbscSessionId}"`;
+    res.setHeader("Sec-Session-Registration", regHeader);
+    res.setHeader("Secure-Session-Registration", regHeader);
+    res.cookie('__Host-session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
+    res.cookie('dbsc_session', dbscSessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
     const accessToken = generateAccessToken(user._id, 'user', dbscSessionId);
     // Set refresh token cookie
     res.cookie('jwt', refreshToken, {
@@ -1059,6 +1063,25 @@ const refreshAccessToken = async (req, res, next) => {
 // @route   GET /api/auth/me
 // @access  Private
 const getMe = async (req, res) => {
+  // Proactive DBSC Session Upgrade for existing sessions during /api/auth/me
+  if (req.jwtDecoded && !req.jwtDecoded.dbscEnforced && req.cookies?.jwt) {
+    try {
+      const session = await validateSession(req.cookies.jwt);
+      if (session && !session.dbscEnforced) {
+        if (!session.dbscSessionId) {
+          session.dbscSessionId = crypto.randomUUID();
+          await session.save();
+        }
+        const challengeNonce = crypto.randomBytes(16).toString("hex");
+        const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${session.dbscSessionId}"`;
+        res.setHeader("Sec-Session-Registration", regHeader);
+        res.setHeader("Secure-Session-Registration", regHeader);
+      }
+    } catch (e) {
+      // Ignore if session check fails during getMe
+    }
+  }
+
   if (req.user.role === 'master_admin') {
     // Simplified profile for Master Admin
     return res.status(200).json({

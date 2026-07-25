@@ -18,6 +18,7 @@ const protect = async (req, res, next) => {
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] });
+      req.jwtDecoded = decoded;
 
       // DBSC Hardware Binding Check.
       // ONLY enforced after a device key has been successfully registered (dbscEnforced === true).
