@@ -42,7 +42,7 @@ router.post('/registration', async (req, res) => {
     jwt.verify(proofHeader, publicKeyPem, { algorithms: ["ES256", "RS256"] });
 
     // The browser sends the session ID via cookie or custom header
-    const dbscSessionId = req.headers["sec-secure-session-id"];
+    const dbscSessionId = req.headers["sec-secure-session-id"] || req.headers["sec-session-id"] || req.cookies?.['__Host-session'] || req.cookies?.['dbsc_session'];
     const jwtCookie = req.cookies?.['jwt'];
     
     if (!dbscSessionId && !jwtCookie) {
@@ -52,9 +52,15 @@ router.post('/registration', async (req, res) => {
     let session;
     if (dbscSessionId) {
       session = await Session.findOne({ dbscSessionId });
-    } else {
+    }
+    if (!session && jwtCookie) {
       const tokenHash = crypto.createHash('sha256').update(jwtCookie).digest('hex');
-      session = await Session.findOne({ tokenHash });
+      session = await Session.findOne({ 
+        $or: [
+          { tokenHash },
+          { previousTokenHash: tokenHash }
+        ]
+      });
     }
 
     if (!session) {
@@ -65,6 +71,7 @@ router.post('/registration', async (req, res) => {
     session.dbscPublicKeyJwk = jwk;
     session.dbscEnforced = true;  // From this point, authMiddleware enforces hardware binding
     session.dbscChallenge = null; // Clear any pending challenge
+    session.dbscLastVerifiedAt = new Date();
     await session.save();
 
     // Import generateAccessToken dynamically to avoid circular dependencies
@@ -128,7 +135,7 @@ router.post('/registration', async (req, res) => {
  * The stored challenge is single-use (cleared after verification) to prevent replay attacks.
  */
 router.post('/refresh', async (req, res) => {
-  const dbscSessionId = req.headers["sec-secure-session-id"];
+  const dbscSessionId = req.headers["sec-secure-session-id"] || req.headers["sec-session-id"] || req.cookies?.['__Host-session'] || req.cookies?.['dbsc_session'];
   const jwtCookie = req.cookies?.['jwt'];
   const proofHeader = req.headers["secure-session-response"];
 
@@ -139,9 +146,15 @@ router.post('/refresh', async (req, res) => {
   let session;
   if (dbscSessionId) {
     session = await Session.findOne({ dbscSessionId });
-  } else {
+  }
+  if (!session && jwtCookie) {
     const tokenHash = crypto.createHash('sha256').update(jwtCookie).digest('hex');
-    session = await Session.findOne({ tokenHash });
+    session = await Session.findOne({ 
+      $or: [
+        { tokenHash },
+        { previousTokenHash: tokenHash }
+      ]
+    });
   }
 
   if (!session || !session.dbscPublicKeyJwk) {
@@ -180,6 +193,7 @@ router.post('/refresh', async (req, res) => {
 
     // Challenge consumed — clear it immediately (single-use)
     session.dbscChallenge = null;
+    session.dbscLastVerifiedAt = new Date();
     await session.save();
 
     // The token is valid. Return 200 OK to tell the browser to unpause the queued requests.

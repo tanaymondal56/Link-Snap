@@ -81,6 +81,10 @@ const sessionSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  dbscLastVerifiedAt: {
+    type: Date,
+    default: Date.now
+  },
   lastActiveAt: {
     type: Date,
     default: Date.now,

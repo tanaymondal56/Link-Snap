@@ -980,8 +980,20 @@ const refreshAccessToken = async (req, res, next) => {
       return res.sendStatus(403);
     }
 
-    // If session is not yet DBSC-enforced (e.g. user logged in prior to DBSC enablement), send registration header to upgrade session
-    if (!rotationResult.session?.dbscEnforced && rotationResult.session?.dbscSessionId) {
+    // If session IS DBSC-enforced, verify hardware proof of possession to stop cookie theft & deleted tokens
+    if (rotationResult.session?.dbscEnforced && rotationResult.session?.dbscPublicKeyJwk) {
+      const lastVerified = rotationResult.session.dbscLastVerifiedAt ? new Date(rotationResult.session.dbscLastVerifiedAt).getTime() : 0;
+      const now = Date.now();
+      // If the TPM key hasn't been cryptographically verified recently (within 5 minutes / 300 seconds), challenge it!
+      if (now - lastVerified > 5 * 60 * 1000) {
+        const challengeNonce = crypto.randomBytes(16).toString("hex");
+        rotationResult.session.dbscChallenge = challengeNonce;
+        await rotationResult.session.save();
+        res.setHeader("Secure-Session-Challenge", `challenge="${challengeNonce}"; id="${rotationResult.session.dbscSessionId}"`);
+        return res.status(403).json({ error: "DBSC hardware challenge required for token rotation" });
+      }
+    } else if (!rotationResult.session?.dbscEnforced && rotationResult.session?.dbscSessionId) {
+      // If session is not yet DBSC-enforced (e.g. user logged in prior to DBSC enablement), send registration header to upgrade session
       const challengeNonce = crypto.randomBytes(16).toString("hex");
       const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${rotationResult.session.dbscSessionId}"`;
       res.setHeader("Sec-Session-Registration", regHeader);
