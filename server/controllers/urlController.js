@@ -396,18 +396,18 @@ const getMyLinks = async (req, res, next) => {
         const urls = await Url.find({ createdBy: req.user._id })
             .sort({ createdAt: -1 })
             .skip(skip)
-            .limit(limit);
+            .limit(limit)
+            .lean();
 
         const total = await Url.countDocuments({ createdBy: req.user._id });
 
         // Note: Banned users cannot reach this endpoint (blocked by authMiddleware)
         // So ownerBanned will always be false here. This field exists for consistency
         // with admin endpoint and future use if auth policy changes.
-        const urlsWithBanStatus = urls.map(url => {
-            const urlObj = url.toObject();
-            urlObj.ownerBanned = false;
-            return urlObj;
-        });
+        const urlsWithBanStatus = urls.map(url => ({
+            ...url,
+            ownerBanned: false
+        }));
 
         res.json({
             urls: urlsWithBanStatus,
@@ -515,7 +515,7 @@ const checkAliasAvailability = async (req, res, next) => {
             query._id = { $ne: excludeId };
         }
 
-        const existingUrl = await Url.findOne(query);
+        const existingUrl = await Url.findOne(query).select('_id').lean();
 
         if (existingUrl) {
             return res.json({
@@ -644,7 +644,7 @@ const updateUrl = async (req, res, next) => {
             const aliasExists = await Url.findOne({
                 $or: [{ shortId: customAlias }, { customAlias: customAlias }],
                 _id: { $ne: url._id }
-            });
+            }).select('_id').lean();
             if (aliasExists) {
                 res.status(400);
                 throw new Error('Alias already taken');
@@ -907,7 +907,7 @@ const verifyLinkPassword = async (req, res, next) => {
         // Find the link by shortId or customAlias, including passwordHash
         const url = await Url.findOne({
             $or: [{ shortId }, { customAlias: shortId }]
-        }).select('+passwordHash');
+        }).select('+passwordHash').lean();
 
         if (!url) {
             res.status(404);

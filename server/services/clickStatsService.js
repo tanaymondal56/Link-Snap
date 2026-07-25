@@ -186,9 +186,10 @@ const flushBuffer = async () => {
 /**
  * Starts the flush timer
  */
+// Starts the flush timer (unref to prevent event loop blocking)
 const startFlushTimer = () => {
     if (!flushTimer) {
-        flushTimer = setInterval(flushBuffer, FLUSH_INTERVAL);
+        flushTimer = setInterval(flushBuffer, FLUSH_INTERVAL).unref();
     }
 };
 
@@ -208,17 +209,15 @@ export const queueClickIncrement = async (urlId) => {
             await redisIncr(`ls:click:url:${idStr}`, 604800);
             pendingClickCount++;
         } else {
-            // Fallback in-memory Map
-            const currentCheck = clickBuffer.get(idStr) || 0;
-            clickBuffer.set(idStr, currentCheck + 1);
+            // Fallback in-memory Map with emergency OOM cap (max 10,000 keys)
+            if (clickBuffer.size < 10000 || clickBuffer.has(idStr)) {
+                const currentCheck = clickBuffer.get(idStr) || 0;
+                clickBuffer.set(idStr, currentCheck + 1);
+            }
 
             // Immediate flush if buffer gets too large
-            if (clickBuffer.size >= BATCH_SIZE) {
-                if (!isFlushing) {
-                    clearInterval(flushTimer);
-                    await flushBuffer();
-                    flushTimer = setInterval(flushBuffer, FLUSH_INTERVAL);
-                }
+            if (clickBuffer.size >= BATCH_SIZE && !isFlushing) {
+                flushBuffer();
             }
         }
     } catch (error) {
@@ -240,16 +239,14 @@ export const queueUserClickIncrement = async (userId) => {
             await redisIncr(`ls:click:user:${idStr}`, 604800);
             pendingClickCount++;
         } else {
-            // Fallback in-memory Map
-            const current = userClickBuffer.get(idStr) || 0;
-            userClickBuffer.set(idStr, current + 1);
+            // Fallback in-memory Map with emergency OOM cap (max 10,000 keys)
+            if (userClickBuffer.size < 10000 || userClickBuffer.has(idStr)) {
+                const current = userClickBuffer.get(idStr) || 0;
+                userClickBuffer.set(idStr, current + 1);
+            }
 
-            if (userClickBuffer.size >= BATCH_SIZE) {
-                if (!isFlushing) {
-                    clearInterval(flushTimer);
-                    await flushBuffer();
-                    flushTimer = setInterval(flushBuffer, FLUSH_INTERVAL);
-                }
+            if (userClickBuffer.size >= BATCH_SIZE && !isFlushing) {
+                flushBuffer();
             }
         }
     } catch (error) {

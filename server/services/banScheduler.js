@@ -203,7 +203,7 @@ const startBanScheduler = () => {
         } finally {
             isSchedulerRunning = false;
         }
-    }, 60 * 1000);
+    }, 60 * 1000).unref();
 };
 
 const stopBanScheduler = () => {

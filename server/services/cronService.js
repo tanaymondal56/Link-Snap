@@ -38,7 +38,7 @@ export const startCronJobs = () => {
         } finally {
             isScanning = false;
         }
-    }, FIVE_MINUTES);
+    }, FIVE_MINUTES).unref();
     
     logger.info('[Cron] Safe Browsing retry worker started (Every 5 mins)');
 
@@ -59,7 +59,7 @@ export const startCronJobs = () => {
         } catch (err) {
             logger.error(`[Cron] Backlog scan error: ${err.message}`);
         }
-    }, ONE_HOUR);
+    }, ONE_HOUR).unref();
     logger.info('[Cron] Safe Browsing backlog scanner started (Every 1 hour)');
 };
 

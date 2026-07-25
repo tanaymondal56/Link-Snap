@@ -65,10 +65,10 @@ const flushBuffer = async () => {
     }
 };
 
-// Start the flush timer
+// Start the flush timer (unref to prevent event loop blocking)
 const startFlushTimer = () => {
     if (!flushTimer) {
-        flushTimer = setInterval(flushBuffer, FLUSH_INTERVAL);
+        flushTimer = setInterval(flushBuffer, FLUSH_INTERVAL).unref();
     }
 };
 
@@ -113,17 +113,15 @@ export const trackVisit = async (urlId, req, extras = {}) => {
             // Push to Redis queue
             const length = await redis.rpush(REDIS_QUEUE_KEY, JSON.stringify(analyticsData));
             if (length >= BATCH_SIZE && !isFlushing) {
-                clearInterval(flushTimer);
-                await flushBuffer();
-                flushTimer = setInterval(flushBuffer, FLUSH_INTERVAL);
+                flushBuffer();
             }
         } else {
-            // Fallback to memory
-            analyticsBuffer.push(analyticsData);
+            // Fallback to memory with emergency OOM cap (max 10,000 items)
+            if (analyticsBuffer.length < 10000) {
+                analyticsBuffer.push(analyticsData);
+            }
             if (analyticsBuffer.length >= BATCH_SIZE && !isFlushing) {
-                clearInterval(flushTimer);
-                await flushBuffer();
-                flushTimer = setInterval(flushBuffer, FLUSH_INTERVAL);
+                flushBuffer();
             }
         }
 

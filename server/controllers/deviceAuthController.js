@@ -26,9 +26,11 @@ const rateLimitStore = new Map();
 const MAX_ATTEMPTS = 3;
 const LOCKOUT_DURATION = 30000; // 30 seconds
 
-// Helper: Clean up expired challenges and rate limits
+// Helper: Clean up expired challenges and rate limits (with emergency OOM protection)
 const cleanup = () => {
   const now = Date.now();
+  if (challengeStore.size > 5000) challengeStore.clear();
+  if (rateLimitStore.size > 5000) rateLimitStore.clear();
   for (const [key, data] of challengeStore) {
     if (now > data.expires) {
       challengeStore.delete(key);
@@ -41,8 +43,8 @@ const cleanup = () => {
   }
 };
 
-// Cleanup every minute
-let cleanupInterval = setInterval(cleanup, 60000);
+// Cleanup every minute (unref to prevent event loop blocking)
+let cleanupInterval = setInterval(cleanup, 60000).unref();
 
 export const stopDeviceAuthIntervals = () => {
   if (cleanupInterval) {

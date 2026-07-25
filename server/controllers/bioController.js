@@ -93,7 +93,7 @@ export const getPublicProfile = async (req, res) => {
         path: 'bioPage.pinnedLinks',
         match: { isActive: true }, // Only active links
         select: 'title originalUrl shortId customAlias clicks'
-      });
+      }).lean();
 
     // Security: Use identical response for all "not found" scenarios
     // to prevent user enumeration attacks
@@ -178,7 +178,7 @@ export const getBioSettings = async (req, res) => {
       .populate({
         path: 'bioPage.pinnedLinks',
         select: 'title originalUrl shortId customAlias isActive clicks'
-      });
+      }).lean();
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -188,7 +188,8 @@ export const getBioSettings = async (req, res) => {
     const allLinks = await Url.find({ createdBy: req.user._id, isActive: true })
       .select('title originalUrl shortId customAlias clicks createdAt')
       .sort({ createdAt: -1 })
-      .limit(100);
+      .limit(100)
+      .lean();
 
     res.json({
       bioPage: user.bioPage || { isEnabled: true, theme: 'default' },
@@ -270,7 +271,7 @@ export const updateBioSettings = async (req, res) => {
       const userLinks = await Url.find({
         _id: { $in: pinnedLinks },
         createdBy: req.user._id
-      }).select('_id');
+      }).select('_id').lean();
 
       const validIds = userLinks.map(l => l._id.toString());
       const filteredLinks = pinnedLinks.filter(id => validIds.includes(id));

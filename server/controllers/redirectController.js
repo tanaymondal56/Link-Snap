@@ -1527,7 +1527,7 @@ export const redirectUrl = async (req, res, next) => {
             // Given the 'invalidateMultiple' called in AdminController, cache should be fresh.
             // However, to be robust:
             if (cached.ownerId && cached.ownerBanned === undefined) {
-                const owner = await User.findById(cached.ownerId).select('isActive disableLinksOnBan');
+                const owner = await User.findById(cached.ownerId).select('isActive disableLinksOnBan').lean();
                 if (owner) {
                     // Update cache with this info to prevent future lookups
                     const isBanned = !owner.isActive;
@@ -1630,7 +1630,9 @@ export const redirectUrl = async (req, res, next) => {
                 $or: [{ shortId }, { customAlias: shortId }],
             }).lean().finally(() => inflightRequests.delete(shortId));
             
-            inflightRequests.set(shortId, fetchPromise);
+            if (inflightRequests.size < 10000) {
+                inflightRequests.set(shortId, fetchPromise);
+            }
             url = await fetchPromise;
         }
 
@@ -1647,7 +1649,7 @@ export const redirectUrl = async (req, res, next) => {
         let disableLinksOnBan = false;
 
         if (url.createdBy) {
-            const owner = await User.findById(url.createdBy).select('isActive disableLinksOnBan');
+            const owner = await User.findById(url.createdBy).select('isActive disableLinksOnBan').lean();
             if (owner) {
                 ownerBanned = !owner.isActive;
                 disableLinksOnBan = owner.disableLinksOnBan;

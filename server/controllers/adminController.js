@@ -105,7 +105,8 @@ export const getSystemStats = async (req, res, next) => {
         const recentUsers = await User.find()
             .sort({ createdAt: -1 })
             .limit(5)
-            .select('-password -refreshTokens');
+            .select('-password -refreshTokens')
+            .lean();
 
         // Get cache stats
         const cacheStats = getCacheStats();
@@ -252,7 +253,8 @@ const getAllUsersFallback = async (req, res, next) => {
             .select('-password -refreshTokens')
             .sort({ createdAt: -1 })
             .skip(skip)
-            .limit(limit);
+            .limit(limit)
+            .lean();
 
         const total = await User.countDocuments(query);
 

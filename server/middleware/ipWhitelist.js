@@ -137,7 +137,7 @@ export const ipWhitelist = async (req, res, next) => {
         const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] });
 
         // Check if user is a regular admin
-        const user = await User.findById(decoded.id).select('role isActive');
+        const user = await User.findById(decoded.id).select('role isActive').lean();
 
         if (user && user.role === 'admin' && user.isActive) {
           logger.info(`[IP Whitelist] 🔓 Bypass by Admin Token: ${user._id} (${clientIP})`);
@@ -197,7 +197,7 @@ export const strictIpWhitelist = async (req, res, next) => {
     if (token) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] });
-        const user = await User.findById(decoded.id).select('role isActive');
+        const user = await User.findById(decoded.id).select('role isActive').lean();
 
         if (user && user.role === 'admin' && user.isActive) {
           logger.info(`[Strict IP] 🔓 Bypass by Admin Token: ${user._id} (${clientIP})`);
