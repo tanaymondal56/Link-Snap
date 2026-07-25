@@ -104,7 +104,8 @@ router.post('/registration', async (req, res) => {
       credentials: [
         {
           type: "cookie",
-          name: "__Host-session"
+          name: "__Host-session",
+          attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
         }
       ]
     });
