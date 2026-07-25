@@ -24,7 +24,7 @@ const protect = async (req, res, next) => {
       // Standard browsers that don't support DBSC never set this flag, so they're unaffected.
       // This prevents breaking all non-DBSC browsers while still protecting DBSC-enrolled sessions.
       if (decoded.dbscEnforced === true) {
-        const clientSessionId = req.cookies?.['__Host-session'] || req.headers['sec-secure-session-id'];
+        const clientSessionId = req.cookies?.['__Host-session'] || req.cookies?.['dbsc_session'] || req.headers['sec-secure-session-id'] || req.headers['sec-session-id'];
         if (!clientSessionId || clientSessionId !== decoded.dbscSessionId) {
           res.status(401);
           throw new Error('DBSC Binding Failed: Session cookie mismatch or missing');

@@ -1,9 +1,9 @@
 import jwt from 'jsonwebtoken';
 
-const generateAccessToken = (userId, role = 'user', dbscSessionId = null) => {
+const generateAccessToken = (userId, role = 'user', dbscSessionId = null, dbscEnforced = false) => {
   if (!process.env.JWT_ACCESS_SECRET) throw new Error('JWT_ACCESS_SECRET is not defined');
   return jwt.sign(
-    { id: userId, role, type: role === 'master_admin' ? 'master' : 'user', dbscSessionId },
+    { id: userId, role, type: role === 'master_admin' ? 'master' : 'user', dbscSessionId, dbscEnforced: Boolean(dbscEnforced) },
     process.env.JWT_ACCESS_SECRET,
     { expiresIn: '15m', issuer: 'link-snap', audience: 'link-snap-client', algorithm: 'HS256' }
   );

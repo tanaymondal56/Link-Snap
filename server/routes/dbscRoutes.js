@@ -67,21 +67,52 @@ router.post('/registration', async (req, res) => {
     session.dbscChallenge = null; // Clear any pending challenge
     await session.save();
 
-    // Chrome DBSC specification: include_site must be false for public suffix domains (e.g. qzz.io, vercel.app, github.io)
-    // and localhost, to prevent session scope leakage across un-owned subdomains.
+    // Import generateAccessToken dynamically to avoid circular dependencies
+    const { generateAccessToken } = await import('../utils/generateToken.js');
+    const MasterAdmin = (await import('../models/MasterAdmin.js')).default;
+    const isMaster = await MasterAdmin.exists({ _id: session.userId });
+    const role = isMaster ? 'master_admin' : 'user';
+    const accessToken = generateAccessToken(session.userId, role, session.dbscSessionId, true);
+
+    // Set Chrome DBSC specification headers and hardware session cookie
+    const termHeader = `(continue); id="${session.dbscSessionId}"`;
+    res.setHeader("Sec-Session-Response", termHeader);
+    res.setHeader("Secure-Session-Response", termHeader);
+
+    res.cookie('__Host-session', session.dbscSessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/'
+    });
+
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000,
+    });
+
+    // Chrome DBSC specification response format
     return res.status(200).json({ 
       session_identifier: session.dbscSessionId,
+      accessToken,
+      dbscEnforced: true,
       scope: {
         include_site: false
       },
       credentials: [
         {
           type: "cookie",
-          name: "session"
+          name: "__Host-session"
         },
         {
           type: "cookie",
           name: "jwt"
+        },
+        {
+          type: "cookie",
+          name: "access_token"
         }
       ]
     });

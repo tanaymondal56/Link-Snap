@@ -10,7 +10,7 @@ export const verifyAdmin = async (req, res, next) => {
             return res.status(401).json({ message: 'Authentication required.' });
         }
         
-        if (req.user.role !== 'admin') {
+        if (req.user.role !== 'admin' && req.user.role !== 'master_admin') {
             logger.warn(`Unauthorized admin access attempt by user: ${req.user._id}`);
             return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
         }
