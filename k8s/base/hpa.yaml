@@ -15,10 +15,23 @@ spec:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 70
+          averageUtilization: 60      # Lower target so scaling triggers BEFORE pods reach exhaustion
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: 80
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0   # Instantly scale up without waiting for smoothing window
+      selectPolicy: Max
+      policies:
+        - type: Percent
+          value: 100                   # Double the number of pods instantly on load spike
+          periodSeconds: 15
+        - type: Pods
+          value: 2                     # Add at least 2 pods immediately
+          periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 300 # Gracefully scale down over 5 minutes to prevent thrashing

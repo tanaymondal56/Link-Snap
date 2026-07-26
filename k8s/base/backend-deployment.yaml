@@ -31,7 +31,7 @@ spec:
       containers:
         - name: backend
           image: tanaymondal/linksnap-backend:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
           resources:
@@ -80,21 +80,22 @@ spec:
               path: /api/health
               port: 5000
             initialDelaySeconds: 15
-            periodSeconds: 20
+            periodSeconds: 15
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /api/health/deep
               port: 5000
-            initialDelaySeconds: 20
-            periodSeconds: 15
+            initialDelaySeconds: 0      # Start checking immediately after startupProbe succeeds
+            periodSeconds: 2           # Check every 2s for fast ready state
             failureThreshold: 2
           startupProbe:
             httpGet:
               path: /api/health
               port: 5000
+            initialDelaySeconds: 1
+            periodSeconds: 1           # Fast 1s polling until Node.js process starts
             failureThreshold: 30
-            periodSeconds: 5
       # No imagePullSecrets needed — Docker Hub public registry
       # If migrating to private registry (GHCR, ECR, etc.), uncomment:
       # imagePullSecrets:
