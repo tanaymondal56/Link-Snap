@@ -15,6 +15,7 @@ spec:
           containers:
             - name: safe-browsing
               image: tanaymondal/linksnap-backend-beta:beta
+              imagePullPolicy: Always
               command: ["node", "scripts/runSafeBrowsingScan.js"]
               envFrom:
                 - configMapRef:

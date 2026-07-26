@@ -72,8 +72,8 @@ const getTrustProxySetting = () => {
     return trustedIPs;
   }
 
-  // Local dev: Trust 1 proxy (generic)
-  return 1;
+  // Local dev / K8s internal ingress: Trust RFC1918 private subnets + Tailscale CGNAT
+  return ['loopback', 'linklocal', 'uniquelocal', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '100.64.0.0/10'];
 };
 
 app.set('trust proxy', getTrustProxySetting());
@@ -311,7 +311,8 @@ app.use(lusca.csrf({
     { type: 'startsWith', path: '/api/webhooks' }, // Webhooks use signature verification
     { type: 'startsWith', path: '/api/url/' }, // Public redirect and password verification endpoints
     { type: 'startsWith', path: '/api/dbsc' }, // Browser native DBSC protocol (sent by browser C++ network stack)
-    { type: 'exact', path: '/api/auth/refresh' } // Auth refresh uses HttpOnly refresh token + session rotation
+    { type: 'startsWith', path: '/api/auth/refresh' }, // Auth refresh uses HttpOnly refresh token + session rotation
+    { type: 'startsWith', path: '/api/auth/logout' } // Logout must never be blocked by CSRF so cookies always clear
   ]
 }));
 

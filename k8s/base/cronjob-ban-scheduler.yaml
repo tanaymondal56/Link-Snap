@@ -15,6 +15,7 @@ spec:
           containers:
             - name: ban-scheduler
               image: tanaymondal/linksnap-backend:latest
+              imagePullPolicy: Always
               command: ["node", "scripts/runBanScheduler.js"]
               envFrom:
                 - configMapRef:
