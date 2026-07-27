@@ -92,8 +92,12 @@ export const trackVisit = async (urlId, req, extras = {}) => {
           ? rawIp.replace(/(:[0-9a-fA-F]{0,4}){3}$/, ':0:0:0')  // IPv6 anonymize
           : rawIp.replace(/\.\d+$/, '.0');                        // IPv4 anonymize
 
-        // GeoIP lookup
+        // GeoIP lookup - prefer Cloudflare CF-IPCountry header for 0ms CPU lookup, fallback to local geoip-lite
+        const cfCountry = req.headers['cf-ipcountry'];
         const geo = geoip.lookup(rawIp);
+        const resolvedCountry = (cfCountry && cfCountry !== 'XX') 
+          ? cfCountry.toUpperCase() 
+          : (geo ? geo.country : 'Unknown');
 
         const analyticsData = {
             urlId,
@@ -102,7 +106,7 @@ export const trackVisit = async (urlId, req, extras = {}) => {
             browser: browser.name || 'Unknown',
             os: os.name || 'Unknown',
             device: device.type ? (device.type.charAt(0).toUpperCase() + device.type.slice(1)) : 'Desktop',
-            country: geo ? geo.country : 'Unknown',
+            country: resolvedCountry,
             city: geo ? geo.city : 'Unknown',
             deviceMatchType: extras.deviceMatchType || null,
         };
