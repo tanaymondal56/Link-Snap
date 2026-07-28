@@ -182,10 +182,10 @@ router.post('/refresh', async (req, res) => {
 
   if (!session || !session.dbscPublicKeyJwk) {
     // Session not found or no DBSC key registered — issue a fresh challenge
-    // Sec-Session-Challenge format per DBSC spec: challenge="<nonce>"; id="<id>"
-    // NOTE: Algorithm list prefix (ES256 RS256) belongs ONLY in Sec-Session-Registration, NOT here
+    // Sec-Session-Challenge format per DBSC spec & Chromium parser: "<nonce>"; id="<id>"
+    // NOTE: The challenge string MUST be the primary RFC 8941 Item (do NOT put "challenge=" before it)
     const newChallenge = crypto.randomBytes(32).toString("base64url");
-    const chalHeader = `challenge="${newChallenge}"; id="${dbscSessionId || 'unknown'}"`;
+    const chalHeader = `"${newChallenge}"; id="${dbscSessionId || 'unknown'}"`;
     res.setHeader("Sec-Session-Challenge", chalHeader);
     res.setHeader("Secure-Session-Challenge", chalHeader);
     return res.status(403).json({ error: "DBSC challenge required" });
@@ -193,12 +193,12 @@ router.post('/refresh', async (req, res) => {
 
   if (!proofHeader) {
     // Phase 1: Browser is initiating — issue and PERSIST the challenge (anti-replay)
-    // Sec-Session-Challenge format per DBSC spec: challenge="<base64url-nonce>"; id="<id>"
-    // NOTE: Algorithm list prefix (ES256 RS256) belongs ONLY in Sec-Session-Registration, NOT here
+    // Sec-Session-Challenge format per DBSC spec & Chromium parser: "<base64url-nonce>"; id="<id>"
+    // NOTE: The challenge string MUST be the primary RFC 8941 Item (do NOT put "challenge=" before it)
     const newChallenge = crypto.randomBytes(32).toString("base64url");
     session.dbscChallenge = newChallenge;
     await session.save();
-    const chalHeader = `challenge="${newChallenge}"; id="${session.dbscSessionId}"`;
+    const chalHeader = `"${newChallenge}"; id="${session.dbscSessionId}"`;
     res.setHeader("Sec-Session-Challenge", chalHeader);
     res.setHeader("Secure-Session-Challenge", chalHeader);
     return res.status(403).json({ error: "DBSC challenge required" });

@@ -981,12 +981,12 @@ const refreshAccessToken = async (req, res, next) => {
       const now = Date.now();
       // If the TPM key hasn't been cryptographically verified recently (within 5 minutes / 300 seconds), challenge it!
       if (now - lastVerified > 5 * 60 * 1000) {
-        // Sec-Session-Challenge: challenge="<base64url-nonce>"; id="<id>"
-        // NO algorithm list prefix here — that only belongs in Sec-Session-Registration
+        // Sec-Session-Challenge: "<base64url-nonce>"; id="<id>"
+        // NOTE: The challenge string MUST be the primary RFC 8941 Item (do NOT put "challenge=" before it)
         const challengeNonce = crypto.randomBytes(32).toString("base64url");
         existingSession.dbscChallenge = challengeNonce;
         await existingSession.save();
-        const chalHeader = `challenge="${challengeNonce}"; id="${existingSession.dbscSessionId}"`;
+        const chalHeader = `"${challengeNonce}"; id="${existingSession.dbscSessionId}"`;
         res.setHeader("Sec-Session-Challenge", chalHeader);
         res.setHeader("Secure-Session-Challenge", chalHeader);
         return res.status(403).json({ error: "DBSC hardware challenge required for token rotation" });
