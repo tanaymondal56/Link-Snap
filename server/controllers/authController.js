@@ -974,6 +974,19 @@ const refreshAccessToken = async (req, res, next) => {
       return res.sendStatus(403);
     }
 
+    // DBSC Session Cookie Binding Check on rotation:
+    // Ensure the client session cookie is present and matches existingSession.dbscSessionId before allowing rotation.
+    if (existingSession.dbscSessionId) {
+      const clientSessionId = req.cookies?.['__Host-session'] || req.cookies?.['dbsc_session'] || req.headers['sec-secure-session-id'] || req.headers['sec-session-id'];
+      if (existingSession.dbscEnforced === true && (!clientSessionId || clientSessionId !== existingSession.dbscSessionId)) {
+        clearAllAuthCookies(res);
+        return res.status(403).json({ error: "DBSC binding failed: session cookie missing or mismatched on token refresh" });
+      } else if (clientSessionId && clientSessionId !== existingSession.dbscSessionId) {
+        clearAllAuthCookies(res);
+        return res.status(403).json({ error: "DBSC binding failed: session cookie mismatched on token refresh" });
+      }
+    }
+
     // If session IS DBSC-enforced, verify hardware proof of possession BEFORE rotating token in DB
     // This stops cookie theft & deleted tokens without causing a race condition on challenge retry
     if (existingSession.dbscEnforced && existingSession.dbscPublicKeyJwk) {
@@ -1091,7 +1104,7 @@ const getMe = async (req, res) => {
   if (req.jwtDecoded && !req.jwtDecoded.dbscEnforced && req.cookies?.jwt) {
     try {
       const session = await validateSession(req.cookies.jwt);
-      if (session && !session.dbscEnforced) {
+      if (session && !session.dbscEnforced && !session.dbscChallenge) {
         if (!session.dbscSessionId) {
           session.dbscSessionId = crypto.randomUUID();
         }

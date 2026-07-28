@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import Session from '../models/Session.js';
 import logger from '../utils/logger.js';
 import { setDbscSessionCookies } from '../controllers/authController.js';
+import { validateSession } from '../utils/sessionHelper.js';
 
 const router = express.Router();
 
@@ -55,13 +56,7 @@ router.post('/registration', async (req, res) => {
       session = await Session.findOne({ dbscSessionId });
     }
     if (!session && jwtCookie) {
-      const tokenHash = crypto.createHash('sha256').update(jwtCookie).digest('hex');
-      session = await Session.findOne({ 
-        $or: [
-          { tokenHash },
-          { previousTokenHash: tokenHash }
-        ]
-      });
+      session = await validateSession(jwtCookie);
     }
 
     if (!session) {
@@ -156,13 +151,7 @@ router.post('/refresh', async (req, res) => {
     session = await Session.findOne({ dbscSessionId });
   }
   if (!session && jwtCookie) {
-    const tokenHash = crypto.createHash('sha256').update(jwtCookie).digest('hex');
-    session = await Session.findOne({ 
-      $or: [
-        { tokenHash },
-        { previousTokenHash: tokenHash }
-      ]
-    });
+    session = await validateSession(jwtCookie);
   }
 
   if (!session || !session.dbscPublicKeyJwk) {

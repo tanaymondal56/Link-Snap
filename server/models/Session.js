@@ -128,7 +128,8 @@ sessionSchema.statics.terminateById = async function(sessionId, userId) {
 sessionSchema.statics.terminateOthers = async function(userId, currentTokenHash) {
   return this.deleteMany({ 
     userId, 
-    tokenHash: { $ne: currentTokenHash } 
+    tokenHash: { $ne: currentTokenHash },
+    previousTokenHash: { $ne: currentTokenHash }
   });
 };
 
