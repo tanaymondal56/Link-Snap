@@ -182,8 +182,10 @@ router.post('/refresh', async (req, res) => {
 
   if (!session || !session.dbscPublicKeyJwk) {
     // Session not found or no DBSC key registered — issue a fresh challenge
-    const newChallenge = crypto.randomBytes(16).toString("hex");
-    const chalHeader = `(ES256 RS256); challenge="${newChallenge}"; id="${dbscSessionId || 'unknown'}"`;
+    // Sec-Session-Challenge format per DBSC spec: challenge="<nonce>"; id="<id>"
+    // NOTE: Algorithm list prefix (ES256 RS256) belongs ONLY in Sec-Session-Registration, NOT here
+    const newChallenge = crypto.randomBytes(32).toString("base64url");
+    const chalHeader = `challenge="${newChallenge}"; id="${dbscSessionId || 'unknown'}"`;
     res.setHeader("Sec-Session-Challenge", chalHeader);
     res.setHeader("Secure-Session-Challenge", chalHeader);
     return res.status(403).json({ error: "DBSC challenge required" });
@@ -191,10 +193,12 @@ router.post('/refresh', async (req, res) => {
 
   if (!proofHeader) {
     // Phase 1: Browser is initiating — issue and PERSIST the challenge (anti-replay)
-    const newChallenge = crypto.randomBytes(16).toString("hex");
+    // Sec-Session-Challenge format per DBSC spec: challenge="<base64url-nonce>"; id="<id>"
+    // NOTE: Algorithm list prefix (ES256 RS256) belongs ONLY in Sec-Session-Registration, NOT here
+    const newChallenge = crypto.randomBytes(32).toString("base64url");
     session.dbscChallenge = newChallenge;
     await session.save();
-    const chalHeader = `(ES256 RS256); challenge="${newChallenge}"; id="${session.dbscSessionId}"`;
+    const chalHeader = `challenge="${newChallenge}"; id="${session.dbscSessionId}"`;
     res.setHeader("Sec-Session-Challenge", chalHeader);
     res.setHeader("Secure-Session-Challenge", chalHeader);
     return res.status(403).json({ error: "DBSC challenge required" });

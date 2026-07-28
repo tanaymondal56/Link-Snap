@@ -97,10 +97,12 @@ export const setDbscSessionCookies = (res, dbscSessionId) => {
  * @returns {Promise<string>} The challengeNonce that was persisted
  */
 export const issueDbscRegistration = async (res, session) => {
-  const challengeNonce = crypto.randomBytes(16).toString('hex');
+  const challengeNonce = crypto.randomBytes(32).toString('base64url');
   // Persist nonce so /api/dbsc/registration can verify the signed jti matches
   session.dbscChallenge = challengeNonce;
   await session.save();
+  // Sec-Session-Registration: (ES256 RS256); path="..."; challenge="<base64url-nonce>"; id="<id>"
+  // Algorithm list prefix IS correct here (only on Registration, NOT on Challenge)
   const regHeader = `(ES256 RS256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${session.dbscSessionId}"`;
   res.setHeader('Sec-Session-Registration', regHeader);
   res.setHeader('Secure-Session-Registration', regHeader);
@@ -979,10 +981,12 @@ const refreshAccessToken = async (req, res, next) => {
       const now = Date.now();
       // If the TPM key hasn't been cryptographically verified recently (within 5 minutes / 300 seconds), challenge it!
       if (now - lastVerified > 5 * 60 * 1000) {
-        const challengeNonce = crypto.randomBytes(16).toString("hex");
+        // Sec-Session-Challenge: challenge="<base64url-nonce>"; id="<id>"
+        // NO algorithm list prefix here — that only belongs in Sec-Session-Registration
+        const challengeNonce = crypto.randomBytes(32).toString("base64url");
         existingSession.dbscChallenge = challengeNonce;
         await existingSession.save();
-        const chalHeader = `(ES256 RS256); challenge="${challengeNonce}"; id="${existingSession.dbscSessionId}"`;
+        const chalHeader = `challenge="${challengeNonce}"; id="${existingSession.dbscSessionId}"`;
         res.setHeader("Sec-Session-Challenge", chalHeader);
         res.setHeader("Secure-Session-Challenge", chalHeader);
         return res.status(403).json({ error: "DBSC hardware challenge required for token rotation" });
