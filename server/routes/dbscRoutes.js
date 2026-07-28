@@ -1,5 +1,5 @@
 import express from 'express';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import Session from '../models/Session.js';
 import logger from '../utils/logger.js';
@@ -104,7 +104,7 @@ router.post('/registration', async (req, res) => {
       accessToken,
       dbscEnforced: true,
       scope: {
-        include_site: false
+        include_site: true
       },
       credentials: [
         {
@@ -212,7 +212,7 @@ router.post('/refresh', async (req, res) => {
       refresh_url: "/api/dbsc/refresh",
       continue: true,
       scope: {
-        include_site: false
+        include_site: true
       },
       credentials: [
         {

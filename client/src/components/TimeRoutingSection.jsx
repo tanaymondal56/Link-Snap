@@ -1,6 +1,6 @@
 import { useState, memo } from 'react';
 import { Clock, X, Plus, ChevronDown, ChevronUp, Crown, Info, AlertCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { ProBadge } from './subscription/PremiumField';
 import TimezonePicker from './ui/TimezonePicker';
 

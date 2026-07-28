@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import dotenv from 'dotenv';
 
 // Ensure environment variables are loaded

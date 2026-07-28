@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import Session from '../models/Session.js';
 import { parseUserAgent } from './parseUserAgent.js';
 import { generateRefreshToken } from './generateToken.js';

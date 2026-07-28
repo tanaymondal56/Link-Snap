@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment, lazy, Suspense } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import api from '../api/axios';
 import showToast from '../utils/toastUtils';
 import { useConfirm } from '../context/ConfirmContext';

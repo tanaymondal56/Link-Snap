@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { ArrowLeft, Cookie, Calendar, Mail } from 'lucide-react';
 
 const CookiePage = () => {

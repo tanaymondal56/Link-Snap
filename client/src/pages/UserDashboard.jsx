@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, lazy, Suspense, useMemo } fro
 import { sanitizeHref } from '../utils/urlUtils';
 import { getTierConfig } from '../config/subscriptionTiers';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useConfirm } from '../context/ConfirmContext';
 import { useAuth } from '../context/AuthContext';
 import {

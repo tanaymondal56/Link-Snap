@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Sparkles, Crown } from 'lucide-react';
 import { usePremiumField } from '../../hooks/usePremiumField';
 

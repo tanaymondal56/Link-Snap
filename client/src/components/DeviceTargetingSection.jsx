@@ -15,7 +15,7 @@ import {
   HelpCircle,
   AlertCircle,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { ProBadge } from './subscription/PremiumField';
 
 // Device options with icons and colors

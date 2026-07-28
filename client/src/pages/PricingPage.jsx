@@ -3,7 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../context/AuthContext';
 import { Check, X, Shield, Zap, Globe, Lock, Hammer, Star, Building2, Users, KeyRound, Webhook, HeadsetIcon, BarChart3, FlaskConical, QrCode, Crown } from 'lucide-react';
 import api from '../api/axios';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router';
 import showToast from '../utils/toastUtils';
 import { useRazorpay } from '../hooks/useRazorpay';
 

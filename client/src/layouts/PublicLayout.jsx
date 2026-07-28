@@ -1,4 +1,4 @@
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Outlet } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { User, Shield, Sparkles, Crown } from 'lucide-react';
 import { useState, useEffect } from 'react';

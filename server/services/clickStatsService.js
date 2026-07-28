@@ -1,6 +1,6 @@
 import Url from '../models/Url.js';
 import User from '../models/User.js';
-import { redisIncr, redisGetDel, getRedisClient, redisScan } from '../config/redis.js';
+import { redisIncr, redisGetDel, getRedisClient, getRedisDriver, redisScan } from '../config/redis.js';
 
 // Buffer configuration
 const BATCH_SIZE = 100;
@@ -33,7 +33,10 @@ const flushBuffer = async () => {
     try {
         if (redis) {
             // Acquire distributed lock to prevent PM2 cluster race conditions
-            const lock = await redis.set('ls:lock:flush', '1', 'NX', 'EX', 10);
+            const isTcp = getRedisDriver() === 'tcp';
+            const lock = isTcp 
+                ? await redis.set('ls:lock:flush', '1', 'EX', 10, 'NX')
+                : await redis.set('ls:lock:flush', '1', { nx: true, ex: 10 });
             if (!lock) return; // Another worker is currently flushing
             acquiredLock = true;
             

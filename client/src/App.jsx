@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from 'react';
-import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, Navigate } from 'react-router';
 import { HelmetProvider } from 'react-helmet-async';
 import { ToastProvider, useToast } from './components/ui/Toast';
 import { registerToastHandler } from './utils/toastUtils';

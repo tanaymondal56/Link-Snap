@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Sparkles, Home, FileText, PartyPopper } from 'lucide-react';
 import useScrollLock from '../hooks/useScrollLock';
 import {

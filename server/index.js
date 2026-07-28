@@ -13,7 +13,7 @@ import logger from './utils/logger.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
 import lusca from 'lusca';
 import cookieSession from 'cookie-session';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 
 import authRoutes from './routes/authRoutes.js';
 import urlRoutes from './routes/urlRoutes.js';

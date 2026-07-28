@@ -25,7 +25,7 @@ import api from '../api/axios';
 import showToast from '../utils/toastUtils';
 import { getDomain } from '../utils/urlHelper';
 import { useScrollLock } from '../hooks/useScrollLock';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { ProBadge } from './subscription/PremiumField';
 import { usePremiumField } from '../hooks/usePremiumField';
 import DeviceTargetingSection from './DeviceTargetingSection';

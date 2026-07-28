@@ -167,13 +167,16 @@ api.interceptors.response.use(
           window.location.href = '/account-suspended';
         }
 
-        // Only clear token on explicit auth failures (401/403), NOT on network errors
-        // This prevents logout when server is temporarily unavailable
-        if (refreshError.response?.status === 401 || refreshError.response?.status === 403) {
+        // Only clear token on explicit auth failures (401/403), NOT on network errors or DBSC challenges
+        // This prevents logout when server is temporarily unavailable or challenging hardware keys
+        const isDbscChallenge = refreshError.response?.status === 403 && 
+          (refreshError.response?.data?.error?.includes('DBSC') || refreshError.response?.data?.dbsc_challenged);
+
+        if (!isDbscChallenge && (refreshError.response?.status === 401 || refreshError.response?.status === 403)) {
           window.dispatchEvent(new Event('auth:logout'));
           processQueue(refreshError, null);
         } else {
-          // Network error or server unavailable - keep token and let user retry
+          // Network error, server unavailable, or DBSC challenge in progress - keep token and let queue reject cleanly
           processQueue(refreshError, null);
         }
         return Promise.reject(refreshError);

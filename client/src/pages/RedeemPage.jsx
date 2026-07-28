@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation, Link } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import { Loader2, Gift, AlertTriangle, CheckCircle, ArrowRight, X, CreditCard, Calendar } from 'lucide-react';

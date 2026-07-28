@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { RefreshCw, Download, Sparkles, AlertCircle, FileText } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { getStoredVersion, setStoredVersion, setShowChangelogAfterUpdate } from '../config/version';
 import { useAppVersion } from '../hooks/useAppVersion';
 

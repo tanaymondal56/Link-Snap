@@ -8,7 +8,7 @@ import Session from '../models/Session.js';
 import { nanoid } from 'nanoid';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 
 // ============================================
 // RANDOM DATA GENERATORS FOR SIGNUP TESTING

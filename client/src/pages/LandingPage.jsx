@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Helmet } from 'react-helmet-async';
 // Lazy load QRCodeSVG (only needed after link creation)
 const QRCodeSVG = lazy(() =>

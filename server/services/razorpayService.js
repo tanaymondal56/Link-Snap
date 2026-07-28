@@ -1,6 +1,6 @@
 import Razorpay from 'razorpay';
 import { nanoid } from 'nanoid';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 
 // ── Singleton client ────────────────────────────────────────────
 export const razorpay = new Razorpay({

@@ -31,7 +31,7 @@ import GlassTable from '../../components/admin-console/ui/GlassTable';
 import api from '../../api/axios';
 import { useConfirm } from '../../context/ConfirmContext';
 import showToast from '../../utils/toastUtils';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { Loader2 } from 'lucide-react';
 

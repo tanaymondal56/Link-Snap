@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { formatDate } from '../../utils/dateUtils';
 import showToast from '../../utils/toastUtils';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router';
 import confetti from 'canvas-confetti';
 import api from '../../api/axios';
 import BadgeTooltip from '../ui/BadgeTooltip';

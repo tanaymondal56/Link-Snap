@@ -12,7 +12,7 @@
  * This file intentionally does NOT import processWebhookJob to avoid circular dependencies.
  */
 
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import logger from '../utils/logger.js';
 import { webhookQueue } from '../services/webhookQueueService.js';
 import { processWebhookJob } from './webhookProcessor.js';

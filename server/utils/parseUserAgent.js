@@ -1,6 +1,4 @@
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const UAParser = require('ua-parser-js');
+import { UAParser } from 'ua-parser-js';
 
 /**
  * Parse a User-Agent string and extract device information

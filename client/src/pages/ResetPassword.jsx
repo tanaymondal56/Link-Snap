@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { useNavigate, useLocation, useParams, Link } from 'react-router-dom';
+import { useNavigate, useLocation, useParams, Link } from 'react-router';
 import api from '../api/axios';
 import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';

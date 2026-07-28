@@ -3,8 +3,8 @@ import Url from '../models/Url.js';
 import logger from '../utils/logger.js';
 import { TIERS, getEffectiveTier } from '../services/subscriptionService.js';
 import { redisGet, redisSet, redisDel } from '../config/redis.js';
-import zlib from 'zlib';
-import { promisify } from 'util';
+import zlib from 'node:zlib';
+import { promisify } from 'node:util';
 
 const gzipAsync = promisify(zlib.gzip);
 const gunzipAsync = promisify(zlib.gunzip);

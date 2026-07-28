@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation, Navigate, useNavigate } from 'react-router-dom';
+import { Link, useLocation, Navigate, useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { Loader2, User, Lock, ArrowRight } from 'lucide-react';
 

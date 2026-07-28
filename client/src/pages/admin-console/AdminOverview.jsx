@@ -12,7 +12,7 @@ import {
 import BentoCard from '../../components/admin-console/ui/BentoCard';
 import api from '../../api/axios';
 import { formatDate } from '../../utils/dateUtils';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import { useAuth } from '../../context/AuthContext';
 

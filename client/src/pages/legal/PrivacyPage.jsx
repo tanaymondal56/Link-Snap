@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { ArrowLeft, Shield, Calendar, Mail } from 'lucide-react';
 
 const PrivacyPage = () => {

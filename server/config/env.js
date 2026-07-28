@@ -1,8 +1,8 @@
 // Load environment variables first
 // This file should be imported before anything else
 import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Get the directory of this file to ensure .env is found correctly
 const __filename = fileURLToPath(import.meta.url);

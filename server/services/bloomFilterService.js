@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import { getRedisClient, getRedisDriver } from '../config/redis.js';
 import User from '../models/User.js';
 import Url from '../models/Url.js';

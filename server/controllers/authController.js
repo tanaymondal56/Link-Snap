@@ -10,7 +10,7 @@ import { generateAccessToken } from '../utils/generateToken.js';
 import { createSession, validateSession, terminateSession, hashToken, terminateAllUserSessions, rotateRefreshToken } from '../utils/sessionHelper.js';
 import { registerSchema, loginSchema, updateProfileSchema, verifyOtpSchema, forgotPasswordSchema, resetPasswordSchema } from '../validators/authValidator.js';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import sendEmail from '../utils/sendEmail.js';
 import { welcomeEmail, verificationEmail, accountExistsEmail, passwordResetEmail } from '../utils/emailTemplates.js';
@@ -984,25 +984,6 @@ const refreshAccessToken = async (req, res, next) => {
       } else if (clientSessionId && clientSessionId !== existingSession.dbscSessionId) {
         clearAllAuthCookies(res);
         return res.status(403).json({ error: "DBSC binding failed: session cookie mismatched on token refresh" });
-      }
-    }
-
-    // If session IS DBSC-enforced, verify hardware proof of possession BEFORE rotating token in DB
-    // This stops cookie theft & deleted tokens without causing a race condition on challenge retry
-    if (existingSession.dbscEnforced && existingSession.dbscPublicKeyJwk) {
-      const lastVerified = existingSession.dbscLastVerifiedAt ? new Date(existingSession.dbscLastVerifiedAt).getTime() : 0;
-      const now = Date.now();
-      // If the TPM key hasn't been cryptographically verified recently (within 5 minutes / 300 seconds), challenge it!
-      if (now - lastVerified > 5 * 60 * 1000) {
-        // Sec-Session-Challenge: "<base64url-nonce>"; id="<id>"
-        // NOTE: The challenge string MUST be the primary RFC 8941 Item (do NOT put "challenge=" before it)
-        const challengeNonce = crypto.randomBytes(32).toString("base64url");
-        existingSession.dbscChallenge = challengeNonce;
-        await existingSession.save();
-        const chalHeader = `"${challengeNonce}"; id="${existingSession.dbscSessionId}"`;
-        res.setHeader("Sec-Session-Challenge", chalHeader);
-        res.setHeader("Secure-Session-Challenge", chalHeader);
-        return res.status(403).json({ error: "DBSC hardware challenge required for token rotation" });
       }
     }
 

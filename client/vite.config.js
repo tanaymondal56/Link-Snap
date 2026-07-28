@@ -129,7 +129,7 @@ export default defineConfig(async ({ mode }) => {
         output: {
           manualChunks: (id) => {
             // Vendor chunks
-            if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-router-dom/')) {
+            if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-router/')) {
               return 'react-vendor'
             }
             if (id.includes('node_modules/clsx/') || id.includes('node_modules/tailwind-merge/')) {
