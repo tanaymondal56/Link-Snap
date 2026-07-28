@@ -236,7 +236,37 @@ router.post('/refresh', async (req, res) => {
     return res.status(200).json({ 
       session_identifier: session.dbscSessionId,
       refresh_url: "/api/dbsc/refresh",
-      continue: true 
+      continue: true,
+      scope: {
+        include_site: false
+      },
+      credentials: [
+        {
+          type: "cookie",
+          name: "__Host-session",
+          attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
+        },
+        {
+          type: "cookie",
+          name: "dbsc_session",
+          attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
+        },
+        {
+          type: "cookie",
+          name: "access_token",
+          attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
+        },
+        {
+          type: "cookie",
+          name: "jwt",
+          attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
+        },
+        {
+          type: "cookie",
+          name: "session",
+          attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
+        }
+      ]
     });
   } catch (err) {
     logger.error(`[DBSC Refresh Error] ${err.message}`);
