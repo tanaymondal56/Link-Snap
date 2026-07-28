@@ -100,7 +100,7 @@ export const trackVisit = async (urlId, req, extras = {}) => {
             try {
                 const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
                 resolvedCountry = regionNames.of(cfCountry.toUpperCase()) || cfCountry.toUpperCase();
-            } catch (e) {
+            } catch {
                 resolvedCountry = cfCountry.toUpperCase();
             }
         }
