@@ -1,6 +1,5 @@
 import Analytics from '../models/Analytics.js';
 import { UAParser } from 'ua-parser-js';
-import geoip from 'geoip-lite';
 import { getUserIP } from '../middleware/strictProxyGate.js';
 import { getRedisClient } from '../config/redis.js';
 
@@ -92,12 +91,19 @@ export const trackVisit = async (urlId, req, extras = {}) => {
           ? rawIp.replace(/(:[0-9a-fA-F]{0,4}){3}$/, ':0:0:0')  // IPv6 anonymize
           : rawIp.replace(/\.\d+$/, '.0');                        // IPv4 anonymize
 
-        // GeoIP lookup - prefer Cloudflare CF-IPCountry header for 0ms CPU lookup, fallback to local geoip-lite
+        // GeoIP lookup - prefer Cloudflare CF-IPCountry header for 0ms CPU lookup
         const cfCountry = req.headers['cf-ipcountry'];
-        const geo = geoip.lookup(rawIp);
-        const resolvedCountry = (cfCountry && cfCountry !== 'XX') 
-          ? cfCountry.toUpperCase() 
-          : (geo ? geo.country : 'Unknown');
+        const cfCity = req.headers['cf-ipcity'];
+        
+        let resolvedCountry = 'Unknown';
+        if (cfCountry && cfCountry !== 'XX') {
+            try {
+                const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+                resolvedCountry = regionNames.of(cfCountry.toUpperCase()) || cfCountry.toUpperCase();
+            } catch (e) {
+                resolvedCountry = cfCountry.toUpperCase();
+            }
+        }
 
         const analyticsData = {
             urlId,
@@ -107,7 +113,7 @@ export const trackVisit = async (urlId, req, extras = {}) => {
             os: os.name || 'Unknown',
             device: device.type ? (device.type.charAt(0).toUpperCase() + device.type.slice(1)) : 'Desktop',
             country: resolvedCountry,
-            city: geo ? geo.city : 'Unknown',
+            city: cfCity || 'Unknown',
             deviceMatchType: extras.deviceMatchType || null,
         };
 
