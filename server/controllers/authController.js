@@ -982,7 +982,9 @@ const refreshAccessToken = async (req, res, next) => {
         const challengeNonce = crypto.randomBytes(16).toString("hex");
         existingSession.dbscChallenge = challengeNonce;
         await existingSession.save();
-        res.setHeader("Secure-Session-Challenge", `challenge="${challengeNonce}"; id="${existingSession.dbscSessionId}"`);
+        const chalHeader = `challenge="${challengeNonce}"; id="${existingSession.dbscSessionId}"`;
+        res.setHeader("Sec-Session-Challenge", chalHeader);
+        res.setHeader("Secure-Session-Challenge", chalHeader);
         return res.status(403).json({ error: "DBSC hardware challenge required for token rotation" });
       }
     }

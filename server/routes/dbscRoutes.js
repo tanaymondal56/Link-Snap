@@ -17,7 +17,7 @@ const router = express.Router();
  *  - The caller should then issue a NEW access token with dbscEnforced=true embedded
  */
 router.post('/registration', async (req, res) => {
-  const proofHeader = req.headers["secure-session-response"];
+  const proofHeader = req.headers["secure-session-response"] || req.headers["sec-session-response"];
 
   if (!proofHeader) {
     return res.status(400).json({ error: "Missing Secure-Session-Response header" });
@@ -105,6 +105,7 @@ router.post('/registration', async (req, res) => {
     // Chrome DBSC specification response format
     return res.status(200).json({ 
       session_identifier: session.dbscSessionId,
+      refresh_url: "/api/dbsc/refresh",
       accessToken,
       dbscEnforced: true,
       scope: {
@@ -159,7 +160,7 @@ router.post('/registration', async (req, res) => {
 router.post('/refresh', async (req, res) => {
   const dbscSessionId = req.headers["sec-secure-session-id"] || req.headers["sec-session-id"] || req.cookies?.['__Host-session'] || req.cookies?.['dbsc_session'];
   const jwtCookie = req.cookies?.['jwt'];
-  const proofHeader = req.headers["secure-session-response"];
+  const proofHeader = req.headers["secure-session-response"] || req.headers["sec-session-response"];
 
   if (!dbscSessionId && !jwtCookie) {
     return res.status(400).json({ error: "Missing session identifier" });
@@ -182,7 +183,9 @@ router.post('/refresh', async (req, res) => {
   if (!session || !session.dbscPublicKeyJwk) {
     // Session not found or no DBSC key registered — issue a fresh challenge
     const newChallenge = crypto.randomBytes(16).toString("hex");
-    res.setHeader("Secure-Session-Challenge", `challenge="${newChallenge}"; id="${dbscSessionId || 'unknown'}"`);
+    const chalHeader = `challenge="${newChallenge}"; id="${dbscSessionId || 'unknown'}"`;
+    res.setHeader("Sec-Session-Challenge", chalHeader);
+    res.setHeader("Secure-Session-Challenge", chalHeader);
     return res.status(403).json({ error: "DBSC challenge required" });
   }
 
@@ -191,7 +194,9 @@ router.post('/refresh', async (req, res) => {
     const newChallenge = crypto.randomBytes(16).toString("hex");
     session.dbscChallenge = newChallenge;
     await session.save();
-    res.setHeader("Secure-Session-Challenge", `challenge="${newChallenge}"; id="${session.dbscSessionId}"`);
+    const chalHeader = `challenge="${newChallenge}"; id="${session.dbscSessionId}"`;
+    res.setHeader("Sec-Session-Challenge", chalHeader);
+    res.setHeader("Secure-Session-Challenge", chalHeader);
     return res.status(403).json({ error: "DBSC challenge required" });
   }
 
@@ -219,8 +224,16 @@ router.post('/refresh', async (req, res) => {
     await session.save();
     setDbscSessionCookies(res, session.dbscSessionId);
 
-    // The token is valid. Return 200 OK to tell the browser to unpause the queued requests.
-    return res.status(200).json({ continue: true });
+    const termHeader = `(continue); id="${session.dbscSessionId}"`;
+    res.setHeader("Sec-Session-Response", termHeader);
+    res.setHeader("Secure-Session-Response", termHeader);
+
+    // The token is valid. Return 200 OK with full session configuration to tell browser to unpause queued requests.
+    return res.status(200).json({ 
+      session_identifier: session.dbscSessionId,
+      refresh_url: "/api/dbsc/refresh",
+      continue: true 
+    });
   } catch (err) {
     logger.error(`[DBSC Refresh Error] ${err.message}`);
     return res.status(401).json({ error: "Invalid device signature", details: err.message, stack: err.stack });
