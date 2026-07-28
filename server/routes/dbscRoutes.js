@@ -121,21 +121,6 @@ router.post('/registration', async (req, res) => {
           type: "cookie",
           name: "dbsc_session",
           attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
-        },
-        {
-          type: "cookie",
-          name: "access_token",
-          attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
-        },
-        {
-          type: "cookie",
-          name: "jwt",
-          attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
-        },
-        {
-          type: "cookie",
-          name: "session",
-          attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
         }
       ]
     });
@@ -249,21 +234,6 @@ router.post('/refresh', async (req, res) => {
         {
           type: "cookie",
           name: "dbsc_session",
-          attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
-        },
-        {
-          type: "cookie",
-          name: "access_token",
-          attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
-        },
-        {
-          type: "cookie",
-          name: "jwt",
-          attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
-        },
-        {
-          type: "cookie",
-          name: "session",
           attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
         }
       ]
