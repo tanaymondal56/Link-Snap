@@ -149,7 +149,7 @@ const UserDetailsModal = ({ isOpen, onClose, user }) => {
         <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/5">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-xl font-bold text-white shadow-lg shadow-blue-500/20">
-              {user.firstName ? user.firstName[0].toUpperCase() : user.email[0].toUpperCase()}
+              {user?.firstName?.[0] ? user.firstName[0].toUpperCase() : (user?.email?.[0] ? user.email[0].toUpperCase() : 'U')}
             </div>
             <div>
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -342,7 +342,7 @@ const UserDetailsModal = ({ isOpen, onClose, user }) => {
                               className={`font-bold text-sm ${event.type === 'ban' ? 'text-red-400' : 'text-green-400'} flex items-center gap-2 mb-1`}
                             >
                               {event.type === 'ban' ? <Ban size={14} /> : <CheckCircle size={14} />}
-                              {event.type.toUpperCase()}
+                              {event?.type ? event.type.toUpperCase() : 'EVENT'}
                             </p>
                             <p className="text-gray-300 text-sm">
                               {event.reason || 'No reason provided'}

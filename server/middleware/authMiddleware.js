@@ -20,13 +20,16 @@ const protect = async (req, res, next) => {
       const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] });
       req.jwtDecoded = decoded;
 
-      // DBSC Hardware Binding Check.
-      // ONLY enforced after a device key has been successfully registered (dbscEnforced === true).
-      // Standard browsers that don't support DBSC never set this flag, so they're unaffected.
-      // This prevents breaking all non-DBSC browsers while still protecting DBSC-enrolled sessions.
-      if (decoded.dbscEnforced === true) {
+      // DBSC & Session Cookie Integrity Check.
+      // 1. If dbscEnforced is true (hardware key registered), require the DBSC session ID to match.
+      // 2. Even if not yet enforced, if session cookies (__Host-session or dbsc_session) are present,
+      // they MUST match the dbscSessionId embedded in the JWT access token to prevent session alteration.
+      if (decoded.dbscSessionId) {
         const clientSessionId = req.cookies?.['__Host-session'] || req.cookies?.['dbsc_session'] || req.headers['sec-secure-session-id'] || req.headers['sec-session-id'];
-        if (!clientSessionId || clientSessionId !== decoded.dbscSessionId) {
+        if (decoded.dbscEnforced === true && (!clientSessionId || clientSessionId !== decoded.dbscSessionId)) {
+          res.status(401);
+          throw new Error('DBSC Binding Failed: Session cookie mismatch or missing');
+        } else if (clientSessionId && clientSessionId !== decoded.dbscSessionId) {
           res.status(401);
           throw new Error('DBSC Binding Failed: Session cookie mismatch or missing');
         }

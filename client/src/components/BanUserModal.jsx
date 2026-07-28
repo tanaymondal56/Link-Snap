@@ -140,7 +140,7 @@ const BanUserModal = ({ isOpen, onClose, onConfirm, user }) => {
           {/* User Info */}
           <div className="bg-gray-800/50 rounded-lg p-3 mb-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-sm font-bold text-white">
-              {user.firstName ? user.firstName[0].toUpperCase() : user.email[0].toUpperCase()}
+              {user?.firstName?.[0] ? user.firstName[0].toUpperCase() : (user?.email?.[0] ? user.email[0].toUpperCase() : 'U')}
             </div>
             <div>
               <p className="text-white font-medium text-sm">{user.email}</p>

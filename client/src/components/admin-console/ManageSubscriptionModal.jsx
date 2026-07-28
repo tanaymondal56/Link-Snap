@@ -171,7 +171,7 @@ const ManageSubscriptionModal = ({ isOpen, onClose, user, onUpdate }) => {
         <div className="p-6 overflow-y-auto custom-scrollbar overscroll-contain">
           <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-start gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-600 flex items-center justify-center text-sm font-bold text-white shrink-0">
-              {user.firstName ? user.firstName[0] : user.email[0].toUpperCase()}
+              {user?.firstName?.[0] ? user.firstName[0].toUpperCase() : (user?.email?.[0] ? user.email[0].toUpperCase() : 'U')}
             </div>
             <div>
               <p className="text-white font-medium">{user.email}</p>

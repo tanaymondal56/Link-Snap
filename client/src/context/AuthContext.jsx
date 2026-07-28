@@ -118,10 +118,8 @@ export const AuthProvider = ({ children }) => {
             localStorage.removeItem('ls_auth_user');
             localStorage.removeItem('ls_auth_cached_at');
             setUser(null);
-            setAccessToken(null);
             setLoading(false);
             setIsAuthChecking(false);
-            api.post('/auth/logout').catch(() => {});
             resolve();
           } else {
             // For network errors (server restarting), retry up to 2 times (reduced from 5)
@@ -194,7 +192,9 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('ls_auth_cached_at');
       setAccessToken(null);
       setUser(null);
-      api.post('/auth/logout').catch(() => {});
+      if (userRef.current) {
+        api.post('/auth/logout').catch(() => {});
+      }
     };
 
     window.addEventListener('auth:logout', handleAuthLogoutEvent);

@@ -304,6 +304,7 @@ app.use(lusca.csrf({
       httpOnly: false,
       secure: cookieSecure,
       sameSite: cookieSameSite,
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days - persistent cookie so browser close doesn't delete it
     }
   },
   header: 'X-XSRF-TOKEN',
@@ -311,6 +312,8 @@ app.use(lusca.csrf({
     { type: 'startsWith', path: '/api/webhooks' }, // Webhooks use signature verification
     { type: 'startsWith', path: '/api/url/' }, // Public redirect and password verification endpoints
     { type: 'startsWith', path: '/api/dbsc' }, // Browser native DBSC protocol (sent by browser C++ network stack)
+    { type: 'startsWith', path: '/api/auth/login' }, // Auth login is pre-session; bypass CSRF to prevent bootstrap errors
+    { type: 'startsWith', path: '/api/auth/register' }, // Auth register is pre-session
     { type: 'startsWith', path: '/api/auth/refresh' }, // Auth refresh uses HttpOnly refresh token + session rotation
     { type: 'startsWith', path: '/api/auth/logout' } // Logout must never be blocked by CSRF so cookies always clear
   ]

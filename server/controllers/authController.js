@@ -1092,7 +1092,7 @@ const getMe = async (req, res) => {
         // issueDbscRegistration persists the nonce AND sets cookies — critical for Chrome to find the session
         await issueDbscRegistration(res, session);
       }
-    } catch (e) {
+    } catch {
       // Ignore if session check fails during getMe
     }
   }
