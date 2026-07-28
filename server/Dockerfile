@@ -4,7 +4,8 @@ FROM node:24-alpine AS deps
 WORKDIR /app
 
 COPY server/package.json server/package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev --ignore-scripts
 
 
 # ── Stage 2: Production image ──────────────────────────────────────────────────

@@ -5,7 +5,8 @@ WORKDIR /app
 
 # Install dependencies first (cache layer — only invalidated when package.json changes)
 COPY client/package.json client/package-lock.json ./
-RUN npm ci --legacy-peer-deps
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --legacy-peer-deps
 
 # Copy source (invalidates cache when source changes)
 COPY client/ ./
@@ -19,7 +20,8 @@ ENV VITE_BASE_URL=$VITE_BASE_URL \
     VITE_DOMAIN=$VITE_DOMAIN \
     VITE_API_URL=$VITE_API_URL
 
-RUN npm run build
+RUN --mount=type=cache,target=/app/node_modules/.vite \
+    npm run build
 
 
 # ── Stage 2: Serve with Nginx ──────────────────────────────────────────────────

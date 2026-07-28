@@ -164,7 +164,10 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/arm64
-          cache-from: type=gha,scope=frontend-${{ github.ref_name }}
+          cache-from: |
+            type=gha,scope=frontend-${{ github.ref_name }}
+            type=gha,scope=frontend-staging
+            type=gha,scope=frontend-master
           cache-to: type=gha,mode=max,scope=frontend-${{ github.ref_name }}
           build-args: |
             VITE_BASE_URL=${{ secrets.VITE_BASE_URL }}
@@ -220,7 +223,10 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/arm64
-          cache-from: type=gha,scope=backend-${{ github.ref_name }}
+          cache-from: |
+            type=gha,scope=backend-${{ github.ref_name }}
+            type=gha,scope=backend-staging
+            type=gha,scope=backend-master
           cache-to: type=gha,mode=max,scope=backend-${{ github.ref_name }}
 
   # ─── Sync Readmes to Docker Hub ────────────────────────────────────────────

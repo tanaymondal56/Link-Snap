@@ -183,7 +183,7 @@ router.post('/refresh', async (req, res) => {
   if (!session || !session.dbscPublicKeyJwk) {
     // Session not found or no DBSC key registered — issue a fresh challenge
     const newChallenge = crypto.randomBytes(16).toString("hex");
-    const chalHeader = `challenge="${newChallenge}"; id="${dbscSessionId || 'unknown'}"`;
+    const chalHeader = `(ES256 RS256); challenge="${newChallenge}"; id="${dbscSessionId || 'unknown'}"`;
     res.setHeader("Sec-Session-Challenge", chalHeader);
     res.setHeader("Secure-Session-Challenge", chalHeader);
     return res.status(403).json({ error: "DBSC challenge required" });
@@ -194,7 +194,7 @@ router.post('/refresh', async (req, res) => {
     const newChallenge = crypto.randomBytes(16).toString("hex");
     session.dbscChallenge = newChallenge;
     await session.save();
-    const chalHeader = `challenge="${newChallenge}"; id="${session.dbscSessionId}"`;
+    const chalHeader = `(ES256 RS256); challenge="${newChallenge}"; id="${session.dbscSessionId}"`;
     res.setHeader("Sec-Session-Challenge", chalHeader);
     res.setHeader("Secure-Session-Challenge", chalHeader);
     return res.status(403).json({ error: "DBSC challenge required" });

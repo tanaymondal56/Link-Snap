@@ -101,7 +101,7 @@ export const issueDbscRegistration = async (res, session) => {
   // Persist nonce so /api/dbsc/registration can verify the signed jti matches
   session.dbscChallenge = challengeNonce;
   await session.save();
-  const regHeader = `(ES256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${session.dbscSessionId}"`;
+  const regHeader = `(ES256 RS256); path="/api/dbsc/registration"; challenge="${challengeNonce}"; id="${session.dbscSessionId}"`;
   res.setHeader('Sec-Session-Registration', regHeader);
   res.setHeader('Secure-Session-Registration', regHeader);
   setDbscSessionCookies(res, session.dbscSessionId);
@@ -982,7 +982,7 @@ const refreshAccessToken = async (req, res, next) => {
         const challengeNonce = crypto.randomBytes(16).toString("hex");
         existingSession.dbscChallenge = challengeNonce;
         await existingSession.save();
-        const chalHeader = `challenge="${challengeNonce}"; id="${existingSession.dbscSessionId}"`;
+        const chalHeader = `(ES256 RS256); challenge="${challengeNonce}"; id="${existingSession.dbscSessionId}"`;
         res.setHeader("Sec-Session-Challenge", chalHeader);
         res.setHeader("Secure-Session-Challenge", chalHeader);
         return res.status(403).json({ error: "DBSC hardware challenge required for token rotation" });
