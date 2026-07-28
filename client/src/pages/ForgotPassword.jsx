@@ -82,6 +82,8 @@ const ForgotPassword = () => {
                   <Mail className="h-5 w-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
                 </div>
                 <input
+                  id="forgot-email"
+                  name="email"
                   type="email"
                   placeholder="Enter your email"
                   value={email}

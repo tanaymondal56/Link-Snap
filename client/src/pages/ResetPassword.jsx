@@ -183,7 +183,10 @@ const ResetPassword = () => {
                   ) : (
                     <div className="relative">
                       <input
+                        id="reset-email"
+                        name="email"
                         type="email"
+                        autoComplete="email"
                         placeholder="Enter your email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
@@ -200,6 +203,8 @@ const ResetPassword = () => {
                       {otp.map((digit, index) => (
                         <input
                           key={index}
+                          id={`reset-otp-${index}`}
+                          name={`otp-${index}`}
                           ref={(el) => (inputRefs.current[index] = el)}
                           type="text"
                           inputMode="numeric"
@@ -232,7 +237,10 @@ const ResetPassword = () => {
                   <Lock className="h-5 w-5 text-gray-500" />
                 </div>
                 <input
+                  id="reset-new-password"
+                  name="newPassword"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   placeholder="New password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -278,7 +286,10 @@ const ResetPassword = () => {
                   <Lock className="h-5 w-5 text-gray-500" />
                 </div>
                 <input
+                  id="reset-confirm-password"
+                  name="confirmPassword"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   placeholder="Confirm new password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}

@@ -337,7 +337,10 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
               {activeTab === 'login' ? (
                 <>
                   <input
+                    id="modal-identifier"
+                    name="identifier"
                     type="text"
+                    autoComplete="username"
                     required
                     placeholder="Email or username"
                     value={identifier}
@@ -347,7 +350,10 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                 </>
               ) : (
                 <input
+                  id="modal-email"
+                  name="email"
                   type="email"
+                  autoComplete="email"
                   required
                   placeholder="Email address *"
                   value={email}
@@ -364,7 +370,10 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                   <User className="h-5 w-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
                 </div>
                 <input
+                  id="modal-username"
+                  name="username"
                   type="text"
+                  autoComplete="username"
                   required
                   placeholder="Username * (e.g., john_doe)"
                   value={username}
@@ -412,6 +421,8 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                 <Lock className="h-5 w-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
               </div>
               <input
+                id="modal-password"
+                name="password"
                 type={showPassword ? 'text' : 'password'}
                 autoComplete={activeTab === 'login' ? 'current-password' : 'new-password'}
                 required
@@ -480,7 +491,10 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                   <CheckCircle className="h-5 w-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
                 </div>
                 <input
+                  id="modal-confirm-password"
+                  name="confirmPassword"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   required
                   placeholder="Confirm password"
                   value={confirmPassword}
@@ -497,7 +511,10 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                   <User className="h-5 w-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
                 </div>
                 <input
+                  id="modal-first-name"
+                  name="firstName"
                   type="text"
+                  autoComplete="given-name"
                   required
                   placeholder="First name *"
                   value={firstName}
@@ -526,7 +543,10 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                     <User className="h-5 w-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
                   </div>
                   <input
+                    id="modal-last-name"
+                    name="lastName"
                     type="text"
+                    autoComplete="family-name"
                     placeholder="Last name"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
@@ -540,7 +560,10 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                     <Phone className="h-5 w-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
                   </div>
                   <input
+                    id="modal-phone"
+                    name="phone"
                     type="tel"
+                    autoComplete="tel"
                     placeholder="Phone number (optional)"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
@@ -554,7 +577,10 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                     <Building2 className="h-5 w-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
                   </div>
                   <input
+                    id="modal-company"
+                    name="organization"
                     type="text"
+                    autoComplete="organization"
                     placeholder="Company (optional)"
                     value={company}
                     onChange={(e) => setCompany(e.target.value)}

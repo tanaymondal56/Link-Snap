@@ -204,6 +204,8 @@ const VerifyOTP = () => {
             {otp.map((digit, index) => (
               <input
                 key={index}
+                id={`otp-input-${index}`}
+                name={`otp-${index}`}
                 ref={(el) => (inputRefs.current[index] = el)}
                 type="text"
                 maxLength={1}
