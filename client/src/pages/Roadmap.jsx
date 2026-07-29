@@ -32,6 +32,7 @@ const FeedbackModal = lazy(() => import('../components/FeedbackModal'));
 import api from '../api/axios';
 import { formatDate } from '../utils/dateUtils';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 
 // Map icon names to actual Lucide components
 const iconMap = {
@@ -68,6 +69,7 @@ const statusConfig = {
 };
 
 const Roadmap = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('ls_roadmap_tab') || 'kanban';
   }); // kanban, timeline, ideas
@@ -165,6 +167,13 @@ const Roadmap = () => {
   };
 
   const handleUpvoteRoadmap = async (id, currentVoted) => {
+    if (!user) {
+        return toast.error("Please log in to upvote features", {
+            icon: '🔒',
+            style: { borderRadius: '10px', background: '#333', color: '#fff' }
+        });
+    }
+    if (votingId) return;
     try {
       setVotingId(id);
       const method = currentVoted ? 'delete' : 'post';
@@ -201,6 +210,13 @@ const Roadmap = () => {
   };
   
   const handleUpvoteIdea = async (id, currentVoted) => {
+    if (!user) {
+        return toast.error("Please log in to upvote ideas", {
+            icon: '🔒',
+            style: { borderRadius: '10px', background: '#333', color: '#fff' }
+        });
+    }
+    if (votingId) return;
     try {
       setVotingId(id);
       const method = currentVoted ? 'delete' : 'post';
@@ -394,9 +410,10 @@ const Roadmap = () => {
                                     item.hasVoted 
                                     ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' 
                                     : 'bg-white/5 text-gray-400 border border-white/5 hover:bg-white/10 hover:text-white'
-                                }`}
+                                } ${(!user) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                title={!user ? "Login required to upvote" : "Upvote"}
                             >
-                                <Flame className={`w-4 h-4 ${item.hasVoted ? 'fill-orange-400 animate-pulse' : ''}`} />
+                                <Flame className={`w-4 h-4 ${item.hasVoted ? 'fill-orange-400 animate-pulse' : ''} ${!user ? 'opacity-50' : ''}`} />
                                 {item.voteCount || 0}
                             </button>
                         </div>
@@ -457,10 +474,11 @@ const Roadmap = () => {
                                 idea.hasVoted 
                                 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' 
                                 : 'bg-gray-950 text-gray-400 border-white/5 hover:border-white/20 hover:text-white'
-                            } ${votingId === idea._id ? 'opacity-50' : ''}`}
+                            } ${(votingId === idea._id || !user) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            title={!user ? "Login required to upvote" : "Upvote"}
                         >
                             <span className="text-sm font-bold">{idea.voteCount || 0}</span>
-                            <Flame className={`w-4 h-4 ${idea.hasVoted ? 'fill-orange-400' : ''}`} />
+                            <Flame className={`w-4 h-4 ${idea.hasVoted ? 'fill-orange-400' : ''} ${!user ? 'opacity-50' : ''}`} />
                         </button>
                     </div>
                     <div className="flex-1">

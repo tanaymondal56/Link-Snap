@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@simplewebauthn/browser": "^13.3.0",
-    "@tanstack/react-virtual": "^3.14.8",
+    "@tanstack/react-virtual": "^3.14.9",
     "axios": "^1.18.1",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
@@ -50,7 +50,7 @@
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.8.0",
     "nodemon": "^3.1.14",
-    "postcss": "^8.5.23",
+    "postcss": "^8.5.25",
     "prettier": "^3.9.6",
     "sharp": "^0.35.3",
     "tailwindcss": "^4.3.3",

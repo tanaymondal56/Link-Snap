@@ -18,7 +18,7 @@ import {
   Heart,
   MessageSquare
 } from 'lucide-react';
-import { formatDate } from '../utils/dateUtils';
+import { useAuth } from '../context/AuthContext';
 
 // Map icon names to actual Lucide components
 const iconMap = {
@@ -54,6 +54,7 @@ const statusProgress = {
 };
 
 const RoadmapCardModal = ({ item, config, onClose, onUpvote, isVoting }) => {
+  const { user } = useAuth();
   // Prevent scrolling on body when modal is open
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -86,7 +87,7 @@ const RoadmapCardModal = ({ item, config, onClose, onUpvote, isVoting }) => {
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors z-10"
+          className="absolute top-4 right-4 p-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors z-50"
         >
           <X className="w-5 h-5" />
         </button>
@@ -105,7 +106,7 @@ const RoadmapCardModal = ({ item, config, onClose, onUpvote, isVoting }) => {
             {item.estimatedRelease && (
               <span className="px-3 py-1 rounded-full text-xs text-gray-300 flex items-center gap-1.5 bg-white/5 border border-white/10">
                 <Clock className="w-3.5 h-3.5" />
-                {formatDate(item.estimatedRelease) || item.estimatedRelease}
+                Target: {item.estimatedRelease}
               </span>
             )}
           </div>
@@ -142,15 +143,15 @@ const RoadmapCardModal = ({ item, config, onClose, onUpvote, isVoting }) => {
           </div>
 
           {/* Upvote & Action Bar */}
-          <div className="flex flex-wrap items-center gap-3 mb-8 p-4 bg-white/5 border border-white/5 rounded-2xl">
+          <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 mb-8 p-4 bg-white/5 border border-white/5 rounded-2xl">
             <button
               onClick={() => onUpvote(item._id, item.hasVoted)}
-              disabled={isVoting}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-semibold transition-all duration-300 ${
+              disabled={isVoting || !user}
+              className={`flex-1 sm:flex-none w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-semibold transition-all duration-300 ${
                 item.hasVoted 
                   ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/25' 
                   : 'bg-white/10 hover:bg-white/20 text-white'
-              } ${isVoting ? 'opacity-70 cursor-not-allowed' : ''}`}
+              } ${(isVoting || !user) ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
               <Flame className={`w-5 h-5 ${item.hasVoted ? 'animate-pulse' : ''}`} />
               <span>{item.hasVoted ? 'Upvoted!' : 'Upvote'}</span>
@@ -159,7 +160,11 @@ const RoadmapCardModal = ({ item, config, onClose, onUpvote, isVoting }) => {
               </span>
             </button>
             <div className="text-sm text-gray-400 flex-1 min-w-[200px]">
-              Join {item.voteCount || 0} others who want this feature!
+              {!user ? (
+                <span className="text-amber-400/90 flex items-center gap-1.5"><Shield className="w-4 h-4" /> Login required to upvote</span>
+              ) : (
+                `Join ${item.voteCount || 0} others who want this feature!`
+              )}
             </div>
           </div>
 
