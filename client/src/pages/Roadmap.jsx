@@ -24,7 +24,8 @@ import {
   MessageSquare,
   LayoutGrid,
   List,
-  Users
+  Users,
+  Maximize2
 } from 'lucide-react';
 import LazyPullToRefresh from '../components/LazyPullToRefresh';
 import RoadmapCardModal from '../components/RoadmapCardModal';
@@ -276,98 +277,112 @@ const Roadmap = () => {
   const shippedFeatures = 142; // Example static metric, could come from API in future
 
   // UI rendering helpers
-  const renderKanban = () => (
-    <div className="flex gap-6 overflow-x-auto pb-8 custom-scrollbar snap-x">
-      {Object.entries(groupedItems).map(([status, items]) => {
-        // if (items.length === 0) return null; // Let's show empty columns too for better layout feel, or hide if no items at all
-        const config = statusConfig[status];
-        return (
-          <div key={status} className="flex-none w-[320px] sm:w-[350px] snap-center flex flex-col h-full bg-gray-900/20 rounded-3xl p-4 border border-white/5">
-            {/* Column Header */}
-            <div className={`flex items-center gap-3 mb-5 p-3 rounded-2xl ${config.bgColor} border ${config.borderColor} backdrop-blur-md`}>
-              <span className="text-2xl">{config.emoji}</span>
-              <div>
-                <h3 className={`font-bold ${config.textColor} tracking-wide`}>{config.label}</h3>
-                <p className="text-xs text-gray-500 font-medium">{config.description}</p>
-              </div>
-              <span className={`ml-auto px-2.5 py-1 rounded-full text-xs font-bold ${config.bgColor} ${config.textColor} shadow-inner`}>
-                {items.length}
-              </span>
-            </div>
+  const renderKanban = () => {
+    // Put non-empty columns first so mobile/desktop users immediately see content
+    const sortedEntries = Object.entries(groupedItems).sort(([, itemsA], [, itemsB]) => {
+      if (itemsA.length > 0 && itemsB.length === 0) return -1;
+      if (itemsA.length === 0 && itemsB.length > 0) return 1;
+      return 0;
+    });
 
-            {/* Cards */}
-            <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2 min-h-[200px]">
-              {items.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-gray-500 opacity-50 py-10">
-                  <div className={`w-12 h-12 rounded-full mb-3 flex items-center justify-center border border-dashed ${config.borderColor}`}>
-                     <config.icon className="w-5 h-5" />
-                  </div>
-                  <span className="text-sm font-medium">No items yet</span>
+    return (
+      <div className="flex gap-6 overflow-x-auto pb-8 custom-scrollbar snap-x">
+        {sortedEntries.map(([status, items]) => {
+          const config = statusConfig[status];
+          return (
+            <div key={status} className="flex-none w-[320px] sm:w-[350px] snap-center flex flex-col h-full bg-gray-900/20 rounded-3xl p-4 border border-white/5">
+              {/* Column Header */}
+              <div className={`flex items-center gap-3 mb-5 p-3 rounded-2xl ${config.bgColor} border ${config.borderColor} backdrop-blur-md`}>
+                <span className="text-2xl">{config.emoji}</span>
+                <div>
+                  <h3 className={`font-bold ${config.textColor} tracking-wide`}>{config.label}</h3>
+                  <p className="text-xs text-gray-500 font-medium">{config.description}</p>
                 </div>
-              ) : (
-                  items.map((item) => {
-                    const IconComponent = iconMap[item.icon] || Star;
-                    return (
-                      <div
-                        key={item._id}
-                        onClick={() => setSelectedItem(item)}
-                        className="group relative bg-gray-900/60 backdrop-blur-sm border border-white/10 rounded-2xl p-5 hover:border-white/20 hover:bg-gray-800 transition-all duration-300 shadow-lg shadow-black/20 cursor-pointer overflow-hidden"
-                      >
-                        <div className={`absolute top-0 left-0 w-1 h-full bg-gradient-to-b ${config.color} opacity-50 group-hover:opacity-100 transition-opacity`} />
-                        
-                        <div className="flex items-start gap-3 mb-3">
-                          <div className={`p-2 rounded-xl bg-gradient-to-br ${config.color} shrink-0 shadow-lg`}>
-                            <IconComponent className="w-4 h-4 text-white" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-white text-base leading-snug group-hover:text-purple-200 transition-colors line-clamp-2">
-                              {item.title}
-                            </h4>
-                          </div>
-                        </div>
+                <span className={`ml-auto px-2.5 py-1 rounded-full text-xs font-bold ${config.bgColor} ${config.textColor} shadow-inner`}>
+                  {items.length}
+                </span>
+              </div>
 
-                        {item.description && (
-                          <p className="text-gray-400 text-xs mb-4 line-clamp-2 leading-relaxed">
-                            {item.description}
-                          </p>
-                        )}
-                        
-                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/5">
-                            <div className="flex items-center gap-2">
-                                <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleUpvoteRoadmap(item._id, item.hasVoted);
-                                    }}
-                                    disabled={votingId === item._id}
-                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                                        item.hasVoted 
-                                        ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' 
-                                        : 'bg-white/5 text-gray-400 border border-white/5 hover:bg-white/10 hover:text-white'
-                                    } ${votingId === item._id ? 'opacity-50' : ''}`}
-                                >
-                                    <Flame className={`w-3.5 h-3.5 ${item.hasVoted ? 'fill-orange-400' : ''}`} />
-                                    {item.voteCount || 0}
-                                </button>
+              {/* Cards */}
+              <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2 min-h-[200px]">
+                {items.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-gray-500 opacity-50 py-10">
+                    <div className={`w-12 h-12 rounded-full mb-3 flex items-center justify-center border border-dashed ${config.borderColor}`}>
+                       <config.icon className="w-5 h-5" />
+                    </div>
+                    <span className="text-sm font-medium">No items yet</span>
+                  </div>
+                ) : (
+                    items.map((item) => {
+                      const IconComponent = iconMap[item.icon] || Star;
+                      return (
+                        <div
+                          key={item._id}
+                          onClick={() => setSelectedItem(item)}
+                          className="group relative bg-gray-900/60 backdrop-blur-sm border border-white/10 rounded-2xl p-5 hover:border-purple-500/30 hover:bg-gray-800/80 transition-all duration-300 shadow-lg shadow-black/20 cursor-pointer overflow-hidden active:scale-[0.99]"
+                        >
+                          <div className={`absolute top-0 left-0 w-1 h-full bg-gradient-to-b ${config.color} opacity-50 group-hover:opacity-100 transition-opacity`} />
+                          
+                          <div className="flex items-start gap-3 mb-3">
+                            <div className={`p-2 rounded-xl bg-gradient-to-br ${config.color} shrink-0 shadow-lg`}>
+                              <IconComponent className="w-4 h-4 text-white" />
                             </div>
-                            
-                            {item.estimatedRelease && (
-                                <span className="text-[10px] text-gray-500 flex items-center gap-1 font-medium bg-gray-950 px-2 py-1 rounded-md">
-                                    <Clock className="w-3 h-3" />
-                                    {formatDate(item.estimatedRelease) || item.estimatedRelease}
-                                </span>
-                            )}
+                            <div className="flex-1 min-w-0 pr-2">
+                              <h4 className="font-bold text-white text-base leading-snug group-hover:text-purple-200 transition-colors line-clamp-2">
+                                {item.title}
+                              </h4>
+                            </div>
+                            {/* Visual Affordance Badge */}
+                            <div className="flex items-center gap-1 text-[11px] font-semibold text-purple-400 opacity-80 group-hover:opacity-100 group-hover:text-purple-300 transition-all bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md shrink-0">
+                              <span>Details</span>
+                              <Maximize2 className="w-3 h-3" />
+                            </div>
+                          </div>
+
+                          {item.description && (
+                            <p className="text-gray-400 text-xs mb-4 line-clamp-2 leading-relaxed">
+                              {item.description}
+                            </p>
+                          )}
+                          
+                          <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/5">
+                              <div className="flex items-center gap-2">
+                                  <button 
+                                      onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleUpvoteRoadmap(item._id, item.hasVoted);
+                                      }}
+                                      disabled={votingId === item._id}
+                                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                                          item.hasVoted 
+                                          ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' 
+                                          : 'bg-white/5 text-gray-400 border border-white/5 hover:bg-white/10 hover:text-white'
+                                      } ${(!user) ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                      title={!user ? "Login required to upvote" : "Upvote"}
+                                  >
+                                      <Flame className={`w-3.5 h-3.5 ${item.hasVoted ? 'fill-orange-400 animate-pulse' : ''} ${!user ? 'opacity-50' : ''}`} />
+                                      {item.voteCount || 0}
+                                  </button>
+                              </div>
+                              
+                              {item.estimatedRelease && (
+                                  <span className="text-[10px] text-gray-500 flex items-center gap-1 font-medium bg-gray-950 px-2 py-1 rounded-md">
+                                      <Clock className="w-3 h-3" />
+                                      {formatDate(item.estimatedRelease) || item.estimatedRelease}
+                                  </span>
+                              )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
-              )}
+                      );
+                    })
+                )}
+              </div>
             </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+          );
+        })}
+      </div>
+    );
+  };
 
   const renderTimeline = () => (
     <div className="max-w-4xl mx-auto relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-white/10 before:to-transparent">
@@ -551,6 +566,15 @@ const Roadmap = () => {
                     <p className="text-gray-400 text-lg max-w-2xl mx-auto lg:mx-0">
                         See what we're working on, track our progress, and help shape the future of Link Snap by upvoting ideas.
                     </p>
+                    <div className="mt-5 flex justify-center lg:justify-start sm:hidden">
+                        <button
+                            onClick={() => setShowFeedbackModal(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl text-white text-sm font-semibold shadow-lg shadow-purple-500/25 active:scale-95 transition-all"
+                        >
+                            <Lightbulb size={16} />
+                            Submit an Idea
+                        </button>
+                    </div>
                 </div>
                 
                 {/* Metrics Cards */}
