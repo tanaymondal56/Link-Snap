@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.7.1] - 2026-07-24
+## [0.7.1] - 2026-07-29
 
 ### HttpOnly Cookie Auth, DBSC Protocol, BullMQ Webhook Queue & Dual-Layer Security Overhaul
 
@@ -45,6 +45,10 @@ This release delivers major architectural and DevSecOps security overhauls acros
 ### 🧠 Custom Redis Bloom Filter & Enterprise Sweeper
 - **High-Speed Bitwise Bloom Filters:** Built using standard Redis `SETBIT` / `GETBIT` to bypass `RedisBloom` module dependency on Upstash.
 - **Optimistic Concurrency Sweeper:** Hardened daily database subscription expiry checks with Mongoose Optimistic Concurrency Control (`__v`) and compliance audit trails (`SubscriptionAuditLog`).
+
+### 🗺️ Interactive Roadmap & Targeted DB Query Optimization
+- **Interactive Roadmap & Ideas Board Overhaul:** Redesigned public Roadmap page featuring Kanban, Timeline, and Community Ideas views, complete with upvoting, status filtering, search capabilities, and persistent `localStorage` tab state.
+- **Targeted Query & Cache Optimization:** Stripped full `votes` arrays from MongoDB query selections and Redis cache payloads, replacing full array transport with lightweight targeted ID lookups to minimize Node.js V8 garbage collection and memory footprint on OCI Free Tier instances.
 
 ---
 

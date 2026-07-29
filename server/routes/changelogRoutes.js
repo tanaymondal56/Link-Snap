@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import { verifyToken } from '../middleware/authMiddleware.js';
 import { verifyAdmin } from '../middleware/verifyAdmin.js';
 import { ipWhitelist } from '../middleware/ipWhitelist.js';
+import { optionalAuth } from '../middleware/optionalAuth.js';
 import {
     getPublicChangelogs,
     getPublicLatestVersion,
@@ -17,7 +18,9 @@ import {
     getLatestVersion,
     bulkDeleteChangelogs,
     bulkPublishChangelogs,
-    reorderChangelogs
+    reorderChangelogs,
+    voteRoadmapItem,
+    unvoteRoadmapItem
 } from '../controllers/changelogController.js';
 
 const router = express.Router();
@@ -31,10 +34,25 @@ const publicRateLimiter = rateLimit({
     legacyHeaders: false,
 });
 
+// Rate limiter for voting (30 per minute per user)
+const voteLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30,
+    message: { message: 'Too many vote attempts. Please slow down.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.user?._id?.toString() || req.ip,
+    validate: { ip: false }
+});
+
 // Public routes - no auth required, rate limited
 router.get('/', publicRateLimiter, getPublicChangelogs);
 router.get('/version', publicRateLimiter, getPublicLatestVersion);
-router.get('/roadmap', publicRateLimiter, getPublicRoadmap);
+router.get('/roadmap', publicRateLimiter, optionalAuth, getPublicRoadmap);
+
+// Upvoting routes (require authentication)
+router.post('/roadmap/:id/vote', verifyToken, voteLimiter, voteRoadmapItem);
+router.delete('/roadmap/:id/vote', verifyToken, voteLimiter, unvoteRoadmapItem);
 
 // Admin routes - require IP whitelist + auth + admin role
 router.get('/admin', ipWhitelist, verifyToken, verifyAdmin, getAllChangelogs);

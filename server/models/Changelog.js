@@ -105,6 +105,22 @@ const changelogSchema = new mongoose.Schema({
     roadmapPriority: {
         type: Number, // For ordering on roadmap page (higher = more prominent)
         default: 0
+    },
+    // Array of user IDs who upvoted
+    votes: [{
+        user: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        votedAt: {
+            type: Date,
+            default: Date.now
+        }
+    }],
+    // Cached vote count for efficient sorting
+    voteCount: {
+        type: Number,
+        default: 0
     }
 }, { 
     timestamps: true 
@@ -115,6 +131,7 @@ changelogSchema.index({ isPublished: 1, order: -1 });
 changelogSchema.index({ scheduledFor: 1, isPublished: 1 }); // For scheduled publishing cron
 // Optimized index for roadmap queries: filters by showOnRoadmap + isPublished, sorts by roadmapPriority
 changelogSchema.index({ showOnRoadmap: 1, isPublished: 1, roadmapPriority: -1 }); 
+changelogSchema.index({ showOnRoadmap: 1, isPublished: 1, voteCount: -1 });
 // Note: version unique index is created automatically by unique: true on the field
 
 const Changelog = mongoose.model('Changelog', changelogSchema);

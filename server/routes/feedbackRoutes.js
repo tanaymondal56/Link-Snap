@@ -185,6 +185,101 @@ router.post('/', feedbackLimiter, optionalAuth, async (req, res) => {
 });
 
 /**
+ * @route   GET /feedback/public
+ * @desc    Get public feature requests / feedback (Ideas Board)
+ * @access  Public (optionalAuth for hasVoted flag)
+ */
+router.get('/public', optionalAuth, async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, parseInt(req.query.limit) || 20);
+    const skip = (page - 1) * limit;
+
+    const allowedPublicStatuses = ['under_review', 'planned', 'in_progress', 'completed'];
+    const query = { 
+      isDeleted: false,
+      status: { $in: allowedPublicStatuses }
+    };
+
+    // Filtering
+    if (req.query.status && req.query.status !== 'all') {
+      // Ensure requested status is within allowed public statuses to prevent bypassing moderation
+      if (allowedPublicStatuses.includes(req.query.status)) {
+        query.status = req.query.status;
+      }
+    }
+    
+    if (req.query.category && req.query.category !== 'all') {
+      query.category = req.query.category;
+    }
+
+    if (req.query.type && req.query.type !== 'all') {
+      query.type = req.query.type;
+    } else {
+      // By default, only show feature_requests & improvements on public board
+      query.type = { $in: ['feature_request', 'improvement'] };
+    }
+
+    if (req.query.search) {
+      const searchRegex = new RegExp(sanitizeInput(req.query.search), 'i');
+      query.$or = [
+        { title: searchRegex },
+        { message: searchRegex }
+      ];
+    }
+
+    // Sorting
+    let sort = { voteCount: -1, createdAt: -1 };
+    if (req.query.sort === 'newest') {
+      sort = { createdAt: -1 };
+    } else if (req.query.sort === 'oldest') {
+      sort = { createdAt: 1 };
+    }
+
+    const [feedbacks, total] = await Promise.all([
+      Feedback.find(query)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .select('title message type category status voteCount createdAt')
+        .lean(),
+      Feedback.countDocuments(query)
+    ]);
+
+    const userId = req.user?._id?.toString();
+    const votedIds = new Set();
+    
+    if (userId && feedbacks.length > 0) {
+        const itemIds = feedbacks.map(item => item._id);
+        const votedDocs = await Feedback.find({
+            _id: { $in: itemIds },
+            'votes.user': userId
+        }).select('_id').lean();
+        votedDocs.forEach(doc => votedIds.add(doc._id.toString()));
+    }
+
+    const items = feedbacks.map(item => ({
+      ...item,
+      hasVoted: votedIds.has(item._id.toString())
+    }));
+
+    res.json({
+      items,
+      pagination: {
+        page,
+        limit,
+        totalItems: total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: (skip + items.length) < total
+      }
+    });
+  } catch (error) {
+    console.error('Fetch public feedback error:', error);
+    res.status(500).json({ message: 'Failed to fetch public feedback' });
+  }
+});
+
+/**
  * @route   POST /feedback/:id/vote
  * @desc    Upvote a feedback item
  * @access  Private (logged in users only)

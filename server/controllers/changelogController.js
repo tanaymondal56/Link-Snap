@@ -120,76 +120,111 @@ export const getPublicRoadmap = async (req, res, next) => {
         const skip = (page - 1) * limit;
 
         const cacheKey = CACHE_KEYS.roadmap(page, limit);
-        const cached = await redisGet(cacheKey);
-        if (cached) {
-            res.set('Cache-Control', 'public, max-age=60');
-            return res.json(cached);
+        let responseData = await redisGet(cacheKey);
+
+        if (!responseData) {
+            // Base query for roadmap items
+            const query = { 
+                showOnRoadmap: true, 
+                isPublished: false 
+            };
+
+            // Parallel execution: fetch paginated items AND aggregate total counts
+            const [roadmapItems, countsAggregation] = await Promise.all([
+                Changelog.find(query)
+                    .sort({ roadmapPriority: -1 }) // Single-field sort for Cosmos DB compatibility
+                    .skip(skip)
+                    .limit(limit)
+                    .select('version title description type icon changes roadmapStatus estimatedRelease roadmapPriority voteCount createdAt')
+                    .lean(),
+                Changelog.aggregate([
+                    { $match: query },
+                    { $group: { _id: "$roadmapStatus", count: { $sum: 1 } } }
+                ])
+            ]);
+
+            // Process aggregation results into a map
+            const counts = {
+                'idea': 0, 'planned': 0, 'in-progress': 0, 'testing': 0, 'coming-soon': 0
+            };
+            let totalItems = 0;
+            countsAggregation.forEach(c => {
+                if (Object.hasOwn(counts, c._id)) {
+                    counts[c._id] = c.count;
+                } else {
+                    counts[c._id] = c.count;
+                }
+                totalItems += c.count;
+            });
+
+            // Group the CURRENT PAGE items (for backward compatibility if frontend needs it)
+            const grouped = {
+                'idea': [], 'planned': [], 'in-progress': [], 'testing': [], 'coming-soon': []
+            };
+            roadmapItems.forEach(item => {
+                const status = item.roadmapStatus || 'planned';
+                if (grouped[status]) grouped[status].push(item);
+            });
+
+            responseData = {
+                items: roadmapItems,
+                grouped, // Paginated grouping
+                counts,  // GLOBAL counts for buttons
+                pagination: {
+                    page,
+                    limit,
+                    totalItems,
+                    totalPages: Math.ceil(totalItems / limit),
+                    hasMore: (skip + roadmapItems.length) < totalItems
+                },
+                timestamp: new Date().toISOString()
+            };
+
+            await redisSet(cacheKey, CHANGELOG_TTL, responseData);
         }
 
-        // Base query for roadmap items
-        const query = { 
-            showOnRoadmap: true, 
-            isPublished: false 
-        };
-
-        // Parallel execution: fetch paginated items AND aggregate total counts
-        const [roadmapItems, countsAggregation] = await Promise.all([
-            Changelog.find(query)
-                .sort({ roadmapPriority: -1 }) // Single-field sort for Cosmos DB compatibility
-                .skip(skip)
-                .limit(limit)
-                .select('version title description type icon changes roadmapStatus estimatedRelease roadmapPriority createdAt')
-                .lean(),
-            Changelog.aggregate([
-                { $match: query },
-                { $group: { _id: "$roadmapStatus", count: { $sum: 1 } } }
-            ])
-        ]);
-
-        // Process aggregation results into a map
-        const counts = {
-            'idea': 0, 'planned': 0, 'in-progress': 0, 'testing': 0, 'coming-soon': 0
-        };
-        let totalItems = 0;
-        countsAggregation.forEach(c => {
-            if (Object.hasOwn(counts, c._id)) {
-                counts[c._id] = c.count;
-            } else {
-                // Handle unknown statuses if any
-                counts[c._id] = c.count;
-            }
-            totalItems += c.count;
-        });
-
-        // Group the CURRENT PAGE items (for backward compatibility if frontend needs it, 
-        // essentially providing the same structure but paginated)
-        const grouped = {
+        // Add user-specific hasVoted flag
+        const userId = req.user?._id?.toString();
+        const votedIds = new Set();
+        
+        if (userId && responseData.items.length > 0) {
+            const itemIds = responseData.items.map(item => item._id);
+            const votedDocs = await Changelog.find({
+                _id: { $in: itemIds },
+                'votes.user': userId
+            }).select('_id').lean();
+            votedDocs.forEach(doc => votedIds.add(doc._id.toString()));
+        }
+        
+        // Deep copy items to avoid mutating cached object directly
+        const itemsWithVotes = responseData.items.map(item => ({
+            ...item,
+            hasVoted: votedIds.has(item._id.toString())
+        }));
+        
+        // Also update grouped arrays
+        const groupedWithVotes = {
             'idea': [], 'planned': [], 'in-progress': [], 'testing': [], 'coming-soon': []
         };
-        roadmapItems.forEach(item => {
+        itemsWithVotes.forEach(item => {
             const status = item.roadmapStatus || 'planned';
-            if (grouped[status]) grouped[status].push(item);
+            if (groupedWithVotes[status]) groupedWithVotes[status].push(item);
         });
-
-        const responseData = {
-            items: roadmapItems,
-            grouped, // Paginated grouping
-            counts,  // GLOBAL counts for buttons
-            pagination: {
-                page,
-                limit,
-                totalItems,
-                totalPages: Math.ceil(totalItems / limit),
-                hasMore: (skip + roadmapItems.length) < totalItems
-            },
-            timestamp: new Date().toISOString()
+        
+        const finalResponseData = {
+            ...responseData,
+            items: itemsWithVotes,
+            grouped: groupedWithVotes
         };
 
-        await redisSet(cacheKey, CHANGELOG_TTL, responseData);
-
-        // Set cache headers
-        res.set('Cache-Control', 'public, max-age=60');
-        res.json(responseData);
+        // If user is authenticated, use private cache headers
+        if (userId) {
+            res.set('Cache-Control', 'private, no-cache');
+        } else {
+            res.set('Cache-Control', 'public, max-age=60');
+        }
+        
+        res.json(finalResponseData);
     } catch (error) {
         next(error);
     }
@@ -681,6 +716,95 @@ export const reorderChangelogs = async (req, res, next) => {
             count: changelogs.length
         });
     } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Upvote a roadmap item
+// @route   POST /api/changelog/roadmap/:id/vote
+// @access  Private (logged in users only)
+export const voteRoadmapItem = async (req, res, next) => {
+    try {
+        if (!isValidObjectId(req.params.id)) {
+            return res.status(400).json({ message: 'Invalid roadmap ID format' });
+        }
+
+        // Atomic update: only add vote if user hasn't voted yet
+        const changelog = await Changelog.findOneAndUpdate(
+            { 
+                _id: req.params.id, 
+                'votes.user': { $ne: req.user._id }
+            },
+            { 
+                $push: { votes: { user: req.user._id } },
+                $inc: { voteCount: 1 }
+            },
+            { returnDocument: 'after' }
+        );
+        
+        if (!changelog) {
+            // Logic: If update failed, either NOT FOUND or ALREADY VOTED
+            const existing = await Changelog.findOne({ _id: req.params.id });
+            if (!existing) {
+                return res.status(404).json({ message: 'Roadmap item not found' });
+            }
+            return res.status(400).json({ message: 'You have already voted for this item' });
+        }
+        
+        // Invalidate cache
+        await invalidateChangelogCaches();
+        
+        res.json({
+            message: 'Vote added',
+            voteCount: changelog.voteCount,
+            hasVoted: true
+        });
+    } catch (error) {
+        logger.error('Vote Roadmap Error:', error);
+        next(error);
+    }
+};
+
+// @desc    Remove upvote from a roadmap item
+// @route   DELETE /api/changelog/roadmap/:id/vote
+// @access  Private (logged in users only)
+export const unvoteRoadmapItem = async (req, res, next) => {
+    try {
+        if (!isValidObjectId(req.params.id)) {
+            return res.status(400).json({ message: 'Invalid roadmap ID format' });
+        }
+        
+        // Atomic update: only remove if user HAS voted
+        const changelog = await Changelog.findOneAndUpdate(
+            { 
+                _id: req.params.id, 
+                'votes.user': req.user._id
+            },
+            { 
+                $pull: { votes: { user: req.user._id } },
+                $inc: { voteCount: -1 }
+            },
+            { returnDocument: 'after' }
+        );
+        
+        if (!changelog) {
+            const existing = await Changelog.findOne({ _id: req.params.id });
+            if (!existing) {
+                return res.status(404).json({ message: 'Roadmap item not found' });
+            }
+            return res.status(400).json({ message: 'You have not voted for this item' });
+        }
+        
+        // Invalidate cache
+        await invalidateChangelogCaches();
+        
+        res.json({
+            message: 'Vote removed',
+            voteCount: changelog.voteCount,
+            hasVoted: false
+        });
+    } catch (error) {
+        logger.error('Remove Roadmap Vote Error:', error);
         next(error);
     }
 };
