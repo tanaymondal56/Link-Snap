@@ -128,8 +128,8 @@ export const getSystemStats = async (req, res, next) => {
 // @access  Admin
 export const getAllUsers = async (req, res, next) => {
     try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 20;
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
         const search = req.query.search || '';
         const skip = (page - 1) * limit;
 
@@ -206,8 +206,8 @@ export const getAllUsers = async (req, res, next) => {
 // Fallback function if text index is not available
 const getAllUsersFallback = async (req, res, next) => {
     try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 20;
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
         const search = req.query.search || '';
         const skip = (page - 1) * limit;
 
@@ -850,8 +850,8 @@ export const getAllAppeals = async (req, res, next) => {
             : null;
         const filter = status ? { status } : {};
 
-        const page = parseInt(req.query.page, 10) || 1;
-        const limit = parseInt(req.query.limit, 10) || 10;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 10));
         const skip = (page - 1) * limit;
 
         // Uses compound index { status: 1, createdAt: -1 } for efficient sorting
@@ -1061,8 +1061,8 @@ export const exportFeedbackCSV = async (req, res, next) => {
 // @access  Admin
 export const getAllFeedback = async (req, res, next) => {
     try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
         const skip = (page - 1) * limit;
         
         // Build filter (with input validation to prevent NoSQL injection)

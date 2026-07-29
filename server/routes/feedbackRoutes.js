@@ -192,7 +192,7 @@ router.post('/', feedbackLimiter, optionalAuth, async (req, res) => {
 router.get('/public', optionalAuth, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(50, parseInt(req.query.limit) || 20);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
     const skip = (page - 1) * limit;
 
     const allowedPublicStatuses = ['under_review', 'planned', 'in_progress', 'completed'];

@@ -389,8 +389,8 @@ const createShortUrl = async (req, res, next) => {
 // @access  Private
 const getMyLinks = async (req, res, next) => {
     try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 10));
         const skip = (page - 1) * limit;
 
         const urls = await Url.find({ createdBy: req.user._id })

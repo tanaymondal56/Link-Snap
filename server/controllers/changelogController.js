@@ -71,8 +71,8 @@ const invalidateChangelogCaches = async () => {
 export const getPublicChangelogs = async (req, res, next) => {
     try {
         // Pagination (default: 20, max: 50)
-        const limit = Math.min(parseInt(req.query.limit) || 20, 50);
-        const skip = parseInt(req.query.skip) || 0;
+        const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+        const skip = Math.max(0, parseInt(req.query.skip) || 0);
 
         const cacheKey = CACHE_KEYS.publicList(skip, limit);
         const cached = await redisGet(cacheKey);
@@ -116,7 +116,7 @@ export const getPublicChangelogs = async (req, res, next) => {
 export const getPublicRoadmap = async (req, res, next) => {
     try {
         const page = Math.max(1, parseInt(req.query.page) || 1);
-        const limit = Math.min(50, parseInt(req.query.limit) || 20); // Default 20, max 50
+        const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20)); // Default 20, max 50
         const skip = (page - 1) * limit;
 
         const cacheKey = CACHE_KEYS.roadmap(page, limit);
