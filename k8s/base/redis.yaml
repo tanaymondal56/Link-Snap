@@ -27,12 +27,32 @@ spec:
             - "noeviction"
             - "--save"
             - ""         # Disable AOF/RDB persistence — pure cache, ephemeral
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
           env:
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: linksnap-secrets
                   key: REDIS_PASSWORD
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: linksnap-secrets
+                  key: REDIS_PASSWORD
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 10
           ports:
             - containerPort: 6379
           resources:
@@ -42,25 +62,6 @@ spec:
             limits:
               cpu: "200m"
               memory: "300Mi"
-          livenessProbe:
-            exec:
-              command:
-                - redis-cli
-                - -a
-                - $(REDIS_PASSWORD)
-                - ping
-            initialDelaySeconds: 10
-            periodSeconds: 15
-            failureThreshold: 3
-          readinessProbe:
-            exec:
-              command:
-                - redis-cli
-                - -a
-                - $(REDIS_PASSWORD)
-                - ping
-            initialDelaySeconds: 5
-            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service

@@ -462,10 +462,13 @@ const startServer = async () => {
           await flushAnalyticsAndStop();
 
           // 4. Gracefully shutdown BullMQ & Redis
-          const { webhookQueue, webhookWorker } = await import('./services/webhookQueueService.js');
+          const { webhookQueue, webhookWorker, queueRedisClient, workerRedisClient } = await import('./services/webhookQueueService.js');
           logger.info('[Shutdown] Closing BullMQ workers and queues...');
           await webhookWorker.close();
           await webhookQueue.close();
+          // Also disconnect the dedicated BullMQ IORedis clients (separate from app Redis)
+          queueRedisClient.disconnect();
+          workerRedisClient.disconnect();
           await disconnectRedis();
 
           // 5. Close MongoDB connection cleanly

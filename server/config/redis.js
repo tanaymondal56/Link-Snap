@@ -86,6 +86,7 @@ export const connectRedis = async () => {
         logger.warn('[Redis] No Redis configuration succeeded. Running in-memory fallbacks.');
         redisClient = null;
         redisDriver = null;
+        connectionPromise = null; // Reset so the next call can retry (e.g. after a K8s Redis sidecar starts)
         return null;
     })();
 

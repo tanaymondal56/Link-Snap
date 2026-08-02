@@ -15,6 +15,7 @@
 import crypto from 'node:crypto';
 import logger from '../utils/logger.js';
 import { webhookQueue } from '../services/webhookQueueService.js';
+import { isQueueReady } from '../services/webhookQueueService.js';
 import { processWebhookJob } from './webhookProcessor.js';
 
 /**
@@ -107,9 +108,8 @@ export const handleWebhook = async (req, res) => {
       
     if (webhookId) {
         try {
-            // Explicitly check connection to prevent BullMQ/ioredis offline queue from hanging indefinitely
-            const client = await webhookQueue.client;
-            if (!client || client.status !== 'ready') {
+            // BullMQ v6 removed Queue.client — check our own external IORedis client status instead
+            if (!isQueueReady()) {
                 throw new Error('BullMQ TCP client is not connected');
             }
 

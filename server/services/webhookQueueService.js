@@ -86,9 +86,16 @@ const connectionOptions = getRedisConnectionOptions();
 
 // BullMQ v6 best practice: pass dedicated IORedis instances.
 // Queue (Producer) uses fail-fast to prevent hanging HTTP requests
-const queueRedisClient = new Redis({ ...connectionOptions, maxRetriesPerRequest: 1, enableOfflineQueue: false });
+export const queueRedisClient = new Redis({ ...connectionOptions, maxRetriesPerRequest: 1, enableOfflineQueue: false });
 // Worker (Consumer) must use maxRetriesPerRequest: null to block properly
-const workerRedisClient = new Redis({ ...connectionOptions, maxRetriesPerRequest: null });
+export const workerRedisClient = new Redis({ ...connectionOptions, maxRetriesPerRequest: null });
+
+/**
+ * isQueueReady() — replaces the removed Queue.client property from BullMQ v6.
+ * BullMQ v6 removed direct access to the underlying Redis client via Queue.client.
+ * We check the connection status against our own externally-managed queueRedisClient.
+ */
+export const isQueueReady = () => queueRedisClient.status === 'ready';
 
 // Define the Queue
 export const webhookQueue = new Queue('webhookProcessingQueue', {
