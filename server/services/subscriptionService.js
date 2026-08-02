@@ -317,11 +317,20 @@ export const processExpiredSubscriptions = async () => {
       const previousTier = user.subscription.tier;
       const previousStatus = user.subscription.status;
       
-      user.subscription.status = 'expired';
-      user.subscription.tier = 'free';
-      
       try {
-        await user.save(); // Throws VersionError if modified concurrently by a webhook
+        // Use updateOne to bypass full document validation (e.g. missing username on old accounts)
+        // while manually enforcing optimistic concurrency control (__v) to prevent race conditions.
+        const updateResult = await User.updateOne(
+          { _id: user._id, __v: user.__v },
+          { 
+            $set: { 'subscription.status': 'expired', 'subscription.tier': 'free' },
+            $inc: { __v: 1 }
+          }
+        );
+
+        if (updateResult.modifiedCount === 0) {
+          throw { name: 'VersionError' }; // Trigger existing catch block for race condition
+        }
         
         await SubscriptionAuditLog.create({
           userId: user._id,
