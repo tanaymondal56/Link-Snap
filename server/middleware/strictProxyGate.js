@@ -270,6 +270,7 @@ export const strictProxyGate = (req, res, next) => {
     // These API routes are public and should be accessible without proxy auth headers
     // They are still accessible through the proxy, just don't require the secret header
     const publicApiPaths = [
+        '/api/health',           // Health check endpoints for K8s liveness/readiness/startup probes
         '/api/changelog',        // Public changelog page
         '/api/roadmap',          // Public roadmap page
         '/api/feedback',         // Public feedback submission (POST)

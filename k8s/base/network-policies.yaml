@@ -119,7 +119,7 @@ spec:
 
 ---
 # ─── Backend Ingress ─────────────────────────────────────────────────────────
-# Only accept traffic from the Cloudflare Tunnel
+# Accept HTTP traffic on port 5000 (Cloudflare Tunnel ingress + Kubelet health checks)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -131,11 +131,7 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app: cloudflared-tunnel
-      ports:
+    - ports:
         - protocol: TCP
           port: 5000
 
