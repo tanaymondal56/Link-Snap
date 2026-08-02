@@ -415,6 +415,12 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
+    // Start listening on PORT immediately so K8s health probes (startupProbe / livenessProbe)
+    // receive 200 OK on /api/health while DB and Redis connections initialize in parallel.
+    const server = app.listen(PORT, () => {
+      logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+    });
+
     await connectDB();
 
     // Initialise Upstash Redis / Local Redis (non-blocking fallback gracefully if not configured)
@@ -431,12 +437,6 @@ const startServer = async () => {
     // This validates the proxy security settings and will exit with error if
     // misconfigured in production. MUST be called after DB connects but before listen.
     validateProxyGateConfig();
-
-    const server = app.listen(PORT, () => {
-      logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-
-      // Cron jobs are now handled by independent K8s CronJobs.
-    });
 
     // ─── Graceful Shutdown Handler ──────────────────────────────────────────────
     // Kubernetes sends SIGTERM when scaling down or rolling updates.
