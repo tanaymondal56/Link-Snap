@@ -17,6 +17,8 @@ This release delivers major architectural and DevSecOps security overhauls acros
 - **GitOps Pipeline Migration:** Migrated CI/CD pipeline to Kustomize v5.8.1 and upgraded all K8s infrastructure deployments to true declarative GitOps flows.
 - **K8s Pod Security Hardening:** Enforced strict `readOnlyRootFilesystem`, `emptyDir` temp volumes, dropped all capabilities, and explicit `runAsUser` non-root constraints on all pods.
 - **Zero-Trust NetworkPolicies:** Implemented comprehensive K8s Zero-Trust NetworkPolicies with strict egress/ingress controls and configured ResourceQuota namespace boundaries.
+- **NetworkPolicy Bug Fix:** Fixed MongoDB egress timeout by explicitly allowing TCP port 27017 in the Zero-Trust overlay.
+- **Alpine UID Security Fix:** Resolved `readOnlyRootFilesystem` startup crash by explicitly mapping the `linksnap` user to UID 1000 in the Dockerfile and mounting writable home directory emptyDirs.
 
 ### 🔒 HttpOnly Cookie Auth & DBSC Session Hardening
 - **HttpOnly Cookie Auth Migration:** Completely eliminated in-memory and `localStorage` access token storage in favor of strict `HttpOnly` cookies (`ls_access_token`, `ls_refresh_token`). Removed `accessToken` fields from JSON response payloads across all authentication endpoints (`/login`, `/verify-otp`, `/verify-email`, `/refresh`).

@@ -123,8 +123,12 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: home
+              mountPath: /home/linksnap
       volumes:
         - name: tmp
+          emptyDir: {}
+        - name: home
           emptyDir: {}
       # No imagePullSecrets needed — Docker Hub public registry
       # If migrating to private registry (GHCR, ECR, etc.), uncomment:

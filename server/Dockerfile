@@ -23,8 +23,10 @@ RUN apk update && apk upgrade --no-cache && apk add --no-cache tini \
 
 WORKDIR /app
 
-# Non-root user
-RUN addgroup -S linksnap && adduser -S -G linksnap linksnap
+# Non-root user: explicitly assign UID 1000 and remove default 'node' user
+RUN deluser --remove-home node && \
+    addgroup -g 1000 linksnap && \
+    adduser -u 1000 -G linksnap -s /bin/sh -D linksnap
 
 # Copy deps from previous stage
 COPY --from=deps --chown=linksnap:linksnap /app/node_modules ./node_modules
