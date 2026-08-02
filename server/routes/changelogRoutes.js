@@ -42,7 +42,7 @@ const voteLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => req.user?._id?.toString() || req.ip,
-    validate: { ip: false }
+    validate: false
 });
 
 // Public routes - no auth required, rate limited

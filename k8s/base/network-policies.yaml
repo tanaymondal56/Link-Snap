@@ -50,20 +50,16 @@ spec:
   policyTypes:
     - Egress
   egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app: redis-local
-      ports:
-        - protocol: TCP
-          port: 6379
     - ports:
         - protocol: TCP
           port: 443
         - protocol: TCP
           port: 80
         - protocol: TCP
-          port: 27017
+          port: 6379
+        - protocol: TCP
+          port: 1024
+          endPort: 65535
 
 ---
 # ─── Redis Ingress ───────────────────────────────────────────────────────────
