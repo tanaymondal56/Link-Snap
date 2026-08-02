@@ -366,11 +366,28 @@ jobs:
           echo "sha=sha-${SHA}" >> "$GITHUB_OUTPUT"
           echo "Deploying beta tag: sha-${SHA}"
 
-      - name: Update backend image (beta)
+      - name: Install kustomize
         run: |
-          # Patch deployment strategy to Recreate to prevent double memory in LXD
-          kubectl patch deployment linksnap-backend -n linksnap-beta -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
-          # Set the new image which triggers the rollout
+          KUSTOMIZE_VERSION=v5.8.1
+          ARCH=$(uname -m)
+          case "${ARCH}" in
+            x86_64) K_ARCH="amd64" ;;
+            aarch64|arm64) K_ARCH="arm64" ;;
+            *) K_ARCH="amd64" ;;
+          esac
+          curl -sSfL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_${K_ARCH}.tar.gz" \
+            | tar -xz -C /usr/local/bin
+          kustomize version
+
+      - name: Apply K8s Infrastructure (beta)
+        run: |
+          # Apply full overlay — syncs ALL infra changes (redis, network policies, limits, etc.)
+          # This is infrastructure-only; app images are managed separately below.
+          kubectl apply -k k8s/overlays/beta
+
+      - name: Update backend app images (beta)
+        run: |
+          # Imperatively set the new SHA-tagged app images
           kubectl set image deployment/linksnap-backend \
             backend=tanaymondal/linksnap-backend-beta:${{ steps.vars.outputs.sha }} \
             -n linksnap-beta
@@ -472,8 +489,28 @@ jobs:
           echo "sha=sha-${SHA}" >> "$GITHUB_OUTPUT"
           echo "Deploying stable tag: sha-${SHA}"
 
-      - name: Update backend image (stable)
+      - name: Install kustomize
         run: |
+          KUSTOMIZE_VERSION=v5.8.1
+          ARCH=$(uname -m)
+          case "${ARCH}" in
+            x86_64) K_ARCH="amd64" ;;
+            aarch64|arm64) K_ARCH="arm64" ;;
+            *) K_ARCH="amd64" ;;
+          esac
+          curl -sSfL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_${K_ARCH}.tar.gz" \
+            | tar -xz -C /usr/local/bin
+          kustomize version
+
+      - name: Apply K8s Infrastructure (stable)
+        run: |
+          # Apply full overlay — syncs ALL infra changes (redis, network policies, limits, etc.)
+          # This is infrastructure-only; app images are managed separately below.
+          kubectl apply -k k8s/overlays/production
+
+      - name: Update backend app images (stable)
+        run: |
+          # Imperatively set the new SHA-tagged app images
           kubectl set image deployment/linksnap-backend \
             backend=tanaymondal/linksnap-backend:${{ steps.vars.outputs.sha }} \
             -n linksnap

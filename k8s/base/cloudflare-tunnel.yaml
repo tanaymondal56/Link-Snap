@@ -14,10 +14,29 @@ spec:
       labels:
         app: cloudflared-tunnel
     spec:
+      securityContext:
+        fsGroup: 65532
+        runAsUser: 65532
+        runAsNonRoot: true
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                      - arm64
       containers:
         - name: cloudflared
           image: cloudflare/cloudflared:latest
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           args:
             - tunnel
             - --no-autoupdate
@@ -44,6 +63,19 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 15
             failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
 
 # ─── HOW TO CONFIGURE CLOUDFLARE TUNNEL ──────────────────────────────────────
 # 1. Go to: Cloudflare Zero Trust → Networks → Tunnels → Create a Tunnel

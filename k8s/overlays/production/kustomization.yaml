@@ -5,3 +5,12 @@ resources:
   - ../../base
   - namespace.yaml
   - secrets.yaml
+
+# Images are the stable production repos — tags are set imperatively via
+# `kubectl set image` in the CI/CD pipeline for immutable SHA pinning.
+# Kustomize apply here manages all infra (redis, network policies, limits, etc.)
+images:
+  - name: tanaymondal/linksnap-backend
+    newTag: latest
+  - name: tanaymondal/linksnap-frontend
+    newTag: latest

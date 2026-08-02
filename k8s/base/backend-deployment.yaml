@@ -20,10 +20,29 @@ spec:
         app: linksnap-backend
     spec:
       terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000        # Matches UID of 'linksnap' user created in server/Dockerfile
+        runAsGroup: 1000
+        fsGroup: 1000
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: linksnap-backend
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                      - arm64
+            - weight: 50
               preference:
                 matchExpressions:
                   - key: node-role.kubernetes.io/control-plane
@@ -32,6 +51,11 @@ spec:
         - name: backend
           image: tanaymondal/linksnap-backend:latest
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 5000
           resources:
@@ -96,6 +120,12 @@ spec:
             initialDelaySeconds: 1
             periodSeconds: 1           # Fast 1s polling until Node.js process starts
             failureThreshold: 30
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
       # No imagePullSecrets needed — Docker Hub public registry
       # If migrating to private registry (GHCR, ECR, etc.), uncomment:
       # imagePullSecrets:

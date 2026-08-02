@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 This release delivers major architectural and DevSecOps security overhauls across the application stack: migrating entirely to HttpOnly Cookie Authentication, implementing Device Bound Session Credentials (DBSC) protocol support, introducing an asynchronous BullMQ fail-fast webhook queueing architecture, building a dual-layer anti-bot rate limiter with Redis pipelining, and introducing DOM list virtualization with native CSS off-screen rendering.
 
+### 🚀 CI/CD & K8s Infrastructure Hardening
+- **GitOps Pipeline Migration:** Migrated CI/CD pipeline to Kustomize v5.8.1 and upgraded all K8s infrastructure deployments to true declarative GitOps flows.
+- **K8s Pod Security Hardening:** Enforced strict `readOnlyRootFilesystem`, `emptyDir` temp volumes, dropped all capabilities, and explicit `runAsUser` non-root constraints on all pods.
+- **Zero-Trust NetworkPolicies:** Implemented comprehensive K8s Zero-Trust NetworkPolicies with strict egress/ingress controls and configured ResourceQuota namespace boundaries.
+
 ### 🔒 HttpOnly Cookie Auth & DBSC Session Hardening
 - **HttpOnly Cookie Auth Migration:** Completely eliminated in-memory and `localStorage` access token storage in favor of strict `HttpOnly` cookies (`ls_access_token`, `ls_refresh_token`). Removed `accessToken` fields from JSON response payloads across all authentication endpoints (`/login`, `/verify-otp`, `/verify-email`, `/refresh`).
 - **Device Bound Session Credentials (DBSC):** Integrated DBSC protocol support (`/api/auth/dbsc/register` and `/api/auth/dbsc/refresh`) with cryptographic proof verification headers (`Sec-Session-Response`), public key challenge binding, and anti-replay challenge nonces.

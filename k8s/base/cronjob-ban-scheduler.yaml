@@ -10,12 +10,24 @@ spec:
   jobTemplate:
     spec:
       template:
+        metadata:
+          labels:
+            app: linksnap-cronjob
         spec:
           restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000      # Matches UID of 'linksnap' user created in server/Dockerfile
+            runAsGroup: 1000
           containers:
             - name: ban-scheduler
               image: tanaymondal/linksnap-backend:latest
               imagePullPolicy: Always
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
               command: ["node", "scripts/runBanScheduler.js"]
               envFrom:
                 - configMapRef:
@@ -29,3 +41,9 @@ spec:
                 limits:
                   cpu: "200m"
                   memory: "256Mi"
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}

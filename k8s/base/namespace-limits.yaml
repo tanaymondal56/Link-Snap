@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: linksnap-limit-range
+spec:
+  limits:
+    - default:
+        cpu: "500m"
+        memory: "512Mi"
+      defaultRequest:
+        cpu: "50m"
+        memory: "64Mi"
+      max:
+        cpu: "2"
+        memory: "2Gi"
+      min:
+        cpu: "10m"
+        memory: "32Mi"
+      type: Container
+
+---
+# ResourceQuota: cap total namespace consumption to protect the OCI node
+# from HPA runaways or misconfigured deployments consuming all 24GB RAM.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: linksnap-resource-quota
+spec:
+  hard:
+    requests.cpu: "1"
+    requests.memory: "1Gi"
+    limits.cpu: "4"
+    limits.memory: "4Gi"
+    pods: "20"
+    persistentvolumeclaims: "5"

@@ -23,6 +23,8 @@ resources:
   - hpa.yaml
   - pdb.yaml
   - ingress.yaml                     # Fallback ingress (not primary — CF Tunnel is primary)
+  - network-policies.yaml
+  - namespace-limits.yaml
   - cronjob-ban-scheduler.yaml
   - cronjob-safe-browsing.yaml
   - cloudflare-tunnel.yaml           # CF Tunnel deployment, token comes from secrets.yaml

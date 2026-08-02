@@ -1,0 +1,195 @@
+# ─── Default Deny ─────────────────────────────────────────────────────────────
+# Blocks all traffic (ingress and egress) that isn't explicitly allowed below.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {} # Match all pods
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+# ─── DNS Resolution ──────────────────────────────────────────────────────────
+# Allow all pods to resolve DNS via CoreDNS in the kube-system namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
+# ─── Backend & CronJobs Egress ───────────────────────────────────────────────
+# Allow Node.js workloads to reach Redis and external HTTPS APIs (MongoDB/Stripe)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-egress
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - linksnap-backend
+          - linksnap-cronjob
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis-local
+      ports:
+        - protocol: TCP
+          port: 6379
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+---
+# ─── Redis Ingress ───────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: redis-local
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - linksnap-backend
+                  - linksnap-cronjob
+      ports:
+        - protocol: TCP
+          port: 6379
+
+---
+# ─── Cloudflared Egress ──────────────────────────────────────────────────────
+# Allow tunnel to connect to Cloudflare edge
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cloudflared-egress
+spec:
+  podSelector:
+    matchLabels:
+      app: cloudflared-tunnel
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: UDP
+          port: 7844
+    - to:
+        - podSelector:
+            matchLabels:
+              app: linksnap-backend
+      ports:
+        - protocol: TCP
+          port: 5000
+
+---
+# ─── Backend Ingress ─────────────────────────────────────────────────────────
+# Only accept traffic from the Cloudflare Tunnel
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: linksnap-backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: cloudflared-tunnel
+      ports:
+        - protocol: TCP
+          port: 5000
+
+---
+# ─── Redis Egress ─────────────────────────────────────────────────────────────
+# Redis only needs to respond to ingress connections — no external egress needed.
+# We add this stub to make the policy intent explicit. The default-deny-all
+# already blocks unwanted egress. Redis does not initiate outbound connections.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-egress
+spec:
+  podSelector:
+    matchLabels:
+      app: redis-local
+  policyTypes:
+    - Egress
+  egress:
+    # Allow DNS resolution only (needed for K3s health check resolution)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
+# ─── Frontend Ingress & Egress ───────────────────────────────────────────────
+# Frontend pod (scaled to 0 in production, used for local/fallback testing).
+# Allow ingress on port 8080 and DNS egress only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend
+spec:
+  podSelector:
+    matchLabels:
+      app: linksnap-frontend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
