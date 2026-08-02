@@ -51,12 +51,12 @@
 *   **JWT & Bcrypt** for industry-standard security.
 
 **DevOps & Infrastructure**
-*   **Kubernetes (K8s)** - Stateless microservices architecture for the backend API and Redis cache, infinitely horizontally scalable.
-*   **Cloudflare Ecosystem** - Frontend hosted globally via Cloudflare Pages. Backend traffic routed securely into K8s via Cloudflare Zero Trust Tunnels without exposing any public host ports.
-*   **Docker** - Split frontend and backend containers hosted on Docker Hub.
-*   **GitHub Actions** - CI/CD pipeline with strict `actionlint` and `hadolint` checks, Trivy vulnerability scanning, and automated zero-downtime rolling deployments to `beta` and `production` environments.
-*   **Redis** - Distributed state management for rate limiting and WebAuthn challenges across pods.
-*   **ESLint & Prettier** for code quality.
+*   **Kubernetes (K3s/K8s)** - Stateless microservices architecture for the backend API and Redis cache. Engineered with `startupProbe`, `livenessProbe`, `readinessProbe`, and HPA for self-healing and auto-scaling.
+*   **Cloudflare Zero Trust** - Frontend hosted globally via Pages. Backend traffic routed securely into K8s via Cloudflare Tunnels (cloudflared) and Edge BFF Proxies without exposing any public host ports.
+*   **Terraform & FinOps** - Declarative IaC provisioning of OCI ARM64 (A1.Flex) instances, VCN, and Security Lists. Architected to run entirely within the "Always Free" tier for $0/month infrastructure costs.
+*   **Docker Buildx** - Multi-stage optimized ARM64 container images hosted on Docker Hub.
+*   **GitHub Actions (DevSecOps)** - Enterprise CI/CD pipeline with `actionlint`, `hadolint`, `kubeconform`, and Trivy vulnerability scanning. Automated zero-downtime rolling deployments (`maxUnavailable: 0`) with `kubectl rollout undo` rollback failsafes.
+*   **Redis & MongoDB** - Distributed state management for rate limiting, WebAuthn challenges, and complex aggregation pipelines.
 
 ---
 
@@ -105,9 +105,11 @@
 
 Link-Snap implements a **"Defense in Depth"** strategy:
 
-1.  **Device Fingerprinting**: Admin actions require trusted devices verified via WebAuthn/Biometrics.
-2.  **IP Whitelisting**: Key administrative endpoints are locked to known IPs.
-3.  **Token Rotation**: Automatic silent refresh of tokens prevents session hijacking while maintaining user convenience.
+1.  **Device Bound Session Credentials (DBSC)**: Dual-layer token architecture (In-memory short-lived Access Tokens + HTTP-Only, Secure, SameSite=Strict Refresh Cookies). This entirely prevents XSS payload exfiltration and CSRF attacks.
+2.  **WebAuthn / Biometric Fingerprinting**: Highly privileged Admin actions require physical security keys (FIDO2) or biometrics, bypassing all automated scanners.
+3.  **Cryptographic Webhook Verification**: Background job queues (BullMQ) verify HMAC-SHA256 signatures via `crypto.timingSafeEqual()` to prevent side-channel timing attacks.
+4.  **Redis Bloom Filters**: Token validation lookups are executed in O(1) time complexity using probabilistic data structures, defending against database exhaustion DDoS vectors.
+5.  **Multi-Tier IP Verification**: Admin and privileged routes traverse the proxy chain and strictly validate `x-forwarded-for` against localized IP whitelists.
 
 ---
 

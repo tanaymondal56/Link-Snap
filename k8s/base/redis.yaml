@@ -24,7 +24,7 @@ spec:
             - "--maxmemory"
             - "256mb"
             - "--maxmemory-policy"
-            - "allkeys-lru"
+            - "noeviction"
             - "--save"
             - ""         # Disable AOF/RDB persistence — pure cache, ephemeral
           env:

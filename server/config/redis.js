@@ -20,6 +20,8 @@ export const connectRedis = async () => {
         try {
             logger.info(`[Redis] Attempting TCP connection to ${tcpUrl}...`);
             const client = new Redis(tcpUrl, {
+                // ioredis v6 defaults to RESP3 (HELLO 3). If your proxy doesn't support it, uncomment the line below.
+                // protocol: 2, 
                 enableReadyCheck: true,
                 maxRetriesPerRequest: 1, // Only retry once during probing
                 retryStrategy: (times) => {

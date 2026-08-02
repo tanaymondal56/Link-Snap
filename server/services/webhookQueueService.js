@@ -12,6 +12,7 @@
  */
 
 import { Queue, Worker } from 'bullmq';
+import Redis from 'ioredis';
 import logger from '../utils/logger.js';
 import WebhookEvent from '../models/WebhookEvent.js';
 import { processWebhookJob } from '../controllers/webhookProcessor.js';
@@ -51,7 +52,7 @@ const getRedisConnectionOptions = () => {
   // Ensure network resilience for OCI blips via ioredis retry strategy
   return {
       ...baseOptions,
-      maxRetriesPerRequest: null, // Required by BullMQ
+      // maxRetriesPerRequest is omitted here and added explicitly per client type
       retryStrategy: (times) => {
           // If no explicit TCP Redis URL is set and local Redis fails 3 times,
           // gracefully stop retrying to prevent terminal log flooding in local development.
@@ -83,9 +84,15 @@ const getRedisConnectionOptions = () => {
 
 const connectionOptions = getRedisConnectionOptions();
 
+// BullMQ v6 best practice: pass dedicated IORedis instances.
+// Queue (Producer) uses fail-fast to prevent hanging HTTP requests
+const queueRedisClient = new Redis({ ...connectionOptions, maxRetriesPerRequest: 1, enableOfflineQueue: false });
+// Worker (Consumer) must use maxRetriesPerRequest: null to block properly
+const workerRedisClient = new Redis({ ...connectionOptions, maxRetriesPerRequest: null });
+
 // Define the Queue
 export const webhookQueue = new Queue('webhookProcessingQueue', {
-    connection: connectionOptions,
+    connection: queueRedisClient,
     defaultJobOptions: {
         attempts: 3,
         backoff: {
@@ -122,7 +129,7 @@ export const webhookWorker = new Worker('webhookProcessingQueue', async (job) =>
         throw error; // Re-throw so BullMQ handles retries with backoff
     }
 }, {
-    connection: connectionOptions,
+    connection: workerRedisClient,
     concurrency: 5 // Process 5 webhooks concurrently
 });
 

@@ -13,12 +13,13 @@
 
 This repository contains the containerized REST API server for the **Link-Snap** platform. It handles database transactions, short URL redirections, analytics collection, biometric challenges, rate limiting, and administration endpoints.
 
-**Key Features Implemented:**
+**Key Technical Features Implemented:**
 *   **Highly Scalable Redirections**: Optimized routes for rapid target resolution with device targeting and password verification support.
+*   **Redis Bloom Filters & Rate Limiting**: Distributed rate-limiting system using Redis and Bloom Filters to validate token existence instantly with O(1) complexity, reducing DB load.
+*   **Zero-Trust Authentication (DBSC Pattern)**: Dual-layer security using short-lived in-memory Access Tokens and HTTP-Only Refresh Cookies to prevent XSS exfiltration.
 *   **Stealth Admin Access**: A hidden authentication layer (`/.d/` endpoints) protected by WebAuthn/FIDO2 biometrics, designed to bypass automatic scanners.
-*   **Real-Time Safe Browsing**: Integrates real-time URL classification and anti-phishing threat database checks.
-*   **Anti-Bot & Rate Limiting**: Distributed rate-limiting system using Redis and intelligent bot detection.
-*   **Mongoose Aggregations**: Performs geo-analytics, device breakdowns, and click metrics computations.
+*   **BullMQ Webhook Queues**: Resilient, Redis-backed job queues for webhook delivery, utilizing exponential backoff and HMAC-SHA256 signature verification.
+*   **Mongoose Aggregations**: Performs geo-analytics, device breakdowns, and click metrics computations entirely in-database for optimal performance.
 
 ---
 

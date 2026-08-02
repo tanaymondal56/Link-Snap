@@ -13,12 +13,12 @@
 
 This repository contains the containerized production-ready build of the **Link-Snap** client. It is a Single Page Application (SPA) designed to communicate with the `linksnap-backend` API.
 
-**Key Features Served:**
-*   **Intuitive Dashboard**: Manage short links, custom aliases, and expiration configurations.
-*   **Bio-Link Page Builder**: Drag-and-drop "Linktree-style" profile manager.
-*   **Geographic & Device Analytics**: Interactive dashboards rendered via Recharts.
-*   **Password/Targeting Config**: Simple UI to toggle device-based redirections, password protection, and click limits.
-*   **Progressive Web App**: Full PWA support with install prompts, service worker caching, and offline status indicators.
+**Key Technical Features Served:**
+*   **Performance & Virtualization**: Utilizes React Virtualized lists and Suspense-based dynamic route chunking to maintain sub-second Time-To-Interactive (TTI) even with massive datasets.
+*   **Zero-Trust Client Authentication**: Implements Device Bound Session Credentials (DBSC) flow, storing Access Tokens purely in memory while allowing silent background refresh via HTTP-Only cookies.
+*   **Bio-Link Page Builder**: Drag-and-drop "Linktree-style" profile manager with real-time UI previews.
+*   **Geographic & Device Analytics**: Interactive dashboards rendered via Recharts, backed by optimized Mongoose aggregation pipelines.
+*   **Progressive Web App (PWA)**: Full PWA support with service worker caching, install prompts, and offline status indicators.
 
 ---
 
