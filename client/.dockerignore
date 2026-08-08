@@ -8,6 +8,7 @@ README.md
 .env
 .env.*
 *.local
+secrets.yaml
 
 # Build artifacts — not needed in build context (rebuilt inside Docker)
 dist/

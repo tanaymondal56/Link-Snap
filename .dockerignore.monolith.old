@@ -186,6 +186,7 @@ temp/
 *.crt
 secrets/
 .secrets/
+secrets.yaml
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MEDIA & ASSETS (If not needed in production)

@@ -8,6 +8,7 @@ README.md
 .env
 .env.*
 *.local
+secrets.yaml
 
 # ── Admin / ops scripts — MUST NOT ship in the production image ───────────────
 # These scripts contain privileged DB operations and are for local/CI use only.
