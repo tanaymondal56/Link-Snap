@@ -26,12 +26,13 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
   packages: write
+  id-token: write   # Required for cosign keyless signing (Fulcio OIDC) & attestation
   security-events: write
 
 jobs:
@@ -161,6 +162,8 @@ jobs:
           context: .
           file: client/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
+          provenance: true                                          # SLSA provenance attestation
+          sbom: true                                                # Generate SBOM alongside the build
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/arm64
@@ -220,6 +223,8 @@ jobs:
           context: .
           file: server/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
+          provenance: true                                          # SLSA provenance attestation
+          sbom: true                                                # Generate SBOM alongside the build
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/arm64
@@ -255,6 +260,45 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ${{ needs.set-matrix.outputs.backend_repo }}
           readme-filepath: ./server/README.md
+
+  # ─── Sign Images (Keyless Cosign) ────────────────────────────────────────────
+  # Signs the published images with Sigstore keyless (Fulcio + Rekor) so each
+  # digest carries a verifiable supply-chain identity. Runs in parallel with and
+  # never blocks deploy-* jobs (those only need build-backend to succeed).
+  sign-images:
+    name: Sign Images (Keyless Cosign)
+    needs: [set-matrix, build-frontend, build-backend]
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name != 'pull_request' &&
+      (needs.build-frontend.result == 'success' || needs.build-backend.result == 'success')
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.10.0
+
+      - name: Sign frontend image (keyless)
+        if: needs.build-frontend.result == 'success'
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign --yes \
+            "${{ needs.set-matrix.outputs.frontend_repo }}@${{ needs.build-frontend.outputs.image-digest }}"
+
+      - name: Sign backend image (keyless)
+        if: needs.build-backend.result == 'success'
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign --yes \
+            "${{ needs.set-matrix.outputs.backend_repo }}@${{ needs.build-backend.outputs.image-digest }}"
 
   # ─── Security Scan ─────────────────────────────────────────────────────────
   scan-images:
@@ -336,6 +380,9 @@ jobs:
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       (github.ref == 'refs/heads/major/k8s' || github.ref == 'refs/heads/staging') &&
       needs.build-backend.result == 'success'
+    concurrency:
+      group: deploy-beta
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
 
@@ -413,29 +460,6 @@ jobs:
           kubectl rollout undo deployment/linksnap-backend -n linksnap-beta || true
           echo "✅ Rolled back to previous beta version."
 
-      - name: Prune Unused Images on K8s Node
-        if: always()
-        run: |
-          echo "Triggering image prune on the K8s node..."
-          cat <<EOF | kubectl apply -n linksnap-beta -f -
-          apiVersion: batch/v1
-          kind: Job
-          metadata:
-            name: prune-images-${{ github.run_id }}
-          spec:
-            ttlSecondsAfterFinished: 10
-            template:
-              spec:
-                hostPID: true
-                restartPolicy: Never
-                containers:
-                - name: pruner
-                  image: alpine
-                  securityContext:
-                    privileged: true
-                  command: ["nsenter", "--mount=/proc/1/ns/mnt", "--", "sh", "-c", "k3s crictl rmi --prune || docker image prune -a -f || true"]
-          EOF
-
       - name: Beta Deployment Summary
         if: success()
         run: |
@@ -459,6 +483,9 @@ jobs:
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       github.ref == 'refs/heads/master' &&
       needs.build-backend.result == 'success'
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
 
@@ -531,29 +558,6 @@ jobs:
           echo "⚠️ Production deployment failed — rolling back backend..."
           kubectl rollout undo deployment/linksnap-backend -n linksnap || true
           echo "✅ Rolled back to previous stable version."
-
-      - name: Prune Unused Images on K8s Node
-        if: always()
-        run: |
-          echo "Triggering image prune on the K8s node..."
-          cat <<EOF | kubectl apply -n linksnap -f -
-          apiVersion: batch/v1
-          kind: Job
-          metadata:
-            name: prune-images-${{ github.run_id }}
-          spec:
-            ttlSecondsAfterFinished: 10
-            template:
-              spec:
-                hostPID: true
-                restartPolicy: Never
-                containers:
-                - name: pruner
-                  image: alpine
-                  securityContext:
-                    privileged: true
-                  command: ["nsenter", "--mount=/proc/1/ns/mnt", "--", "sh", "-c", "k3s crictl rmi --prune || docker image prune -a -f || true"]
-          EOF
 
       - name: Production Deployment Summary
         if: success()

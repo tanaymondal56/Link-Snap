@@ -50,16 +50,19 @@ spec:
   policyTypes:
     - Egress
   egress:
+    # HTTPS: MongoDB Atlas/CosmosDB, Stripe, Google SafeBrowsing, Upstash, LemonSqueezy
     - ports:
         - protocol: TCP
           port: 443
-        - protocol: TCP
-          port: 80
+    # Local Redis (in-cluster)
+    - ports:
         - protocol: TCP
           port: 6379
+    # Azure CosmosDB MongoDB wire protocol (ports 10250-10260)
+    - ports:
         - protocol: TCP
-          port: 1024
-          endPort: 65535
+          port: 10250
+          endPort: 10260
 
 ---
 # ─── Redis Ingress ───────────────────────────────────────────────────────────
@@ -127,7 +130,11 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    - ports:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: cloudflared-tunnel
+      ports:
         - protocol: TCP
           port: 5000
 

@@ -14,10 +14,13 @@ spec:
       labels:
         app: redis-local
     spec:
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 999
         runAsUser: 999
         runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -42,7 +45,11 @@ spec:
             - "--requirepass"
             - "$(REDIS_PASSWORD)"
             - "--maxmemory"
-            - "256mb"
+            - "200mb"
+            # NOTE: noeviction (NOT allkeys-lru) is intentional. The backend
+            # (server/config/redis.js) programmatically enforces `noeviction` on
+            # every connection to protect BullMQ job data from being evicted.
+            # allkeys-lru would let Redis evict queued webhook/job keys mid-flight.
             - "--maxmemory-policy"
             - "noeviction"
             - "--save"
@@ -55,6 +62,7 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 15
             failureThreshold: 3
+            timeoutSeconds: 5
           env:
             - name: REDIS_PASSWORD
               valueFrom:
@@ -73,14 +81,15 @@ spec:
                 - ping
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 5
           ports:
             - containerPort: 6379
           resources:
             requests:
-              cpu: "50m"
-              memory: "128Mi"
+              cpu: "100m"
+              memory: "300Mi"
             limits:
-              cpu: "200m"
+              cpu: "100m"
               memory: "300Mi"
           volumeMounts:
             - name: redis-data

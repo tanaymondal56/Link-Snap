@@ -28,7 +28,7 @@
  * PROXY_GATE_ENABLED  - 'true' to enable, 'false' for local dev (default: false)
  * PROXY_SECRET        - 64-char hex secret (must match Nginx config)
  * TRUSTED_PROXY_IPS   - Comma-separated Tailscale IPs (e.g., "100.90.234.100,100.90.234.101")
- * REAL_IP_HEADER      - Header name for real user IP (default: 'x-real-ip')
+ * REAL_IP_HEADER      - Header name for real user IP (default: 'cf-connecting-ip')
  * 
  * USAGE:
  * ──────
@@ -79,8 +79,8 @@ const CONFIG = {
         process.env.TRUSTED_PROXY_IPS || process.env.TRUSTED_PROXY_IP
     ),
 
-    // Header name for real user IP (set by Azure Nginx: proxy_set_header X-Real-IP $remote_addr)
-    realIpHeader: (process.env.REAL_IP_HEADER || 'x-real-ip').toLowerCase(),
+    // Header name for real user IP (set by Cloudflare: cf-connecting-ip)
+    realIpHeader: (process.env.REAL_IP_HEADER || 'cf-connecting-ip').toLowerCase(),
 
     // Header name for secret token (set by Azure Nginx)
     secretHeader: 'x-linksnap-proxy-secret',
@@ -106,7 +106,7 @@ const CONFIG = {
  */
 const getConnectingIP = (req) => {
     // Use socket.remoteAddress directly (bypasses Express trust proxy logic)
-    // This gives us the ACTUAL connecting IP (should be Azure Tailscale IP)
+    // This gives us the ACTUAL connecting IP (should be Cloudflare tunnel IP)
     let ip = req.socket?.remoteAddress ||
         req.connection?.remoteAddress ||
         'unknown';
@@ -121,13 +121,34 @@ const getConnectingIP = (req) => {
 };
 
 /**
- * Extract the REAL user's IP (passed by Azure Nginx in X-Real-IP header)
- * Falls back to X-Forwarded-For, then to connecting IP
+ * Determine if the connecting IP originates from a trusted proxy/hop
+ * (Cloudflare tunnel pods, Tailscale CGNAT, or internal K8s/localhost ranges).
+ * 
+ * @param {string} ip - The direct connecting IP
+ * @returns {boolean} True if the hop is trusted and may set CF-Connecting-IP
+ */
+const isTrustedProxyIP = (ip) => {
+    if (!ip || typeof ip !== 'string') return false;
+
+    return isTailscaleSubnet(ip) ||
+        isTrustedIP(ip) ||
+        ip === '127.0.0.1' ||
+        ip.startsWith('127.') ||
+        ip.startsWith('10.42.') ||
+        ip.startsWith('10.244.') ||
+        ip.startsWith('10.0.');
+};
+
+/**
+ * Extract the REAL user's IP (trusted Cloudflare header only)
+ * 
+ * Cloudflare is the only trusted edge (Cloudflare Tunnel / CF access).
+ * CF-Connecting-IP is set by Cloudflare and cannot be forged by end users,
+ * unlike True-Client-IP / X-Forwarded-For which are trivially spoofable.
  * 
  * Priority:
- * 1. X-Real-IP header (set explicitly by Nginx)
- * 2. First IP in X-Forwarded-For chain
- * 3. Direct connecting IP (fallback)
+ * 1. CF-Connecting-IP header (set by Cloudflare tunnel)
+ * 2. Direct connecting IP (fallback / local dev)
  * 
  * @param {import('express').Request} req - Express request object
  * @returns {string} The real user's IP address
@@ -141,48 +162,16 @@ const isCloudflareEgressIP = (ip) => {
 const getRealUserIP = (req) => {
     const connectingIP = getConnectingIP(req);
 
-    const isLocalhostOrInternal = connectingIP === '127.0.0.1' || 
-        connectingIP.startsWith('127.') || 
-        connectingIP.startsWith('10.42.') || 
-        connectingIP.startsWith('10.244.') || 
-        connectingIP.startsWith('10.0.');
+    if (!isTrustedProxyIP(connectingIP)) {
+        return connectingIP;
+    }
 
-    const isFromTrustedProxy = isTrustedIP(connectingIP) || isTailscaleSubnet(connectingIP) || isLocalhostOrInternal;
-
-    if (isFromTrustedProxy) {
-        // 1. Check True-Client-IP (Cloudflare Enterprise / Access header)
-        const trueClient = req.headers['true-client-ip'];
-        if (trueClient && typeof trueClient === 'string' && !isCloudflareEgressIP(trueClient)) {
-            return trueClient.trim();
-        }
-
-        // 2. Check X-Forwarded-For for the first real eyeball client IP
-        const forwardedFor = req.headers['x-forwarded-for'];
-        if (forwardedFor && typeof forwardedFor === 'string') {
-            const ips = forwardedFor.split(',').map(i => i.trim());
-            const realEyeball = ips.find(ip => 
-                !isCloudflareEgressIP(ip) && 
-                !ip.startsWith('10.42.') && 
-                !ip.startsWith('10.244.') && 
-                !ip.startsWith('10.0.') && 
-                !ip.startsWith('127.') && 
-                ip !== '::1'
-            );
-            if (realEyeball) return realEyeball;
-            if (ips[0]) return ips[0];
-        }
-
-        // 3. Check X-Real-IP
-        const realIp = req.headers[CONFIG.realIpHeader];
-        if (realIp && typeof realIp === 'string' && !isCloudflareEgressIP(realIp)) {
-            return realIp.trim();
-        }
-
-        // 4. CF-Connecting-IP fallback
-        const cfIp = req.headers['cf-connecting-ip'];
-        if (cfIp && typeof cfIp === 'string') {
-            return cfIp.trim();
-        }
+    // Cloudflare is the ONLY trusted edge. CF-Connecting-IP is written by Cloudflare
+    // before the request enters the tunnel, so it cannot be spoofed by passers.
+    // Ignore True-Client-IP, X-Forwarded-For and X-Real-IP entirely.
+    const cfIp = req.headers['cf-connecting-ip'];
+    if (cfIp && typeof cfIp === 'string' && !isCloudflareEgressIP(cfIp)) {
+        return cfIp.trim();
     }
 
     return connectingIP;

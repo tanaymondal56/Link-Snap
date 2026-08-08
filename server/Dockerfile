@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # ── Stage 1: Install dependencies ─────────────────────────────────────────────
 FROM node:24-alpine AS deps
 
@@ -23,21 +24,27 @@ RUN apk update && apk upgrade --no-cache && apk add --no-cache tini \
 
 WORKDIR /app
 
+LABEL org.opencontainers.image.source="https://github.com/tanaymondal56/Link-Snap" \
+      org.opencontainers.image.description="Link-Snap Backend API Server" \
+      org.opencontainers.image.licenses="MIT"
+
 # Non-root user: explicitly assign UID 1000 and remove default 'node' user
 RUN deluser --remove-home node && \
     addgroup -g 1000 linksnap && \
     adduser -u 1000 -G linksnap -s /bin/sh -D linksnap
 
 # Copy deps from previous stage
-COPY --from=deps --chown=linksnap:linksnap /app/node_modules ./node_modules
+COPY --link --from=deps --chown=linksnap:linksnap /app/node_modules ./node_modules
 
 # Copy server source (only server folder files)
-COPY --chown=linksnap:linksnap server/ ./
+COPY --link --chown=linksnap:linksnap server/ ./
 
 USER linksnap
 
+ARG MAX_OLD_SPACE_SIZE=350
 ENV NODE_ENV=production \
-    PORT=5000
+    PORT=5000 \
+    NODE_OPTIONS="--max-old-space-size=${MAX_OLD_SPACE_SIZE}"
 
 EXPOSE 5000
 
@@ -45,4 +52,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:5000/api/health || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "--max-old-space-size=350", "index.js"]
+CMD ["node", "index.js"]

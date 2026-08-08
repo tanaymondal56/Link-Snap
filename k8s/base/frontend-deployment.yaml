@@ -19,11 +19,14 @@ spec:
       labels:
         app: linksnap-frontend
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 101          # nginx default non-root UID in official nginx:alpine image
         runAsGroup: 101
         fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
           # NOTE: In the new CF Pages + BFF architecture, the React SPA is served
           # by Cloudflare Pages and this frontend pod is NO LONGER required.

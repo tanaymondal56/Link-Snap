@@ -16,9 +16,17 @@ This release delivers major architectural and DevSecOps security overhauls acros
 ### 🚀 CI/CD & K8s Infrastructure Hardening
 - **GitOps Pipeline Migration:** Migrated CI/CD pipeline to Kustomize v5.8.1 and upgraded all K8s infrastructure deployments to true declarative GitOps flows.
 - **K8s Pod Security Hardening:** Enforced strict `readOnlyRootFilesystem`, `emptyDir` temp volumes, dropped all capabilities, and explicit `runAsUser` non-root constraints on all pods.
-- **Zero-Trust NetworkPolicies:** Implemented comprehensive K8s Zero-Trust NetworkPolicies with strict egress/ingress controls and configured ResourceQuota namespace boundaries.
-- **NetworkPolicy Bug Fix:** Fixed MongoDB egress timeout by explicitly allowing TCP port 27017 in the Zero-Trust overlay.
-- **Alpine UID Security Fix:** Resolved `readOnlyRootFilesystem` startup crash by explicitly mapping the `linksnap` user to UID 1000 in the Dockerfile and mounting writable home directory emptyDirs.
+- **Pod Security Admission (PSA):** Enforced `pod-security.kubernetes.io/enforce: restricted` across both production and beta namespaces.
+- **Seccomp & Token Isolation:** Applied `seccompProfile: RuntimeDefault` and `automountServiceAccountToken: false` across all workloads (backend, redis, cloudflared, cronjobs).
+- **Cloudflare Tunnel HA & PDB:** Scaled `cloudflared-tunnel` to 2 replicas with `topologySpreadConstraints` and created a dedicated `PodDisruptionBudget` (`minAvailable: 1`) for high availability.
+- **Zero-Trust NetworkPolicies & Port Lockdown:** Locked backend ingress strictly to `cloudflared-tunnel` pods and tightened egress to ports 443 (Upstash REST/APIs), 6379 (Local Redis), and 10250-10260 (Azure Cosmos DB MongoDB wire protocol).
+- **Edge IP Spoofing Defense:** Backend middleware (`strictProxyGate`, `ipWhitelist`) now **exclusively trusts `cf-connecting-ip`** (Cloudflare is the only trusted edge). `X-Forwarded-For`, `X-Real-IP`, and `True-Client-IP` are ignored to prevent trivial client header spoofing.
+- **Redis Reliability & Eviction Policy:** Resized Redis to `200mb` maxmemory headroom to prevent OOM kills while keeping `noeviction` (programmatically enforced in `server/config/redis.js`) to protect BullMQ job data — documented as an intentional divergence from the plan's suggested `allkeys-lru`.
+- **PreStop Drain & Rollout Safeguards:** Added `lifecycle.preStop` `sleep 10` hook for connection draining and `progressDeadlineSeconds: 120` to backend deployments for automated rollback.
+- **CI/CD Concurrency & Root Job Removal:** Eliminated root-privileged `image-prune` (`nsenter`) jobs from GitHub Actions pipelines and separated `build-*` vs `deploy-*` (`cancel-in-progress: false`) concurrency groups.
+- **Docker Layer & Heap Optimization:** Optimized Dockerfiles with `# syntax=docker/dockerfile:1` stagers, `COPY --link`, OCI standard metadata labels, and parameterized Node.js heap (`ARG MAX_OLD_SPACE_SIZE`).
+- **CronJob Timeout Defense:** Configured `activeDeadlineSeconds: 300`, `startingDeadlineSeconds: 100`, and `backoffLimit: 2` across ban-scheduler and safe-browsing CronJobs.
+
 
 ### 🔒 HttpOnly Cookie Auth & DBSC Session Hardening
 - **HttpOnly Cookie Auth Migration:** Completely eliminated in-memory and `localStorage` access token storage in favor of strict `HttpOnly` cookies (`ls_access_token`, `ls_refresh_token`). Removed `accessToken` fields from JSON response payloads across all authentication endpoints (`/login`, `/verify-otp`, `/verify-email`, `/refresh`).

@@ -7,18 +7,24 @@ spec:
   concurrencyPolicy: Forbid         # Don't overlap if previous run is still going
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 100
   jobTemplate:
     spec:
+      activeDeadlineSeconds: 300
+      backoffLimit: 2
       template:
         metadata:
           labels:
             app: linksnap-cronjob
         spec:
+          automountServiceAccountToken: false
           restartPolicy: OnFailure
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000      # Matches UID of 'linksnap' user created in server/Dockerfile
             runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: ban-scheduler
               image: tanaymondal/linksnap-backend:latest

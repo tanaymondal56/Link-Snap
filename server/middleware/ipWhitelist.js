@@ -66,29 +66,9 @@ const checkIpAccess = (req) => {
     // strictProxyGate already extracted the real user IP
     clientIP = req.realUserIP;
   } else if (isFromTrustedProxy) {
-    const isCfEgress = (ip) => ip && typeof ip === 'string' && ip.replace(/^::ffff:/, '').trim().startsWith('2a06:98c0:');
-    
-    // 1. True-Client-IP header
-    const trueClient = req.headers['true-client-ip'];
-    if (trueClient && !isCfEgress(trueClient)) {
-      clientIP = trueClient.trim();
-    } else if (req.headers['x-forwarded-for']) {
-      // 2. First real eyeball IP in X-Forwarded-For
-      const ips = req.headers['x-forwarded-for'].split(',').map(i => i.trim());
-      const realEyeball = ips.find(ip => 
-        !isCfEgress(ip) && 
-        !ip.startsWith('10.42.') && 
-        !ip.startsWith('10.244.') && 
-        !ip.startsWith('10.0.') && 
-        !ip.startsWith('127.') && 
-        ip !== '::1'
-      );
-      clientIP = realEyeball || ips[0];
-    } else if (req.headers['x-real-ip'] && !isCfEgress(req.headers['x-real-ip'])) {
-      clientIP = req.headers['x-real-ip'].trim();
-    } else {
-      clientIP = req.headers['cf-connecting-ip'] || req.ip || socketIP || 'unknown';
-    }
+    // Cloudflare is the ONLY trusted edge — CF-Connecting-IP is set by Cloudflare
+    // and cannot be spoofed by end users (unlike X-Forwarded-For / X-Real-IP).
+    clientIP = req.headers['cf-connecting-ip'] || req.ip || socketIP || 'unknown';
   } else {
     // Direct connection - use socket IP, ignore headers (prevent spoofing)
     clientIP = socketIP || 'unknown';

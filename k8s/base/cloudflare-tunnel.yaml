@@ -5,7 +5,7 @@ metadata:
   labels:
     app: cloudflared-tunnel
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: cloudflared-tunnel
@@ -14,10 +14,20 @@ spec:
       labels:
         app: cloudflared-tunnel
     spec:
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 65532
         runAsUser: 65532
         runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: cloudflared-tunnel
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -51,8 +61,8 @@ spec:
                   key: CLOUDFLARE_TUNNEL_TOKEN
           resources:
             requests:
-              cpu: "50m"
-              memory: "64Mi"
+              cpu: "100m"
+              memory: "128Mi"
             limits:
               cpu: "100m"
               memory: "128Mi"
@@ -63,6 +73,7 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 15
             failureThreshold: 3
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /ready
@@ -70,6 +81,7 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
             failureThreshold: 3
+            timeoutSeconds: 5
           volumeMounts:
             - name: tmp
               mountPath: /tmp

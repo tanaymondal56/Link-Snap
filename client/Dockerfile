@@ -1,15 +1,16 @@
+# syntax=docker/dockerfile:1
 # ── Stage 1: Build the React SPA ──────────────────────────────────────────────
 FROM node:24-alpine AS builder
 
 WORKDIR /app
 
 # Install dependencies first (cache layer — only invalidated when package.json changes)
-COPY client/package.json client/package-lock.json ./
+COPY --link client/package.json client/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --legacy-peer-deps
+    npm ci
 
 # Copy source (invalidates cache when source changes)
-COPY client/ ./
+COPY --link client/ ./
 
 # Build-time env vars (public values only — these are baked into the JS bundle)
 ARG VITE_BASE_URL=https://lksnp.qzz.io
@@ -30,14 +31,18 @@ FROM nginx:1.31-alpine AS production
 # Update system packages to patch vulnerabilities (like CVE-2026-31789)
 RUN apk update && apk upgrade --no-cache
 
+LABEL org.opencontainers.image.source="https://github.com/tanaymondal56/Link-Snap" \
+      org.opencontainers.image.description="Link-Snap Frontend SPA" \
+      org.opencontainers.image.licenses="MIT"
+
 # Remove default Nginx page
 RUN rm -rf /usr/share/nginx/html/*
 
 # Copy compiled assets from builder
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --link --from=builder /app/dist /usr/share/nginx/html
 
 # Copy Nginx SPA config (the one already in client/)
-COPY client/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --link client/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Non-root user for security
 RUN addgroup -S linksnap && adduser -S -G linksnap linksnap \

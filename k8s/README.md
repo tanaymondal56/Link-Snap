@@ -1,7 +1,5 @@
 # Link-Snap Kubernetes deployment
 
-This directory follows the architecture in `plans/k8s/system_design.md`:
-
 `Cloudflare Pages Function -> Cloudflare Access -> cloudflared -> linksnap-backend-service`
 
 The backend service is `ClusterIP`; do not create a public LoadBalancer or open HTTP/HTTPS ports on the host. Cloudflare Tunnel is the only ingress path.
@@ -50,7 +48,9 @@ The backend service is `ClusterIP`; do not create a public LoadBalancer or open 
    kubectl get all -n linksnap
    ```
 
-The `frontend-*`, `ingress.yaml`, and `cert-manager-issuer.yaml` manifests are retained for the former in-cluster/frontend-ingress topology. They are intentionally not part of `kustomization.yaml`, because the Cloudflare Pages BFF design does not require an inbound NGINX ingress or Let's Encrypt HTTP challenge.
+The `frontend-deployment.yaml`/`frontend-service.yaml` manifests are retained (scaled to 0) for the former in-cluster topology and for local testing without Cloudflare Pages.
+
+The `ingress.yaml` and `cert-manager-issuer.yaml` manifests are retained only as documentation of the former NGINX/Let's Encrypt topology. They are intentionally **NOT** part of `kustomization.yaml`, so running `kubectl apply -k` never creates an Ingress or mints a TLS certificate over the Cloudflare Tunnel path. Re-add them only if you deliberately want to switch back to a public ingress controller.
 
 ## Local TCP Redis
 

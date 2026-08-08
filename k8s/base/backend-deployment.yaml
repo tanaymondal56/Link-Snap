@@ -5,6 +5,7 @@ metadata:
   labels:
     app: linksnap-backend
 spec:
+  progressDeadlineSeconds: 120
   replicas: 2
   selector:
     matchLabels:
@@ -19,12 +20,15 @@ spec:
       labels:
         app: linksnap-backend
     spec:
+      automountServiceAccountToken: false
       terminationGracePeriodSeconds: 30
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000        # Matches UID of 'linksnap' user created in server/Dockerfile
         runAsGroup: 1000
         fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -106,13 +110,15 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 15
             failureThreshold: 3
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /api/health/deep
               port: 5000
-            initialDelaySeconds: 0      # Start checking immediately after startupProbe succeeds
-            periodSeconds: 2           # Check every 2s for fast ready state
+            initialDelaySeconds: 5      # Start checking immediately after startupProbe succeeds
+            periodSeconds: 5           # Check every 2s for fast ready state
             failureThreshold: 2
+            timeoutSeconds: 5
           startupProbe:
             httpGet:
               path: /api/health
@@ -120,11 +126,16 @@ spec:
             initialDelaySeconds: 1
             periodSeconds: 1           # Fast 1s polling until Node.js process starts
             failureThreshold: 30
+            timeoutSeconds: 5
           volumeMounts:
             - name: tmp
               mountPath: /tmp
             - name: home
               mountPath: /home/linksnap
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 10"]
       volumes:
         - name: tmp
           emptyDir: {}

@@ -26,7 +26,7 @@ data:
 
   ADMIN_ENABLED: "true"
   PROXY_GATE_ENABLED: "false"          # No proxy gate needed in K8s — CF Tunnel handles ingress
-  REAL_IP_HEADER: "x-forwarded-for"
+  REAL_IP_HEADER: "cf-connecting-ip"
   # SameSite=None required for cross-origin CF Pages ↔ API credentialed requests
   COOKIE_SAMESITE: "none"
   WEBAUTHN_RP_ID: "lksnp.qzz.io"

@@ -22,7 +22,11 @@ resources:
   - frontend-service.yaml
   - hpa.yaml
   - pdb.yaml
-  - ingress.yaml                     # Fallback ingress (not primary — CF Tunnel is primary)
+  - pdb-tunnel.yaml
+  # ingress.yaml and cert-manager-issuer.yaml are intentionally EXCLUDED.
+  # They are dead config from the former in-cluster/NGINX topology and, if
+  # applied, would try to mint a Let's Encrypt certificate (cert-manager
+  # ClusterIssuer). Cloudflare Tunnel is the only ingress path.
   - network-policies.yaml
   - namespace-limits.yaml
   - cronjob-ban-scheduler.yaml
