@@ -34,10 +34,10 @@ RUN deluser --remove-home node && \
     adduser -u 1000 -G linksnap -s /bin/sh -D linksnap
 
 # Copy deps from previous stage
-COPY --link --from=deps --chown=linksnap:linksnap /app/node_modules ./node_modules
+COPY --link --from=deps --chown=1000:1000 /app/node_modules ./node_modules
 
 # Copy server source (only server folder files)
-COPY --link --chown=linksnap:linksnap server/ ./
+COPY --link --chown=1000:1000 server/ ./
 
 USER linksnap
 
