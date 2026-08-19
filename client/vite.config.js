@@ -185,7 +185,7 @@ export default defineConfig(async ({ mode }) => {
         'X-Frame-Options': 'DENY',
         'X-Content-Type-Options': 'nosniff',
         'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com https://ajax.cloudflare.com https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' http://localhost:5000 ws://localhost:5000 ws://localhost:3000 https://api.lksnp.qzz.io wss://api.lksnp.qzz.io https://lksnp.qzz.io https://beta.lksnp.qzz.io wss://beta.lksnp.qzz.io https://api-beta.lksnp.qzz.io wss://api-beta.lksnp.qzz.io https://cloudflareinsights.com https://static.cloudflareinsights.com https://api.razorpay.com;"
+        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com https://ajax.cloudflare.com https://*.razorpay.com https://razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; frame-src 'self' https://*.razorpay.com https://razorpay.com; connect-src 'self' http://localhost:5000 ws://localhost:5000 ws://localhost:3000 https://api.lksnp.qzz.io wss://api.lksnp.qzz.io https://lksnp.qzz.io https://beta.lksnp.qzz.io wss://beta.lksnp.qzz.io https://api-beta.lksnp.qzz.io wss://api-beta.lksnp.qzz.io https://cloudflareinsights.com https://static.cloudflareinsights.com https://*.razorpay.com https://razorpay.com;"
       },
       proxy: {
         '/api': {
