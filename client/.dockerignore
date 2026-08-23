@@ -22,5 +22,8 @@ generate-icons.js
 nodemon.json
 *.log
 
+# Audit / planning docs (never ship in image)
+audits-plan/
+
 # TypeScript artifacts
 *.tsbuildinfo

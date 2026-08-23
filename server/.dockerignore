@@ -38,3 +38,6 @@ eslint.config.js
 coverage/
 *.tsbuildinfo
 .eslintcache
+
+# ── Audit / planning docs — MUST NOT ship in the production image ─────────────
+audits-plan/
