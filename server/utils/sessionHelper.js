@@ -153,6 +153,27 @@ export const validateSession = async (token) => {
 };
 
 /**
+ * Look up a session by a PREVIOUS (rotated-away) token hash while the
+ * rotation grace window is still open.
+ *
+ * Used by the auth controller to distinguish a benign concurrent-refresh race
+ * (two tabs refreshed simultaneously — one won, one lost) from a genuine
+ * replay/invalid token. In the race case the losing request should NOT be
+ * force-logged-out; its cookie remains valid via previousTokenHash until the
+ * grace window closes.
+ *
+ * @param {string} oldToken - Raw refresh token that lost the rotation race
+ * @returns {Object|null} Session document or null if not in a valid grace window
+ */
+export const findSessionByPreviousTokenHash = async (oldToken) => {
+  const tokenHash = hashToken(oldToken);
+  return Session.findOne({
+    previousTokenHash: tokenHash,
+    previousTokenValidUntil: { $gt: new Date() }
+  });
+};
+
+/**
  * Update session's lastActiveAt and optionally IP
  * @param {Object} session - Session document
  * @param {Object} req - Express request object

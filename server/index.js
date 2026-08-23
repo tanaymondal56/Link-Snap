@@ -127,9 +127,10 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: [
+        // Security: 'unsafe-inline' and 'unsafe-eval' removed — either one
+        // nullifies the nonce below, letting XSS payloads execute freely.
+        // Any inline bootstrap script must carry the generated nonce instead.
         "'self'",
-        "'unsafe-inline'",
-        "'unsafe-eval'",
         (req, res) => `'nonce-${res.locals.nonce}'`,
         'https://*.razorpay.com',
         'https://razorpay.com',
@@ -252,15 +253,22 @@ app.use(cors({
 }));
 
 // Use JSON parser with raw body capture for webhooks
-app.use(express.json({
-  limit: '10kb',
+// ── Webhook parser FIRST : LemonSqueezy subscription/order payloads can
+// exceed the global 10kb cap below — a 413 before signature verification would
+// permanently drop payment events. /api/webhooks gets a dedicated 100kb parser.
+app.use('/api/webhooks', express.json({
+  limit: '100kb',
   verify: (req, res, buf) => {
-    // Store raw body for webhook signature verification
-    if (req.originalUrl.startsWith('/api/webhooks')) {
-      req.rawBody = buf;
-    }
+    req.rawBody = buf; // Required for HMAC webhook signature verification
   }
 }));
+
+// ── Changelog bulk import parser : multi-entry import files can exceed the
+// global 10kb cap. Scoped 256kb limit; body still flows through the global
+// mongoSanitize middleware ($-keys, dotted keys, __proto__ all stripped).
+app.use('/api/changelog/admin/import', express.json({ limit: '256kb' }));
+
+app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
@@ -299,7 +307,24 @@ app.use(cookieSession({
 // Note: XSRF-TOKEN is intentionally httpOnly: false so SPA client JS (Axios) 
 // can read it from document.cookie and include it in the X-XSRF-TOKEN header.
 // All sensitive session/auth cookies (jwt, access_token, session) remain strictly HttpOnly.
-app.use(lusca.csrf({
+//
+// ── Method-aware CSRF guard ─────────────────────────────────────────────
+// The previous lusca blacklist exempted ALL of /api/url/* which also covered
+// cookie-authenticated state-changers (PUT/DELETE /api/url/:id). We narrow
+// exemptions to a minimal path list for NON-safe methods only:
+//   • /api/webhooks            → HMAC signature verification instead of CSRF
+//   • /api/url/:id/verify-password → public pre-session password bootstrap
+//   • /api/dbsc                → browser-native protocol (C++ network stack)
+//   • /api/auth/{login,register,refresh,logout} → pre-session auth bootstrap;
+//     logout must never be blocked so cookies always clear
+// Everything else — including PUT/DELETE on links — now requires the header.
+//
+// IMPORTANT: safe methods (GET/HEAD/OPTIONS) MUST still pass through lusca.
+// Lusca seeds the XSRF-TOKEN cookie on every request it processes (including
+// GETs) and skips validation for safe verbs internally. Short-circuiting GETs
+// here would leave fresh visitors without the cookie, breaking their first
+// state-changing request with 403 "CSRF token missing".
+const csrfMiddleware = lusca.csrf({
   cookie: {
     name: 'XSRF-TOKEN',
     options: {
@@ -309,17 +334,23 @@ app.use(lusca.csrf({
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days - persistent cookie so browser close doesn't delete it
     }
   },
-  header: 'X-XSRF-TOKEN',
-  blacklist: [
-    { type: 'startsWith', path: '/api/webhooks' }, // Webhooks use signature verification
-    { type: 'startsWith', path: '/api/url/' }, // Public redirect and password verification endpoints
-    { type: 'startsWith', path: '/api/dbsc' }, // Browser native DBSC protocol (sent by browser C++ network stack)
-    { type: 'startsWith', path: '/api/auth/login' }, // Auth login is pre-session; bypass CSRF to prevent bootstrap errors
-    { type: 'startsWith', path: '/api/auth/register' }, // Auth register is pre-session
-    { type: 'startsWith', path: '/api/auth/refresh' }, // Auth refresh uses HttpOnly refresh token + session rotation
-    { type: 'startsWith', path: '/api/auth/logout' } // Logout must never be blocked by CSRF so cookies always clear
-  ]
-}));
+  header: 'X-XSRF-TOKEN'
+});
+
+const CSRF_EXEMPT_PATHS = [
+  /^\/api\/webhooks/,
+  /^\/api\/dbsc/,
+  /^\/api\/auth\/(?:login|register|refresh|logout|forgot-password|reset-password|verify-otp|resend-otp)(?:\/|$)/,
+  /^\/api\/url\/[^/]+\/verify-password$/,
+];
+
+app.use((req, res, next) => {
+  const isSafeMethod = req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS';
+  if (!isSafeMethod && CSRF_EXEMPT_PATHS.some((re) => re.test(req.path))) {
+    return next();
+  }
+  return csrfMiddleware(req, res, next);
+});
 
 // NoSQL injection protection
 app.use(mongoSanitize);

@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!-- Security Headers (Note: For production, set these as HTTP headers on the server) -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
@@ -78,9 +78,6 @@
     <!-- Preconnect to external services -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
-    <!-- Preload critical stylesheet (Note: Vite hashes this in production) -->
-    <link rel="preload" href="/src/index.css" as="style" />
 
     <!-- Inline Critical CSS for faster initial render -->
     <style>

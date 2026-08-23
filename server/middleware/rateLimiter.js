@@ -32,8 +32,14 @@ const isWhitelisted = (ip) => {
  * For Upstash (HTTP REST): manually maps EVAL/EVALSHA/SCRIPT commands since the
  * Upstash SDK does not expose a generic .call() method.
  * Falls back to MemoryStore (undefined) if Redis is not configured.
+ *
+ * Fail-closed mode: auth-critical limiters BLOCK requests when the store is
+ * unavailable instead of silently allowing them (brute-force protection).
+ * Override globally with RATE_LIMIT_FAIL_CLOSED=false.
  */
-const createRedisStore = (prefix) => {
+const RATE_LIMIT_FAIL_CLOSED = process.env.RATE_LIMIT_FAIL_CLOSED !== 'false';
+
+const createRedisStore = (prefix, { failClosed = false } = {}) => {
     if (!isRedisConfigured()) return undefined;
 
     return new RedisStore({
@@ -57,6 +63,11 @@ const createRedisStore = (prefix) => {
                 }
                 if (cmd === 'evalsha' || cmd === 'eval') {
                     // express-rate-limit relies on Lua script return values: [tokens_remaining, reset_time]
+                    if (failClosed && RATE_LIMIT_FAIL_CLOSED) {
+                        // FAIL CLOSED: deny the request rather than simulating an allowed hit.
+                        // The thrown error surfaces as 500 → request is blocked while store is down.
+                        throw new Error(`Rate-limit store unavailable — failing closed for "${prefix}"`);
+                    }
                     // Returning [1, 0] simulates a successful hit that didn't exceed the limit
                     return [1, 0];
                 }
@@ -127,7 +138,7 @@ export const apiLimiter = rateLimit({
 export const authLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: 10,
-    store: createRedisStore('auth'),
+    store: createRedisStore('auth', { failClosed: true }), // Auth-critical: fail closed
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many login attempts from this IP, please try again after an hour' });
     },
@@ -138,7 +149,7 @@ export const authLimiter = rateLimit({
 export const globalRegisterCircuitBreaker = rateLimit({
     windowMs: 5 * 60 * 1000, // 5 minutes
     max: 100, // max 100 signups per 5 mins globally
-    store: createRedisStore('circuit:register'),
+    store: createRedisStore('circuit:register', { failClosed: true }), // Auth-critical: fail closed
     keyGenerator: () => 'global_register', // All requests share this bucket
     handler: (req, res) => {
         res.status(429).json({ 
@@ -246,7 +257,7 @@ export const appealLimiter = rateLimit({
 export const verifyOtpLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5,
-    store: createRedisStore('otp'),
+    store: createRedisStore('otp', { failClosed: true }), // Auth-critical: fail closed
     handler: (req, res) => {
         res.status(429).json({ message: 'Whoa there! Too many attempts. Please take a short break and try again in about 15 minutes. ☕' });
     },
@@ -256,7 +267,7 @@ export const verifyOtpLimiter = rateLimit({
 export const forgotPasswordLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 3,
-    store: createRedisStore('forgot'),
+    store: createRedisStore('forgot', { failClosed: true }), // Auth-critical: fail closed
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many password reset requests. Please try again in 15 minutes.' });
     },
@@ -266,7 +277,7 @@ export const forgotPasswordLimiter = rateLimit({
 export const resetPasswordLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5,
-    store: createRedisStore('reset'),
+    store: createRedisStore('reset', { failClosed: true }), // Auth-critical: fail closed
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many reset attempts. Please try again in 15 minutes.' });
     },
@@ -276,7 +287,7 @@ export const resetPasswordLimiter = rateLimit({
 export const passwordVerifyLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 10,
-    store: createRedisStore('pwd_verify'),
+    store: createRedisStore('pwd_verify', { failClosed: true }), // Auth-critical: fail closed
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many password attempts. Please try again in 15 minutes.' });
     },

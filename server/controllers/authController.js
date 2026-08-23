@@ -7,7 +7,7 @@ import Session from '../models/Session.js';
 import LoginHistory from '../models/LoginHistory.js';
 import UsernameHistory from '../models/UsernameHistory.js';
 import { generateAccessToken } from '../utils/generateToken.js';
-import { createSession, validateSession, terminateSession, hashToken, terminateAllUserSessions, rotateRefreshToken } from '../utils/sessionHelper.js';
+import { createSession, validateSession, terminateSession, hashToken, terminateAllUserSessions, rotateRefreshToken, findSessionByPreviousTokenHash } from '../utils/sessionHelper.js';
 import { registerSchema, loginSchema, updateProfileSchema, verifyOtpSchema, forgotPasswordSchema, resetPasswordSchema } from '../validators/authValidator.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
@@ -32,6 +32,11 @@ const getSubscriptionResponse = (user) => {
     tier: getEffectiveTier(user)
   };
 };
+
+// ── OTPs are hashed at rest (SHA-256), consistent with reset tokens. ────
+// A DB leak must not expose live 6-digit verification codes. Verification
+// hashes the incoming OTP and compares against the stored hash.
+const hashOtp = (otp) => crypto.createHash('sha256').update(String(otp)).digest('hex');
 
 // Simple email validation - ReDoS safe
 const isValidEmail = (email) => {
@@ -193,13 +198,13 @@ const registerUser = async (req, res, next) => {
         const verificationToken = crypto.randomBytes(20).toString('hex');
         const otpExpiresTime = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-        userExists.otp = otp;
+        userExists.otp = hashOtp(otp); // hashed at rest
         userExists.otpExpires = otpExpiresTime;
         userExists.verificationToken = verificationToken;
         userExists.verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
 
-        // Primary: cache OTP in Redis
-        await redisSet(`ls:otp:verify:${email.toLowerCase()}`, 600, otp);
+        // Primary: cache OTP in Redis (hashed)
+        await redisSet(`ls:otp:verify:${email.toLowerCase()}`, 600, hashOtp(otp));
 
         logger.debug(`[Auth] Before save - OTP for ${email}, expires: ${new Date(otpExpiresTime).toISOString()}`);
 
@@ -443,8 +448,16 @@ const verifyOTP = async (req, res, next) => {
     const user = await User.findOne({ email }).select('+otp +otpExpires');
 
     if (!user) {
-      res.status(404);
-      throw new Error('User not found');
+      // ── no enumeration signal ──────────────────────────────────────────
+      // Previously returned 404 "User not found", revealing which emails are
+      // registered. Mirror the expired-code response exactly and perform
+      // comparable hashing work so timing doesn't become the oracle.
+      crypto.timingSafeEqual(Buffer.from(hashOtp(otp)), Buffer.from(hashOtp(String(crypto.randomInt(100000, 1000000)))));
+      await recordFailedAuthAttempt(email, req);
+      return res.status(400).json({
+        message: 'Your verification code has expired or is invalid. Please request a new one.',
+        expired: true
+      });
     }
 
     if (user.isVerified) {
@@ -470,9 +483,12 @@ const verifyOTP = async (req, res, next) => {
         const attemptsKey = `ls:otp:verify:attempts:${email.toLowerCase()}`;
         const attempts = await redisIncr(attemptsKey, 600);
 
-        const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
-        const storedOtpBuffer = Buffer.from(String(redisOtp).padEnd(6, '0'));
-        if (crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
+        // both sides are SHA-256 hex digests now
+        const incomingHash = hashOtp(otp);
+        const storedHash = String(redisOtp);
+        const otpBuffer = Buffer.from(incomingHash);
+        const storedOtpBuffer = Buffer.from(storedHash);
+        if (storedHash.length === incomingHash.length && crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
           otpValid = true;
           await redisDel(`ls:otp:verify:${email.toLowerCase()}`, attemptsKey);
         } else {
@@ -508,9 +524,11 @@ const verifyOTP = async (req, res, next) => {
           expired: true
         });
       }
-      const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
-      const storedOtpBuffer = Buffer.from((user.otp || '').padEnd(6, '0'));
-      if (!crypto.timingSafeEqual(otpBuffer, storedOtpBuffer)) {
+      // stored OTP is a SHA-256 hex digest — hash the incoming code to compare
+      const incomingHash = hashOtp(otp);
+      const storedHash = String(user.otp || '');
+      if (storedHash.length !== incomingHash.length ||
+          !crypto.timingSafeEqual(Buffer.from(incomingHash), Buffer.from(storedHash))) {
         await recordFailedAuthAttempt(email, req);
         res.status(400);
         throw new Error('Invalid verification code. Please check and try again.');
@@ -990,7 +1008,37 @@ const refreshAccessToken = async (req, res, next) => {
     // Security: Rotate the refresh token to prevent replay attacks
     const rotationResult = await rotateRefreshToken(refreshToken, req);
     if (!rotationResult) {
-      // Race condition or token was already rotated - invalidate cookies
+      // ── Distinguish benign race loss from genuine replay/invalid token ──
+      // Two tabs refreshing simultaneously: one wins the atomic rotation, the
+      // loser previously got ALL cookies wiped + 403 (forced re-login). The
+      // 30s previousTokenHash grace window exists precisely for this case, so
+      // instead of a wipe we re-issue an access token and keep the client's
+      // existing refresh cookie valid until the grace window closes.
+      const racedSession = await findSessionByPreviousTokenHash(refreshToken);
+      if (racedSession && racedSession.userId.toString() === user._id.toString()) {
+        logger.info(`[Auth] Refresh race detected for user ${user._id} — re-issuing access token without logout.`);
+        const accessToken = generateAccessToken(user._id, role, racedSession.dbscSessionId, racedSession.dbscEnforced);
+
+        res.cookie('access_token', accessToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: getCookieSameSite(),
+          maxAge: 15 * 60 * 1000,
+        });
+        setDbscSessionCookies(res, racedSession.dbscSessionId);
+
+        return res.status(200).json({
+          _id: user._id,
+          email: user.email,
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role,
+          subscription: getSubscriptionResponse(user),
+          refreshRaced: true, // Client keeps its current refresh cookie
+        });
+      }
+
       clearAllAuthCookies(res);
       return res.sendStatus(403);
     }
@@ -1350,14 +1398,14 @@ const resendOTP = async (req, res, next) => {
     const otp = crypto.randomInt(100000, 1000000).toString();
     const verificationToken = crypto.randomBytes(20).toString('hex');
 
-    user.otp = otp;
+    user.otp = hashOtp(otp); // hashed at rest
     user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
     user.verificationToken = verificationToken;
     user.verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
     await user.save();
 
-    // Primary: cache OTP in Redis
-    await redisSet(`ls:otp:verify:${email.toLowerCase()}`, 600, otp);
+    // Primary: cache OTP in Redis (hashed)
+    await redisSet(`ls:otp:verify:${email.toLowerCase()}`, 600, hashOtp(otp));
 
     // Send email
     const emailContent = verificationEmail(user, verificationToken, otp);
@@ -1414,14 +1462,14 @@ const forgotPassword = async (req, res, next) => {
       const otp = crypto.randomInt(100000, 1000000).toString();
       const verificationToken = crypto.randomBytes(20).toString('hex');
 
-      user.otp = otp;
+      user.otp = hashOtp(otp); // hashed at rest
       user.otpExpires = Date.now() + 10 * 60 * 1000;
       user.verificationToken = verificationToken;
       user.verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
       await user.save();
 
-      // Primary: cache OTP in Redis
-      await redisSet(`ls:otp:verify:${email.toLowerCase()}`, 600, otp);
+      // Primary: cache OTP in Redis (hashed)
+      await redisSet(`ls:otp:verify:${email.toLowerCase()}`, 600, hashOtp(otp));
 
       // Send verification email instead
       const emailContent = verificationEmail(user, verificationToken, otp);

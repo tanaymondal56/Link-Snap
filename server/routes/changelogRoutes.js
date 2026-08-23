@@ -20,7 +20,8 @@ import {
     bulkPublishChangelogs,
     reorderChangelogs,
     voteRoadmapItem,
-    unvoteRoadmapItem
+    unvoteRoadmapItem,
+    bulkImportChangelogs
 } from '../controllers/changelogController.js';
 
 const router = express.Router();
@@ -39,6 +40,17 @@ const voteLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: 30,
     message: { message: 'Too many vote attempts. Please slow down.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.user?._id?.toString() || req.ip,
+    validate: false
+});
+
+// Rate limiter for JSON imports (20 per hour per admin) — imports are heavy
+const importRateLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 20,
+    message: { message: 'Too many imports. Please wait before importing again.' },
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => req.user?._id?.toString() || req.ip,
@@ -68,5 +80,18 @@ router.patch('/admin/:id/publish', ipWhitelist, verifyToken, verifyAdmin, toggle
 router.delete('/admin/bulk', ipWhitelist, verifyToken, verifyAdmin, bulkDeleteChangelogs);
 router.patch('/admin/bulk/publish', ipWhitelist, verifyToken, verifyAdmin, bulkPublishChangelogs);
 router.patch('/admin/reorder', ipWhitelist, verifyToken, verifyAdmin, reorderChangelogs);
+
+// Bulk JSON import (create new + update existing by version).
+// NOTE: the body for this route is parsed by a scoped 256KB express.json
+// mounted in index.js BEFORE the global 10kb parser — large import files
+// would otherwise be rejected with 413 before reaching this router.
+router.post(
+    '/admin/import',
+    ipWhitelist,
+    verifyToken,
+    verifyAdmin,
+    importRateLimiter,
+    bulkImportChangelogs
+);
 
 export default router;

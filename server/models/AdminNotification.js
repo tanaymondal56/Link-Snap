@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import logger from '../utils/logger.js';
 
 /**
  * Admin Notification Model
@@ -76,8 +77,7 @@ const adminNotificationSchema = new mongoose.Schema({
 
   // For aggregation - time window this notification covers
   aggregationKey: {
-    type: String,
-    index: true
+    type: String
   },
   
   aggregationStart: {
@@ -104,6 +104,11 @@ const adminNotificationSchema = new mongoose.Schema({
 
 // TTL index: Auto-expire notifications after 30 days
 adminNotificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+// Unique aggregation window: guarantees only one aggregated doc per
+// type+hour so concurrent creators collide safely on 11000 instead of
+// duplicating notifications. Sparse — critical/warning docs use null keys.
+adminNotificationSchema.index({ aggregationKey: 1 }, { unique: true, sparse: true });
 
 // Compound index for efficient queries
 adminNotificationSchema.index({ severity: 1, isRead: 1, createdAt: -1 });
@@ -139,37 +144,64 @@ adminNotificationSchema.statics.createOrAggregate = async function(type, severit
   // For info/summary, aggregate within 1-hour windows
   const now = new Date();
   const hourStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours());
-  const hourEnd = new Date(hourStart.getTime() + 60 * 60 * 1000);
   const aggregationKey = `${type}-${hourStart.toISOString()}`;
 
-  // Try to find existing aggregated notification
-  const existing = await this.findOne({
-    aggregationKey,
-    type,
-    createdAt: { $gte: hourStart, $lt: hourEnd }
+  // ── Race-safe aggregation ─────────────────────────────────────────────
+  // The previous read-modify-write (findOne → count += 1 → save) silently lost
+  // increments under concurrent events. Strategy:
+  //   1. FAST PATH — atomic pipeline update on the existing doc: count is
+  //      incremented and the message re-rendered from the NEW count in one
+  //      round-trip. No read-modify-write window.
+  //   2. CREATE PATH — if no doc exists yet, insert it; a concurrent creator
+  //      colliding on the unique aggregationKey index loses safely (11000)
+  //      and subsequent events take the fast path.
+  const updated = await this.findOneAndUpdate(
+    { aggregationKey, type, title: { $exists: true } },
+    [
+      { $set: { __newCount: { $add: [{ $ifNull: ['$count', 0] }, 1] } } },
+      {
+        $set: {
+          count: '$__newCount',
+          message: {
+            $replaceAll: {
+              input: messageTemplate,
+              find: '{count}',
+              replacement: { $toString: '$__newCount' }
+            }
+          },
+          isRead: false,
+          aggregationEnd: now
+        }
+      },
+      { $unset: '__newCount' }
+    ],
+    { returnDocument: 'after' }
+  ).catch((err) => {
+    logger.warn(`[AdminNotification] Fast-path aggregate failed (${err.message}); using create path.`);
+    return null;
   });
 
-  if (existing) {
-    // Update count and message
-    existing.count += 1;
-    existing.message = messageTemplate.replace('{count}', existing.count);
-    existing.aggregationEnd = now;
-    existing.isRead = false; // Mark as unread again
-    return existing.save();
+  if (updated) return updated;
+
+  try {
+    return await this.create({
+      type,
+      severity,
+      title,
+      message: messageTemplate.replace('{count}', '1'),
+      count: 1,
+      metadata,
+      aggregationKey,
+      aggregationStart: hourStart,
+      aggregationEnd: now
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      // A concurrent creator inserted this window's doc first — read it back.
+      return this.findOne({ aggregationKey, type });
+    }
+    throw err;
   }
-
-  // Create new aggregated notification
-  return this.create({
-    type,
-    severity,
-    title,
-    message: messageTemplate.replace('{count}', '1'),
-    count: 1,
-    metadata,
-    aggregationKey,
-    aggregationStart: hourStart,
-    aggregationEnd: now
-  });
 };
 
 const AdminNotification = mongoose.model('AdminNotification', adminNotificationSchema);

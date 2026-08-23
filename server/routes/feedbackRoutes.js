@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { verifyToken } from '../middleware/authMiddleware.js';
 import { optionalAuth } from '../middleware/optionalAuth.js';
 import Feedback from '../models/Feedback.js';
+import { escapeRegex } from '../utils/regexUtils.js';
 import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
@@ -221,7 +222,11 @@ router.get('/public', optionalAuth, async (req, res) => {
     }
 
     if (req.query.search) {
-      const searchRegex = new RegExp(sanitizeInput(req.query.search), 'i');
+      // Security: escape regex metacharacters BEFORE constructing RegExp.
+      // sanitizeInput only escapes HTML — without escapeRegex an attacker can
+      // submit catastrophic patterns like "(a+)+$" causing ReDoS.
+      const searchTerm = String(req.query.search).slice(0, 200);
+      const searchRegex = new RegExp(escapeRegex(searchTerm), 'i');
       query.$or = [
         { title: searchRegex },
         { message: searchRegex }

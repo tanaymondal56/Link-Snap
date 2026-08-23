@@ -55,10 +55,10 @@ resource "oci_core_security_list" "public_sl" {
     protocol    = "all"
   }
 
-  # SSH from Internet
+  # SSH — restricted via var.ssh_admin_cidr. Set your admin IP in tfvars.
   ingress_security_rules {
     protocol = "6" # TCP
-    source   = "0.0.0.0/0"
+    source   = var.ssh_admin_cidr
     tcp_options {
       min = 22
       max = 22

@@ -44,6 +44,7 @@
  */
 
 import crypto from 'node:crypto';
+import ipaddr from 'ipaddr.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
@@ -127,9 +128,50 @@ const getConnectingIP = (req) => {
  * @param {string} ip - The direct connecting IP
  * @returns {boolean} True if the hop is trusted and may set CF-Connecting-IP
  */
+// ── Env-scoped trusted proxy CIDRs ──────────────────────────────────────
+// By default the code below trusts broad K8s prefixes (10.42./10.244./10.0.).
+// In a flat pod network ANY compromised pod could then spoof cf-connecting-ip
+// and rotate victim IPs through rate limits / bans. Operators can now scope
+// trust to the actual tunnel/pod CIDRs via:
+//   REAL_IP_TRUSTED_CIDRS=10.42.0.0/16,10.244.0.0/16
+// When set, these REPLACE the hardcoded prefixes (loopback/Tailscale/explicit
+// TRUSTED_PROXY_IPS still always apply).
+const envTrustedCIDRs = (process.env.REAL_IP_TRUSTED_CIDRS || '')
+    .split(',')
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .map((c) => {
+        try {
+            return ipaddr.parseCIDR(c);
+        } catch {
+            return null;
+        }
+    })
+    .filter(Boolean);
+
+const isEnvTrustedCIDR = (ip) => {
+    if (envTrustedCIDRs.length === 0) return false;
+    try {
+        const parsed = ipaddr.parse(ip.replace(/^::ffff:/, ''));
+        return envTrustedCIDRs.some(([range, bits]) => parsed.kind() === range.kind() && parsed.match([range, bits]));
+    } catch {
+        return false;
+    }
+};
+
 const isTrustedProxyIP = (ip) => {
     if (!ip || typeof ip !== 'string') return false;
 
+    if (envTrustedCIDRs.length > 0) {
+        // Scoped mode: only loopback, Tailscale, explicit list and the configured CIDRs
+        return isTailscaleSubnet(ip) ||
+            isTrustedIP(ip) ||
+            ip === '127.0.0.1' ||
+            ip.startsWith('127.') ||
+            isEnvTrustedCIDR(ip);
+    }
+
+    // Legacy broad defaults (K8s dev/legacy behaviour)
     return isTailscaleSubnet(ip) ||
         isTrustedIP(ip) ||
         ip === '127.0.0.1' ||

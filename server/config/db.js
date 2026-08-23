@@ -18,7 +18,8 @@ const connectDB = async (retryCount = 0) => {
       maxPoolSize: 50,                // Reuse up to 50 active sockets per pod
       minPoolSize: 10,                // Maintain 10 hot connections to eliminate handshake lag
       maxIdleTimeMS: 60000,           // Close idle connections after 60s of inactivity
-      waitQueueTimeoutMS: 5000        // Fail fast if connection pool is starved for >5s
+      waitQueueTimeoutMS: 5000,       // Fail fast if connection pool is starved for >5s
+      autoIndex: true                 // Auto-build schema indexes
     });
 
     // Add connection event listeners for K8s observability

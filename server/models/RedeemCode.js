@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import crypto from 'node:crypto';
 
 const redeemCodeSchema = new mongoose.Schema({
   code: { 
@@ -110,6 +111,9 @@ redeemCodeSchema.virtual('isValid').get(function() {
 });
 
 // Static method to generate a random code
+// Security: uses crypto.randomBytes (CSPRNG) — Math.random() is
+// predictable and these codes grant paid subscriptions.
+// Alphabet of 32 chars divides 256 evenly → zero modulo bias.
 redeemCodeSchema.statics.generateCode = function(tier, duration) {
   const tierPrefix = tier.toUpperCase().substring(0, 3); // PRO or BUS
   const durationMap = {
@@ -120,8 +124,16 @@ redeemCodeSchema.statics.generateCode = function(tier, duration) {
     'lifetime': 'LT'
   };
   const durationCode = durationMap[duration] || 'XX';
-  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `${tierPrefix}-${durationCode}-${random}`;
+  // Unambiguous alphabet: no 0/O/1/I/L to prevent transcription errors
+  const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const chunk = () => {
+    const bytes = crypto.randomBytes(4);
+    let out = '';
+    for (let i = 0; i < 4; i++) out += ALPHABET[bytes[i] % ALPHABET.length];
+    return out;
+  };
+  // 12 random chars from a 32-char alphabet ≈ 60 bits of entropy
+  return `${tierPrefix}-${durationCode}-${chunk()}-${chunk()}-${chunk()}`;
 };
 
 // Ensure virtuals are included in JSON output

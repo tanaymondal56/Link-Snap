@@ -84,12 +84,14 @@ chown -R ubuntu:ubuntu /home/ubuntu/.kube
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
 # 5. Install Nginx Ingress Controller (baremetal — no cloud LB needed)
+# bumped from v1.10.1 (2024 vintage) to current stable v1.15.1
 echo "[$(date)] Installing Nginx Ingress Controller..."
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/baremetal/deploy.yaml
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.15.1/deploy/static/provider/baremetal/deploy.yaml
 
 # 6. Install Cert-Manager
+# bumped from v1.15.3 (2024 vintage) to current stable v1.21.1
 echo "[$(date)] Installing Cert-Manager..."
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.3/cert-manager.yaml
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.21.1/cert-manager.yaml
 
 echo "[$(date)] Frontend node cloud-init complete!"
 EOF

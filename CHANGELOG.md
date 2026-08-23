@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.7.1] - 2026-07-29
+## [0.7.1] - 2026-08-23
 
 ### HttpOnly Cookie Auth, DBSC Protocol, BullMQ Webhook Queue & Dual-Layer Security Overhaul
 
@@ -64,6 +64,16 @@ This release delivers major architectural and DevSecOps security overhauls acros
 ### 🗺️ Interactive Roadmap & Targeted DB Query Optimization
 - **Interactive Roadmap & Ideas Board Overhaul:** Redesigned public Roadmap page featuring Kanban, Timeline, and Community Ideas views, complete with upvoting, status filtering, search capabilities, and persistent `localStorage` tab state.
 - **Targeted Query & Cache Optimization:** Stripped full `votes` arrays from MongoDB query selections and Redis cache payloads, replacing full array transport with lightweight targeted ID lookups to minimize Node.js V8 garbage collection and memory footprint on OCI Free Tier instances.
+
+### 🛡️ Pre-Release Security Audit Remediation & Infrastructure Hardening
+- **Fail-Closed Rate Limiting:** Auth-critical limiters (login, OTP, reset, register) now deny requests when the Redis store is unavailable instead of silently allowing all traffic through.
+- **CSP Hardening Everywhere:** Removed `unsafe-inline`/`unsafe-eval` from server CSP `scriptSrc`, added HSTS + a full Content-Security-Policy to Cloudflare Pages `_headers`, and fixed nginx `add_header` inheritance that dropped security headers from cached assets and HTML.
+- **CSRF Scope Narrowing:** Replaced the blanket `/api/url/*` CSRF exemption with a method-aware guard — link update/delete mutations now require the `X-XSRF-TOKEN` header.
+- **Cryptographic Hardening:** Redeem codes regenerated with `crypto.randomBytes` (~60-bit entropy), email OTPs SHA-256 hashed at rest in MongoDB + Redis, and startup validation refuses placeholder/short JWT secrets in production.
+- **Webhook Payload Fix:** Dedicated 100kb parser for `/api/webhooks` prevents large LemonSqueezy payment payloads from being rejected with 413 before signature verification.
+- **Refresh Race Fix:** Concurrent token refreshes from multiple tabs no longer force-log-out the losing session during the rotation grace window.
+- **K8s Quota vs HPA Fix:** ResourceQuota raised above steady-state memory requests so the autoscaler can actually schedule pods beyond min replicas.
+- **Terraform & CI Least Privilege:** VPC-only K8s API default, admin-CIDR SSH scoping, remote-state template, cloud-init bumped to ingress-nginx v1.15.1 / cert-manager v1.21.1, per-job GitHub Actions permissions, and infra/doc paths excluded from image rebuild triggers.
 
 ---
 

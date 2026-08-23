@@ -8,13 +8,15 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { config } from 'dotenv';
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables from .env file
-config();
+// Load environment variables from .env file (native in Node 20+)
+try {
+  process.loadEnvFile();
+} catch {
+  // .env file is optional
+}
 
 // Get base URL from environment or use default
 const BASE_URL = process.env.VITE_BASE_URL || 'https://lksnp.qzz.io';

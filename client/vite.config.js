@@ -5,6 +5,25 @@ import { VitePWA } from 'vite-plugin-pwa'
 import viteCompression from 'vite-plugin-compression'
 import tailwindcss from '@tailwindcss/vite'
 
+// ── guard against unreplaced %VITE_*% literals in index.html ────────────
+// Vite only substitutes %ENV% when the variable is defined; otherwise the raw
+// literal ships to production (broken canonical/og/twitter URLs). This plugin
+// substitutes safe fallbacks for anything left behind.
+// Note: config files execute in Node — access env via globalThis so the
+// browser-scoped ESLint no-undef rule doesn't fire on bare `process`.
+const getNodeEnv = () => globalThis.process?.env ?? {};
+const htmlEnvFallback = () => ({
+  name: 'html-env-fallback',
+  transformIndexHtml(html) {
+    const env = getNodeEnv();
+    const base = env.VITE_BASE_URL || 'https://lksnp.qzz.io';
+    const domain = env.VITE_DOMAIN || 'lksnp.qzz.io';
+    return html
+      .split('%VITE_BASE_URL%').join(base)
+      .split('%VITE_DOMAIN%').join(domain);
+  },
+});
+
 // https://vite.dev/config/
 export default defineConfig(async ({ mode }) => {
   // Dev-only plugins loaded conditionally
@@ -23,6 +42,7 @@ export default defineConfig(async ({ mode }) => {
 
   return {
     plugins: [
+      htmlEnvFallback(),
       tailwindcss(),
       react(),
       ...devPlugins, // Click-to-code inspector + debug toolbar (dev only)

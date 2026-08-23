@@ -104,6 +104,14 @@ sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 // Compound index for user queries
 sessionSchema.index({ userId: 1, createdAt: -1 });
 
+// Grace-window lookups: validateSession queries by previousTokenHash on
+// every refresh issued within the 30s rotation grace period — without this
+// sparse index those lookups are full collection scans.
+sessionSchema.index(
+  { previousTokenHash: 1 },
+  { sparse: true, partialFilterExpression: { previousTokenHash: { $type: 'string' } } }
+);
+
 // Note: Use hashToken from sessionHelper.js for token operations
 // Static method to find session by raw token (requires passing tokenHash)
 sessionSchema.statics.findByTokenHash = async function(tokenHash) {

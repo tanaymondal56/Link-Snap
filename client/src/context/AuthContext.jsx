@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import api, { setAccessToken } from '../api/axios';
+import api from '../api/axios';
 import showToast from '../utils/toastUtils';
 
 const AuthContext = createContext();
@@ -7,9 +7,30 @@ const AuthContext = createContext();
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
 
+// ──  privacy trim ─────────────────────────────────────────────────────────
+// Only non-sensitive, UI-necessary fields are cached in localStorage. PII
+// (email, phone, company, website, bio) is fetched fresh from /auth/refresh
+// on every load instead of sitting in storage for a week.
+const CACHE_ALLOWED_FIELDS = [
+  '_id', 'username', 'firstName', 'lastName', 'avatar',
+  'role', 'idTier', 'eliteId', 'snapId',
+];
+const sanitizeForCache = (u) => {
+  if (!u || typeof u !== 'object') return null;
+  const out = {};
+  for (const key of CACHE_ALLOWED_FIELDS) {
+    if (u[key] !== undefined) out[key] = u[key];
+  }
+  // Minimal subscription info for instant tier-gating paint (no billing details)
+  if (u.subscription) {
+    out.subscription = { tier: u.subscription.tier, status: u.subscription.status };
+  }
+  return out;
+};
+
 export const AuthProvider = ({ children }) => {
-  // Max age for cached auth state (7 days in milliseconds)
-  const AUTH_CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+  // Max age for cached auth state
+  const AUTH_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
 
   // Persisted Auth: Try to load cached user from localStorage for instant UI
   const [user, setUser] = useState(() => {
@@ -54,7 +75,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     try {
       if (user) {
-        localStorage.setItem('ls_auth_user', JSON.stringify(user));
+        localStorage.setItem('ls_auth_user', JSON.stringify(sanitizeForCache(user)));
         localStorage.setItem('ls_auth_cached_at', Date.now().toString());
       } else {
         localStorage.removeItem('ls_auth_user');
@@ -95,9 +116,6 @@ export const AuthProvider = ({ children }) => {
         try {
           // Attempt to get a new access token using the refresh token cookie
           const { data: refreshData } = await api.post('/auth/refresh');
-
-          // If successful, set the token in memory
-          setAccessToken(refreshData.accessToken);
 
           // OPTIMIZED: Use user data from refresh response if available
           // This avoids the redundant /auth/me call
@@ -161,7 +179,6 @@ export const AuthProvider = ({ children }) => {
       if (e.key === 'ls_auth_user') {
         if (!e.newValue) {
           // User was logged out in another tab
-          setAccessToken(null);
           setUser(null);
         } else {
           // User was logged in or updated in another tab
@@ -190,7 +207,6 @@ export const AuthProvider = ({ children }) => {
     const handleAuthLogoutEvent = () => {
       localStorage.removeItem('ls_auth_user');
       localStorage.removeItem('ls_auth_cached_at');
-      setAccessToken(null);
       setUser(null);
       if (userRef.current) {
         api.post('/auth/logout').catch(() => {});
@@ -232,9 +248,6 @@ export const AuthProvider = ({ children }) => {
   const login = async (identifier, password) => {
     try {
       const { data } = await api.post('/auth/login', { identifier, password });
-
-      // Update memory token
-      setAccessToken(data.accessToken);
 
       const userData = {
         _id: data._id,
@@ -325,9 +338,8 @@ export const AuthProvider = ({ children }) => {
         return { success: true, requireVerification: true, email: data.email };
       }
 
-      // Update memory token
-      setAccessToken(data.accessToken);
-
+      // tokens arrive as HttpOnly cookies set by the server — nothing to
+      // store client-side. Build user object from response payload.
       const userData = {
         _id: data._id,
         internalId: data.internalId,
@@ -372,10 +384,7 @@ export const AuthProvider = ({ children }) => {
     } catch {
       /* ignore server logout errors, proceed with local cleanup */
     } finally {
-      // 2. Clear token in memory
-      setAccessToken(null);
-
-      // 3. Clear user state (triggers useEffect to wipe ls_auth_user & ls_auth_cached_at)
+      // 2. Clear user state (triggers useEffect to wipe ls_auth_user & ls_auth_cached_at)
       setUser(null);
 
       // 4. Clean up auxiliary local storage keys

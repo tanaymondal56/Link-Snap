@@ -111,7 +111,7 @@ export const checkAppealStatus = async (req, res) => {
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const token = authHeader.split(' ')[1];
             try {
-                const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+                const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] }); // algorithm pinned (consistent with rest of codebase)
                 if (decoded.type === 'appeal') {
                     userId = decoded.id;
                 }

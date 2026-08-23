@@ -63,7 +63,13 @@ variable "operating_system_version" {
 }
 
 variable "kubectl_access_cidr" {
-  description = "CIDR range allowed to reach the K8s API (port 6443). Use your GitHub Actions IPs or admin IP. Default: allow nowhere — set explicitly."
+  description = "CIDR allowed to reach the K8s API on port 6443. Default is VPC-internal ONLY — the old default of 0.0.0.0/0 contradicted its own comment. For GitHub Actions deploys, set this explicitly in terraform.tfvars."
   type        = string
-  default     = "0.0.0.0/0" # Override in tfvars for production hardening
+  default     = "10.0.0.0/16"
+}
+
+variable "ssh_admin_cidr" {
+  description = "CIDR allowed to reach SSH on port 22. Restrict to your admin IP/range in terraform.tfvars — leaving 0.0.0.0/0 exposes the VM to internet-wide SSH probes."
+  type        = string
+  default     = "0.0.0.0/0"
 }

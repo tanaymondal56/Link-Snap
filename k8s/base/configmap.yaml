@@ -27,6 +27,12 @@ data:
   ADMIN_ENABLED: "true"
   PROXY_GATE_ENABLED: "false"          # No proxy gate needed in K8s — CF Tunnel handles ingress
   REAL_IP_HEADER: "cf-connecting-ip"
+  # ── IP trust scoping ──────────────────────────────────────────────────────────
+  # Scope which source IPs may supply cf-connecting-ip. When unset, broad
+  # legacy K8s prefixes are trusted (10.42/10.244/10.0). Uncomment and set to
+  # your actual pod/tunnel CIDRs so a compromised pod elsewhere in the flat
+  # network cannot spoof user IPs (rate-limit poisoning / ban evasion).
+  # REAL_IP_TRUSTED_CIDRS: "10.42.0.0/16,10.244.0.0/16"
   # SameSite=None required for cross-origin CF Pages ↔ API credentialed requests
   COOKIE_SAMESITE: "none"
   WEBAUTHN_RP_ID: "lksnp.qzz.io"

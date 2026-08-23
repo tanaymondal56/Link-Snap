@@ -21,15 +21,21 @@ spec:
 ---
 # ResourceQuota: cap total namespace consumption to protect the OCI node
 # from HPA runaways or misconfigured deployments consuming all 24GB RAM.
+#
+# ── Capacity math (raised from requests.memory=1Gi) ─────────────────────
+# The old 1Gi quota was BELOW steady-state demand, so the HPA could never
+# scale beyond minReplicas — new pods sat Pending on quota:
+#   backend 6×256Mi = 1536Mi | redis 300Mi | cloudflared 2×128Mi = 256Mi
+#   + cronjob bursts (2×128Mi) ≈ 2348Mi peak requests → quota must exceed it.
 apiVersion: v1
 kind: ResourceQuota
 metadata:
   name: linksnap-resource-quota
 spec:
   hard:
-    requests.cpu: "1"
-    requests.memory: "1Gi"
+    requests.cpu: "2"
+    requests.memory: "3Gi"
     limits.cpu: "4"
-    limits.memory: "4Gi"
+    limits.memory: "5Gi"
     pods: "20"
     persistentvolumeclaims: "5"

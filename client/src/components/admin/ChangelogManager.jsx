@@ -599,7 +599,7 @@ const ChangelogManager = () => {
     }
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const raw = event.target.result;
 
@@ -611,9 +611,18 @@ const ChangelogManager = () => {
 
         const data = JSON.parse(raw);
 
-        // Guard: Must be a plain object
+        // ── Bulk import: array of entries OR { changelogs: [...] } ────────────
+        // Creates new entries AND updates existing ones (matched by version).
+        // Handled entirely server-side via /changelog/admin/import.
+        const bulkEntries = Array.isArray(data) ? data : Array.isArray(data?.changelogs) ? data.changelogs : null;
+        if (bulkEntries) {
+          await handleBulkImport(bulkEntries);
+          return;
+        }
+
+        // Guard: Must be a plain object (single entry → load into form)
         if (!data || typeof data !== 'object' || Array.isArray(data)) {
-          showToast.error('JSON root must be an object (not an array or primitive)');
+          showToast.error('JSON root must be an object, an array of entries, or { "changelogs": [...] }');
           return;
         }
 
@@ -739,6 +748,102 @@ const ChangelogManager = () => {
     importFileRef.current?.click();
   };
 
+  // Bulk JSON import: creates new entries AND updates existing ones (matched
+  // by version). Heavy validation is server-side; here we pre-screen shape,
+  // preview the create/update split, and confirm intent before sending.
+  const handleBulkImport = async (entries) => {
+    if (!Array.isArray(entries) || entries.length === 0) {
+      showToast.error('Import file contains no changelog entries');
+      return;
+    }
+    if (entries.length > 50) {
+      showToast.error(`Too many entries (${entries.length}). Maximum 50 per import.`);
+      return;
+    }
+
+    // Light shape pre-check for a friendly error before hitting the API —
+    // the server re-validates every field authoritatively.
+    const malformed = entries.findIndex(
+      (e) => !e || typeof e !== 'object' ||
+        typeof e.version !== 'string' || !e.version.trim() ||
+        typeof e.title !== 'string' || !e.title.trim() ||
+        !Array.isArray(e.changes) || e.changes.length === 0
+    );
+    if (malformed !== -1) {
+      showToast.error(`Entry #${malformed + 1} is invalid — each entry needs "version", "title", and a non-empty "changes" array`);
+      return;
+    }
+
+    // Preview the split: creates vs updates based on currently loaded entries.
+    // In-file duplicates are stripped here (first occurrence wins) so the
+    // server doesn't reject them as failed entries.
+    const existingVersions = new Map(changelogs.map((c) => [c.version.toLowerCase(), c.version]));
+    const updateVersions = [];
+    const createVersions = [];
+    const seenInFile = new Set();
+    const dedupedEntries = [];
+    let dupesInFile = 0;
+    for (const e of entries) {
+      const key = e.version.trim().toLowerCase();
+      if (seenInFile.has(key)) { dupesInFile++; continue; }
+      seenInFile.add(key);
+      dedupedEntries.push(e);
+      if (existingVersions.has(key)) updateVersions.push(existingVersions.get(key));
+      else createVersions.push(e.version.trim());
+    }
+
+    const lines = [];
+    if (createVersions.length) {
+      lines.push(`• Create ${createVersions.length} new: ${createVersions.slice(0, 5).join(', ')}${createVersions.length > 5 ? ', …' : ''}`);
+    }
+    if (updateVersions.length) {
+      lines.push(`• Update ${updateVersions.length} existing: ${updateVersions.slice(0, 5).join(', ')}${updateVersions.length > 5 ? ', …' : ''}`);
+    }
+    if (dupesInFile > 0) lines.push(`• Remove ${dupesInFile} duplicate version(s) within the file (keeping first)`);
+
+    const confirmed = await confirm({
+      title: 'Bulk Import Changelogs',
+      message: `${dedupedEntries.length} entr${dedupedEntries.length === 1 ? 'y' : 'ies'} will be imported.\n\n${lines.join('\n')}\n\nExisting entries keep their order, votes, and history.`,
+      confirmText: 'Import',
+      type: 'default',
+    });
+    if (!confirmed) return;
+
+    try {
+      setSaving(true);
+      const { data } = await api.post('/changelog/admin/import', { changelogs: dedupedEntries });
+
+      const bits = [];
+      if (data.createdCount) bits.push(`${data.createdCount} created`);
+      if (data.updatedCount) bits.push(`${data.updatedCount} updated`);
+      const failCount = data.failed?.length || 0;
+      if (failCount) bits.push(`${failCount} failed`);
+      if (data.clearedScheduledFor?.length) {
+        bits.push(`${data.clearedScheduledFor.length} past schedule(s) cleared`);
+      }
+
+      if (failCount > 0) {
+        const firstFail = data.failed[0];
+        showToast.warning(
+          `Import partial: ${bits.join(', ')}. First failure — v${firstFail.version}: ${firstFail.error}`,
+          'Bulk Import'
+        );
+      } else {
+        showToast.success(bits.join(', ') || 'Nothing to import', 'Bulk Import');
+      }
+
+      fetchChangelogs();
+    } catch (err) {
+      const msg = err.response?.data?.message;
+      showToast.error(msg || 'Bulk import failed. Check the file format and try again.');
+      if (err.response?.data?.failed?.length) {
+        console.warn('[Changelog import] Failed entries:', err.response.data.failed);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Filter changelogs based on search and filter
   const filteredChangelogs = changelogs.filter(changelog => {
     // Apply search filter
@@ -797,7 +902,7 @@ const ChangelogManager = () => {
           <button
             onClick={() => importFileRef.current?.click()}
             className="flex items-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 text-gray-300 font-medium rounded-xl hover:bg-gray-700 hover:text-white transition-colors"
-            title="Import changelog from a JSON file"
+            title="Import JSON — single entry opens the editor; multi-entry files bulk create new + update existing by version"
           >
             <Upload className="w-4 h-4" />
             Import JSON

@@ -36,7 +36,7 @@ import {
   Sparkles,
   Loader2
 } from 'lucide-react';
-import api, { getAccessToken } from '../api/axios';
+import api from '../api/axios';
 
 // Only render in development mode
 const isDev = import.meta.env.MODE === 'development' || import.meta.env.DEV;
@@ -223,7 +223,16 @@ const DevCommandCenter = () => {
       category: '🔍 Debug', 
       keywords: 'time' 
     },
-    { id: 'copy-token', label: 'Copy Auth Token', icon: Copy, action: () => { const token = getAccessToken() || 'No token'; navigator.clipboard.writeText(token); showToast.info(token !== 'No token' ? 'Token copied!' : 'No token found', { icon: token !== 'No token' ? '🔑' : '❌' }); }, category: '🔍 Debug', keywords: 'jwt auth' },
+    { 
+      // replaced permanently-broken "Copy Auth Token" (getAccessToken was a
+      // no-op stub — auth uses HttpOnly cookies that JS can never read).
+      id: 'auth-cookie-check', 
+      label: 'Check Auth Cookies', 
+      icon: Copy, 
+      action: () => { const hasSession = document.cookie.includes('XSRF-TOKEN='); showLog('Auth Check', `CSRF cookie present: ${hasSession ? 'yes' : 'no'}\nAccess/refresh tokens are HttpOnly (not readable by JS by design).`); }, 
+      category: '🔍 Debug', 
+      keywords: 'jwt auth cookie csrf' 
+    },
     { 
       id: 'viewport-info', 
       label: 'Show Viewport Info', 

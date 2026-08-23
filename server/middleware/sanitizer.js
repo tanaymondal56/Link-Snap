@@ -12,9 +12,12 @@ const MAX_DEPTH = 20;
 
 // Recursively sanitize an object by removing keys starting with $ or containing .
 const sanitize = (obj, depth = 0) => {
-    // Prevent stack overflow on deeply nested or circular objects
+    // Prevent stack overflow on deeply nested or circular objects.
+    // Security: return an EMPTY object rather than the raw input — the
+    // old behaviour passed unsanitized data through at depth > MAX_DEPTH,
+    // letting $gt/$where operators survive nested 21+ levels deep.
     if (depth > MAX_DEPTH) {
-        return obj;
+        return {};
     }
 
     if (obj === null || typeof obj !== 'object') {

@@ -31,16 +31,22 @@ const changeSchema = z.object({
     text: z.string().min(1).max(200).transform(sanitizeText)
 });
 
+// Date strings must be parseable; normalized to ISO so bulkWrite receives
+// canonical values (model field is type: Date).
+const dateStringSchema = z.string()
+    .refine((s) => !Number.isNaN(Date.parse(s)), { message: 'Invalid date format' })
+    .transform((s) => new Date(s).toISOString());
+
 const createChangelogSchema = z.object({
     version: z.string().regex(/^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/, 'Invalid version format (X.Y.Z or X.Y.Z-tag)').transform(v => v.toLowerCase()),
-    date: z.string().optional(),
+    date: dateStringSchema.optional(),
     title: z.string().min(1).max(100).transform(sanitizeText),
     description: z.string().max(500).optional().transform(val => val ? sanitizeText(val) : val),
     type: z.enum(['major', 'minor', 'patch', 'initial']).optional(),
     icon: z.enum(['Sparkles', 'Rocket', 'Shield', 'Zap', 'BarChart3', 'Bell', 'Bug', 'Star', 'Gift', 'Flame', 'Heart']).optional(),
     changes: z.array(changeSchema).min(1, 'At least one change is required'),
     isPublished: z.boolean().optional(),
-    scheduledFor: z.string().nullable().optional(), // ISO date string for scheduled publishing
+    scheduledFor: dateStringSchema.nullable().optional(), // ISO date string for scheduled publishing
     // Roadmap fields
     showOnRoadmap: z.boolean().optional(),
     roadmapStatus: z.enum(['idea', 'planned', 'in-progress', 'testing', 'coming-soon']).optional(),
@@ -663,6 +669,194 @@ export const bulkPublishChangelogs = async (req, res, next) => {
         res.json({ 
             message: `${publish ? 'Published' : 'Unpublished'} ${result.modifiedCount} changelog(s)`,
             modifiedCount: result.modifiedCount
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Bulk import changelogs from JSON (create new + update existing by version)
+// @route   POST /api/admin/changelog/import
+// @access  Admin
+//
+// Hardening notes:
+//  • Body is JSON parsed through a scoped 256KB parser mounted in index.js
+//    (before the global 10kb cap) — no multipart/file parsing needed since the
+//    payload is pure JSON.
+//  • The global mongoSanitize middleware already strips $-prefixed keys,
+//    dotted keys, and prototype-pollution keys (__proto__/constructor/prototype)
+//    from req.body BEFORE this handler runs.
+//  • Zod validates EVERY entry up-front; the batch is atomic — if any entry is
+//    invalid, nothing is written and per-entry errors are returned.
+//  • Updates match on version and NEVER touch order/votes/voteCount/history;
+//    a history entry is appended instead.
+//  • Duplicate versions within one file are rejected (ambiguous intent).
+//  • Date fields must be parseable (normalized to ISO by zod); a valid-but-past
+//    scheduledFor is cleared (not fatal) and reported.
+const MAX_IMPORT_ENTRIES = 50;
+
+export const bulkImportChangelogs = async (req, res, next) => {
+    try {
+        const payload = Array.isArray(req.body) ? req.body : req.body?.changelogs;
+
+        if (!Array.isArray(payload)) {
+            return res.status(400).json({
+                message: 'Body must be an array of changelog entries or an object with a "changelogs" array',
+            });
+        }
+        if (payload.length === 0) {
+            return res.status(400).json({ message: 'Import contains no entries' });
+        }
+        if (payload.length > MAX_IMPORT_ENTRIES) {
+            return res.status(413).json({
+                message: `Too many entries (${payload.length}). Maximum ${MAX_IMPORT_ENTRIES} per import.`,
+            });
+        }
+
+        // ── Phase 1: validate everything before touching the database ────────
+        const validated = [];
+        const failed = [];
+        const seenVersions = new Map(); // lowercase version → first index
+
+        payload.forEach((raw, index) => {
+            const versionLabel = typeof raw?.version === 'string' ? raw.version : '(missing version)';
+
+            const validation = createChangelogSchema.safeParse(raw);
+            if (!validation.success) {
+                const fieldErrors = validation.error.flatten().fieldErrors;
+                const firstField = Object.keys(fieldErrors)[0];
+                const firstError = firstField
+                    ? `${firstField}: ${fieldErrors[firstField][0]}`
+                    : 'Validation failed';
+                failed.push({ index, version: versionLabel, error: firstError });
+                return;
+            }
+
+            // In-file duplicate versions are ambiguous — reject later occurrences
+            const key = validation.data.version.toLowerCase();
+            if (seenVersions.has(key)) {
+                failed.push({
+                    index,
+                    version: versionLabel,
+                    error: `Duplicate version within file (already at entry ${seenVersions.get(key)})`,
+                });
+                return;
+            }
+            seenVersions.set(key, index);
+            validated.push(validation.data);
+        });
+
+        // Clear past/invalid scheduledFor values instead of failing the batch
+        const clearedScheduledFor = [];
+        for (const entry of validated) {
+            if (entry.scheduledFor && new Date(entry.scheduledFor) < new Date()) {
+                delete entry.scheduledFor;
+                clearedScheduledFor.push(entry.version);
+            }
+        }
+
+        if (validated.length === 0) {
+            return res.status(400).json({
+                message: 'All entries failed validation. Nothing was imported.',
+                failed,
+            });
+        }
+
+        // ── Phase 2: classify creates vs updates ─────────────────────────────
+        const versions = validated.map((v) => v.version);
+        const existingDocs = await Changelog.find({ version: { $in: versions } })
+            .select('_id version')
+            .lean();
+        const existingVersions = new Set(existingDocs.map((d) => d.version));
+
+        const highestOrderDoc = await Changelog.findOne().sort({ order: -1 }).select('order').lean();
+        let nextOrder = highestOrderDoc ? highestOrderDoc.order + 1 : 0;
+
+        const created = [];
+        const updated = [];
+        const ops = [];
+
+        // Fields an import is allowed to set on UPDATE — deliberately excludes
+        // order, votes, voteCount, history (operational state must not be clobbered).
+        const UPDATABLE_FIELDS = [
+            'date', 'title', 'description', 'type', 'icon', 'changes',
+            'isPublished', 'scheduledFor',
+            'showOnRoadmap', 'roadmapStatus', 'estimatedRelease', 'roadmapPriority',
+        ];
+        const buildUpdateSet = (entry) => {
+            const set = {};
+            for (const field of UPDATABLE_FIELDS) {
+                if (entry[field] !== undefined) set[field] = entry[field];
+            }
+            return set;
+        };
+
+        for (const entry of validated) {
+            if (existingVersions.has(entry.version)) {
+                updated.push(entry.version);
+                ops.push({
+                    updateOne: {
+                        filter: { version: entry.version },
+                        update: {
+                            $set: buildUpdateSet(entry),
+                            $push: {
+                                history: {
+                                    action: 'updated',
+                                    timestamp: new Date(),
+                                    changes: 'Updated via JSON import',
+                                },
+                            },
+                        },
+                    },
+                });
+            } else {
+                created.push(entry.version);
+                ops.push({
+                    insertOne: {
+                        document: {
+                            ...entry,
+                            order: nextOrder++,
+                            history: [{
+                                action: 'created',
+                                timestamp: new Date(),
+                                changes: 'Created via JSON import',
+                            }],
+                        },
+                    },
+                });
+            }
+        }
+
+        // ── Phase 3: write (unordered so one failure doesn't abort the rest) ─
+        const writeErrors = [];
+        try {
+            await Changelog.bulkWrite(ops, { ordered: false });
+        } catch (err) {
+            // Partial failures land in err.writeErrors; successful writes still applied
+            if (err.writeErrors) {
+                for (const we of err.writeErrors) {
+                    const doc = ops[we.index]?.updateOne?.filter?.version
+                        ?? ops[we.index]?.insertOne?.document?.version
+                        ?? '(unknown)';
+                    writeErrors.push({ version: String(doc), error: we.errmsg || 'Write failed' });
+                }
+            } else {
+                throw err;
+            }
+        }
+
+        await invalidateChangelogCaches();
+
+        logger.info(`[Changelog] Import by ${req.user?.username || req.user?._id}: ${created.length} created, ${updated.length} updated, ${failed.length + writeErrors.length} failed`);
+
+        res.json({
+            totalReceived: payload.length,
+            createdCount: created.length,
+            updatedCount: updated.length,
+            created,
+            updated,
+            failed: [...failed, ...writeErrors.map((w) => ({ version: w.version, error: w.error }))],
+            clearedScheduledFor,
         });
     } catch (error) {
         next(error);

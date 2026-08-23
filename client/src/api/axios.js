@@ -26,13 +26,9 @@ const api = axios.create({
   timeout: 10000, // 10 seconds timeout
 });
 
-export const setAccessToken = () => {
-  // No-op
-};
-
-export const getAccessToken = () => {
-  return null;
-};
+// ──  cleanup: removed no-op setAccessToken/getAccessToken exports ─────────
+// Auth relies entirely on HttpOnly cookies (set by the server); the in-memory
+// token functions were stubs that callers invoked to no effect.
 
 // Flag to prevent multiple refresh attempts
 let isRefreshing = false;

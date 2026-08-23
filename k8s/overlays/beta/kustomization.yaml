@@ -22,3 +22,9 @@ patches:
         path: /spec/strategy
         value:
           type: Recreate
+# WHY Recreate IN BETA (intentional downtime — do not "fix" back to RollingUpdate):
+# Beta pods share dev/beta Redis and Cosmos state. Running old and new app versions
+# concurrently during a rolling update caused mixed-schema writes and confusing
+# beta test results. Recreate guarantees only ONE version touches state at a time.
+# Brief unavailability is acceptable in staging; production keeps maxUnavailable: 0
+# RollingUpdate for zero-downtime deploys.

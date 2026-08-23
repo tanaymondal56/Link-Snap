@@ -17,13 +17,12 @@ const userSchema = new mongoose.Schema({
   username: {
     type: String,
     required: true,
-    unique: true,
+    unique: true, // unique:true already creates the index ( removed redundant index:true)
     trim: true,
     lowercase: true,
     minlength: 3,
     maxlength: 30,
     match: [/^[a-z0-9_-]+$/, 'Username can only contain letters, numbers, underscores, and dashes'],
-    index: true,
   },
   usernameChangedAt: {
     type: Date,
@@ -33,16 +32,14 @@ const userSchema = new mongoose.Schema({
   eliteId: {
     type: String,
     unique: true,
-    sparse: true,
-    index: true,
+    sparse: true, // sparse+unique already indexes this field 
     immutable: true,
   },
   // Snap ID (e.g. SP-2025-W8K2P) - Technical/Support
   snapId: {
     type: String,
     unique: true,
-    sparse: true,
-    index: true,
+    sparse: true, // sparse+unique already indexes this field
     immutable: true,
   },
 

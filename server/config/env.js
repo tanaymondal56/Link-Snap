@@ -71,6 +71,25 @@ const validateEnvVars = () => {
     }
   }
 
+  // ── Secret strength validation ─────────────────────────────────────
+  // Presence alone is not enough: placeholder or short secrets must never boot
+  // in production, otherwise tokens are forgeable by anyone who guesses them.
+  const SECRET_MIN_LENGTH = 32;
+  const secretChecks = ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'SESSION_SECRET'];
+  for (const name of secretChecks) {
+    const value = process.env[name];
+    if (!value) continue; // already captured by the missing check above
+    if (value.toLowerCase().startsWith('change_this')) {
+      console.error(`❌ [ENV ERROR] ${name} is still set to a PLACEHOLDER value. Generate a real secret: openssl rand -base64 48`);
+      if (process.env.NODE_ENV === 'production') process.exit(1);
+      warnings.push(`${name} (placeholder value)`);
+    } else if (value.length < SECRET_MIN_LENGTH) {
+      console.error(`❌ [ENV ERROR] ${name} must be at least ${SECRET_MIN_LENGTH} characters (got ${value.length}). Generate one: openssl rand -base64 48`);
+      if (process.env.NODE_ENV === 'production') process.exit(1);
+      warnings.push(`${name} (too short)`);
+    }
+  }
+
   // Check important variables (warn but continue)
   for (const varName of IMPORTANT_VARS) {
     if (!process.env[varName]) {
@@ -78,7 +97,10 @@ const validateEnvVars = () => {
     }
   }
 
-  // Validate ENCRYPTION_KEY is exactly 32 bytes if provided
+  // Validate ENCRYPTION_KEY is exactly 32 bytes if provided.
+  // Missing ENCRYPTION_KEY is fatal in production — without it SMTP credentials
+  // would silently fall back to a hardcoded key (Settings.js), exposing mail
+  // passwords on any DB leak.
   if (process.env.ENCRYPTION_KEY && process.env.ENCRYPTION_KEY.length !== 32) {
     console.error(`❌ [ENV ERROR] ENCRYPTION_KEY must be exactly 32 characters (got ${process.env.ENCRYPTION_KEY.length})`);
     if (process.env.NODE_ENV === 'production') {

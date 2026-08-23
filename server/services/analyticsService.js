@@ -28,7 +28,7 @@ const flushBuffer = async () => {
             if (items && items.length > 0) {
                 for (const item of items) {
                     try {
-                        bufferToInsert.push(JSON.parse(item));
+                        bufferToInsert.push(typeof item === 'string' ? JSON.parse(item) : item);
                     } catch (e) {
                         console.error('[Analytics] Failed to parse queued item:', e);
                     }
