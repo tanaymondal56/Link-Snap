@@ -32,13 +32,19 @@ const isWhitelisted = (ip) => {
  * For Upstash (HTTP REST): manually maps EVAL/EVALSHA/SCRIPT commands since the
  * Upstash SDK does not expose a generic .call() method.
  *
- * Availability semantics: if the active driver is NOT TCP (Upstash REST or
- * memory fallback), this returns undefined so express-rate-limit uses its
- * in-memory store instead — rate limiting keeps working per-instance and
- * auth endpoints stay available during Redis outages (fail-open).
+ * Driver availability is checked at RUNTIME (inside sendCommand), NOT at module
+ * load: this file is imported before startServer() runs connectRedis(), so any
+ * module-scope getRedisDriver() check would always see null and silently demote
+ * every limiter to MemoryStore for the process lifetime.
+ *
+ * Fail-open semantics (deliberate): while the driver is TCP-unavailable
+ * (Upstash REST configured, or Redis still connecting/down), commands resolve
+ * to simulated success so auth endpoints stay available during outages and
+ * the K8s startup race. Trade-off: distributed counting pauses during those
+ * windows; per-instance express-rate-limit memory fallback still applies.
  */
 const createRedisStore = (prefix) => {
-    if (!isRedisConfigured() || getRedisDriver() !== 'tcp') return undefined;
+    if (!isRedisConfigured()) return undefined;
 
     return new RedisStore({
         sendCommand: async (...args) => {
@@ -48,6 +54,7 @@ const createRedisStore = (prefix) => {
                 redis = await connectRedis();
             }
 
+            // Runtime fail-open: TCP not active yet/at all → simulated success
             if (!redis || getRedisDriver() !== 'tcp') {
                 const cmd = args[0].toLowerCase();
                 if (cmd === 'script') return 'mock_sha';
