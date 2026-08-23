@@ -5,7 +5,7 @@ metadata:
   labels:
     app: linksnap-backend
 spec:
-  progressDeadlineSeconds: 120
+  progressDeadlineSeconds: 300
   replicas: 2
   selector:
     matchLabels:
