@@ -33,9 +33,11 @@ const changeSchema = z.object({
 
 // Date strings must be parseable; normalized to ISO so bulkWrite receives
 // canonical values (model field is type: Date).
+// Empty string is accepted as-is (client sends '' for "unscheduled") — mongoose
+// casts '' to null for Date fields, preserving the existing clear-on-save flow.
 const dateStringSchema = z.string()
-    .refine((s) => !Number.isNaN(Date.parse(s)), { message: 'Invalid date format' })
-    .transform((s) => new Date(s).toISOString());
+    .refine((s) => s === '' || !Number.isNaN(Date.parse(s)), { message: 'Invalid date format' })
+    .transform((s) => (s === '' ? s : new Date(s).toISOString()));
 
 const createChangelogSchema = z.object({
     version: z.string().regex(/^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/, 'Invalid version format (X.Y.Z or X.Y.Z-tag)').transform(v => v.toLowerCase()),
@@ -519,8 +521,7 @@ export const togglePublish = async (req, res, next) => {
             changes: changelog.isPublished ? 'Published (hidden from roadmap)' : 'Unpublished (visible on roadmap if enabled)'
         });
         await changelog.save();
-
-
+        await invalidateChangelogCaches();
 
         res.json(changelog);
     } catch (error) {
@@ -620,6 +621,7 @@ export const bulkDeleteChangelogs = async (req, res, next) => {
         }
 
         const result = await Changelog.deleteMany({ _id: { $in: ids } });
+        await invalidateChangelogCaches();
 
         res.json({ 
             message: `Deleted ${result.deletedCount} changelog(s)`,
@@ -665,6 +667,8 @@ export const bulkPublishChangelogs = async (req, res, next) => {
                 }
             }
         );
+
+        await invalidateChangelogCaches();
 
         res.json({ 
             message: `${publish ? 'Published' : 'Unpublished'} ${result.modifiedCount} changelog(s)`,

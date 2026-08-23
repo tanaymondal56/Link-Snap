@@ -69,22 +69,14 @@ router.delete('/roadmap/:id/vote', verifyToken, voteLimiter, unvoteRoadmapItem);
 // Admin routes - require IP whitelist + auth + admin role
 router.get('/admin', ipWhitelist, verifyToken, verifyAdmin, getAllChangelogs);
 router.get('/admin/latest-version', ipWhitelist, verifyToken, verifyAdmin, getLatestVersion);
-router.get('/admin/:id', ipWhitelist, verifyToken, verifyAdmin, getChangelogById);
 router.post('/admin', ipWhitelist, verifyToken, verifyAdmin, createChangelog);
-router.put('/admin/:id', ipWhitelist, verifyToken, verifyAdmin, updateChangelog);
-router.delete('/admin/:id', ipWhitelist, verifyToken, verifyAdmin, deleteChangelog);
-router.post('/admin/:id/duplicate', ipWhitelist, verifyToken, verifyAdmin, duplicateChangelog);
-router.patch('/admin/:id/publish', ipWhitelist, verifyToken, verifyAdmin, togglePublish);
 
-// Bulk operations
+// Bulk operations (must be mounted before /admin/:id to avoid route shadowing)
 router.delete('/admin/bulk', ipWhitelist, verifyToken, verifyAdmin, bulkDeleteChangelogs);
 router.patch('/admin/bulk/publish', ipWhitelist, verifyToken, verifyAdmin, bulkPublishChangelogs);
 router.patch('/admin/reorder', ipWhitelist, verifyToken, verifyAdmin, reorderChangelogs);
 
-// Bulk JSON import (create new + update existing by version).
-// NOTE: the body for this route is parsed by a scoped 256KB express.json
-// mounted in index.js BEFORE the global 10kb parser — large import files
-// would otherwise be rejected with 413 before reaching this router.
+// Bulk JSON import
 router.post(
     '/admin/import',
     ipWhitelist,
@@ -93,5 +85,12 @@ router.post(
     importRateLimiter,
     bulkImportChangelogs
 );
+
+// Individual item operations (:id routes)
+router.get('/admin/:id', ipWhitelist, verifyToken, verifyAdmin, getChangelogById);
+router.put('/admin/:id', ipWhitelist, verifyToken, verifyAdmin, updateChangelog);
+router.delete('/admin/:id', ipWhitelist, verifyToken, verifyAdmin, deleteChangelog);
+router.post('/admin/:id/duplicate', ipWhitelist, verifyToken, verifyAdmin, duplicateChangelog);
+router.patch('/admin/:id/publish', ipWhitelist, verifyToken, verifyAdmin, togglePublish);
 
 export default router;
