@@ -54,7 +54,6 @@ const EditCodeModal = ({ isOpen, onClose, onSuccess, code }) => {
 
   return createPortal(
     <div 
-      data-modal-content
       className="fixed inset-0 z-[100] flex items-center justify-center p-4"
       onTouchStart={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}

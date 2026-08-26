@@ -1,5 +1,7 @@
 import RedeemCode from '../models/RedeemCode.js';
 import User from '../models/User.js';
+import SubscriptionAuditLog from '../models/SubscriptionAuditLog.js';
+import { redisDel } from '../config/redis.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 import { calculateSubscriptionEndDate } from '../utils/dateUtils.js';
@@ -45,9 +47,19 @@ export const generateRedeemCode = async (req, res) => {
 
     logger.info(`[Redeem Code] Admin ${req.user.snapId} created code ${code} for ${tier}/${duration}`);
 
+    const now = new Date();
+    const formattedCode = {
+      ...(redeemCode.toObject ? redeemCode.toObject() : redeemCode),
+      isValid: Boolean(
+        redeemCode.isActive &&
+        redeemCode.usedCount < redeemCode.maxUses &&
+        (!redeemCode.expiresAt || new Date(redeemCode.expiresAt) > now)
+      )
+    };
+
     res.status(201).json({
       message: 'Redeem code created successfully',
-      code: redeemCode
+      code: formattedCode
     });
 
   } catch (error) {
@@ -78,8 +90,18 @@ export const listRedeemCodes = async (req, res) => {
       RedeemCode.countDocuments(query)
     ]);
 
+    const now = new Date();
+    const formattedCodes = codes.map(c => ({
+      ...c,
+      isValid: Boolean(
+        c.isActive &&
+        c.usedCount < c.maxUses &&
+        (!c.expiresAt || new Date(c.expiresAt) > now)
+      )
+    }));
+
     res.json({
-      codes,
+      codes: formattedCodes,
       page: parseInt(page),
       pages: Math.ceil(total / limit),
       total
@@ -133,7 +155,17 @@ export const updateRedeemCode = async (req, res) => {
 
     logger.info(`[Redeem Code] Admin ${req.user.snapId} updated code ${updatedCode.code}`);
 
-    res.json({ message: 'Code updated successfully', code: updatedCode });
+    const now = new Date();
+    const formattedCode = {
+      ...(updatedCode.toObject ? updatedCode.toObject() : updatedCode),
+      isValid: Boolean(
+        updatedCode.isActive &&
+        updatedCode.usedCount < updatedCode.maxUses &&
+        (!updatedCode.expiresAt || new Date(updatedCode.expiresAt) > now)
+      )
+    };
+
+    res.json({ message: 'Code updated successfully', code: formattedCode });
 
   } catch (error) {
     logger.error(`[Redeem Code Error] ${error.message}`);
@@ -166,7 +198,12 @@ export const deactivateRedeemCode = async (req, res) => {
 
     logger.info(`[Redeem Code] Admin ${req.user.snapId} deactivated code ${code.code}`);
 
-    res.json({ message: 'Code deactivated', code });
+    const formattedCode = {
+      ...(code.toObject ? code.toObject() : code),
+      isValid: false
+    };
+
+    res.json({ message: 'Code deactivated', code: formattedCode });
 
   } catch (error) {
     logger.error(`[Redeem Code Error] ${error.message}`);
@@ -219,7 +256,7 @@ export const redeemCode = async (req, res) => {
     // Downgrade protection - prevent redeeming LOWER tier codes (same-tier is allowed for extension)
     const tierRank = { 'free': 0, 'pro': 1, 'business': 2 };
     const currentTier = user.subscription?.tier || 'free';
-    if (tierRank[redeemCodeDoc.tier] < tierRank[currentTier]) {
+    if (tierRank[redeemCodeDoc.tier] < (tierRank[currentTier] ?? 0)) {
       return res.status(400).json({
         message: `Cannot redeem a ${redeemCodeDoc.tier} code while on ${currentTier} plan. Contact support for assistance.`
       });
@@ -229,7 +266,7 @@ export const redeemCode = async (req, res) => {
     const now = new Date();
 
     // Determine action type BEFORE any updates
-    const isUpgrade = tierRank[redeemCodeDoc.tier] > tierRank[currentTier];
+    const isUpgrade = (tierRank[redeemCodeDoc.tier] ?? 0) > (tierRank[currentTier] ?? 0);
     const actionType = isUpgrade ? 'upgrade' : 'extend';
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -305,10 +342,37 @@ export const redeemCode = async (req, res) => {
       { returnDocument: 'after' }
     );
 
-    // Code was already claimed in Step 1, no rollback needed
-    // This is the correct order: claim first, then upgrade
-    // If user upgrade fails (extremely rare), they still have the code claim
-    // which is the correct behavior (admin can manually assist if needed)
+    // Invalidate Redis user session cache immediately so fresh tier is served
+    await redisDel(`ls:user:${user._id}`).catch(() => {});
+
+    // Write to subscription audit log
+    try {
+      await SubscriptionAuditLog.create({
+        userId: user._id,
+        userEmail: user.email,
+        userSnapId: user.snapId || user.email,
+        action: isUpgrade ? 'updated' : 'updated',
+        source: 'user',
+        reason: `Redeemed promo code: ${redeemCodeDoc.code} (${redeemCodeDoc.tier}/${redeemCodeDoc.duration})`,
+        previousData: {
+          tier: currentTier,
+          status: user.subscription?.status || 'inactive',
+          variantId: user.subscription?.variantId,
+          billingCycle: user.subscription?.billingCycle,
+          currentPeriodEnd: user.subscription?.currentPeriodEnd
+        },
+        newData: {
+          tier: redeemCodeDoc.tier,
+          status: 'active',
+          variantId: `REDEEM-${redeemCodeDoc.code}`,
+          billingCycle: redeemCodeDoc.duration === 'lifetime' ? 'lifetime' : 'one_time',
+          currentPeriodStart: now,
+          currentPeriodEnd: endDate
+        }
+      });
+    } catch (auditErr) {
+      logger.warn(`[Redeem Code] Failed to write audit log: ${auditErr.message}`);
+    }
 
     logger.info(`[Redeem Code] User ${user.snapId} redeemed code ${redeemCodeDoc.code} for ${redeemCodeDoc.tier}`);
 

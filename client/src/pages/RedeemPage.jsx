@@ -78,16 +78,20 @@ const RedeemPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <Loader2 className="animate-spin text-blue-500 w-10 h-10" />
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-4 p-4">
+        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 animate-pulse">
+          <Gift className="text-white" size={24} />
+        </div>
+        <Loader2 className="animate-spin text-blue-500 w-8 h-8" />
+        <p className="text-gray-400 text-sm">Loading LinkSnap Redeem...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4 sm:p-6 md:p-8 py-12 relative">
         {/* Background Mesh */}
-        <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
             <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-600/20 blur-[120px]" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-600/20 blur-[120px]" />
         </div>
@@ -146,38 +150,47 @@ const RedeemPage = () => {
                             
                             {/* Input Field */}
                             {status !== 'success' && status !== 'valid' && (
-                                <form onSubmit={handleManualSubmit} className="relative">
-                                    <input
-                                        type="text"
-                                        value={code}
-                                        onChange={(e) => {
-                                            setCode(e.target.value.toUpperCase());
-                                            setError(null);
-                                            setStatus('idle');
-                                        }}
-                                        placeholder="ENTER-CODE-HERE"
-                                        className={`w-full bg-gray-950/50 border-2 rounded-xl px-4 py-4 text-center text-lg font-mono tracking-widest text-white uppercase placeholder-gray-600 focus:outline-none transition-colors ${
-                                            error ? 'border-red-500/50 focus:border-red-500' : 'border-gray-700 focus:border-blue-500'
-                                        }`}
-                                        disabled={status === 'validating'}
-                                    />
-                                    {status === 'validating' && (
-                                        <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                                            <Loader2 className="animate-spin text-blue-500" />
-                                        </div>
-                                    )}
+                                <form onSubmit={handleManualSubmit} className="space-y-4">
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={code}
+                                            onChange={(e) => {
+                                                setCode(e.target.value.toUpperCase());
+                                                setError(null);
+                                                setStatus('idle');
+                                            }}
+                                            placeholder="ENTER-CODE-HERE"
+                                            className={`w-full bg-gray-950/50 border-2 rounded-xl px-4 py-4 text-center text-lg font-mono tracking-widest text-white uppercase placeholder-gray-600 focus:outline-none transition-colors ${
+                                                error ? 'border-red-500/50 focus:border-red-500' : 'border-gray-700 focus:border-blue-500'
+                                            }`}
+                                            disabled={status === 'validating'}
+                                        />
+                                        {status === 'validating' && (
+                                            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                                                <Loader2 className="animate-spin text-blue-500" size={20} />
+                                            </div>
+                                        )}
+                                    </div>
                                     {error && (
-                                        <p className="text-red-400 text-sm mt-2 text-center flex items-center justify-center gap-2">
+                                        <p className="text-red-400 text-sm text-center flex items-center justify-center gap-2">
                                             <AlertTriangle size={14} />
                                             {error}
                                         </p>
                                     )}
                                     <button 
                                         type="submit"
-                                        className="w-full mt-4 py-3 bg-gray-800 hover:bg-gray-700 text-white font-semibold rounded-xl transition-all"
+                                        className="w-full py-3.5 bg-gray-800 hover:bg-gray-700 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                                         disabled={!code.trim() || status === 'validating'}
                                     >
-                                        Check Code
+                                        {status === 'validating' ? (
+                                            <>
+                                                <Loader2 className="animate-spin text-blue-400" size={18} />
+                                                <span>Checking Code...</span>
+                                            </>
+                                        ) : (
+                                            'Check Code'
+                                        )}
                                     </button>
                                 </form>
                             )}
@@ -251,9 +264,17 @@ const RedeemPage = () => {
                                         </button>
                                         <button
                                             onClick={handleRedeem}
-                                            className="flex-[2] py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+                                            disabled={status === 'redeeming'}
+                                            className="flex-[2] py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
-                                            Confirm & Redeem
+                                            {status === 'redeeming' ? (
+                                                <>
+                                                    <Loader2 className="animate-spin text-white" size={18} />
+                                                    <span>Redeeming...</span>
+                                                </>
+                                            ) : (
+                                                'Confirm & Redeem'
+                                            )}
                                         </button>
                                     </div>
                                 </div>

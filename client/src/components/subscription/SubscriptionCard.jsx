@@ -619,7 +619,7 @@ const SubscriptionCard = ({ profile, onRefresh }) => {
             }}
             onFocus={(e) => (e.target.style.borderColor = 'var(--input-focus)')}
             onBlur={(e) => (e.target.style.borderColor = 'var(--input-border)')}
-            maxLength={20}
+            maxLength={50}
           />
           <button
             type="submit"

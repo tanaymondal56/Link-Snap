@@ -176,6 +176,19 @@ const AdminSubscriptions = () => {
     }
   };
 
+  const getCodeStatus = (code) => {
+    if (!code.isActive) {
+      return { label: 'Deactivated', className: 'bg-red-500/20 text-red-400 border border-red-500/30' };
+    }
+    if (code.usedCount >= code.maxUses) {
+      return { label: 'Fully Used', className: 'bg-amber-500/20 text-amber-400 border border-amber-500/30' };
+    }
+    if (code.expiresAt && new Date(code.expiresAt) < new Date()) {
+      return { label: 'Expired', className: 'bg-red-500/20 text-red-400 border border-red-500/30' };
+    }
+    return { label: 'Active', className: 'bg-green-500/20 text-green-400 border border-green-500/30' };
+  };
+
   if (loading && !stats) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -587,15 +600,14 @@ const AdminSubscriptions = () => {
                       </button>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span
-                        className={`px-2 py-0.5 rounded text-xs font-bold ${
-                          code.isValid
-                            ? 'bg-green-500/20 text-green-400'
-                            : 'bg-red-500/20 text-red-400'
-                        }`}
-                      >
-                        {code.isValid ? 'Active' : 'Inactive'}
-                      </span>
+                      {(() => {
+                        const status = getCodeStatus(code);
+                        return (
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${status.className}`}>
+                            {status.label}
+                          </span>
+                        );
+                      })()}
                       {code.isActive && (
                         <button
                           onClick={() => handleDeactivateCode(code._id, code.code)}
@@ -695,15 +707,14 @@ const AdminSubscriptions = () => {
                         {code.usedCount} / {code.maxUses}
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-bold ${
-                            code.isValid
-                              ? 'bg-green-500/20 text-green-400'
-                              : 'bg-red-500/20 text-red-400'
-                          }`}
-                        >
-                          {code.isValid ? 'Active' : 'Inactive'}
-                        </span>
+                        {(() => {
+                          const status = getCodeStatus(code);
+                          return (
+                            <span className={`px-2 py-1 rounded text-xs font-bold ${status.className}`}>
+                              {status.label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-2">
