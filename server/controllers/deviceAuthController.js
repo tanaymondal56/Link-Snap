@@ -636,7 +636,7 @@ export const getVerificationOptions = async (req, res) => {
     const devices = await TrustedDevice.find({
       userId: req.user._id,
       isActive: true,
-    }).select('credentialId');
+    }).select('credentialId').lean();
 
     if (devices.length === 0) {
       return res.status(404).json({ message: 'No active passkeys found for your account' });
@@ -801,7 +801,8 @@ export const getDevices = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
     const devices = await TrustedDevice.find({ userId })
-      .select('-credentialId -publicKey');
+      .select('-credentialId -publicKey')
+      .lean();
       // .sort({ updatedAt: -1 }); // Removed to fix Cosmos DB specific error
     
     // Sort in memory instead (list is small, usually < 10)

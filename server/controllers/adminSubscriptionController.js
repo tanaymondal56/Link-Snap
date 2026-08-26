@@ -32,7 +32,8 @@ export const getSubscriptionStats = async (req, res) => {
     })
       .sort({ createdAt: -1 })
       .limit(10)
-      .select('email snapId subscription.tier subscription.currentPeriodStart createdAt');
+      .select('email snapId subscription.tier subscription.currentPeriodStart createdAt')
+      .lean();
     
     // Get total count
     const totalUsers = await User.countDocuments();
@@ -113,14 +114,15 @@ export const getAuditLogs = async (req, res) => {
       query.source = source;
     }
     
-    // Get total count
-    const total = await SubscriptionAuditLog.countDocuments(query);
-    
-    // Fetch logs with pagination - uses compound indexes { action: 1, createdAt: -1 } or { source: 1, createdAt: -1 }
-    const logs = await SubscriptionAuditLog.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+    // Fetch logs and total count with pagination in parallel
+    const [logs, total] = await Promise.all([
+      SubscriptionAuditLog.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      SubscriptionAuditLog.countDocuments(query)
+    ]);
     
     res.json({
       logs,

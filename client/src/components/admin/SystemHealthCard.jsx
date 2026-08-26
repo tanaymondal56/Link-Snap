@@ -74,7 +74,7 @@ const SystemHealthCard = () => {
       case 'ok': return <CheckCircle className="w-5 h-5 text-green-400" />;
       case 'degraded': return <AlertTriangle className="w-5 h-5 text-yellow-400" />;
       case 'error': return <XCircle className="w-5 h-5 text-red-400" />;
-      default: return <Activity className="w-5 h-5 text-gray-400 animate-pulse" />;
+      default: return <Activity className="w-5 h-5 text-gray-400" />;
     }
   };
 

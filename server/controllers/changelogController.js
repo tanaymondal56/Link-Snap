@@ -94,7 +94,8 @@ export const getPublicChangelogs = async (req, res, next) => {
                 .sort({ order: -1 }) // Single-field sort for Cosmos DB compatibility
                 .skip(skip)
                 .limit(limit)
-                .select('-__v -history'),
+                .select('-__v -history')
+                .lean(),
             Changelog.countDocuments({ isPublished: true })
         ]);
 
@@ -245,7 +246,8 @@ export const getAllChangelogs = async (req, res, next) => {
     try {
         const changelogs = await Changelog.find()
             .sort({ order: -1 }) // Single-field sort for Cosmos DB compatibility
-            .select('-__v');
+            .select('-__v')
+            .lean();
         
         res.json(changelogs);
     } catch (error) {

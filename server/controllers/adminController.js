@@ -248,15 +248,16 @@ const getAllUsersFallback = async (req, res, next) => {
             }
         }
 
-        // Use proper DB sort with new index
-        const users = await User.find(query)
-            .select('-password -refreshTokens')
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit)
-            .lean();
-
-        const total = await User.countDocuments(query);
+        // Use proper DB sort with new index in parallel
+        const [users, total] = await Promise.all([
+            User.find(query)
+                .select('-password -refreshTokens')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            User.countDocuments(query)
+        ]);
 
         res.json({
             users,

@@ -393,13 +393,14 @@ const getMyLinks = async (req, res, next) => {
         const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 10));
         const skip = (page - 1) * limit;
 
-        const urls = await Url.find({ createdBy: req.user._id })
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit)
-            .lean();
-
-        const total = await Url.countDocuments({ createdBy: req.user._id });
+        const [urls, total] = await Promise.all([
+            Url.find({ createdBy: req.user._id })
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Url.countDocuments({ createdBy: req.user._id })
+        ]);
 
         // Note: Banned users cannot reach this endpoint (blocked by authMiddleware)
         // So ownerBanned will always be false here. This field exists for consistency

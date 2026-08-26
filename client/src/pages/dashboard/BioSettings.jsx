@@ -396,7 +396,7 @@ export default function BioSettings() {
               Save
               {hasChanges && !saving && (
                 <span
-                  className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full animate-pulse"
+                  className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full shadow-[0_0_6px_rgba(251,191,36,0.9)]"
                   title="Unsaved changes"
                 />
               )}

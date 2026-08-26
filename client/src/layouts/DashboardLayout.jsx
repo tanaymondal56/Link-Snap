@@ -419,7 +419,7 @@ const DashboardLayout = () => {
             {/* Tier Perk Status Pill */}
             {userTier !== 'free' && (
               <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-[var(--card-border)] text-xs font-semibold backdrop-blur-md shadow-sm transition-all hover:scale-105">
-                <Sparkles className="w-3.5 h-3.5 text-[var(--stat-icon-color)] animate-pulse" />
+                <Sparkles className="w-3.5 h-3.5 text-[var(--stat-icon-color)]" />
                 <span className="bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(to right, var(--accent-from), var(--accent-to))` }}>
                   {userTier === 'pro' ? 'PRO UNLOCKED' : userTier === 'business' ? 'BUSINESS VIP' : 'ADMIN ACCESS'}
                 </span>

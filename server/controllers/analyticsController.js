@@ -25,13 +25,13 @@ export const getUrlAnalytics = async (req, res) => {
             // Admins can view any link's analytics
             url = await Url.findOne({
                 $or: [{ shortId }, { customAlias: shortId }]
-            }).populate('createdBy', 'email username');
+            }).populate('createdBy', 'email username').lean();
         } else {
             // Regular users can only view their own links
             url = await Url.findOne({
                 $or: [{ shortId }, { customAlias: shortId }],
                 createdBy: userId
-            });
+            }).lean();
         }
 
         if (!url) {

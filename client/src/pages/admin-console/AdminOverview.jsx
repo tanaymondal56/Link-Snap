@@ -89,7 +89,7 @@ const AdminOverview = () => {
           <p className="text-gray-400 mt-1">System performance and key metrics</p>
         </div>
         <div className={`px-3 py-1.5 rounded-full bg-white/5 border border-white/10 flex items-center gap-2`}>
-          <div className={`w-2 h-2 rounded-full ${status.bg} animate-pulse`} />
+          <div className={`w-2 h-2 rounded-full ${status.bg} shadow-[0_0_6px_currentColor]`} />
           <span className={`text-sm font-medium ${status.color}`}>{status.label}</span>
         </div>
       </div>

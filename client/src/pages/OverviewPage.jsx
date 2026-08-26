@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { Link } from 'react-router';
 import {
   Link as LinkIcon,
@@ -29,6 +29,7 @@ import { getEffectiveTier } from '../utils/subscriptionUtils';
 
 const OverviewPage = () => {
   const { user, isAuthChecking } = useAuth();
+  const hasFetched = useRef(false);
   const [stats, setStats] = useState({
     totalLinks: 0,
     totalClicks: 0,
@@ -85,7 +86,8 @@ const OverviewPage = () => {
   useEffect(() => {
     // Only fetch data when user is authenticated AND auth check is complete
     // This prevents race condition where cached user exists but token isn't refreshed yet
-    if (user && !isAuthChecking) {
+    if (user && !isAuthChecking && !hasFetched.current) {
+      hasFetched.current = true;
       fetchOverviewData();
     }
   }, [user, isAuthChecking, fetchOverviewData]);

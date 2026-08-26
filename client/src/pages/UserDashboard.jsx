@@ -1409,7 +1409,7 @@ const UserDashboard = () => {
             };
 
             return (
-              <div key={link._id}>
+              <div key={link._id} className="cv-auto">
                 <div
                   className={`rounded-2xl transition-colors duration-300 overflow-hidden border ${
                     isFlagged

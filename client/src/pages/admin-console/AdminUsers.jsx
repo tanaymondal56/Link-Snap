@@ -332,7 +332,7 @@ const AdminUsers = () => {
           <div className="text-center py-8 text-gray-500">No users found</div>
         ) : (
           users.map((user) => (
-            <div key={user._id} className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
+            <div key={user._id} className="cv-auto bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-600 flex items-center justify-center text-sm font-bold text-white shadow-lg">

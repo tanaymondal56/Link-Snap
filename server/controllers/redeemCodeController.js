@@ -68,13 +68,15 @@ export const listRedeemCodes = async (req, res) => {
     if (active === 'true') query.isActive = true;
     if (active === 'false') query.isActive = false;
 
-    const codes = await RedeemCode.find(query)
-      .populate('createdBy', 'email snapId')
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
-
-    const total = await RedeemCode.countDocuments(query);
+    const [codes, total] = await Promise.all([
+      RedeemCode.find(query)
+        .populate('createdBy', 'email snapId')
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit))
+        .lean(),
+      RedeemCode.countDocuments(query)
+    ]);
 
     res.json({
       codes,

@@ -329,7 +329,7 @@ const AdminLinks = () => {
           links.map((link) => (
             <div
               key={link._id}
-              className={`bg-white/5 border border-white/10 rounded-xl p-4 space-y-3 ${link.ownerBanned ? 'bg-orange-500/5' : ''}`}
+              className={`cv-auto bg-white/5 border border-white/10 rounded-xl p-4 space-y-3 ${link.ownerBanned ? 'bg-orange-500/5' : ''}`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

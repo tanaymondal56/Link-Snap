@@ -415,26 +415,22 @@ export default function PublicProfile() {
           />
         </Helmet>
 
-        {/* Animated background elements */}
+        {/* Background elements */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-violet-500/10 rounded-full blur-[100px] animate-pulse" />
+          <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-violet-500/10 rounded-full blur-[100px] transform-gpu" />
           <div
-            className="absolute -bottom-40 -right-40 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[100px] animate-pulse"
-            style={{ animationDelay: '1s' }}
+            className="absolute -bottom-40 -right-40 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[100px] transform-gpu"
           />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-500/5 rounded-full blur-[120px]" />
-          {/* Floating particles */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-500/5 rounded-full blur-[120px] transform-gpu" />
+          {/* Subtle accent dots */}
           <div
-            className="absolute top-20 left-10 w-2 h-2 bg-violet-400/30 rounded-full animate-bounce"
-            style={{ animationDuration: '3s' }}
+            className="absolute top-20 left-10 w-2 h-2 bg-violet-400/30 rounded-full"
           />
           <div
-            className="absolute top-40 right-20 w-1.5 h-1.5 bg-indigo-400/30 rounded-full animate-bounce"
-            style={{ animationDuration: '2.5s', animationDelay: '0.5s' }}
+            className="absolute top-40 right-20 w-1.5 h-1.5 bg-indigo-400/30 rounded-full"
           />
           <div
-            className="absolute bottom-40 left-20 w-2 h-2 bg-purple-400/30 rounded-full animate-bounce"
-            style={{ animationDuration: '3.5s', animationDelay: '1s' }}
+            className="absolute bottom-40 left-20 w-2 h-2 bg-purple-400/30 rounded-full"
           />
         </div>
 

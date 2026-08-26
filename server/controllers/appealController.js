@@ -122,7 +122,9 @@ export const checkAppealStatus = async (req, res) => {
             return res.status(401).json({ message: 'Unauthorized. Please sign in again to view appeal status.' });
         }
 
-        const user = await User.findById(userId);
+        const user = await User.findById(userId)
+            .select('isActive bannedAt bannedUntil bannedReason')
+            .lean();
 
         if (!user) {
             return res.status(404).json({ message: 'User account not found' });
@@ -130,7 +132,8 @@ export const checkAppealStatus = async (req, res) => {
 
         const appeal = await Appeal.findOne({ userId: user._id })
             .sort({ createdAt: -1 })
-            .select('status adminResponse createdAt reviewedAt');
+            .select('status adminResponse createdAt reviewedAt')
+            .lean();
 
         // Count appeals for the current ban
         const appealsCount = user.bannedAt ? await Appeal.countDocuments({

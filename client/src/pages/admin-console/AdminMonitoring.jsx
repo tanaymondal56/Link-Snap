@@ -81,7 +81,7 @@ const AdminMonitoring = () => {
       case 'ok': return <CheckCircle className="w-5 h-5 text-green-400" />;
       case 'degraded': return <AlertTriangle className="w-5 h-5 text-yellow-400" />;
       case 'error': return <XCircle className="w-5 h-5 text-red-400" />;
-      default: return <Activity className="w-5 h-5 text-gray-400 animate-pulse" />;
+      default: return <Activity className="w-5 h-5 text-gray-400" />;
     }
   };
 
@@ -128,63 +128,62 @@ const AdminMonitoring = () => {
         >
           <Server size={16} /> Cluster & Host Env
         </button>
-        {/* Logs and Performance tabs hidden until backend support is implemented */}
       </div>
 
       {/* Content */}
       <div className="animate-fade-in">
         {activeTab === 'health' && (
           <div className="space-y-6">
-             <div className="flex justify-end">
-               <button
-                 onClick={() => checkHealth(true)}
-                 disabled={loading}
-                 className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 border border-gray-700"
-               >
-                 <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                 Refresh Status
-               </button>
-             </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => checkHealth(true)}
+                disabled={loading}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 border border-gray-700"
+              >
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                Refresh Status
+              </button>
+            </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-               {/* API Status */}
-               <BentoCard title="API Server" icon={Server}>
-                 <div className="mt-4 flex flex-col gap-2">
-                   <div className="flex items-center justify-between">
-                     <span className="text-gray-400 text-sm">Status</span>
-                     <div className="flex items-center gap-2">
-                       {getStatusIcon(health?.status)}
-                       <span className={`text-sm font-medium uppercase ${getStatusColor(health?.status)}`}>
-                         {health?.status || 'Unknown'}
-                       </span>
-                     </div>
-                   </div>
-                   <div className="w-full bg-gray-800 rounded-full h-1.5 mt-2 overflow-hidden">
-                     <div className={`h-full ${health?.status === 'ok' ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} style={{ width: '100%' }} />
-                   </div>
-                 </div>
-               </BentoCard>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* API Status */}
+              <BentoCard title="API Server" icon={Server}>
+                <div className="mt-4 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400 text-sm">Status</span>
+                    <div className="flex items-center gap-2">
+                      {getStatusIcon(health?.status)}
+                      <span className={`text-sm font-medium uppercase ${getStatusColor(health?.status)}`}>
+                        {health?.status || 'Unknown'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-800 rounded-full h-1.5 mt-2 overflow-hidden">
+                    <div className={`h-full ${health?.status === 'ok' ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: '100%' }} />
+                  </div>
+                </div>
+              </BentoCard>
 
-               {/* Database Status */}
-               <BentoCard title="Database" icon={Database}>
-                 <div className="mt-4 flex flex-col gap-2">
-                   <div className="flex items-center justify-between">
-                     <span className="text-gray-400 text-sm">Status</span>
-                     <div className="flex items-center gap-2">
-                       {getStatusIcon(deepHealth?.services?.database === 'connected' ? 'ok' : 'error')}
-                       <span className={`text-sm font-medium uppercase ${deepHealth?.services?.database === 'connected' ? 'text-green-400' : 'text-red-400'}`}>
-                         {deepHealth?.services?.database || 'Unknown'}
-                       </span>
-                     </div>
-                   </div>
-                   <div className="w-full bg-gray-800 rounded-full h-1.5 mt-2 overflow-hidden">
-                     <div 
-                        className={`h-full ${deepHealth?.services?.database === 'connected' ? 'bg-green-500' : 'bg-red-500'} transition-all duration-500`} 
-                        style={{ width: deepHealth?.services?.database === 'connected' ? '100%' : '0%' }} 
-                     />
-                   </div>
-                 </div>
-               </BentoCard>
+              {/* Database Status */}
+              <BentoCard title="Database" icon={Database}>
+                <div className="mt-4 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400 text-sm">Status</span>
+                    <div className="flex items-center gap-2">
+                      {getStatusIcon(deepHealth?.services?.database === 'connected' ? 'ok' : 'error')}
+                      <span className={`text-sm font-medium uppercase ${deepHealth?.services?.database === 'connected' ? 'text-green-400' : 'text-red-400'}`}>
+                        {deepHealth?.services?.database || 'Unknown'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-800 rounded-full h-1.5 mt-2 overflow-hidden">
+                    <div 
+                      className={`h-full ${deepHealth?.services?.database === 'connected' ? 'bg-green-500' : 'bg-red-500'} transition-all duration-500`} 
+                      style={{ width: deepHealth?.services?.database === 'connected' ? '100%' : '0%' }} 
+                    />
+                  </div>
+                </div>
+              </BentoCard>
 
                {/* Uptime */}
                <BentoCard title="Uptime" icon={Clock}>

@@ -293,11 +293,8 @@
   border-radius: 50%;
   filter: blur(60px);
   opacity: 0.35;
-  animation: float 24s infinite ease-in-out;
-  will-change: transform;
-  backface-visibility: hidden;
-  transform: translate3d(0, 0, 0);
   pointer-events: none;
+  transform: translateZ(0);
 }
 
 .orb-1 {
