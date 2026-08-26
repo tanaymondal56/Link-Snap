@@ -9,6 +9,8 @@ import {
   verifyRegistration,
   getAuthenticationOptions,
   verifyAuthentication,
+  getVerificationOptions,
+  verifyPasskey,
   getDevices,
   updateDeviceName,
   revokeDevice,
@@ -64,5 +66,16 @@ router.delete('/devices/:deviceId', ipWhitelist, verifyToken, verifyAdmin, block
 
 // Revoke all devices (Remote OK - Emergency)
 router.delete('/devices', ipWhitelist, verifyToken, verifyAdmin, blockMasterAdmin, revokeAllDevices);
+
+// ============================================
+// PASSKEY HEALTH-CHECK (authenticated, NO session created)
+// Lets a logged-in admin prove their passkey still exists & validates.
+// ============================================
+
+// Challenge scoped to the current user's active credentials
+router.post('/verify-passkey/options', ipWhitelist, verifyToken, verifyAdmin, blockMasterAdmin, biometricAuthLimiter, getVerificationOptions);
+
+// Verify the assertion — counter + lastAccess updated, no tokens issued
+router.post('/verify-passkey', ipWhitelist, verifyToken, verifyAdmin, blockMasterAdmin, biometricAuthLimiter, dualLayerAuthActionLimiter, verifyPasskey);
 
 export default router;

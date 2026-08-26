@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  Smartphone, 
-  Monitor, 
-  Tablet, 
-  Fingerprint, 
-  Trash2, 
+import {
+  Smartphone,
+  Monitor,
+  Tablet,
+  Fingerprint,
+  Trash2,
   RefreshCw,
   Plus,
   Shield,
+  ShieldCheck,
   MapPin,
   Clock,
   AlertTriangle,
@@ -22,6 +23,7 @@ import {
   registerDevice,
   revokeDevice,
   revokeAllDevices,
+  verifyPasskey,
   supportsWebAuthn,
   getDeviceInfo
 } from '../../utils/deviceAuth';
@@ -47,7 +49,10 @@ const isDeviceInactive = (device) => {
 };
 
 const DeviceManagement = () => {
-  const { isAuthChecking } = useAuth();
+  const { isAuthChecking, user } = useAuth();
+  // Server blocks all passkey features for Master Admins — mirror that in the
+  // UI so they don't see buttons that can only ever return 403.
+  const isMasterAdmin = user?.role === 'master_admin';
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
@@ -58,6 +63,8 @@ const DeviceManagement = () => {
   
   // Custom confirm modal state (replaces native confirm)
   const [revokeConfirmModal, setRevokeConfirmModal] = useState({ show: false, deviceId: null, deviceName: '' });
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState(null); // { ok, deviceName?, message, at }
 
   // Check WebAuthn support
   const webAuthnSupported = supportsWebAuthn();
@@ -99,6 +106,37 @@ const DeviceManagement = () => {
       showToast.error(result.error || 'Registration failed');
     }
     setRegistering(false);
+  };
+
+  // Live health-check: proves an active passkey still exists on this device
+  // and validates against the server. Real WebAuthn assertion — no login.
+  const handleVerifyPasskey = async () => {
+    if (!webAuthnSupported) {
+      showToast.error('Biometrics not supported on this device');
+      return;
+    }
+
+    setVerifying(true);
+    setVerifyResult(null);
+    const result = await verifyPasskey();
+    setVerifying(false);
+
+    if (result.success) {
+      setVerifyResult({
+        ok: true,
+        message: `Your passkey for "${result.device?.deviceName || 'this device'}" is present and cryptographically valid.`,
+        at: new Date().toISOString(),
+      });
+      showToast.success('Passkey verified successfully', 'Health Check');
+      fetchDevices(); // lastAccess was bumped server-side — reflect it
+    } else if (result.error !== 'cancelled') {
+      setVerifyResult({
+        ok: false,
+        message: result.error || 'The passkey could not be verified. Re-register this device if the problem persists.',
+        at: new Date().toISOString(),
+      });
+      showToast.error(result.error || 'Passkey verification failed', 'Health Check');
+    }
   };
 
   const handleRevokeDevice = async (deviceId, deviceName) => {
@@ -176,9 +214,27 @@ const DeviceManagement = () => {
             Refresh
           </button>
           <button
+            onClick={handleVerifyPasskey}
+            disabled={verifying || registering || !webAuthnSupported || isMasterAdmin}
+            className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-emerald-500/30 text-emerald-300 hover:text-emerald-200 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+            title={
+              isMasterAdmin
+                ? 'Passkey features are disabled for Master Admin accounts'
+                : 'Run a live WebAuthn check that your active passkey still exists and validates — no session is created'
+            }
+          >
+            {verifying ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ShieldCheck className="h-4 w-4" />
+            )}
+            Verify Passkey
+          </button>
+          <button
             onClick={handleRegisterDevice}
-            disabled={registering || !webAuthnSupported}
+            disabled={registering || verifying || !webAuthnSupported || isMasterAdmin}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-lg text-white text-sm font-medium transition-all disabled:opacity-50"
+            title={isMasterAdmin ? 'Passkey features are disabled for Master Admin accounts' : undefined}
           >
             {registering ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -189,6 +245,43 @@ const DeviceManagement = () => {
           </button>
         </div>
       </div>
+
+      {/* Passkey verification result */}
+      {verifyResult && (
+        <BentoCard
+          className={
+            verifyResult.ok
+              ? 'border-emerald-500/30 bg-emerald-500/5'
+              : 'border-red-500/30 bg-red-500/5'
+          }
+        >
+          <div className="flex items-start gap-3">
+            {verifyResult.ok ? (
+              <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+            )}
+            <div className="min-w-0">
+              <p className={`font-medium ${verifyResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+                {verifyResult.ok ? 'Passkey verified' : 'Passkey verification failed'}
+              </p>
+              <p className="text-gray-400 text-sm mt-1 break-words">
+                {verifyResult.message}
+              </p>
+              <p className="text-gray-500 text-xs mt-1">
+                Checked {new Date(verifyResult.at).toLocaleTimeString()} — live WebAuthn assertion, no session created
+              </p>
+            </div>
+            <button
+              onClick={() => setVerifyResult(null)}
+              className="ml-auto p-1 text-gray-500 hover:text-gray-300 rounded"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </BentoCard>
+      )}
 
       {/* WebAuthn Support Warning */}
       {!webAuthnSupported && (

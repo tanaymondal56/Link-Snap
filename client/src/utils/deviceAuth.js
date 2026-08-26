@@ -187,7 +187,7 @@ export const authenticateWithBiometric = async () => {
     ]);
     
     // 2. Start WebAuthn authentication (has its own timeout via options.timeout)
-    const authResponse = await startAuthentication(options);
+    const authResponse = await startAuthentication({ optionsJSON: options });
     
     // 3. Verify with server with timeout
     const verifyPromise = api.post('/.d/verify', {
@@ -295,7 +295,7 @@ export const registerDevice = async (deviceName = null) => {
     ]);
     
     // 2. Start WebAuthn registration
-    const regResponse = await startRegistration(options);
+    const regResponse = await startRegistration({ optionsJSON: options });
     
     // 3. Verify with server with timeout
     const verifyPromise = api.post('/.d/register/verify', {
@@ -453,5 +453,64 @@ export const revokeAllDevices = async () => {
       return { success: false, error: 'Server error. Please try again later.' };
     }
     return { success: false, error: error.response?.data?.message || error.message || 'Failed to revoke devices' };
+  }
+};
+
+/**
+ * Verify that the current user's passkey is still present and valid
+ * (health-check — performs a real WebAuthn assertion but creates NO session).
+ * Returns: { success: boolean, device?: { _id, deviceName }, error?: string }
+ */
+export const verifyPasskey = async () => {
+  if (!supportsWebAuthn()) {
+    return { success: false, error: 'This browser does not support passkeys.' };
+  }
+  if (!navigator.onLine) {
+    return { success: false, error: 'You appear to be offline. Check your connection.' };
+  }
+
+  try {
+    // 1. Get a user-scoped challenge (only THIS account's passkeys allowed)
+    const optionsPromise = api.post('/.d/verify-passkey/options');
+    const { data: options } = await Promise.race([optionsPromise, createTimeout(AUTH_TIMEOUT)]);
+
+    // 2. User gesture: browser prompts for the passkey (biometric/PIN)
+    const authResponse = await startAuthentication({ optionsJSON: options });
+
+    // 3. Server verifies the assertion — no tokens, counter updated
+    const verifyPromise = api.post('/.d/verify-passkey', {
+      response: authResponse,
+      challengeId: options.challengeId,
+    });
+    const { data: result } = await Promise.race([verifyPromise, createTimeout(AUTH_TIMEOUT)]);
+
+    if (result.verified) {
+      return { success: true, device: result.device };
+    }
+    return { success: false, error: 'Verification failed' };
+  } catch (error) {
+    console.error('[Passkey Verify] Error:', error);
+
+    if (error.name === 'NotAllowedError') return { success: false, error: 'cancelled' };
+    if (error.name === 'InvalidStateError') {
+      return { success: false, error: 'Passkey not found on this device. It may have been removed.' };
+    }
+    if (error.message === 'timeout') {
+      return { success: false, error: 'Request timed out. Please try again.' };
+    }
+    if (!error.response) {
+      return { success: false, error: navigator.onLine ? 'Cannot reach server. Please try again later.' : 'You appear to be offline.' };
+    }
+    if (error.response?.status === 404) {
+      return { success: false, error: error.response?.data?.message || 'No active passkey registered for your account.' };
+    }
+    if (error.response?.status === 429) {
+      const retryAfter = error.response.data?.retryAfter || 30;
+      return { success: false, error: 'Too many attempts. Try again in '+retryAfter+' seconds.' };
+    }
+    if (error.response?.status === 410) {
+      return { success: false, error: 'Challenge expired. Please try again.' };
+    }
+    return { success: false, error: error.response?.data?.message || error.message || 'Verification failed' };
   }
 };

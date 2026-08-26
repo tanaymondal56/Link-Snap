@@ -457,6 +457,15 @@ export const verifyAuthentication = async (req, res) => {
       return res.status(400).json({ message: 'Challenge expired' });
     }
 
+    // Scope guard (defense-in-depth): challenges issued for the authenticated
+    // passkey health-check (scope:'verify') must never be redeemable for a
+    // login session, and vice-versa.
+    if (stored.scope === 'verify') {
+      await recordFailedAttempt(clientIP);
+      logAccessAttempt('AUTH_VERIFY', false, { ip: clientIP, reason: 'scope_mismatch' });
+      return res.status(400).json({ message: 'Invalid challenge' });
+    }
+
     // Find the device by credential ID
     const credentialId = Buffer.from(response.id, 'base64url');
     const device = await TrustedDevice.findOne({
@@ -602,6 +611,185 @@ export const verifyAuthentication = async (req, res) => {
     logger.error('[Device Auth] Auth verify error:', error);
     recordFailedAttempt(clientIP);
     logAccessAttempt('AUTH_VERIFY', false, { ip: clientIP, error: error.message });
+    res.status(500).json({ message: 'Internal error' });
+  }
+};
+
+/**
+ * Get authentication options for a LOGGED-IN user verifying their own passkey
+ * (health-check — NOT a login flow). Challenge is scoped to this user's active
+ * credentials and tagged with scope:'verify' so it can never be exchanged for
+ * a session via the login verify endpoint.
+ */
+export const getVerificationOptions = async (req, res) => {
+  const clientIP = getClientIP(req);
+
+  try {
+    const rateCheck = await checkRateLimit(clientIP);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        message: `Too many attempts. Try again in ${rateCheck.remainingSeconds} seconds`,
+        retryAfter: rateCheck.remainingSeconds,
+      });
+    }
+
+    const devices = await TrustedDevice.find({
+      userId: req.user._id,
+      isActive: true,
+    }).select('credentialId');
+
+    if (devices.length === 0) {
+      return res.status(404).json({ message: 'No active passkeys found for your account' });
+    }
+
+    const options = await generateAuthenticationOptions({
+      rpID,
+      userVerification: 'required',
+      // Narrow the ceremony to THIS user's passkeys — the browser will only
+      // offer credentials it actually holds, which is the health-check itself.
+      allowCredentials: devices.map((d) => ({
+        id: d.credentialId.toString('base64url'),
+        transports: ['internal', 'hybrid', 'usb', 'ble', 'nfc'],
+      })),
+      timeout: 60000,
+    });
+
+    const tempId = `vauth_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const payload = {
+      challenge: options.challenge,
+      expires: Date.now() + 60000,
+      ip: clientIP,
+      userId: String(req.user._id),
+      scope: 'verify', // cannot be redeemed at /.d/verify (login)
+    };
+    const redis = getRedisClient();
+    if (redis) {
+      await redisSet(`ls:wn:challenge:${tempId}`, 60, payload);
+    } else {
+      challengeStore.set(tempId, payload);
+    }
+
+    res.json({ ...options, challengeId: tempId });
+  } catch (error) {
+    logger.error('[Device Auth] Verify options error:', error);
+    res.status(500).json({ message: 'Internal error' });
+  }
+};
+
+/**
+ * Verify a passkey assertion for the CURRENT user WITHOUT creating a session
+ * (health-check). Proves the credential is still present on the device and
+ * cryptographically valid; updates the counter (replay protection) and last
+ * access like a real login would, but issues no tokens.
+ */
+export const verifyPasskey = async (req, res) => {
+  const clientIP = getClientIP(req);
+
+  try {
+    const rateCheck = await checkRateLimit(clientIP);
+    if (!rateCheck.allowed) {
+      logAccessAttempt('PASSKEY_VERIFY', false, { ip: clientIP, reason: 'rate_limited' });
+      return res.status(429).json({
+        message: `Too many attempts. Try again in ${rateCheck.remainingSeconds} seconds`,
+        retryAfter: rateCheck.remainingSeconds,
+      });
+    }
+
+    const { response, challengeId } = req.body;
+
+    // One-time challenge (same store as login, but scope-checked below)
+    let stored;
+    const redis = getRedisClient();
+    if (redis) {
+      stored = await redisGetDel(`ls:wn:challenge:${challengeId}`);
+    } else {
+      stored = challengeStore.get(challengeId);
+      if (stored) challengeStore.delete(challengeId);
+    }
+
+    if (!stored || Date.now() > stored.expires) {
+      await recordFailedAttempt(clientIP);
+      logAccessAttempt('PASSKEY_VERIFY', false, { ip: clientIP, reason: 'challenge_expired' });
+      return res.status(400).json({ message: 'Challenge expired' });
+    }
+
+    // Scope guard: verification challenges are user-bound and can never be
+    // login challenges (and vice versa).
+    if (stored.scope !== 'verify' || stored.userId !== String(req.user._id)) {
+      await recordFailedAttempt(clientIP);
+      logAccessAttempt('PASSKEY_VERIFY', false, { ip: clientIP, reason: 'scope_mismatch' });
+      return res.status(400).json({ message: 'Invalid challenge' });
+    }
+
+    // The device MUST belong to the authenticated user
+    const credentialId = Buffer.from(response.id, 'base64url');
+    const device = await TrustedDevice.findOne({
+      credentialId,
+      userId: req.user._id,
+      isActive: true,
+    });
+
+    if (!device) {
+      await recordFailedAttempt(clientIP);
+      logAccessAttempt('PASSKEY_VERIFY', false, {
+        ip: clientIP,
+        userId: req.user._id,
+        reason: 'device_not_found',
+      });
+      return res.status(400).json({ message: 'No matching active passkey for your account' });
+    }
+
+    const verification = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge: stored.challenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      authenticator: {
+        credentialID: device.credentialId,
+        credentialPublicKey: device.publicKey,
+        counter: device.counter,
+      },
+      // Support newer simplewebauthn versions (v11+) which use 'credential'
+      credential: {
+        id: device.credentialId,
+        publicKey: device.publicKey,
+        counter: device.counter,
+      },
+    });
+
+    if (!verification.verified) {
+      await recordFailedAttempt(clientIP);
+      logAccessAttempt('PASSKEY_VERIFY', false, {
+        ip: clientIP,
+        deviceId: device._id,
+        reason: 'assertion_failed',
+      });
+      return res.status(400).json({ message: 'Verification failed — the passkey did not validate' });
+    }
+
+    // Keep replay protection intact even though this is not a login
+    device.counter = verification.authenticationInfo.newCounter;
+    await device.updateLastAccess(clientIP, {});
+
+    await clearRateLimit(clientIP);
+    logAccessAttempt('PASSKEY_VERIFY', true, {
+      ip: clientIP,
+      userId: req.user._id,
+      deviceId: device._id,
+    });
+
+    res.json({
+      verified: true,
+      device: {
+        _id: device._id,
+        deviceName: device.deviceName,
+      },
+      verifiedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    logger.error('[Device Auth] Passkey verify error:', error);
+    recordFailedAttempt(clientIP);
+    logAccessAttempt('PASSKEY_VERIFY', false, { ip: clientIP, error: error.message });
     res.status(500).json({ message: 'Internal error' });
   }
 };

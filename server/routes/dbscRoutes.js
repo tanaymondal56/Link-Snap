@@ -104,7 +104,7 @@ router.post('/registration', async (req, res) => {
       accessToken,
       dbscEnforced: true,
       scope: {
-        include_site: true
+        include_site: false
       },
       credentials: [
         {
@@ -212,7 +212,7 @@ router.post('/refresh', async (req, res) => {
       refresh_url: "/api/dbsc/refresh",
       continue: true,
       scope: {
-        include_site: true
+        include_site: false
       },
       credentials: [
         {
