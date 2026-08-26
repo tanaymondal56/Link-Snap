@@ -107,23 +107,23 @@ const PricingPage = () => {
           </p>
           
           {/* Toggle */}
-          <div className="mt-8 flex justify-center">
-             <div className="relative bg-gray-800 p-1 rounded-xl flex items-center">
+          <div className="mt-8 flex justify-center px-4">
+             <div className="relative bg-gray-800 p-1.5 rounded-xl flex flex-col sm:flex-row items-center gap-1 sm:gap-0 w-full sm:w-auto">
                 <button 
                   onClick={() => setBillingInterval('monthly')}
-                  className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${billingInterval === 'monthly' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-gray-200'}`}
+                  className={`w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${billingInterval === 'monthly' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-gray-200'}`}
                 >
                   Monthly
                 </button>
                 <button 
                   onClick={() => setBillingInterval('yearly')}
-                  className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${billingInterval === 'yearly' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-gray-200'}`}
+                  className={`w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${billingInterval === 'yearly' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-gray-200'}`}
                 >
                   Yearly <span className="ml-1 text-xs text-green-300 font-normal">-17%</span>
                 </button>
                 <button 
                   onClick={() => setBillingInterval('one_time')}
-                  className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${billingInterval === 'one_time' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-gray-200'}`}
+                  className={`w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${billingInterval === 'one_time' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-gray-200'}`}
                   title="Pay manually for exactly 1 month. No auto-renewal."
                 >
                   1 Month (One-time)
@@ -132,11 +132,11 @@ const PricingPage = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="reveal-stagger grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* FREE TIER */}
-          <div className="relative p-8 bg-gray-900/50 border border-white/10 rounded-2xl flex flex-col group hover:border-emerald-500/30 transition-all duration-300">
+          <div className="relative p-8 bg-gray-900/40 backdrop-blur-xl border border-white/10 rounded-3xl flex flex-col group hover:bg-gray-800/60 hover:shadow-[0_0_40px_-15px_rgba(16,185,129,0.3)] hover:border-emerald-500/30 transition-all duration-500">
             {/* Subtle top accent */}
-            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-500/0 via-emerald-500/60 to-emerald-500/0 rounded-t-2xl" />
+            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-500/0 via-emerald-500/60 to-emerald-500/0 rounded-t-3xl opacity-50 group-hover:opacity-100 transition-opacity" />
             <div className="mb-4">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
                     <div className="p-1.5 bg-emerald-500/10 rounded-lg"><Zap size={16} className="text-emerald-400" /></div>
@@ -156,7 +156,7 @@ const PricingPage = () => {
                     ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 cursor-default' 
                     : (user?.subscription?.tier === 'pro' && user?.subscription?.status === 'active'
                         ? 'bg-gray-800 hover:bg-gray-700 text-white shadow-lg'
-                        : 'bg-white/10 hover:bg-white/20 text-white border border-white/10 hover:border-white/20')
+                        : 'bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:border-white/20 backdrop-blur-md hover:-translate-y-0.5 active:translate-y-0 transform transition-all duration-300')
                 }`}
             >
                 {isCurrentPlan('free') ? '✓ Current Plan' : (user?.subscription?.tier === 'pro' && user?.subscription?.status === 'active' ? 'Manage Subscription' : 'Get Started — Free')}
@@ -205,8 +205,8 @@ const PricingPage = () => {
           </div>
 
           {/* PRO TIER (Highlight) */}
-          <div className="relative p-8 bg-gradient-to-b from-gray-800 to-gray-900 border border-blue-500/50 rounded-2xl flex flex-col scale-105 shadow-2xl shadow-blue-900/20 z-10">
-            <div className="absolute top-0 right-0 -mt-3 -mr-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
+          <div className="relative p-8 bg-gradient-to-b from-gray-800/80 to-gray-900/80 backdrop-blur-xl border border-blue-500/50 rounded-3xl flex flex-col md:scale-105 shadow-[0_0_50px_-12px_rgba(59,130,246,0.5)] z-10 hover:shadow-[0_0_60px_-12px_rgba(59,130,246,0.7)] transition-shadow duration-500">
+            <div className="absolute top-0 right-0 md:-mt-3 md:-mr-3 mt-4 mr-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg">
                 MOST POPULAR
             </div>
             <div className="mb-4">
@@ -319,15 +319,15 @@ const PricingPage = () => {
             </p>
           </div>
 
-          {/* BUSINESS TIER (Coming Soon — Extraordinary disabled card) */}
-          <div className="relative p-8 rounded-2xl flex flex-col overflow-hidden group">
+          {/* BUSINESS TIER (Coming Soon - Extraordinary disabled card) */}
+          <div className="relative p-8 rounded-3xl flex flex-col overflow-hidden group backdrop-blur-xl">
             {/* Animated gradient border */}
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-amber-500/20 via-orange-500/10 to-rose-500/20 opacity-60 group-hover:opacity-80 transition-opacity duration-500" />
-            <div className="absolute inset-[1px] rounded-2xl bg-gradient-to-b from-gray-900 via-gray-900/98 to-gray-950" />
+            <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-amber-500/20 via-orange-500/10 to-rose-500/20 opacity-60 group-hover:opacity-80 transition-opacity duration-500" />
+            <div className="absolute inset-[1px] rounded-3xl bg-gray-900/40 backdrop-blur-3xl" />
             
             {/* Decorative corner glow */}
-            <div className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/8 rounded-full blur-3xl" />
-            <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-rose-500/8 rounded-full blur-3xl" />
+            <div className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/8 rounded-full blur-3xl group-hover:bg-amber-500/15 transition-colors duration-500" />
+            <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-rose-500/8 rounded-full blur-3xl group-hover:bg-rose-500/15 transition-colors duration-500" />
 
             {/* COMING SOON ribbon */}
             <div className="absolute top-5 -right-8 rotate-45 bg-gradient-to-r from-amber-600 to-orange-600 text-white text-[10px] font-bold uppercase tracking-widest px-10 py-1 shadow-lg z-10">

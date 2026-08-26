@@ -86,16 +86,7 @@ const TeapotPage = lazy(() =>
 // Link-in-Bio Public Profile
 const PublicProfile = lazy(() => import('./pages/PublicProfile'));
 
-const LoadingFallback = () => (
-  <div
-    className="min-h-screen flex items-center justify-center bg-gray-900"
-    role="status"
-    aria-live="polite"
-  >
-    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-    <span className="sr-only">Loading...</span>
-  </div>
-);
+import { GlobalLoadingFallback as LoadingFallback } from './components/ui/LoadingSpinner';
 
 // Auth Modal wrapper component
 const AuthModalWrapper = () => {
@@ -173,8 +164,11 @@ function AppContent() {
         <AuthModalWrapper />
       </Suspense>
 
-      <Suspense fallback={<LoadingFallback />}>
-        <Routes>
+      {/* route-shell: static wrapper — page transitions come from the
+          View Transitions API; non-VT browsers get instant swaps (parity) */}
+      <div className="route-shell">
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
           {/* Public Routes - Landing Page */}
           <Route element={<PublicLayout />}>
             <Route path="/" element={<LandingPage />} />
@@ -286,9 +280,10 @@ function AppContent() {
             }
           />
         </Routes>
-      </Suspense>
-    </>
-  );
+        </Suspense>
+      </div>
+      </>
+   );
 }
 
 function App() {

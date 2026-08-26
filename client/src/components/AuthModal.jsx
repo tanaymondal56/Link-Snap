@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import {
   X,
@@ -34,8 +34,16 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
   const [prevOpen, setPrevOpen] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState('idle'); // idle | checking | available | taken | invalid | reserved
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
-  const { login, register } = useAuth();
+  const { user, login, register } = useAuth();
   const navigate = useNavigate();
+
+  // Guard: Automatically close the modal if the user is already authenticated.
+  // This prevents malicious actors from triggering the modal when a session is active.
+  useEffect(() => {
+    if (user && isOpen) {
+      onClose();
+    }
+  }, [user, isOpen, onClose]);
 
   const passwordRules = {
     length: password.length >= 8,
@@ -95,22 +103,36 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
     return () => clearTimeout(timeoutId);
   }, [username, activeTab]);
 
-  // Close on escape key
+  // Native <dialog> driven by React state — the dialog stays mounted and the
+  // effect syncs isOpen → open/closed. showModal() gives focus trap, Esc
+  // (via onCancel), background inertness and top-layer placement.
+  const dialogRef = useRef(null);
   useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
+    const dlg = dialogRef.current;
+    if (!dlg) return;
     if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
+      dlg.classList.remove('closing');
+      if (!dlg.open) {
+        try {
+          dlg.showModal();
+        } catch {
+          /* already open (StrictMode double-invoke) */
+        }
+      }
+    } else if (dlg.open) {
+      // Exit animation: .closing fades out, then close() releases top-layer
+      dlg.classList.add('closing');
+      const t = setTimeout(() => {
+        dlg.classList.remove('closing');
+        try {
+          dlg.close();
+        } catch {
+          /* noop */
+        }
+      }, 200);
+      return () => clearTimeout(t);
     }
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
+  }, [isOpen]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -269,17 +291,24 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
-        onClick={onClose}
-      />
-
+    <dialog
+      ref={dialogRef}
+      onCancel={(e) => {
+        // Native Esc-close would desync React state — route through onClose
+        e.preventDefault();
+        onClose();
+      }}
+      onClick={(e) => {
+        // Backdrop click (click landed on the dialog element itself)
+        if (e.target === dialogRef.current) onClose();
+      }}
+      className="app-dialog m-auto w-[95%] max-w-md"
+      aria-modal="true"
+    >
       {/* Modal */}
       <div
         data-modal-content
-        className="relative w-[95%] max-w-md animate-modal-in flex flex-col max-h-[95dvh] overscroll-contain"
+        className="relative w-full max-w-md animate-modal-in flex flex-col max-h-[92dvh] overscroll-contain"
       >
         {/* Gradient border effect */}
         <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-2xl opacity-75 blur-sm" />
@@ -345,7 +374,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                     placeholder="Email or username"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                    className="w-full pl-12 pr-4 py-3.5 bg-white/5 border border-white/10 backdrop-blur-md rounded-xl text-white placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/20 shadow-inner shadow-black/20 transition-all duration-300"
                   />
                 </>
               ) : (
@@ -358,7 +387,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                   placeholder="Email address *"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                  className="w-full pl-12 pr-4 py-3.5 bg-white/5 border border-white/10 backdrop-blur-md rounded-xl text-white placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/20 shadow-inner shadow-black/20 transition-all duration-300"
                 />
               )}
             </div>
@@ -380,7 +409,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                   onChange={(e) =>
                     setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))
                   }
-                  className={`w-full pl-12 pr-12 py-3.5 bg-gray-800/50 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all ${
+                  className={`w-full pl-12 pr-12 py-3.5 bg-white/5 border backdrop-blur-md rounded-xl text-white placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/20 shadow-inner shadow-black/20 transition-all duration-300 ${
                     usernameStatus === 'available'
                       ? 'border-green-500/50'
                       : usernameStatus === 'taken' ||
@@ -431,7 +460,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                 onChange={(e) => setPassword(e.target.value)}
                 onFocus={() => activeTab === 'register' && setIsPasswordFocused(true)}
                 onBlur={() => setIsPasswordFocused(false)}
-                className={`w-full pl-12 pr-12 py-3.5 bg-gray-800/50 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all ${
+                className={`w-full pl-12 pr-12 py-3.5 bg-white/5 border backdrop-blur-md rounded-xl text-white placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/20 shadow-inner shadow-black/20 transition-all duration-300 ${
                   activeTab === 'register' && password && !isPasswordValid ? 'border-red-500/50' : 'border-gray-700'
                 }`}
               />
@@ -499,7 +528,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                   placeholder="Confirm password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                  className="w-full pl-12 pr-4 py-3.5 bg-white/5 border border-white/10 backdrop-blur-md rounded-xl text-white placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/20 shadow-inner shadow-black/20 transition-all duration-300"
                 />
               </div>
             )}
@@ -519,7 +548,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                   placeholder="First name *"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                  className="w-full pl-12 pr-4 py-3.5 bg-white/5 border border-white/10 backdrop-blur-md rounded-xl text-white placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/20 shadow-inner shadow-black/20 transition-all duration-300"
                 />
               </div>
             )}
@@ -550,7 +579,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                     placeholder="Last name"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-base"
+                    className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 backdrop-blur-md rounded-xl text-white placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/20 shadow-inner shadow-black/20 transition-all duration-300 text-base"
                   />
                 </div>
 
@@ -567,7 +596,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                     placeholder="Phone number (optional)"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-base"
+                    className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 backdrop-blur-md rounded-xl text-white placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/20 shadow-inner shadow-black/20 transition-all duration-300 text-base"
                   />
                 </div>
 
@@ -584,7 +613,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
                     placeholder="Company (optional)"
                     value={company}
                     onChange={(e) => setCompany(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-base"
+                    className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 backdrop-blur-md rounded-xl text-white placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/20 shadow-inner shadow-black/20 transition-all duration-300 text-base"
                   />
                 </div>
               </>
@@ -594,7 +623,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium rounded-xl transition-all shadow-lg shadow-purple-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
+              className="relative w-full py-3.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-xl transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 shadow-[0_0_20px_-5px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_-5px_rgba(168,85,247,0.6)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2 group overflow-hidden"
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -629,7 +658,7 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
           </form>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 };
 

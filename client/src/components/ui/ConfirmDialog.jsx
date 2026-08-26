@@ -1,8 +1,6 @@
-import { useState, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { AlertTriangle, Trash2, Ban, Shield, ShieldAlert, X, CheckCircle } from 'lucide-react';
 import { ConfirmContext } from '../../context/ConfirmContext';
-import useScrollLock from '../../hooks/useScrollLock';
 
 // Different dialog variants with their styles
 const variants = {
@@ -50,51 +48,80 @@ const variants = {
   },
 };
 
-// The actual dialog component
-export const ConfirmDialog = ({ 
-  isOpen, 
-  onClose, 
-  onConfirm, 
-  onCancel, // New prop for distinct secondary action
-  // Direct props support
+/**
+ * Native <dialog>-based confirm — top-layer (no z-index war), built-in focus
+ * trap + Esc handling + background inertness. Enter/exit animations are pure
+ * CSS (@starting-style + allow-discrete); no mount/unmount timing logic.
+ */
+export const ConfirmDialog = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  onCancel, // distinct secondary action
   title,
   message,
   variant = 'danger',
   confirmText = 'Confirm',
   cancelText = 'Cancel',
-  // Config object support (for Provider)
-  config = {} 
+  config = {},
 }) => {
-  // Lock background scroll when dialog is open
-  useScrollLock(isOpen);
+  const dialogRef = useRef(null);
 
-  if (!isOpen) return null;
-
-  // Merge direct props with config (config takes precedence if present for provider usage)
+  // Merge direct props with config (config takes precedence for provider usage)
   const finalVariant = config.variant || variant;
   const finalTitle = config.title || title || 'Are you sure?';
   const finalMessage = config.message || message || 'This action cannot be undone.';
   const finalConfirmText = config.confirmText || confirmText;
   const finalCancelText = config.cancelText || cancelText;
-  
-  // Use config.onCancel if provided, otherwise prop onCancel, otherwise fall back to onClose
   const handleSecondaryAction = config.onCancel || onCancel || onClose;
 
   const activeVariant = variants[finalVariant] || variants.danger;
   const IconComponent = config.icon || activeVariant.icon;
 
-  return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade-in"
-        onClick={onClose}
-      />
+  useEffect(() => {
+    const dlg = dialogRef.current;
+    if (!dlg) return;
 
-      {/* Dialog */}
+    if (isOpen && !dlg.open) {
+      dlg.classList.remove('closing');
+      dlg.showModal();
+    } else if (!isOpen && dlg.open) {
+      // Play exit animation: add .closing (opacity/scale → 0), then close on
+      // transitionend. Reduced-motion users get an instant 350 ms safety net.
+      dlg.classList.add('closing');
+      const finish = () => {
+        dlg.removeEventListener('transitionend', finish);
+        dlg.classList.remove('closing');
+        if (dlg.open) dlg.close();
+      };
+      dlg.addEventListener('transitionend', finish);
+      setTimeout(finish, 350);
+    }
+  }, [isOpen]);
+
+  // Esc / native close → treat as "cancel"
+  const handleCancel = useCallback(
+    (e) => {
+      e.preventDefault(); // stop auto-close; route through state for exit anim
+      onClose?.();
+    },
+    [onClose]
+  );
+
+  return (
+    <dialog
+      ref={dialogRef}
+      onCancel={handleCancel}
+      onClick={(e) => {
+        // Backdrop click (target === dialog itself) closes
+        if (e.target === dialogRef.current) onClose?.();
+      }}
+      className="app-dialog m-auto w-[95%] max-w-md"
+      aria-labelledby="confirm-title"
+    >
       <div
         data-modal-content
-        className={`relative w-[95%] max-w-md bg-gray-900/95 border border-gray-700/50 rounded-2xl shadow-2xl ${activeVariant.borderGlow} animate-modal-in overflow-hidden flex flex-col max-h-[90dvh] overscroll-contain`}
+        className="relative bg-gray-900/70 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90dvh] overscroll-contain"
       >
         {/* Gradient top border */}
         <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${activeVariant.buttonBg}`} />
@@ -103,6 +130,7 @@ export const ConfirmDialog = ({
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-1.5 hover:bg-gray-700/50 rounded-lg text-gray-400 hover:text-white transition-colors"
+          aria-label="Close"
         >
           <X className="w-5 h-5" />
         </button>
@@ -117,7 +145,7 @@ export const ConfirmDialog = ({
           </div>
 
           {/* Title */}
-          <h3 className="text-xl font-bold text-white text-center mb-2">
+          <h3 id="confirm-title" className="text-xl font-bold text-white text-center mb-2">
             {finalTitle}
           </h3>
 
@@ -130,23 +158,20 @@ export const ConfirmDialog = ({
           <div className="flex gap-3">
             <button
               onClick={handleSecondaryAction}
-              className="flex-1 px-4 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white font-medium rounded-xl transition-all duration-200 border border-gray-700"
+              className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white font-medium rounded-xl transition-all duration-300 border border-white/10 backdrop-blur-md hover:shadow-lg active:scale-95"
             >
               {finalCancelText}
             </button>
             <button
-              onClick={() => {
-                onConfirm();
-              }}
-              className={`flex-1 px-4 py-3 bg-gradient-to-r ${activeVariant.buttonBg} text-white font-medium rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl`}
+              onClick={() => onConfirm?.()}
+              className={`flex-1 px-4 py-3 bg-gradient-to-r ${activeVariant.buttonBg} text-white font-semibold rounded-xl transition-all duration-300 transform active:scale-95 shadow-[0_0_20px_-5px_currentColor] hover:shadow-[0_0_30px_-5px_currentColor] overflow-hidden relative group`}
             >
               {finalConfirmText}
             </button>
           </div>
         </div>
       </div>
-    </div>,
-    document.body
+    </dialog>
   );
 };
 

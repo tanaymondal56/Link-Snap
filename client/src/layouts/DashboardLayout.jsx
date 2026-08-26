@@ -24,6 +24,7 @@ import { Loader2 } from 'lucide-react';
 
 import LazyPullToRefresh from '../components/LazyPullToRefresh';
 import OfflineIndicator from '../components/OfflineIndicator';
+import { GlobalLoadingFallback } from '../components/ui/LoadingSpinner';
 const CreateLinkModal = lazy(() => import('../components/CreateLinkModal'));
 const LinkSuccessModal = lazy(() => import('../components/LinkSuccessModal'));
 
@@ -123,11 +124,7 @@ const DashboardLayout = () => {
   const isStillLoading = loading || isAuthChecking || (hasCachedUser && !user);
 
   if (isStillLoading)
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center text-white">
-        <Loader2 className="animate-spin h-10 w-10 text-blue-500" />
-      </div>
-    );
+    return <GlobalLoadingFallback text="Authenticating..." />;
 
   // If user is null and not loading, the useEffect will redirect them. Avoid rendering layout.
   if (!user) return null; 

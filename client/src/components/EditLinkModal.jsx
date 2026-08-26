@@ -564,7 +564,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="My awesome link"
-                  className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 backdrop-blur-md shadow-inner shadow-black/20 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
                   maxLength={100}
                 />
               </div>
@@ -731,7 +731,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
                         setActiveStartTime(value);
                       }}
                       min={new Date().toISOString().slice(0, 16)}
-                      className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2.5 text-white focus:border-blue-500 focus:outline-none text-base"
+                      className="w-full bg-white/5 border border-white/10 backdrop-blur-md shadow-inner shadow-black/20 rounded-lg px-3 py-2.5 text-white focus:border-blue-500 focus:outline-none text-base"
                     />
                     {activeStartTime && (
                       <div className="mt-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200">
@@ -825,7 +825,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
                           setCustomExpiresAt(value);
                         }}
                         min={new Date().toISOString().slice(0, 16)}
-                        className="w-full mt-2 bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-orange-500 focus:outline-none"
+                        className="w-full mt-2 bg-white/5 border border-white/10 backdrop-blur-md shadow-inner shadow-black/20 rounded-xl px-4 py-3 text-white focus:border-orange-500 focus:outline-none"
                       />
                     )}
                   </>
@@ -927,7 +927,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
                           data-1p-ignore="true"
                           data-lpignore="true"
                           data-form-type="other"
-                          className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
+                          className="w-full bg-white/5 border border-white/10 backdrop-blur-md shadow-inner shadow-black/20 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
                           maxLength={100}
                         />
                         <button
@@ -1014,7 +1014,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
               (expiresAction === 'custom' && !customExpiresAt) ||
               (passwordAction === 'set' && password.length < 4)
             }
-            className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium rounded-xl shadow-lg hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-95 flex items-center gap-2"
+            className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 hover:-translate-y-0.5 active:translate-y-0 transform shadow-[0_0_20px_-5px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_-5px_rgba(168,85,247,0.6)] text-white font-medium rounded-xl shadow-lg hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-95 flex items-center gap-2"
           >
             {isSaving ? (
               <>

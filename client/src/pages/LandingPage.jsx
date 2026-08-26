@@ -863,40 +863,32 @@ const LandingPage = () => {
       {/* Features & Footer Section */}
       <div className="border-t border-white/5 bg-black/20 backdrop-blur-sm mt-auto">
         {/* Features Grid */}
-        <div className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="flex gap-4 items-start">
-            <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400">
-              <Zap size={24} />
-            </div>
-            <div>
-              <h3 className="font-semibold text-white mb-1">Lightning Fast</h3>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                Redirects happen in milliseconds thanks to our global edge network.
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-4 items-start">
-            <div className="p-3 rounded-xl bg-purple-500/10 text-purple-400">
-              <BarChart size={24} />
-            </div>
-            <div>
-              <h3 className="font-semibold text-white mb-1">Deep Analytics</h3>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                Know your audience with detailed click tracking and location data.
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-4 items-start">
-            <div className="p-3 rounded-xl bg-green-500/10 text-green-400">
-              <Shield size={24} />
-            </div>
-            <div>
-              <h3 className="font-semibold text-white mb-1">Enterprise Secure</h3>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                Your data is protected with bank-grade encryption and security.
-              </p>
-            </div>
-          </div>
+        <div className="reveal-stagger max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+          {[
+            { icon: Zap, color: 'blue', title: 'Lightning Fast', desc: 'Redirects happen in milliseconds thanks to our global edge network.' },
+            { icon: BarChart, color: 'purple', title: 'Deep Analytics', desc: 'Know your audience with detailed click tracking and location data.' },
+            { icon: Shield, color: 'emerald', title: 'Enterprise Secure', desc: 'Your data is protected with bank-grade encryption and security.' }
+          ].map((feature, i) => {
+            const Icon = feature.icon;
+            const colorClasses = {
+              blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20 group-hover:border-blue-500/40 group-hover:shadow-[0_0_30px_-10px_rgba(59,130,246,0.3)]',
+              purple: 'bg-purple-500/10 text-purple-400 border-purple-500/20 group-hover:border-purple-500/40 group-hover:shadow-[0_0_30px_-10px_rgba(168,85,247,0.3)]',
+              emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 group-hover:border-emerald-500/40 group-hover:shadow-[0_0_30px_-10px_rgba(16,185,129,0.3)]'
+            };
+            return (
+              <div key={i} className={`flex gap-4 items-start p-6 rounded-3xl bg-gray-900/40 backdrop-blur-md border border-white/5 transition-all duration-300 group ${colorClasses[feature.color].split(' group-hover:')[0]} group-hover:bg-gray-800/60 hover:-translate-y-1 ${colorClasses[feature.color].split(' group-hover:').slice(1).map(c => `hover:${c}`).join(' ')}`}>
+                <div className={`p-3 rounded-2xl bg-white/5 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3`}>
+                  <Icon size={24} className={colorClasses[feature.color].split(' ')[1]} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white mb-2 text-lg">{feature.title}</h3>
+                  <p className="text-sm text-gray-400 leading-relaxed">
+                    {feature.desc}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Pricing CTA - Only show for free tier or not logged in */}

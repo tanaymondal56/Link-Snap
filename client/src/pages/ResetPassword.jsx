@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation, useParams, Link } from 'react-router';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
@@ -9,6 +10,14 @@ const ResetPassword = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { token } = useParams(); // From URL like /reset-password/:token
+  const { user } = useAuth();
+  
+  // Guard: If already logged in, no need to access reset password
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
   
   // Get email from state or URL params
   const urlParams = new URLSearchParams(location.search);

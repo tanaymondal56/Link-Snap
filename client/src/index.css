@@ -347,6 +347,18 @@
   transform: translateZ(0);
 }
 
+/* Mobile GPU/battery: cheaper orbs (smaller blur cost, fewer layers) */
+@media (max-width: 768px) {
+  .mesh-orb {
+    filter: blur(56px);
+    opacity: 0.3;
+    animation-duration: 30s; /* slower = fewer paints, same vibe */
+  }
+  .orb-3 {
+    display: none; /* third orb hidden on small screens — least visible anyway */
+  }
+}
+
 @keyframes gradient {
   0% {
     background-position: 0% 50%;
@@ -520,6 +532,196 @@ body {
   @apply bg-gray-950 text-gray-100;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOTION FOUNDATIONS (2026 platform baseline)
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Motion tokens — standardize all transitions/animations onto these */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 150ms;
+  --dur-med: 300ms;
+  --dur-slow: 600ms;
+
+  interpolate-size: allow-keywords; /* height:auto animations (Baseline 2026) */
+}
+
+/* Global reduced-motion kill switch — covers ALL real app motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Native app feel — applies always, essential in PWA/standalone */
+html {
+  -webkit-tap-highlight-color: transparent; /* no grey tap flash on mobile */
+  text-size-adjust: 100%;
+}
+
+body {
+  overscroll-behavior-y: contain; /* no pull-to-refresh / rubber-band in PWA */
+}
+
+/* Fast-tap + drag hygiene for interactive chrome */
+button,
+a,
+[role='button'],
+summary {
+  touch-action: manipulation; /* kills dbl-tap zoom delay on mobile */
+}
+
+/* Text inputs stay selectable & get native-feeling zoom prevention (16px handled by forms) */
+input,
+textarea,
+select,
+[contenteditable='true'] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Installed-app mode: feel like an app, not a website */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  input,
+  textarea,
+  select,
+  [contenteditable='true'],
+  [data-selectable] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
+/* ─── View Transitions (route fluency) ───────────────────────────────────── */
+::view-transition-old(root) {
+  animation: vt-out var(--dur-fast) var(--ease-out-quint) both;
+}
+::view-transition-new(root) {
+  animation: vt-in calc(var(--dur-med) * 0.83) var(--ease-out-quint) both;
+}
+@keyframes vt-out {
+  to {
+    opacity: 0;
+    scale: 0.985;
+  }
+}
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+    scale: 0.995;
+  }
+}
+
+/* Fallback when VT unsupported: animate incoming page shell on mount */
+html.no-vt .route-shell {
+  animation: route-in var(--dur-med) var(--ease-out-quint) both;
+}
+@keyframes route-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+
+/* Directional hint (set data-nav="back" before pop-state navigations) */
+html[data-nav='back']::view-transition-old(root) {
+  animation-name: vt-out-back;
+}
+html[data-nav='back']::view-transition-new(root) {
+  animation-name: vt-in-back;
+}
+@keyframes vt-out-back {
+  to {
+    opacity: 0;
+    translate: 6% 0;
+  }
+}
+@keyframes vt-in-back {
+  from {
+    opacity: 0;
+    translate: -6% 0;
+  }
+}
+
+/* ─── Scroll-driven reveals (compositor-run, zero JS) ────────────────────── */
+.reveal {
+  animation: reveal-rise both;
+  animation-timeline: view();
+  animation-range: entry 5% cover 24%;
+}
+@keyframes reveal-rise {
+  from {
+    opacity: 0;
+    translate: 0 36px;
+    scale: 0.99;
+  }
+}
+/* Non-supporting browsers: content simply visible (no fallback code needed) */
+
+.reveal-stagger > * {
+  animation: reveal-rise both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 22%;
+}
+.reveal-stagger > *:nth-child(2) { animation-range: entry 5% cover 26%; }
+.reveal-stagger > *:nth-child(3) { animation-range: entry 10% cover 30%; }
+.reveal-stagger > *:nth-child(4) { animation-range: entry 15% cover 34%; }
+
+/* ─── Skeleton primitive (matches critical-CSS shimmer) ──────────────────── */
+.skeleton {
+  border-radius: 0.5rem;
+  background: linear-gradient(
+    100deg,
+    rgb(31 41 55 / 0.55) 40%,
+    rgb(55 65 81 / 0.65) 50%,
+    rgb(31 41 55 / 0.55) 60%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer {
+  from { background-position: 180% 0; }
+  to { background-position: -20% 0; }
+}
+
+/* Enter/exit micro-animation primitives (@starting-style, no JS needed) */
+.anim-pop {
+  transition:
+    opacity var(--dur-med) var(--ease-spring),
+    scale var(--dur-med) var(--ease-spring),
+    overlay var(--dur-med) allow-discrete,
+    display var(--dur-med) allow-discrete;
+  @starting-style {
+    opacity: 0;
+    scale: 0.92;
+  }
+}
+.anim-slide-up {
+  transition:
+    opacity var(--dur-med) var(--ease-out-quint),
+    translate var(--dur-med) var(--ease-out-quint),
+    overlay var(--dur-med) allow-discrete,
+    display var(--dur-med) allow-discrete;
+  @starting-style {
+    opacity: 0;
+    translate: 0 14px;
+  }
+}
+
 /* Modal scroll lock - prevents background scroll while modal is open */
 body[data-modal-open='true'] {
   overflow: hidden !important;
@@ -545,6 +747,69 @@ body[data-modal-open='true'] [data-modal-content] * {
 [data-modal-content] .overflow-auto {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+/* ─── Native <dialog> styling (top-layer modals) ─────────────────────────── */
+/* ─── Native <dialog> styling (top-layer modals) ─────────────────────────── */
+.app-dialog {
+  /* Explicit centering — Tailwind v4 preflight zeroes margins, which defeats
+     the UA stylesheet's margin:auto dialog centering (pinned top-left bug). */
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: fit-content;
+  height: fit-content;
+
+  /* Decorative glows (-inset-0.5) must not create dialog scrollbars */
+  overflow: visible;
+
+  border: none;
+  padding: 0;
+  background: transparent;
+  max-width: none;
+  max-height: none;
+  color: inherit;
+}
+
+/* Enter animations via KEYFRAMES (not @starting-style): build-time CSS
+   processors were flattening @starting-style into unconditional styles,
+   which left every open dialog at opacity:0 with no backdrop. */
+.app-dialog[open] {
+  animation: app-dialog-in var(--dur-med) var(--ease-spring);
+}
+.app-dialog[open]::backdrop {
+  background: rgb(0 0 0 / 0.7);
+  backdrop-filter: blur(4px);
+  animation: app-backdrop-in var(--dur-med) ease-out;
+}
+@keyframes app-dialog-in {
+  from {
+    opacity: 0;
+    scale: 0.94;
+  }
+}
+@keyframes app-backdrop-in {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+}
+
+/* Exit path: JS adds .closing before close() so the transition plays out
+   while [open] is still set, then allow-discrete lets it finish removing. */
+.app-dialog,
+.app-dialog::backdrop {
+  transition:
+    opacity var(--dur-fast) ease-out,
+    scale var(--dur-fast) ease-out;
+}
+.app-dialog.closing {
+  opacity: 0;
+  scale: 0.94;
+}
+.app-dialog.closing::backdrop {
+  opacity: 0;
+  backdrop-filter: blur(0);
 }
 
 /* Custom scrollbar styles */
@@ -718,4 +983,16 @@ input[type='datetime-local'] {
   height: 2px;
   background: var(--topbar-accent);
   transition: background var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Long-list rendering containment (INP aid) ──────────────────────────── */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+/* Forced-colors / high-contrast users: keep borders visible */
+@media (forced-colors: active) {
+  .glass-card, [data-modal-content], .app-dialog {
+    border: 1px solid CanvasText;
+  }
 }

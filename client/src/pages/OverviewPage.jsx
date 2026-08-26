@@ -96,9 +96,27 @@ const OverviewPage = () => {
   };
 
   if (isLoading) {
+    // Layout-matching skeleton (native-app feel) instead of a bare spinner
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <div className="space-y-8" aria-busy="true" aria-live="polite">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <div className="skeleton h-7 w-56" />
+            <div className="skeleton h-4 w-72" />
+          </div>
+          <div className="skeleton h-12 w-40 rounded-xl" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="glass-card p-6 space-y-4">
+              <div className="skeleton h-10 w-10 rounded-xl" />
+              <div className="skeleton h-8 w-20" />
+              <div className="skeleton h-3.5 w-28" />
+            </div>
+          ))}
+        </div>
+        <div className="skeleton h-64 rounded-2xl" />
+        <span className="sr-only">Loading dashboard…</span>
       </div>
     );
   }

@@ -658,7 +658,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     placeholder="https://example.com/long-url"
-                    className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 pl-11 text-white placeholder-gray-500 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50 focus:outline-none transition-all group-hover:border-gray-600"
+                    className="w-full bg-white/5 border border-white/10 backdrop-blur-md shadow-inner shadow-black/20 rounded-xl px-4 py-3 pl-11 text-white placeholder-gray-500 focus:bg-white/10 focus:border-violet-500/50 focus:ring-4 focus:ring-violet-500/20 focus:outline-none transition-all group-hover:border-gray-600"
                     autoFocus
                   />
                   <LinkIcon
@@ -709,7 +709,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
                         onChange={handleAliasChange}
                         onBlur={() => checkAlias(customAlias)}
                         placeholder="custom-alias"
-                        className="flex-1 bg-gray-800/30 border border-gray-700 sm:rounded-l-none rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50 focus:outline-none transition-all"
+                        className="flex-1 bg-white/5 border border-white/10 backdrop-blur-md shadow-inner shadow-black/20 sm:rounded-l-none rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:bg-white/10 focus:border-violet-500/50 focus:ring-4 focus:ring-violet-500/20 focus:outline-none transition-all"
                       />
                       {/* Alias Status Indicator */}
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -783,7 +783,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
                           setActiveStartTime(value);
                         }}
                         min={new Date().toISOString().slice(0, 16)}
-                        className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2.5 text-white focus:border-blue-500 focus:outline-none text-base"
+                        className="w-full bg-white/5 border border-white/10 backdrop-blur-md shadow-inner shadow-black/20 rounded-lg px-3 py-2.5 text-white focus:border-blue-500 focus:outline-none text-base"
                       />
                     </div>
                     {activeStartTime && (
@@ -871,7 +871,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
                       }
                       setCustomExpiresAt(value);
                     }}
-                    className="w-full mt-2 bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-orange-500 focus:outline-none"
+                    className="w-full mt-2 bg-white/5 border border-white/10 backdrop-blur-md shadow-inner shadow-black/20 rounded-xl px-4 py-3 text-white focus:border-orange-500 focus:outline-none"
                     min={new Date().toISOString().slice(0, 16)}
                   />
                 )}
@@ -930,7 +930,7 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
                         data-1p-ignore="true"
                         data-lpignore="true"
                         data-form-type="other"
-                        className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
+                        className="w-full bg-white/5 border border-white/10 backdrop-blur-md shadow-inner shadow-black/20 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors"
                         maxLength={100}
                       />
                       <button

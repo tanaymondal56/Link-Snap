@@ -1473,10 +1473,15 @@ const ChangelogManager = () => {
         </div>
       )}
 
-      {/* History Modal */}
-      {historyModal && createPortal(
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-[95%] max-w-md max-h-[90dvh] overflow-hidden flex flex-col overscroll-contain">
+      {/* History Modal — native <dialog> (top-layer, focus trap, Esc) */}
+      {historyModal && (
+        <dialog
+          ref={(el) => { if (el && !el.open) el.showModal(); }}
+          onCancel={(e) => { e.preventDefault(); setHistoryModal(null); }}
+          onClick={(e) => { if (e.target === e.currentTarget) setHistoryModal(null); }}
+          className="app-dialog m-auto w-[95%] max-w-md p-0"
+        >
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-h-[90dvh] overflow-hidden flex flex-col overscroll-contain">
             <div className="flex items-center justify-between p-4 border-b border-gray-700">
               <h3 className="text-lg font-bold text-white">History - v{historyModal.version}</h3>
               <button
@@ -1521,8 +1526,8 @@ const ChangelogManager = () => {
               )}
             </div>
           </div>
-        </div>
-      , document.body)}
+        </dialog>
+      )}
     </div>
   );
 };

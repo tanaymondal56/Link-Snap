@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
@@ -7,9 +8,17 @@ import { Loader, Mail, ArrowRight, ArrowLeft, KeyRound } from 'lucide-react';
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // Guard: If already logged in, no need to access forgot password
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
 
   // Client-side email validation
   const validateEmail = (email) => {

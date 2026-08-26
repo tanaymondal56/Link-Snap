@@ -51,6 +51,7 @@ import { useScrollLock } from '../hooks/useScrollLock';
 import BadgeTooltip from '../components/ui/BadgeTooltip';
 import { useQrWorker } from '../hooks/useQrWorker';
 import { exportQrCode } from '../utils/qrExport';
+import { DashboardSkeleton } from '../components/ui/Skeletons';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 const VIRTUAL_SCROLL_THRESHOLD = 30; // Only virtualize when list exceeds this count
@@ -137,6 +138,12 @@ const UserDashboard = () => {
     }
     abortControllerRef.current = new AbortController();
 
+    // Only set loading to true if we don't have links yet, to avoid flickering
+    // if we're just paginating or refreshing
+    if (links.length === 0 && !isRefreshing) {
+      setIsLoading(true);
+    }
+
     try {
       setError(null);
       const limit = loadAll ? 1000 : 10; // Load up to 1000 when showing all
@@ -149,7 +156,13 @@ const UserDashboard = () => {
       setOwnerBanned(data.ownerBanned || false);
       // Cache the links for offline use (only cache first page for now or strategy needs update)
       if (pageNum === 1 && !loadAll) cacheLinks(data.urls);
+      
+      setIsLoading(false);
+      setIsRefreshing(false);
     } catch (error) {
+      // If the request was aborted, exit immediately WITHOUT turning off the loading state.
+      // This fixes the React Strict Mode double-invoke bug where the aborted request prematurely
+      // cleared the loading state before the active request finished.
       if (error?.name === 'CanceledError' || error?.name === 'AbortError' || error?.code === 'ERR_CANCELED') return;
       console.error(error);
 
@@ -169,7 +182,7 @@ const UserDashboard = () => {
         setError('Failed to load your links. Please check your connection.');
         handleApiError(error, 'Failed to load links');
       }
-    } finally {
+      
       setIsLoading(false);
       setIsRefreshing(false);
     }
@@ -182,6 +195,7 @@ const UserDashboard = () => {
     if (!isAuthChecking) {
       fetchLinks(showAll ? 1 : page, showAll);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchLinks intentionally excluded: it closes over volatile state (links.length, isRefreshing); adding it would refetch on every list mutation. This effect must run only on page/showAll/auth changes.
   }, [page, showAll, isAuthChecking]);
 
   const handleRefresh = async () => {
@@ -262,11 +276,7 @@ const UserDashboard = () => {
   const totalClicks = useMemo(() => links.reduce((acc, link) => acc + link.clicks, 0), [links]);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (error) {

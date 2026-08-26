@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, flushSync } from 'react';
 import { Link } from 'react-router';
 import {
   ArrowLeft,
@@ -32,7 +32,7 @@ import RoadmapCardModal from '../components/RoadmapCardModal';
 const FeedbackModal = lazy(() => import('../components/FeedbackModal'));
 import api from '../api/axios';
 import { formatDate } from '../utils/dateUtils';
-import toast from 'react-hot-toast';
+import showToast from '../utils/toastUtils';
 import { useAuth } from '../context/AuthContext';
 
 // Map icon names to actual Lucide components
@@ -73,7 +73,18 @@ const Roadmap = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('ls_roadmap_tab') || 'kanban';
-  }); // kanban, timeline, ideas
+  });
+  // Smooth tab morphing via View Transitions (falls back to instant swap)
+  const setTabWithTransition = (tab) => {
+    if (tab === activeTab) return;
+    if (typeof document !== 'undefined' && document.startViewTransition && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      document.startViewTransition(() => {
+        flushSync(() => setActiveTab(tab));
+      });
+    } else {
+      setActiveTab(tab);
+    }
+  }; // kanban, timeline, ideas
   
   useEffect(() => {
     localStorage.setItem('ls_roadmap_tab', activeTab);
@@ -169,10 +180,7 @@ const Roadmap = () => {
 
   const handleUpvoteRoadmap = async (id, currentVoted) => {
     if (!user) {
-        return toast.error("Please log in to upvote features", {
-            icon: '🔒',
-            style: { borderRadius: '10px', background: '#333', color: '#fff' }
-        });
+        return showToast.error("Please log in to upvote features");
     }
     if (votingId) return;
     try {
@@ -197,10 +205,10 @@ const Roadmap = () => {
         }));
       }
       
-      toast.success(data.message);
+      showToast.success(data.message);
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to update vote';
-      toast.error(msg);
+      showToast.error(msg);
       // Ensure user is logged in check
       if (err.response?.status === 401) {
           // handled by axios interceptor usually, but good to have
@@ -212,10 +220,7 @@ const Roadmap = () => {
   
   const handleUpvoteIdea = async (id, currentVoted) => {
     if (!user) {
-        return toast.error("Please log in to upvote ideas", {
-            icon: '🔒',
-            style: { borderRadius: '10px', background: '#333', color: '#fff' }
-        });
+        return showToast.error("Please log in to upvote ideas");
     }
     if (votingId) return;
     try {
@@ -233,10 +238,10 @@ const Roadmap = () => {
         )
       }));
       
-      toast.success(data.message);
+      showToast.success(data.message);
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to update vote';
-      toast.error(msg);
+      showToast.error(msg);
     } finally {
       setVotingId(null);
     }
@@ -600,7 +605,7 @@ const Roadmap = () => {
             <div className="flex items-center justify-center mb-10">
                 <div className="inline-flex p-1.5 bg-gray-900/80 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl">
                     <button
-                        onClick={() => setActiveTab('kanban')}
+                        onClick={() => setTabWithTransition('kanban')}
                         className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all ${
                             activeTab === 'kanban' 
                             ? 'bg-white/10 text-white shadow-sm' 
@@ -611,7 +616,7 @@ const Roadmap = () => {
                         <span className="hidden sm:inline">Kanban</span>
                     </button>
                     <button
-                        onClick={() => setActiveTab('timeline')}
+                        onClick={() => setTabWithTransition('timeline')}
                         className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all ${
                             activeTab === 'timeline' 
                             ? 'bg-white/10 text-white shadow-sm' 
@@ -622,7 +627,7 @@ const Roadmap = () => {
                         <span className="hidden sm:inline">Timeline</span>
                     </button>
                     <button
-                        onClick={() => setActiveTab('ideas')}
+                        onClick={() => setTabWithTransition('ideas')}
                         className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all ${
                             activeTab === 'ideas' 
                             ? 'bg-white/10 text-white shadow-sm' 

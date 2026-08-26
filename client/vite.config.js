@@ -44,7 +44,14 @@ export default defineConfig(async ({ mode }) => {
     plugins: [
       htmlEnvFallback(),
       tailwindcss(),
-      react(),
+      react({
+        // React Compiler (stable, React 19): auto-memoization at build time —
+        // removes manual useMemo/useCallback debt and improves INP on
+        // data-heavy views (virtualized dashboard, admin tables).
+        babel: {
+          plugins: [['babel-plugin-react-compiler', { target: '19' }]],
+        },
+      }),
       ...devPlugins, // Click-to-code inspector + debug toolbar (dev only)
       // Brotli compression for production builds (70-80% size reduction)
       viteCompression({
@@ -85,23 +92,7 @@ export default defineConfig(async ({ mode }) => {
           // Force SW update when any precached file changes
           cleanupOutdatedCaches: true,
           // Use network-first for HTML navigation requests
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'google-fonts-cache',
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
-                },
-                cacheableResponse: {
-                  statuses: [0, 200]
-                }
-              }
-            }
-          ]
-        },
+          runtimeCaching: []        },
         includeAssets: ['favicon.svg', 'favicon-32x32.png', 'favicon-16x16.png', 'apple-touch-icon.png', 'robots.txt'],
         manifest: {
           name: 'Link Snap',
@@ -111,6 +102,8 @@ export default defineConfig(async ({ mode }) => {
           theme_color: '#8b5cf6',
           background_color: '#030712', // gray-950 to match app
           display: 'standalone',
+          display_override: ['window-controls-overlay', 'standalone'],
+          launch_handler: { client_mode: 'focus-existing' },
           start_url: '/',
           scope: '/',
           icons: [
