@@ -291,9 +291,13 @@
 .mesh-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.4;
-  animation: float 20s infinite ease-in-out;
+  filter: blur(60px);
+  opacity: 0.35;
+  animation: float 24s infinite ease-in-out;
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  pointer-events: none;
 }
 
 .orb-1 {
@@ -520,12 +524,16 @@
 
 .animate-text-alternate {
   animation: text-alternate 3s ease-in-out infinite;
+  will-change: opacity;
+  transform: translateZ(0);
 }
 
 .animate-text-alternate-reverse {
   position: absolute;
   left: 0;
   animation: text-alternate-reverse 3s ease-in-out infinite;
+  will-change: opacity;
+  transform: translateZ(0);
 }
 
 body {
@@ -903,12 +911,12 @@ input[type='datetime-local'] {
   white-space: nowrap;
 }
 
-/* Shimmer sweep (shared by all tiers) */
+/* Shimmer sweep (shared by all tiers) — hardware accelerated with long rest periods */
 .tier-badge::after {
   content: '';
   position: absolute;
   top: 0;
-  left: -100%;
+  left: 0;
   width: 100%;
   height: 100%;
   background: linear-gradient(
@@ -917,18 +925,19 @@ input[type='datetime-local'] {
     rgba(255, 255, 255, 0.25) 50%,
     transparent 100%
   );
-  animation: badge-shimmer 3s ease-in-out infinite;
+  transform: translateX(-100%);
+  animation: badge-shimmer 4s ease-in-out infinite;
+  will-change: transform;
+  pointer-events: none;
 }
 
 @keyframes badge-shimmer {
   0% {
-    left: -100%;
+    transform: translateX(-100%);
   }
-  50% {
-    left: 100%;
-  }
+  35%,
   100% {
-    left: 100%;
+    transform: translateX(100%);
   }
 }
 
