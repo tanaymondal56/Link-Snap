@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../api/axios';
-import showToast from '../utils/toastUtils';
 
 const CHECKOUT_SCRIPT_URL = 'https://checkout.razorpay.com/v1/checkout.js';
 
@@ -28,12 +27,7 @@ const loadCheckoutScript = () => {
   return scriptLoadPromise;
 };
 
-/**
- * Dynamically loads the Razorpay checkout.js as a module-level singleton.
- * The script is never removed to prevent re-downloads on component remounts.
- */
 export const useRazorpay = () => {
-  const [scriptReady, setScriptReady] = useState(() => !!window.Razorpay);
   const [processing, setProcessing] = useState(false);
   // Ref for synchronous double-click guard (state updates are async)
   const isProcessingRef = useRef(false);
@@ -41,16 +35,11 @@ export const useRazorpay = () => {
   const rzpRef = useRef(null);
 
   useEffect(() => {
-    if (!scriptReady) {
-      loadCheckoutScript()
-        .then(() => setScriptReady(true))
-        .catch(() => showToast.error('Failed to load payment module. Please refresh.'));
-    }
     // Cleanup: close any open modal if component unmounts mid-payment
     return () => {
       rzpRef.current?.close?.();
     };
-  }, [scriptReady]);
+  }, []);
 
   /**
    * Initiates a Razorpay payment flow.
@@ -59,16 +48,17 @@ export const useRazorpay = () => {
    * @param {function} onError   - Called with Error
    */
   const initiatePayment = async ({ tier, interval, userName, userEmail }, onSuccess, onError) => {
-    if (!scriptReady) {
-      showToast.error('Payment module is not ready yet. Please try again.');
-      return;
-    }
     // Synchronous guard prevents TOCTOU double-click race before state re-render
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
     setProcessing(true);
 
     try {
+      // Step 1: Dynamically load Razorpay SDK on-demand only when payment is actually requested
+      await loadCheckoutScript();
+      if (!window.Razorpay) {
+        throw new Error('Razorpay SDK failed to load. Please check your internet connection.');
+      }
       // Step 1: Create subscription or order (determined server-side)
       const { data: payTarget } = await api.post('/razorpay/order', { tier, interval });
 
@@ -147,5 +137,5 @@ export const useRazorpay = () => {
     }
   };
 
-  return { initiatePayment, processing, scriptReady };
+  return { initiatePayment, processing, scriptReady: true, loadCheckoutScript };
 };
