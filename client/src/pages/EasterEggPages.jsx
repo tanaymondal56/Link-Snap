@@ -169,6 +169,9 @@ export const DevNullPage = () => {
       gain.gain.value = 0.2;
       osc.start();
       osc.stop(ctx.currentTime + 0.5);
+      setTimeout(() => {
+        ctx.close().catch(() => {});
+      }, 600);
     } catch {
       // AudioContext not available
     }
@@ -322,6 +325,9 @@ export const Funny404Page = () => {
         osc.start(ctx.currentTime + i * 0.3);
         osc.stop(ctx.currentTime + i * 0.3 + 0.35);
       });
+      setTimeout(() => {
+        ctx.close().catch(() => {});
+      }, 1500);
     } catch {
       // AudioContext not available
     }

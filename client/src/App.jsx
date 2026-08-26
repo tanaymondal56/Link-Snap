@@ -263,6 +263,9 @@ function AppContent() {
                       osc.start(ctx.currentTime + i * 0.3);
                       osc.stop(ctx.currentTime + i * 0.3 + 0.35);
                     });
+                    setTimeout(() => {
+                      ctx.close().catch(() => {});
+                    }, 1500);
                   } catch {
                     // AudioContext may not be available
                   }

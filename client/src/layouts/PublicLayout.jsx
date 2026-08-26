@@ -108,9 +108,8 @@ const PublicLayout = () => {
                 className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300 transition-all text-xs font-medium group relative"
               >
                 {showNewBadge && (
-                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
                   </span>
                 )}
                 <Sparkles className="w-3 h-3" />
@@ -226,11 +225,8 @@ const PublicLayout = () => {
               <Sparkles size={12} />v{appVersion}
             </Link>{' '}
             •{' '}
-            <span className="inline-block relative whitespace-nowrap">
-              <span className="animate-text-alternate text-gray-300">Made with ❤️</span>
-              <span className="animate-text-alternate-reverse font-bold bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent whitespace-nowrap">
-                Crafted by Tanay ✨
-              </span>
+            <span className="text-gray-400">
+              Made with ❤️ by <span className="font-semibold bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent">Tanay</span> ✨
             </span>
           </div>
           {/* Legal Links */}

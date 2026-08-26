@@ -51,6 +51,7 @@ export const useQrWorker = () => {
       return new Promise((resolve) => {
         const handleMessage = (e) => {
           workerRef.current?.removeEventListener('message', handleMessage);
+          workerRef.current?.removeEventListener('error', handleError);
 
           if (!activeRef.current) {
             // Component unmounted while waiting — clean up silently

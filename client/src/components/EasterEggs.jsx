@@ -116,31 +116,45 @@ const EasterEggs = () => {
 
   // Play beep sound
   const playBeep = useCallback(() => {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 800;
-    gain.gain.value = 0.1;
-    osc.start();
-    osc.stop(ctx.currentTime + 0.1);
-  }, []);
-
-  // Play startup sound (tilde 3x)
-  const playStartupSound = useCallback(() => {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
-    notes.forEach((freq, i) => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
       gain.connect(ctx.destination);
-      osc.frequency.value = freq;
+      osc.frequency.value = 800;
       gain.gain.value = 0.1;
-      osc.start(ctx.currentTime + i * 0.15);
-      osc.stop(ctx.currentTime + i * 0.15 + 0.2);
-    });
+      osc.start();
+      osc.stop(ctx.currentTime + 0.1);
+      setTimeout(() => {
+        ctx.close().catch(() => {});
+      }, 200);
+    } catch {
+      // AudioContext unavailable
+    }
+  }, []);
+
+  // Play startup sound (tilde 3x)
+  const playStartupSound = useCallback(() => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        gain.gain.value = 0.1;
+        osc.start(ctx.currentTime + i * 0.15);
+        osc.stop(ctx.currentTime + i * 0.15 + 0.2);
+      });
+      setTimeout(() => {
+        ctx.close().catch(() => {});
+      }, 700);
+    } catch {
+      // AudioContext unavailable
+    }
   }, []);
 
   // ========================================
