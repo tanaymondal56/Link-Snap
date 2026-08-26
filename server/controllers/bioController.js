@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Url from '../models/Url.js';
 import logger from '../utils/logger.js';
 import { redisGet, redisSet, redisDel } from '../config/redis.js';
+import { getEffectiveTier } from '../services/subscriptionService.js';
 
 // Valid theme values (must match schema enum)
 const VALID_THEMES = ['default', 'dark', 'midnight', 'ocean', 'forest', 'sunset', 'custom'];
@@ -278,7 +279,7 @@ export const updateBioSettings = async (req, res) => {
       const filteredLinks = pinnedLinks.filter(id => validIds.includes(id));
 
       // Apply tier limits
-      const tier = user.subscription?.tier || 'free';
+      const tier = getEffectiveTier(user);
       const maxLinks = tier === 'free' ? 10 : 25;
       user.bioPage.pinnedLinks = filteredLinks.slice(0, maxLinks);
     }

@@ -22,17 +22,21 @@ export const calculateSubscriptionEndDate = (startDate, durationStr) => {
   }
 
   if (yearsToAdd > 0) {
+    const currentMonth = copy.getMonth();
     copy.setFullYear(copy.getFullYear() + yearsToAdd);
+    // Handle leap year (Feb 29 + 1 year -> Feb 28, not Mar 1)
+    if (copy.getMonth() !== currentMonth) {
+      copy.setDate(0);
+    }
   }
   
   if (monthsToAdd > 0) {
     const currentDay = copy.getDate();
     copy.setMonth(copy.getMonth() + monthsToAdd);
     
-    // Handle overflow (e.g., Jan 31 + 1 month -> Mar 3)
-    // If the day changed, it means the target month didn't have enough days
+    // Handle overflow (e.g., Jan 31 + 1 month -> Feb 28/29, not Mar 3)
     if (copy.getDate() !== currentDay) {
-      copy.setDate(0); // Go back to last day of previous month (the target month)
+      copy.setDate(0);
     }
   }
   

@@ -4,6 +4,8 @@ import logger from '../utils/logger.js';
 import axios from 'axios';
 import mongoose from 'mongoose';
 import { getUserIP } from '../middleware/strictProxyGate.js';
+import { redisDel } from '../config/redis.js';
+import { invalidateUserAnalyticsCache } from './analyticsController.js';
 
 
 /**
@@ -239,6 +241,10 @@ export const overrideUserSubscription = async (req, res) => {
       logger.error(`[Admin Override Audit Error] ${auditErr.message}`);
     }
     
+    // Invalidate user cache and analytics cache immediately
+    await redisDel(`ls:user:${userId}`).catch(() => {});
+    await invalidateUserAnalyticsCache(userId).catch(() => {});
+
     logger.info(`[Admin Override] Admin ${req.user.snapId} changed ${user.snapId} subscription: tier=${tier}, status=${status}, days=${durationDays}. Reason: ${reason || 'N/A'}`);
     
     res.json({
@@ -366,6 +372,10 @@ export const syncUserSubscription = async (req, res) => {
         logger.error(`[Admin Sync Audit Error] ${auditErr.message}`);
       }
       
+      // Invalidate user cache and analytics cache immediately
+      await redisDel(`ls:user:${userId}`).catch(() => {});
+      await invalidateUserAnalyticsCache(userId).catch(() => {});
+
       logger.info(`[Admin Sync] Synced subscription for ${user.snapId} from Lemon Squeezy`);
       
       res.json({
@@ -508,6 +518,10 @@ export const deleteUserSubscription = async (req, res) => {
       { returnDocument: 'after' }
     ).select('email snapId subscription');
     
+    // Invalidate user cache and analytics cache immediately
+    await redisDel(`ls:user:${userId}`).catch(() => {});
+    await invalidateUserAnalyticsCache(userId).catch(() => {});
+
     logger.warn(`[SUBSCRIPTION DELETED] Admin ${req.user.snapId} permanently deleted subscription for user ${user.snapId} (${user.email}). Previous tier: ${user.subscription?.tier}. Reason: ${reason.trim()}`);
     
     res.json({

@@ -334,14 +334,23 @@ export const processExpiredSubscriptions = async () => {
         
         await SubscriptionAuditLog.create({
           userId: user._id,
+          userEmail: user.email,
+          userSnapId: user.snapId || user.email,
           action: 'expired',
-          previousTier,
-          newTier: 'free',
-          gateway: user.subscription.gateway,
-          details: `Subscription auto-expired from status '${previousStatus}' via daily cron sweep.`
-        });
+          source: 'system',
+          reason: `Subscription auto-expired from status '${previousStatus}' via background sweep.`,
+          previousData: {
+            tier: previousTier,
+            status: previousStatus,
+            currentPeriodEnd: user.subscription?.currentPeriodEnd
+          },
+          newData: {
+            tier: 'free',
+            status: 'expired'
+          }
+        }).catch(auditErr => logger.error(`[Subscription Expiry Audit Log Error] ${auditErr.message}`));
         
-        await redisDel(`ls:user:${user._id}`);
+        await redisDel(`ls:user:${user._id}`).catch(() => {});
         
         totalModified++;
       } catch (err) {

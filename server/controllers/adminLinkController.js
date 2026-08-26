@@ -4,6 +4,7 @@ import Analytics from '../models/Analytics.js';
 import User from '../models/User.js';
 import { invalidateCache } from '../services/cacheService.js';
 import { checkUrlsSafety } from '../services/safeBrowsingService.js';
+import { redisDel } from '../config/redis.js';
 import logger from '../utils/logger.js';
 
 // @desc    Get all links (paginated, searchable)
@@ -190,6 +191,16 @@ export const deleteLinkAdmin = async (req, res) => {
 
         // Delete URL
         await url.deleteOne();
+
+        // Decrement user's active link count if link belonged to a registered user
+        if (url.createdBy) {
+            await User.findByIdAndUpdate(url.createdBy, [{
+                $set: {
+                    'linkUsage.count': { $max: [0, { $subtract: ['$linkUsage.count', 1] }] }
+                }
+            }]).catch(() => {});
+            await redisDel(`ls:user:${url.createdBy}`).catch(() => {});
+        }
 
         res.json({ message: 'Link and associated data removed' });
     } catch (error) {

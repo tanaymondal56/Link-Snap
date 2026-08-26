@@ -215,12 +215,14 @@ export const incrementLinkUsage = async (reqOrUserId) => {
                     'linkUsage.hardCount': 1   // Hard count +1
                 }
             });
+            await redisDel(`ls:user:${req.user._id}`).catch(() => {});
         }
     } else {
         // Legacy: Just userId passed (assume logged in user)
         await User.findByIdAndUpdate(reqOrUserId, {
             $inc: { 'linkUsage.count': 1, 'linkUsage.hardCount': 1 }
         });
+        await redisDel(`ls:user:${reqOrUserId}`).catch(() => {});
     }
 };
 
@@ -353,20 +355,33 @@ export const checkAndIncrementClickUsage = async (userId) => {
     const config = TIERS[tier];
     const limit = config ? config.clicksPerMonth : TIERS.free.clicksPerMonth;
 
-    // Reset Logic - Uses atomic conditional update (Cosmos DB compatible)
-    const currentPeriodStart = user.subscription?.currentPeriodStart;
+    const isPaid = ['pro', 'business'].includes(tier);
+    const billingCycle = user.subscription?.billingCycle;
+    const isMonthlyPaid = isPaid && billingCycle === 'monthly';
+
+    let currentPeriodStart = isPaid ? user.subscription?.currentPeriodStart : null;
+    if (currentPeriodStart && isMonthlyPaid) {
+        const ageMs = Date.now() - new Date(currentPeriodStart).getTime();
+        if (ageMs > 31 * 24 * 60 * 60 * 1000) {
+            currentPeriodStart = null;
+        }
+    }
     const resetAt = user.clickUsage?.resetAt;
     let resetPerformed = false;
     const now = new Date();
 
     if (currentPeriodStart) {
-        // For subs, reset if usage.resetAt is before current period start
-        if (resetAt && new Date(resetAt) < new Date(currentPeriodStart)) {
+        // For active paid subs, reset if usage.resetAt is before current period start
+        if (!resetAt || new Date(resetAt) < new Date(currentPeriodStart)) {
             // ATOMIC: Only reset if resetAt still matches (prevents race condition)
             const resetResult = await User.findOneAndUpdate(
                 {
                     _id: user._id,
-                    'clickUsage.resetAt': resetAt  // Conditional: only if unchanged
+                    $or: [
+                        { 'clickUsage.resetAt': resetAt },
+                        { 'clickUsage.resetAt': null },
+                        { 'clickUsage.resetAt': { $exists: false } }
+                    ]
                 },
                 {
                     $set: { 'clickUsage.count': 0, 'clickUsage.resetAt': now }

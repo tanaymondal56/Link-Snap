@@ -262,6 +262,8 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
 userSchema.index({ createdAt: -1 });
 // Index for subscription tier filtering
 userSchema.index({ 'subscription.tier': 1, createdAt: -1 });
+// Compound index for background subscription expiration sweep
+userSchema.index({ 'subscription.status': 1, 'subscription.currentPeriodEnd': 1 });
 // Index for role filtering  
 userSchema.index({ role: 1, createdAt: -1 });
 // Index for ban scheduler (finding expired bans)

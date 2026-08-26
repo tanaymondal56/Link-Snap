@@ -5,6 +5,8 @@ import { redisDel } from '../config/redis.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 import { calculateSubscriptionEndDate } from '../utils/dateUtils.js';
+import { getEffectiveTier } from '../services/subscriptionService.js';
+import { invalidateUserAnalyticsCache } from './analyticsController.js';
 
 /**
  * Generate a new redeem code (Admin only)
@@ -255,7 +257,7 @@ export const redeemCode = async (req, res) => {
 
     // Downgrade protection - prevent redeeming LOWER tier codes (same-tier is allowed for extension)
     const tierRank = { 'free': 0, 'pro': 1, 'business': 2 };
-    const currentTier = user.subscription?.tier || 'free';
+    const currentTier = getEffectiveTier(user);
     if (tierRank[redeemCodeDoc.tier] < (tierRank[currentTier] ?? 0)) {
       return res.status(400).json({
         message: `Cannot redeem a ${redeemCodeDoc.tier} code while on ${currentTier} plan. Contact support for assistance.`
@@ -344,6 +346,7 @@ export const redeemCode = async (req, res) => {
 
     // Invalidate Redis user session cache immediately so fresh tier is served
     await redisDel(`ls:user:${user._id}`).catch(() => {});
+    await invalidateUserAnalyticsCache(user._id).catch(() => {});
 
     // Write to subscription audit log
     try {
@@ -422,7 +425,7 @@ export const validateRedeemCode = async (req, res) => {
 
     const now = new Date();
     let startDate = now;
-    const currentTier = user.subscription?.tier || 'free';
+    const currentTier = getEffectiveTier(user);
     if (
       user.subscription?.currentPeriodEnd && 
       user.subscription.status === 'active' && 
