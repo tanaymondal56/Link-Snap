@@ -17,15 +17,17 @@ const flushBuffer = async () => {
     isFlushing = true;
 
     const redis = getRedisClient();
-    const bufferToInsert = [];
 
     try {
         if (redis) {
-            // Atomically pop up to BATCH_SIZE items from the queue
-            // (Upstash supports LPOP with count argument)
-            const items = await redis.lpop(REDIS_QUEUE_KEY, BATCH_SIZE);
-            
-            if (items && items.length > 0) {
+            let drainedBatches = 0;
+            const MAX_DRAIN_BATCHES = 10; // Drain up to 1,000 items per flush tick
+
+            while (drainedBatches < MAX_DRAIN_BATCHES) {
+                const items = await redis.lpop(REDIS_QUEUE_KEY, BATCH_SIZE);
+                if (!items || items.length === 0) break;
+
+                const bufferToInsert = [];
                 for (const item of items) {
                     try {
                         bufferToInsert.push(typeof item === 'string' ? JSON.parse(item) : item);
@@ -33,7 +35,7 @@ const flushBuffer = async () => {
                         console.error('[Analytics] Failed to parse queued item:', e);
                     }
                 }
-                
+
                 if (bufferToInsert.length > 0) {
                     try {
                         await Analytics.insertMany(bufferToInsert, { ordered: false });
@@ -41,12 +43,14 @@ const flushBuffer = async () => {
                         console.error('[Analytics] DB insert failed. Restoring data to Redis...', dbError.message);
                         // Data safety backup: if DB fails, push the items back to the head of the queue
                         await redis.lpush(REDIS_QUEUE_KEY, ...items);
+                        break;
                     }
                 }
+                drainedBatches++;
             }
         } else {
             if (analyticsBuffer.length > 0) {
-                bufferToInsert.push(...analyticsBuffer);
+                const bufferToInsert = [...analyticsBuffer];
                 analyticsBuffer = []; // Clear local buffer immediately
                 
                 try {
@@ -73,16 +77,42 @@ const startFlushTimer = () => {
 
 startFlushTimer();
 
+const uaCache = new Map();
+const MAX_UA_CACHE = 1000;
+
+const parseUserAgent = (ua) => {
+    if (!ua) return { browser: 'Unknown', os: 'Unknown', device: 'Desktop' };
+    const cached = uaCache.get(ua);
+    if (cached) return cached;
+
+    const parser = new UAParser(ua);
+    const browser = parser.getBrowser();
+    const os = parser.getOS();
+    const device = parser.getDevice();
+
+    const parsed = {
+        browser: browser.name || 'Unknown',
+        os: os.name || 'Unknown',
+        device: device.type ? (device.type.charAt(0).toUpperCase() + device.type.slice(1)) : 'Desktop',
+    };
+
+    if (uaCache.size >= MAX_UA_CACHE) {
+        const firstKey = uaCache.keys().next().value;
+        uaCache.delete(firstKey);
+    }
+    uaCache.set(ua, parsed);
+    return parsed;
+};
+
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+
 export const trackVisit = async (urlId, req, extras = {}) => {
     try {
         // Security: Truncate to prevent ReDoS
         const rawUA = req.headers['user-agent'] || '';
         const userAgent = rawUA.substring(0, 500);
         
-        const parser = new UAParser(userAgent);
-        const browser = parser.getBrowser();
-        const os = parser.getOS();
-        const device = parser.getDevice();
+        const { browser, os, device } = parseUserAgent(userAgent);
 
         // Get real user IP using proxy-aware extraction, then anonymize (GDPR)
         const rawIp = getUserIP(req);
@@ -98,7 +128,6 @@ export const trackVisit = async (urlId, req, extras = {}) => {
         let resolvedCountry = 'Unknown';
         if (cfCountry && cfCountry !== 'XX') {
             try {
-                const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
                 resolvedCountry = regionNames.of(cfCountry.toUpperCase()) || cfCountry.toUpperCase();
             } catch {
                 resolvedCountry = cfCountry.toUpperCase();
@@ -109,9 +138,9 @@ export const trackVisit = async (urlId, req, extras = {}) => {
             urlId,
             ip,
             userAgent: userAgent, // Use truncated version (max 500 chars)
-            browser: browser.name || 'Unknown',
-            os: os.name || 'Unknown',
-            device: device.type ? (device.type.charAt(0).toUpperCase() + device.type.slice(1)) : 'Desktop',
+            browser,
+            os,
+            device,
             country: resolvedCountry,
             city: cfCity || 'Unknown',
             deviceMatchType: extras.deviceMatchType || null,

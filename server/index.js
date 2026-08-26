@@ -44,6 +44,8 @@ import dbscRoutes from './routes/dbscRoutes.js';
 import { flushAndStop } from './services/clickStatsService.js';
 import { stopDeviceAuthIntervals } from './controllers/deviceAuthController.js';
 import { flushAnalyticsAndStop } from './services/analyticsService.js';
+import { stopBanScheduler } from './services/banScheduler.js';
+import { stopCronJobs } from './services/cronService.js';
 import compression from 'compression';
 import mongoose from 'mongoose';
 import { connectRedis, checkRedisConnection, disconnectRedis, isRedisConfigured } from './config/redis.js';
@@ -104,9 +106,18 @@ if (process.env.NODE_ENV === 'development') {
 // Toggle: PROXY_GATE_ENABLED=false for local development
 app.use(strictProxyGate);
 
-// Generate CSP Nonce
+// Generate CSP Nonce (Lazy on-demand getter to avoid crypto.randomBytes overhead on pure JSON APIs)
 app.use((req, res, next) => {
-  res.locals.nonce = crypto.randomBytes(16).toString('base64');
+  Object.defineProperty(res.locals, 'nonce', {
+    get() {
+      if (!this._nonce) {
+        this._nonce = crypto.randomBytes(16).toString('base64');
+      }
+      return this._nonce;
+    },
+    configurable: true,
+    enumerable: true
+  });
   next();
 });
 
@@ -187,6 +198,20 @@ const productionDefaultOrigins = [
 // (e.g. api.lksnp.qzz.io, beta.lksnp.qzz.io) without any config changes.
 const BUILTIN_WILDCARD_REGEX = /^https:\/\/([a-z0-9-]+\.)*lksnp\.qzz\.io$/i;
 
+// Pre-compiled dynamic allowed domains regex (compiled once at startup)
+const DYNAMIC_ALLOWED_DOMAINS_REGEX = (() => {
+  if (!process.env.DYNAMIC_ALLOWED_DOMAINS_REGEX) return null;
+  try {
+    let regexStr = process.env.DYNAMIC_ALLOWED_DOMAINS_REGEX;
+    if (!regexStr.startsWith('^')) regexStr = '^' + regexStr;
+    if (!regexStr.endsWith('$')) regexStr = regexStr + '$';
+    return new RegExp(regexStr, 'i');
+  } catch (e) {
+    console.error(`[CORS] Invalid DYNAMIC_ALLOWED_DOMAINS_REGEX: ${e.message}`);
+    return null;
+  }
+})();
+
 const allowedOrigins = Array.from(new Set([
   normalizeOrigin(process.env.CLIENT_URL),
   ...parseCsvOrigins(process.env.ALLOWED_ORIGINS),
@@ -218,23 +243,9 @@ app.use(cors({
       return callback(null, true);
     }
 
-    // ── Dynamic host checker (via env var regex) ───────────────────────────
-    // Allow additional custom domains via DYNAMIC_ALLOWED_DOMAINS_REGEX env var
-    // Example: ^https:\/\/(.*?\.)?yourdomain\.com$
-    if (process.env.DYNAMIC_ALLOWED_DOMAINS_REGEX) {
-      try {
-        let regexStr = process.env.DYNAMIC_ALLOWED_DOMAINS_REGEX;
-        // Security: Enforce strict anchoring to prevent partial matches 
-        // e.g., https://attacker.com/?q=https://allowed.com
-        if (!regexStr.startsWith('^')) regexStr = '^' + regexStr;
-        if (!regexStr.endsWith('$')) regexStr = regexStr + '$';
-        const regex = new RegExp(regexStr, 'i');
-        if (regex.test(normalizedOrigin)) {
-          return callback(null, true);
-        }
-      } catch (e) {
-        console.error(`[CORS] Invalid DYNAMIC_ALLOWED_DOMAINS_REGEX: ${e.message}`);
-      }
+    // ── Dynamic host checker (via pre-compiled regex) ──────────────────────
+    if (DYNAMIC_ALLOWED_DOMAINS_REGEX && DYNAMIC_ALLOWED_DOMAINS_REGEX.test(normalizedOrigin)) {
+      return callback(null, true);
     }
 
     // For development, allow localhost and LAN variants
@@ -485,6 +496,8 @@ const startServer = async () => {
 
           // 2. Stop background timers
           stopDeviceAuthIntervals();
+          stopBanScheduler();
+          stopCronJobs();
 
           // 3. Flush buffered click counts to DB (prevent data loss)
           logger.info('[Shutdown] Flushing click stats buffer...');

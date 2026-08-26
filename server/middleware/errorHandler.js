@@ -8,6 +8,16 @@ const errorHandler = (err, req, res, _next) => {
 
   logger.error(`${statusCode} - ${err.message} - ${req.originalUrl} - ${req.method} - ${getUserIP(req)}${!isProd && err.stack ? `\n${err.stack}` : ''}`);
 
+  // Handle MongoDB E11000 Duplicate Key Error (Unique Constraint Race Condition)
+  if (err.code === 11000) {
+    const field = Object.keys(err.keyPattern || err.keyValue || {})[0] || 'field';
+    const readableField = field === 'username' ? 'Username' : field === 'email' ? 'Email' : field;
+    return res.status(400).json({
+      message: `${readableField} is already taken`,
+      stack: isProd ? null : err.stack,
+    });
+  }
+
   // Security: only expose err.message for OPERATIONAL errors (4xx) that
   // controllers raise intentionally ("Username is already taken", etc.).
   // Internal 5xx messages can leak driver text / file paths to clients.

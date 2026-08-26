@@ -87,7 +87,8 @@ const feedbackSchema = new mongoose.Schema({
   // Internal admin notes (never exposed to users)
   adminNotes: {
     type: String,
-    default: ''
+    default: '',
+    select: false
   },
   
   // Link to roadmap item (optional)
@@ -112,13 +113,13 @@ const feedbackSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for efficient queries
-feedbackSchema.index({ createdAt: -1 });
-feedbackSchema.index({ voteCount: -1 });
-feedbackSchema.index({ status: 1, createdAt: -1 });
-feedbackSchema.index({ type: 1, createdAt: -1 });
+// Indexes for efficient queries with soft delete filter
+feedbackSchema.index({ isDeleted: 1, voteCount: -1, createdAt: -1 });
+feedbackSchema.index({ isDeleted: 1, status: 1, createdAt: -1 });
+feedbackSchema.index({ isDeleted: 1, type: 1, createdAt: -1 });
+feedbackSchema.index({ isDeleted: 1, createdAt: -1 });
 feedbackSchema.index({ user: 1 });
-feedbackSchema.index({ isDeleted: 1 });
+feedbackSchema.index({ 'votes.user': 1 });
 
 // Virtual for checking if user has voted
 feedbackSchema.methods.hasUserVoted = function(userId) {

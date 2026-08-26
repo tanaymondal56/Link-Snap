@@ -855,15 +855,17 @@ export const getAllAppeals = async (req, res, next) => {
         const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 10));
         const skip = (page - 1) * limit;
 
-        // Uses compound index { status: 1, createdAt: -1 } for efficient sorting
-        const appeals = await Appeal.find(filter)
-            .populate('userId', 'email firstName lastName bannedAt bannedReason')
-            .populate('reviewedBy', 'email firstName lastName')
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit);
-
-        const total = await Appeal.countDocuments(filter);
+        // Uses compound index { status: 1, createdAt: -1 } for efficient sorting in parallel
+        const [appeals, total] = await Promise.all([
+            Appeal.find(filter)
+                .populate('userId', 'email firstName lastName bannedAt bannedReason')
+                .populate('reviewedBy', 'email firstName lastName')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Appeal.countDocuments(filter)
+        ]);
 
         res.json({
             appeals,

@@ -30,8 +30,7 @@ const adminNotificationSchema = new mongoose.Schema({
       
       // Summary (daily digest)
       'daily_summary'
-    ],
-    index: true
+    ]
   },
 
   // Severity level for filtering
@@ -39,8 +38,7 @@ const adminNotificationSchema = new mongoose.Schema({
     type: String,
     required: true,
     enum: ['critical', 'warning', 'info', 'summary'],
-    default: 'info',
-    index: true
+    default: 'info'
   },
 
   // Title and message
@@ -111,6 +109,8 @@ adminNotificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 adminNotificationSchema.index({ aggregationKey: 1 }, { unique: true, sparse: true });
 
 // Compound index for efficient queries
+adminNotificationSchema.index({ isRead: 1, createdAt: -1 });
+adminNotificationSchema.index({ severity: 1, createdAt: -1 });
 adminNotificationSchema.index({ severity: 1, isRead: 1, createdAt: -1 });
 adminNotificationSchema.index({ type: 1, createdAt: -1 });
 

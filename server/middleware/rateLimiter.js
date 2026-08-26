@@ -3,27 +3,24 @@ import { getEffectiveTier } from '../services/subscriptionService.js';
 import { getAnonFingerprint } from '../utils/fingerprint.js';
 import { getUserIP } from './strictProxyGate.js';
 import RedisStore from 'rate-limit-redis';
-import { getRedisClient, getRedisDriver, isRedisConfigured } from '../config/redis.js';
+import { getRedisClient, getRedisDriver, isRedisConfigured, connectRedis } from '../config/redis.js';
 import ipaddr from 'ipaddr.js';
 
 // IPs that bypass rate limiting
-const envAllowedIPs = process.env.RATE_LIMIT_WHITELIST_IPS ? process.env.RATE_LIMIT_WHITELIST_IPS.split(',').map(ip => ip.trim()) : [];
+const envAllowedIPs = process.env.RATE_LIMIT_WHITELIST_IPS 
+    ? process.env.RATE_LIMIT_WHITELIST_IPS.split(',').map(ip => ip.trim()).filter(Boolean) 
+    : [];
 
-const whitelistedIPs = [
+const WHITELIST_SET = new Set([
     '127.0.0.1',
     '::1',
-    '::ffff:127.0.0.1',
-    ...envAllowedIPs
-];
+    ...envAllowedIPs.map(ip => (ip.startsWith('::ffff:') ? ip.slice(7) : ip))
+]);
 
 const isWhitelisted = (ip) => {
     if (!ip) return false;
-    const normalizedIP = ip.replace(/^::ffff:/, '');
-    return whitelistedIPs.some(whitelistedIP =>
-        ip === whitelistedIP ||
-        normalizedIP === whitelistedIP ||
-        ip.startsWith('::ffff:127.')
-    );
+    const normalized = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+    return normalized.startsWith('127.') || normalized === '::1' || WHITELIST_SET.has(normalized);
 };
 
 /**
@@ -31,17 +28,6 @@ const isWhitelisted = (ip) => {
  * For ioredis (TCP): redis.call() is a native passthrough — no mapping needed.
  * For Upstash (HTTP REST): manually maps EVAL/EVALSHA/SCRIPT commands since the
  * Upstash SDK does not expose a generic .call() method.
- *
- * Driver availability is checked at RUNTIME (inside sendCommand), NOT at module
- * load: this file is imported before startServer() runs connectRedis(), so any
- * module-scope getRedisDriver() check would always see null and silently demote
- * every limiter to MemoryStore for the process lifetime.
- *
- * Fail-open semantics (deliberate): while the driver is TCP-unavailable
- * (Upstash REST configured, or Redis still connecting/down), commands resolve
- * to simulated success so auth endpoints stay available during outages and
- * the K8s startup race. Trade-off: distributed counting pauses during those
- * windows; per-instance express-rate-limit memory fallback still applies.
  */
 const createRedisStore = (prefix) => {
     if (!isRedisConfigured()) return undefined;
@@ -50,20 +36,19 @@ const createRedisStore = (prefix) => {
         sendCommand: async (...args) => {
             let redis = getRedisClient();
             if (!redis) {
-                const { connectRedis } = await import('../config/redis.js');
                 redis = await connectRedis();
             }
 
-            // Runtime fail-open: TCP not active yet/at all → simulated success
-            if (!redis || getRedisDriver() !== 'tcp') {
-                const cmd = args[0].toLowerCase();
+            // Runtime fail-open: Redis not active yet/at all → simulated success
+            if (!redis) {
+                const cmd = args[0]?.toLowerCase();
                 if (cmd === 'script') return 'mock_sha';
                 if (cmd === 'evalsha' || cmd === 'eval') return [1, 0];
-                throw new Error('Redis client is not available or not TCP');
+                return [1, 0];
             }
 
             // ioredis TCP client: native .call() passthrough — most efficient path
-            if (typeof redis.call === 'function') {
+            if (getRedisDriver() === 'tcp' && typeof redis.call === 'function') {
                 return await redis.call(...args);
             }
 

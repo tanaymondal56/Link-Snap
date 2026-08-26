@@ -133,17 +133,18 @@ const urlSchema = new mongoose.Schema({
 });
 
 // Index for fast lookups and dashboard sorting
-// Compound index avoids in-memory sort for "My Links" page
+// Compound index avoids in-memory sort for "My Links" and Bio page
 urlSchema.index({ createdBy: 1, createdAt: -1 });
+urlSchema.index({ createdBy: 1, isActive: 1, createdAt: -1 });
 // Indexes for background cleanup and scheduling
 urlSchema.index({ expiresAt: 1 }, { sparse: true });
 urlSchema.index({ activeStartTime: 1 }, { sparse: true });
-urlSchema.index({ safetyStatus: 1 }); // Optimize background scans
 urlSchema.index({ lastCheckedAt: 1 }); // Optimize retry logic
 // Compound index for admin panel filtering (safety status + sort by date)
 urlSchema.index({ safetyStatus: 1, createdAt: -1 });
-// Index for admin link search by isActive status
+// Index for admin link search by isActive status and compound active+safety filter
 urlSchema.index({ isActive: 1, createdAt: -1 });
+urlSchema.index({ isActive: 1, safetyStatus: 1, createdAt: -1 });
 
 
 const Url = mongoose.model('Url', urlSchema);

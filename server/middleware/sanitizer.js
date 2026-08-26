@@ -42,7 +42,7 @@ const sanitize = (obj, depth = 0) => {
             sanitized[key] = sanitize(value, depth + 1);
         } else if (typeof value === 'string') {
             // Remove any $ at the start of string values (potential injection)
-            sanitized[key] = value.replace(/^\$/, '');
+            sanitized[key] = value.startsWith('$') ? value.slice(1) : value;
         } else {
             sanitized[key] = value;
         }

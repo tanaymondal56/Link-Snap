@@ -2043,8 +2043,8 @@ const RESERVED_WORDS = new Set(reservedWords.map(word => word.toLowerCase()));
  * @returns {boolean} - True if reserved, false otherwise
  */
 export const isReservedWord = (alias) => {
-    if (!alias) return false;
-    return RESERVED_WORDS.has(alias.toLowerCase());
+    if (!alias || typeof alias !== 'string') return false;
+    return RESERVED_WORDS.has(alias.toLowerCase().trim());
 };
 
 /**

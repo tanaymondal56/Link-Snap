@@ -43,15 +43,16 @@ const flushBuffer = async () => {
             // Reset count since we are about to flush the entire Redis queue
             pendingClickCount = 0;
 
-            // --- Process URL Clicks from Redis ---
+            // --- Process URL Clicks from Redis (Concurrent batch GETDEL) ---
             let urlCursor = 0;
             do {
                 const [nextCursor, keys] = await redisScan(urlCursor, 'ls:click:url:*', 100);
                 if (keys && keys.length > 0) {
-                    for (const key of keys) {
-                        const count = await redisGetDel(key);
+                    const counts = await Promise.all(keys.map(k => redisGetDel(k)));
+                    for (let i = 0; i < keys.length; i++) {
+                        const count = counts[i];
                         if (count) {
-                            const urlId = key.replace('ls:click:url:', '');
+                            const urlId = keys[i].replace('ls:click:url:', '');
                             urlOps.push({
                                 updateOne: {
                                     filter: { _id: urlId },
@@ -64,15 +65,16 @@ const flushBuffer = async () => {
                 urlCursor = Number(nextCursor) === 0 ? 0 : nextCursor;
             } while (urlCursor !== 0);
 
-            // --- Process User Clicks from Redis ---
+            // --- Process User Clicks from Redis (Concurrent batch GETDEL) ---
             let userCursor = 0;
             do {
                 const [nextCursor, keys] = await redisScan(userCursor, 'ls:click:user:*', 100);
                 if (keys && keys.length > 0) {
-                    for (const key of keys) {
-                        const count = await redisGetDel(key);
+                    const counts = await Promise.all(keys.map(k => redisGetDel(k)));
+                    for (let i = 0; i < keys.length; i++) {
+                        const count = counts[i];
                         if (count) {
-                            const userId = key.replace('ls:click:user:', '');
+                            const userId = keys[i].replace('ls:click:user:', '');
                             userOps.push({
                                 updateOne: {
                                     filter: { _id: userId },

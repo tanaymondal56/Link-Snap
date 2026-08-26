@@ -11,8 +11,7 @@ const subscriptionAuditLogSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: true, 
-    index: true 
+    required: true
   },
   userEmail: { type: String, required: true },
   userSnapId: { type: String, required: true },
@@ -32,8 +31,7 @@ const subscriptionAuditLogSchema = new mongoose.Schema({
       'synced',       // Admin synced with LemonSqueezy
       'razorpay_payment' // Razorpay payment verified
     ],
-    required: true,
-    index: true
+    required: true
   },
   
   // Source of the action
@@ -105,6 +103,7 @@ subscriptionAuditLogSchema.index({ userId: 1, createdAt: -1 });
 subscriptionAuditLogSchema.index({ 'performedBy.adminId': 1, createdAt: -1 });
 subscriptionAuditLogSchema.index({ action: 1, createdAt: -1 });
 subscriptionAuditLogSchema.index({ source: 1, createdAt: -1 });
+subscriptionAuditLogSchema.index({ action: 1, source: 1, createdAt: -1 });
 // NOTE: Removed redundant standalone { createdAt: -1 } — covered by compound indexes above
 subscriptionAuditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 730 * 24 * 60 * 60 }); // Retention: 2 years
 

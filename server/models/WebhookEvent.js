@@ -5,8 +5,7 @@ const webhookEventSchema = new mongoose.Schema({
   remoteId: {
     type: String,
     required: true,
-    unique: true,
-    index: true,
+    unique: true
   },
 
   // The type of event (e.g. 'subscription_created', 'subscription_updated')
@@ -23,10 +22,11 @@ const webhookEventSchema = new mongoose.Schema({
     index: true,
   },
 
-  // The full raw payload for debugging
+  // The full raw payload for debugging (large object, load on demand)
   payload: {
     type: Object,
     required: true,
+    select: false
   },
 
   // Processing status

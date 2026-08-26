@@ -74,20 +74,23 @@ const changelogSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    history: [{
-        action: {
-            type: String,
-            enum: ['created', 'updated', 'published', 'unpublished', 'duplicated'],
-            required: true
-        },
-        timestamp: {
-            type: Date,
-            default: Date.now
-        },
-        changes: {
-            type: String // JSON string of what changed
-        }
-    }],
+    history: {
+        type: [{
+            action: {
+                type: String,
+                enum: ['created', 'updated', 'published', 'unpublished', 'duplicated'],
+                required: true
+            },
+            timestamp: {
+                type: Date,
+                default: Date.now
+            },
+            changes: {
+                type: String // JSON string of what changed
+            }
+        }],
+        select: false
+    },
     // Roadmap feature fields
     showOnRoadmap: {
         type: Boolean,
@@ -132,6 +135,7 @@ changelogSchema.index({ scheduledFor: 1, isPublished: 1 }); // For scheduled pub
 // Optimized index for roadmap queries: filters by showOnRoadmap + isPublished, sorts by roadmapPriority
 changelogSchema.index({ showOnRoadmap: 1, isPublished: 1, roadmapPriority: -1 }); 
 changelogSchema.index({ showOnRoadmap: 1, isPublished: 1, voteCount: -1 });
+changelogSchema.index({ 'votes.user': 1 });
 // Note: version unique index is created automatically by unique: true on the field
 
 const Changelog = mongoose.model('Changelog', changelogSchema);

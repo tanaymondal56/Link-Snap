@@ -59,13 +59,17 @@ export const generateUserIdentity = async (isAdmin = false) => {
   // 1. Generate Elite ID (Badge)
   let eliteId, idTier, idNumber;
   
+  // Generate Elite sequence and Snap sequence in parallel
+  const [seq, snapSeq] = await Promise.all([
+    Counter.getNextSequence(isAdmin ? 'admin' : 'user'),
+    Counter.getNextSequence('snap')
+  ]);
+
   if (isAdmin) {
-    const seq = await Counter.getNextSequence('admin');
     eliteId = `root-${seq}`;
     idTier = 'admin';
     idNumber = seq;
   } else {
-    const seq = await Counter.getNextSequence('user');
     const tier = determineTier(seq);
     const tierConfig = TIER_CONFIG[tier];
     idNumber = seq;
@@ -79,8 +83,6 @@ export const generateUserIdentity = async (isAdmin = false) => {
   }
 
   // 2. Generate Snap ID (System ID)
-  // Get global sequence for unique hash
-  const snapSeq = await Counter.getNextSequence('snap');
   const snapId = generateSnapId(snapSeq, new Date());
 
   return {

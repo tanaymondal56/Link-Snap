@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { getRedisClient, getRedisDriver } from '../config/redis.js';
 import User from '../models/User.js';
 import Url from '../models/Url.js';
+import { getReservedWords } from '../config/reservedWords.js';
 import logger from '../utils/logger.js';
 
 // Configuration for Bloom Filters
@@ -17,7 +18,7 @@ const KEYS = {
 };
 
 /**
- * Generate k bit offsets for a given string using MD5 hashes.
+ * Generate k bit offsets for a given string using a single SHA-256 hash digest.
  */
 const getOffsets = (value, filterName, size = BF_SIZE_BITS, k = BF_HASH_COUNT) => {
     // Usernames are case-insensitive; URLs/aliases are case-sensitive
@@ -25,15 +26,10 @@ const getOffsets = (value, filterName, size = BF_SIZE_BITS, k = BF_HASH_COUNT) =
         ? String(value).toLowerCase().trim()
         : String(value).trim();
         
+    const hash = crypto.createHash('sha256').update(normalized).digest();
     const offsets = [];
-    const hashCount = Math.ceil(k / 4);
-    
-    for (let i = 0; i < hashCount; i++) {
-        const hash = crypto.createHash('md5').update(`${normalized}:${i}`).digest();
-        for (let j = 0; j < 4 && offsets.length < k; j++) {
-            const offset = hash.readUInt32LE(j * 4) % size;
-            offsets.push(offset);
-        }
+    for (let j = 0; j < k; j++) {
+        offsets.push(hash.readUInt32LE(j * 4) % size);
     }
     return offsets;
 };
@@ -61,13 +57,44 @@ export const bloomAdd = async (filterName, value) => {
     }
 };
 
+let isSeededCache = false;
+let lastSeededCheck = 0;
+
+/**
+ * Check if the Bloom Filter has been successfully seeded in Redis.
+ * Caches the result in memory for 30s to eliminate redundant roundtrips.
+ */
+export const isBloomFilterReady = async () => {
+    const now = Date.now();
+    if (isSeededCache && now - lastSeededCheck < 30000) {
+        return true;
+    }
+    const redis = getRedisClient();
+    if (!redis) return false;
+    try {
+        const seeded = await redis.get(KEYS.seeded);
+        isSeededCache = seeded === 'true' || seeded === true;
+        lastSeededCheck = now;
+        return isSeededCache;
+    } catch {
+        return false;
+    }
+};
+
 /**
  * Check if a value probably exists in the specified Bloom Filter.
  * Returns true if it probably exists, false if it definitely does not.
+ * If Redis or Bloom Filter is not initialized/seeded, returns true (fail-secure).
  */
 export const bloomExists = async (filterName, value) => {
     const redis = getRedisClient();
     if (!redis) return true; // Fail-secure (fall back to checking DB/cache)
+
+    // Critical: If the Bloom Filter has not been seeded yet, return true so caller queries DB
+    const isReady = await isBloomFilterReady();
+    if (!isReady) {
+        return true;
+    }
 
     const key = KEYS[filterName];
     if (!key) return true;
@@ -135,11 +162,18 @@ export const seedBloomFilters = async (force = false) => {
         // Clear any old temp keys first
         await redis.del(tempUserKey, tempUrlKey);
 
-        // A. Seed Usernames
-        logger.info('[BloomFilter] Seeding usernames...');
-        const userCursor = User.find().select('username').cursor();
+        // A. Seed Usernames & Reserved Words
+        logger.info('[BloomFilter] Seeding usernames and reserved words...');
+        const userCursor = User.find().select('username').lean().cursor();
         let userPipeline = redis.pipeline();
         let userCount = 0;
+
+        const reservedList = getReservedWords();
+        for (const word of reservedList) {
+            const offsets = getOffsets(word, 'usernames');
+            offsets.forEach(offset => userPipeline.setbit(tempUserKey, offset, 1));
+            userCount++;
+        }
         
         for (let user = await userCursor.next(); user != null; user = await userCursor.next()) {
             if (user.username) {
@@ -154,13 +188,19 @@ export const seedBloomFilters = async (force = false) => {
             }
         }
         await userPipeline.exec();
-        logger.info(`[BloomFilter] Successfully seeded ${userCount} usernames.`);
+        logger.info(`[BloomFilter] Successfully seeded ${userCount} usernames (including reserved words).`);
 
-        // B. Seed URLs (shortId and customAlias)
-        logger.info('[BloomFilter] Seeding URLs...');
-        const urlCursor = Url.find().select('shortId customAlias').cursor();
+        // B. Seed URLs (shortId, customAlias, and reserved words)
+        logger.info('[BloomFilter] Seeding URLs and reserved words...');
+        const urlCursor = Url.find().select('shortId customAlias').lean().cursor();
         let urlPipeline = redis.pipeline();
         let urlCount = 0;
+
+        for (const word of reservedList) {
+            const offsets = getOffsets(word, 'urls');
+            offsets.forEach(offset => urlPipeline.setbit(tempUrlKey, offset, 1));
+            urlCount++;
+        }
 
         for (let url = await urlCursor.next(); url != null; url = await urlCursor.next()) {
             if (url.shortId) {
@@ -180,7 +220,7 @@ export const seedBloomFilters = async (force = false) => {
             }
         }
         await urlPipeline.exec();
-        logger.info(`[BloomFilter] Successfully seeded ${urlCount} URL identifiers.`);
+        logger.info(`[BloomFilter] Successfully seeded ${urlCount} URL identifiers (including reserved words).`);
 
         // C. Rename/Swap Keys atomically
         // ioredis and Upstash handle RENAME/RENAME command.
@@ -190,6 +230,8 @@ export const seedBloomFilters = async (force = false) => {
 
         // Mark as seeded
         await redis.set(KEYS.seeded, 'true');
+        isSeededCache = true;
+        lastSeededCheck = Date.now();
         logger.info('[BloomFilter] Seeding complete and persistent flag set.');
 
         // 3. Release lock

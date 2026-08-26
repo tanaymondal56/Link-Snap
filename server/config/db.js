@@ -4,6 +4,20 @@ import logger from '../utils/logger.js';
 const MAX_RETRIES = 5;
 const INITIAL_DELAY = 1000; // 1 second
 
+let listenersAttached = false;
+
+const attachConnectionListeners = () => {
+  if (listenersAttached) return;
+  mongoose.connection.on('disconnected', () => {
+    logger.warn('MongoDB disconnected! Awaiting auto-reconnect...');
+  });
+  
+  mongoose.connection.on('reconnected', () => {
+    logger.info('MongoDB reconnected successfully.');
+  });
+  listenersAttached = true;
+};
+
 const connectDB = async (retryCount = 0) => {
   try {
     const useLocal = process.env.USE_LOCAL_DB === 'true';
@@ -22,14 +36,7 @@ const connectDB = async (retryCount = 0) => {
       autoIndex: true                 // Auto-build schema indexes
     });
 
-    // Add connection event listeners for K8s observability
-    mongoose.connection.on('disconnected', () => {
-      logger.warn('MongoDB disconnected! Awaiting auto-reconnect...');
-    });
-    
-    mongoose.connection.on('reconnected', () => {
-      logger.info('MongoDB reconnected successfully.');
-    });
+    attachConnectionListeners();
 
     logger.info(`MongoDB Connected: ${conn.connection.host} (${useLocal ? 'Local' : 'Cloud'})`);
     return conn;

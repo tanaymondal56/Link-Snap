@@ -355,17 +355,14 @@ export const strictProxyGate = (req, res, next) => {
     // ═══════════════════════════════════════════════════════════════════════════
     // 3. SECRET TOKEN VALIDATION
     // ═══════════════════════════════════════════════════════════════════════════
-    // Check for the secret token header set by Azure Nginx
-    // This is the first line of defense at the application level
     const clientSecret = req.headers[CONFIG.secretHeader];
 
     // Use constant-time comparison to prevent timing oracle attacks (CWE-208)
     const secretMatches = (() => {
-        if (!clientSecret || !CONFIG.secret) return false;
+        if (!clientSecret || !CONFIG.secret || clientSecret.length !== CONFIG.secret.length) return false;
         try {
             const a = Buffer.from(clientSecret);
             const b = Buffer.from(CONFIG.secret);
-            if (a.length !== b.length) return false;
             return crypto.timingSafeEqual(a, b);
         } catch {
             return false;

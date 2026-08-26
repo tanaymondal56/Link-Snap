@@ -4,17 +4,19 @@ import logger from '../utils/logger.js';
 
 // IPs that bypass rate limiting
 const envAllowedIPs = process.env.RATE_LIMIT_WHITELIST_IPS
-  ? process.env.RATE_LIMIT_WHITELIST_IPS.split(',').map((ip) => ip.trim())
+  ? process.env.RATE_LIMIT_WHITELIST_IPS.split(',').map((ip) => ip.trim()).filter(Boolean)
   : [];
 
-const whitelistedIPs = ['127.0.0.1', '::1', '::ffff:127.0.0.1', ...envAllowedIPs];
+const WHITELIST_SET = new Set([
+  '127.0.0.1',
+  '::1',
+  ...envAllowedIPs.map((ip) => (ip.startsWith('::ffff:') ? ip.slice(7) : ip)),
+]);
 
 const isWhitelisted = (ip) => {
   if (!ip) return false;
-  const normalizedIP = ip.replace(/^::ffff:/, '');
-  return whitelistedIPs.some(
-    (w) => ip === w || normalizedIP === w || ip.startsWith('::ffff:127.')
-  );
+  const normalized = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+  return normalized.startsWith('127.') || normalized === '::1' || WHITELIST_SET.has(normalized);
 };
 
 // In-Memory fallback store when Redis is not available
@@ -244,22 +246,24 @@ export const recordFailedAuthAttempt = async (identifier, req) => {
       // 1. Increment failed attempts for account (atomic INCR+EXPIRE via Lua)
       attemptsCount = await luaIncrExpire(redis, attemptsKey, ACCOUNT_ATTEMPT_WINDOW_SEC);
 
-      // 2. Track distinct IPs hitting this account
-      const pipe1 = redis.pipeline();
-      pipe1.sadd(acctIpsKey, ip);
-      pipe1.expire(acctIpsKey, ACCOUNT_ATTEMPT_WINDOW_SEC);
-      pipe1.scard(acctIpsKey);
-      const results1 = await pipe1.exec();
-      distinctIPs = getRedisDriver() === 'tcp' ? results1[2][1] : results1[2];
+      // 2. Track distinct IPs hitting this account & distinct accounts hit by this IP in a single pipeline
+      const pipe = redis.pipeline();
+      pipe.sadd(acctIpsKey, ip);
+      pipe.expire(acctIpsKey, ACCOUNT_ATTEMPT_WINDOW_SEC);
+      pipe.scard(acctIpsKey);
 
-      // 3. Track distinct accounts hit by this IP
-      if (!isWhitelisted(ip)) {
-        const pipe2 = redis.pipeline();
-        pipe2.sadd(ipAcctsKey, normId);
-        pipe2.expire(ipAcctsKey, ACCOUNT_ATTEMPT_WINDOW_SEC);
-        pipe2.scard(ipAcctsKey);
-        const results2 = await pipe2.exec();
-        distinctAccounts = getRedisDriver() === 'tcp' ? results2[2][1] : results2[2];
+      const trackIpAccounts = !isWhitelisted(ip);
+      if (trackIpAccounts) {
+        pipe.sadd(ipAcctsKey, normId);
+        pipe.expire(ipAcctsKey, ACCOUNT_ATTEMPT_WINDOW_SEC);
+        pipe.scard(ipAcctsKey);
+      }
+
+      const results = await pipe.exec();
+      const isTcp = getRedisDriver() === 'tcp';
+      distinctIPs = isTcp ? results[2][1] : results[2];
+      if (trackIpAccounts) {
+        distinctAccounts = isTcp ? results[5][1] : results[5];
       }
     } catch (err) {
       logger.warn(`[DualRateLimit] Failed attempt recording error: ${err.message}`);

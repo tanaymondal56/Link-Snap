@@ -173,23 +173,24 @@ export const getPublicProfile = async (req, res) => {
 // @access  Private
 export const getBioSettings = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id)
-      .select('username bioPage avatar firstName lastName')
-      .populate({
-        path: 'bioPage.pinnedLinks',
-        select: 'title originalUrl shortId customAlias isActive clicks'
-      }).lean();
+    // Fetch user bio settings and user links in parallel
+    const [user, allLinks] = await Promise.all([
+      User.findById(req.user._id)
+        .select('username bioPage avatar firstName lastName')
+        .populate({
+          path: 'bioPage.pinnedLinks',
+          select: 'title originalUrl shortId customAlias isActive clicks'
+        }).lean(),
+      Url.find({ createdBy: req.user._id, isActive: true })
+        .select('title originalUrl shortId customAlias clicks createdAt')
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .lean()
+    ]);
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-
-    // Get all user's links for the link picker
-    const allLinks = await Url.find({ createdBy: req.user._id, isActive: true })
-      .select('title originalUrl shortId customAlias clicks createdAt')
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .lean();
 
     res.json({
       bioPage: user.bioPage || { isEnabled: true, theme: 'default' },

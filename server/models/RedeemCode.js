@@ -5,7 +5,6 @@ const redeemCodeSchema = new mongoose.Schema({
   code: { 
     type: String, 
     unique: true, 
-    index: true,
     required: true,
     uppercase: true,
     trim: true
@@ -56,8 +55,9 @@ const redeemCodeSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for sorting by creation date
+// Index for sorting by creation date and active status
 redeemCodeSchema.index({ createdAt: -1 });
+redeemCodeSchema.index({ isActive: 1, createdAt: -1 });
 // Index for looking up codes used by a specific user (nested array)
 redeemCodeSchema.index({ 'usedBy.user': 1 });
 

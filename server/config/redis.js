@@ -172,10 +172,21 @@ export const redisDel = async (...keys) => {
     }
 };
 
+const INCR_EXPIRE_LUA = `
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return count
+`;
+
 export const redisIncr = async (key, safetyTtlSeconds = 604800) => {
     const client = redisClient;
     if (!client) return null;
     try {
+        if (redisDriver === 'tcp' && typeof client.eval === 'function') {
+            return await client.eval(INCR_EXPIRE_LUA, 1, key, safetyTtlSeconds);
+        }
         const count = await client.incr(key);
         if (count === 1) await client.expire(key, safetyTtlSeconds);
         return count;

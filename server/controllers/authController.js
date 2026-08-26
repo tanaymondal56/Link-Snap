@@ -19,7 +19,7 @@ import logger from '../utils/logger.js';
 import { generateUserIdentity } from '../services/idService.js';
 import NotificationService from '../services/notificationService.js';
 import { resolveCurrentLinkUsage } from '../middleware/subscriptionMiddleware.js';
-import { bloomAdd, bloomExists } from '../services/bloomFilterService.js';
+import { bloomAdd } from '../services/bloomFilterService.js';
 import { getEffectiveTier } from '../services/subscriptionService.js';
 import { recordFailedAuthAttempt, recordSuccessfulAuthAttempt, recordUsernameCheck } from '../middleware/dualLayerAuthRateLimiter.js';
 import { getUserIP } from '../middleware/strictProxyGate.js';
@@ -137,19 +137,22 @@ const registerUser = async (req, res, next) => {
       throw new Error('Username is required');
     }
 
+    const usernameClean = String(username).toLowerCase().trim();
+    const emailClean = String(email).toLowerCase().trim();
+
     // Check reserved words
-    if (isReservedWord(username)) {
-      await recordFailedAuthAttempt(email, req);
+    if (isReservedWord(usernameClean)) {
+      await recordFailedAuthAttempt(emailClean, req);
       // Only penalize by email — counting username separately leads to false IP blocks
       res.status(400);
       throw new Error('This username is not available');
     }
 
-    // Check for existing user by email
-    const userExists = await User.findOne({ email });
-
-    // Check for existing user by username
-    const usernameExists = await User.findOne({ username });
+    // Check for existing user by email and username concurrently
+    const [userExists, usernameExists] = await Promise.all([
+      User.findOne({ email: emailClean }),
+      User.findOne({ username: usernameClean }).select('_id').lean()
+    ]);
     if (usernameExists) {
       await recordFailedAuthAttempt(email, req);
       // Only penalize by email — counting username separately leads to false IP blocks
@@ -808,18 +811,18 @@ const loginUser = async (req, res, next) => {
       await issueDbscRegistration(res, loginSession);
       const accessToken = generateAccessToken(user._id, user.role, dbscSessionId);
 
-      // Update lastLoginAt
-      await User.findByIdAndUpdate(user._id, { $set: { lastLoginAt: new Date() } });
-      await redisDel(`ls:user:${user._id}`);
-
-      // Log successful login
-      await LoginHistory.create({
-        userId: user._id,
-        email: user.email,
-        ip: getUserIP(req),
-        userAgent: req.headers['user-agent'],
-        status: 'success'
-      });
+      // Update lastLoginAt and log successful login in parallel
+      await Promise.all([
+        User.findByIdAndUpdate(user._id, { $set: { lastLoginAt: new Date() } }),
+        redisDel(`ls:user:${user._id}`),
+        LoginHistory.create({
+          userId: user._id,
+          email: user.email,
+          ip: getUserIP(req),
+          userAgent: req.headers['user-agent'],
+          status: 'success'
+        })
+      ]);
 
       await recordSuccessfulAuthAttempt(user.email, req);
       if (user.username) await recordSuccessfulAuthAttempt(user.username, req);
@@ -1665,12 +1668,6 @@ const checkUsernameAvailability = async (req, res) => {
       return res.json({ available: false, reason: 'reserved' });
     }
 
-    // Check Bloom Filter first: if it doesn't exist, it's definitely available
-    const isTakenBloom = await bloomExists('usernames', usernameLower);
-    if (!isTakenBloom) {
-      return res.json({ available: true, reason: null });
-    }
-
     // Check Redis negative-cache: if we know the username is taken, skip DB
     // We only cache "taken" results — never "available" to avoid stale false-positives.
     const cacheKey = `ls:username:taken:${usernameLower}`;
@@ -1679,12 +1676,14 @@ const checkUsernameAvailability = async (req, res) => {
       return res.json({ available: false, reason: 'taken' });
     }
 
-    // Check if exists in database
+    // Check if exists in database (authoritative check via unique index)
     const exists = await User.findOne({ username: usernameLower }).select('_id').lean();
 
     if (exists) {
       // Cache "taken" for 5 minutes — username won't suddenly become available
       await redisSet(cacheKey, 300, true);
+      // Self-healing: add to Bloom filter in case it was missing
+      bloomAdd('usernames', usernameLower).catch(() => {});
       return res.json({ available: false, reason: 'taken' });
     }
 

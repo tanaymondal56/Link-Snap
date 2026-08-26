@@ -7,6 +7,9 @@
 
 import { UAParser } from 'ua-parser-js';
 
+const deviceCache = new Map();
+const MAX_DEVICE_CACHE = 1000;
+
 /**
  * Detects device type from User-Agent header
  * @param {string} userAgent - The User-Agent string from request headers
@@ -18,9 +21,12 @@ export const detectDevice = (userAgent) => {
     }
 
     // Security: Truncate to 500 chars to prevent ReDoS in ua-parser-js
-    userAgent = userAgent.substring(0, 500);
+    const sanitizedUA = userAgent.substring(0, 500);
 
-    const parser = new UAParser(userAgent);
+    const cached = deviceCache.get(sanitizedUA);
+    if (cached) return cached;
+
+    const parser = new UAParser(sanitizedUA);
     const device = parser.getDevice();
     const os = parser.getOS();
     const browser = parser.getBrowser();
@@ -48,11 +54,18 @@ export const detectDevice = (userAgent) => {
         }
     }
 
-    return {
+    const result = {
         type: device.type || 'desktop', // 'mobile', 'tablet', 'desktop', or undefined
         os: normalizedOs,
         browser: browser.name || null
     };
+
+    if (deviceCache.size >= MAX_DEVICE_CACHE) {
+        const firstKey = deviceCache.keys().next().value;
+        deviceCache.delete(firstKey);
+    }
+    deviceCache.set(sanitizedUA, result);
+    return result;
 };
 
 /**

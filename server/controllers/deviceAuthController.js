@@ -53,6 +53,24 @@ export const stopDeviceAuthIntervals = () => {
   }
 };
 
+/**
+ * Safely converts Buffer, Uint8Array, or BSON Binary to base64url string
+ */
+const toBase64Url = (credId) => {
+  if (!credId) return '';
+  if (typeof credId === 'string') return credId;
+  if (Buffer.isBuffer(credId)) return credId.toString('base64url');
+  if (credId.buffer && (Buffer.isBuffer(credId.buffer) || credId.buffer instanceof ArrayBuffer)) {
+    return Buffer.from(credId.buffer, credId.byteOffset || 0, credId.byteLength || credId.buffer.byteLength).toString('base64url');
+  }
+  if (typeof credId.value === 'function') {
+    const val = credId.value(true);
+    if (Buffer.isBuffer(val)) return val.toString('base64url');
+    return Buffer.from(val).toString('base64url');
+  }
+  return Buffer.from(credId).toString('base64url');
+};
+
 // Helper: Get client IP - uses proxy-aware extraction
 const getClientIP = (req) => {
   return getUserIP(req);
@@ -170,7 +188,7 @@ export const getRegistrationOptions = async (req, res) => {
     }
     
     const excludeCredentials = existingDevices.map(device => ({
-      id: device.credentialId.toString('base64url'),
+      id: toBase64Url(device.credentialId),
       type: 'public-key',
       transports: device.transports || ['internal'],
     }));
@@ -648,7 +666,7 @@ export const getVerificationOptions = async (req, res) => {
       // Narrow the ceremony to THIS user's passkeys — the browser will only
       // offer credentials it actually holds, which is the health-check itself.
       allowCredentials: devices.map((d) => ({
-        id: d.credentialId.toString('base64url'),
+        id: toBase64Url(d.credentialId),
         transports: ['internal', 'hybrid', 'usb', 'ble', 'nfc'],
       })),
       timeout: 60000,

@@ -79,58 +79,50 @@ export const getUrlAnalytics = async (req, res) => {
              return { $match: conditions };
         };
         
-        // 4. Aggregate Data — 5 concurrent aggregations
-        const [clicksByDate, clicksByDevice, clicksByLocation, clicksByBrowser, clicksByDeviceMatch] = await Promise.all([
-            // Clicks by Date (Last 30 Days or all history)
-            Analytics.aggregate([
-                matchStage(),
-                {
-                    $group: {
-                        _id: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
-                        count: { $sum: 1 }
-                    }
-                },
-                { $sort: { _id: 1 } }
-            ]),
-
-            // Clicks by Device (Retention filtered)
-            Analytics.aggregate([
-                matchStage(),
-                { $group: { _id: "$device", count: { $sum: 1 } } },
-                { $sort: { count: -1 } },
-                { $limit: 5 }
-            ]),
-
-            // Clicks by Location (Country) (Retention filtered)
-            Analytics.aggregate([
-                matchStage(),
-                { $group: { _id: "$country", count: { $sum: 1 } } },
-                { $sort: { count: -1 } },
-                { $limit: 10 }
-            ]),
-
-            // Clicks by Browser (Retention filtered)
-            Analytics.aggregate([
-                matchStage(),
-                { $group: { _id: "$browser", count: { $sum: 1 } } },
-                { $sort: { count: -1 } },
-                { $limit: 5 }
-            ]),
-
-            // Clicks by Device Match Type (Pro/Business feature - shows device targeting effectiveness)
-            Analytics.aggregate([
-                matchStage({ deviceMatchType: { $ne: null } }),
-                { $group: { _id: "$deviceMatchType", count: { $sum: 1 } } },
-                { $sort: { count: -1 } }
-            ])
+        // 4. Aggregate Data — Single roundtrip $facet pipeline
+        const [aggregationResult] = await Analytics.aggregate([
+            matchStage(),
+            {
+                $facet: {
+                    clicksByDate: [
+                        {
+                            $group: {
+                                _id: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
+                                count: { $sum: 1 }
+                            }
+                        },
+                        { $sort: { _id: 1 } }
+                    ],
+                    clicksByDevice: [
+                        { $group: { _id: "$device", count: { $sum: 1 } } },
+                        { $sort: { count: -1 } },
+                        { $limit: 5 }
+                    ],
+                    clicksByLocation: [
+                        { $group: { _id: "$country", count: { $sum: 1 } } },
+                        { $sort: { count: -1 } },
+                        { $limit: 10 }
+                    ],
+                    clicksByBrowser: [
+                        { $group: { _id: "$browser", count: { $sum: 1 } } },
+                        { $sort: { count: -1 } },
+                        { $limit: 5 }
+                    ],
+                    clicksByDeviceMatch: [
+                        { $match: { deviceMatchType: { $ne: null } } },
+                        { $group: { _id: "$deviceMatchType", count: { $sum: 1 } } },
+                        { $sort: { count: -1 } }
+                    ]
+                }
+            }
         ]);
 
         const analyticsData = {
-            clicksByDate,
-            clicksByDevice,
-            clicksByLocation,
-            clicksByBrowser,
-            clicksByDeviceMatch  // Device targeting analytics
+            clicksByDate: aggregationResult?.clicksByDate || [],
+            clicksByDevice: aggregationResult?.clicksByDevice || [],
+            clicksByLocation: aggregationResult?.clicksByLocation || [],
+            clicksByBrowser: aggregationResult?.clicksByBrowser || [],
+            clicksByDeviceMatch: aggregationResult?.clicksByDeviceMatch || []
         };
 
         // 5. Store aggregated analytics in Redis (fire-and-forget, don't block response)

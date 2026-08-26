@@ -4,8 +4,7 @@ const sessionSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
-    index: true
+    required: true
   },
   tokenHash: {
     type: String,
@@ -87,8 +86,7 @@ const sessionSchema = new mongoose.Schema({
   },
   lastActiveAt: {
     type: Date,
-    default: Date.now,
-    index: true
+    default: Date.now
   },
   expiresAt: {
     type: Date,
@@ -101,8 +99,9 @@ const sessionSchema = new mongoose.Schema({
 // TTL Index - Auto-delete expired sessions
 sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-// Compound index for user queries
+// Compound index for user queries & LRU session eviction
 sessionSchema.index({ userId: 1, createdAt: -1 });
+sessionSchema.index({ userId: 1, lastActiveAt: 1 });
 
 // Grace-window lookups: validateSession queries by previousTokenHash on
 // every refresh issued within the 30s rotation grace period — without this

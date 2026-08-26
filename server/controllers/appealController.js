@@ -52,23 +52,23 @@ export const submitAppeal = async (req, res) => {
             return res.status(400).json({ message: 'Your account is not suspended' });
         }
 
-        // Check appeal limit (max 3 per ban)
-        const appealsCount = await Appeal.countDocuments({
-            userId: user._id,
-            bannedAt: user.bannedAt
-        });
+        // Check appeal limit and pending appeal in parallel
+        const [appealsCount, existingAppeal] = await Promise.all([
+            Appeal.countDocuments({
+                userId: user._id,
+                bannedAt: user.bannedAt
+            }),
+            Appeal.findOne({
+                userId: user._id,
+                status: 'pending'
+            }).select('_id').lean()
+        ]);
 
         if (appealsCount >= 3) {
             return res.status(400).json({
                 message: 'Maximum appeal limit reached (3/3). You cannot submit more appeals for this suspension.'
             });
         }
-
-        // Check if user already has a pending appeal
-        const existingAppeal = await Appeal.findOne({
-            userId: user._id,
-            status: 'pending'
-        });
 
         if (existingAppeal) {
             return res.status(400).json({

@@ -14,30 +14,36 @@ export const getSubscriptionStats = async (req, res) => {
   try {
     // Cosmos DB doesn't fully support $facet, so use separate queries
     
-    // Get tier counts
-    const tierCounts = await User.aggregate([
-      { $group: { _id: '$subscription.tier', count: { $sum: 1 } } }
+    // Fetch tier counts, status counts, recent upgrades, total users, delete count, and audit counts in parallel
+    const [
+      tierCounts,
+      statusCounts,
+      recentUpgrades,
+      totalUsers,
+      permanentDeleteCount,
+      auditCounts
+    ] = await Promise.all([
+      User.aggregate([
+        { $group: { _id: '$subscription.tier', count: { $sum: 1 } } }
+      ]),
+      User.aggregate([
+        { $match: { 'subscription.status': { $exists: true } } },
+        { $group: { _id: '$subscription.status', count: { $sum: 1 } } }
+      ]),
+      User.find({
+        'subscription.tier': { $in: ['pro', 'business'] },
+        'subscription.currentPeriodStart': { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+      })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .select('email snapId subscription.tier subscription.currentPeriodStart createdAt')
+        .lean(),
+      User.countDocuments(),
+      SubscriptionAuditLog.countDocuments({ action: 'deleted' }),
+      SubscriptionAuditLog.aggregate([
+        { $group: { _id: '$action', count: { $sum: 1 } } }
+      ])
     ]);
-    
-    // Get status counts
-    const statusCounts = await User.aggregate([
-      { $match: { 'subscription.status': { $exists: true } } },
-      { $group: { _id: '$subscription.status', count: { $sum: 1 } } }
-    ]);
-    
-    // Get recent upgrades - uses createdAt index for sorting
-    const recentUpgrades = await User.find({
-      'subscription.tier': { $in: ['pro', 'business'] },
-      'subscription.currentPeriodStart': { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
-    })
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .select('email snapId subscription.tier subscription.currentPeriodStart createdAt')
-      .lean();
-    
-    // Get total count
-    const totalUsers = await User.countDocuments();
-    
     // Format tier counts
     const byTier = { free: 0, pro: 0, business: 0 };
     tierCounts.forEach(t => {
@@ -53,14 +59,7 @@ export const getSubscriptionStats = async (req, res) => {
     statusCounts.forEach(s => {
       if (s._id) byStatus[s._id] = s.count;
     });
-    
-    // Get permanent delete count from audit logs
-    const permanentDeleteCount = await SubscriptionAuditLog.countDocuments({ action: 'deleted' });
-    
-    // Get audit action counts for overview
-    const auditCounts = await SubscriptionAuditLog.aggregate([
-      { $group: { _id: '$action', count: { $sum: 1 } } }
-    ]);
+
     const byAction = {};
     auditCounts.forEach(a => {
       if (a._id) byAction[a._id] = a.count;

@@ -2,7 +2,7 @@
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
 
-export const verifyAdmin = async (req, res, next) => {
+export const verifyAdmin = (req, res, next) => {
     try {
         // Separate authentication check from authorization check
         if (!req.user) {
