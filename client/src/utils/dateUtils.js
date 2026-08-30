@@ -68,6 +68,33 @@ export const toInputDateTime = (dateValue) => {
   const day = String(date.getDate()).padStart(2, '0');
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
-
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
+
+/**
+ * Format a duration key (e.g. '1_day', '7_days', '1_month', 'lifetime')
+ * into a human-readable string (e.g. '1 Day', '7 Days', '1 Month', 'Lifetime').
+ */
+export const formatDuration = (key) => {
+  if (!key) return '';
+  const map = {
+    '1_day': '1 Day',
+    '3_days': '3 Days',
+    '7_days': '7 Days',
+    '14_days': '14 Days',
+    '1_month': '1 Month',
+    '3_months': '3 Months',
+    '6_months': '6 Months',
+    '1_year': '1 Year',
+    lifetime: 'Lifetime',
+  };
+  if (map[key]) return map[key];
+  const match = String(key).match(/^(\d+)_days?$/);
+  if (match) {
+    const n = parseInt(match[1], 10);
+    return `${n} ${n === 1 ? 'Day' : 'Days'}`;
+  }
+  return key.replace(/_/g, ' ');
+};
+
+export const getDurationLabel = formatDuration;

@@ -1,9 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Loader2, AlertTriangle } from 'lucide-react';
+import { X, Save, Loader2, AlertTriangle, Clock } from 'lucide-react';
 import api from '../../api/axios';
 import showToast from '../../utils/toastUtils';
 import useScrollLock from '../../hooks/useScrollLock';
+
+const DURATION_PRESETS = [
+  { value: '1_day', label: '1 Day (Trial / Promo)' },
+  { value: '3_days', label: '3 Days (Weekend Pass)' },
+  { value: '7_days', label: '7 Days (1 Week)' },
+  { value: '14_days', label: '14 Days (2 Weeks)' },
+  { value: '1_month', label: '1 Month' },
+  { value: '3_months', label: '3 Months' },
+  { value: '6_months', label: '6 Months' },
+  { value: '1_year', label: '1 Year' },
+  { value: 'lifetime', label: 'Lifetime' },
+  { value: 'custom_days', label: 'Custom Days (1–29)...' },
+];
 
 const EditCodeModal = ({ isOpen, onClose, onSuccess, code }) => {
   const [formData, setFormData] = useState({
@@ -15,14 +28,27 @@ const EditCodeModal = ({ isOpen, onClose, onSuccess, code }) => {
     notes: '',
     isActive: true
   });
+  const [isCustomDays, setIsCustomDays] = useState(false);
+  const [customDays, setCustomDays] = useState(7);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (code) {
+      const daysMatch = String(code.duration).match(/^(\d+)_days?$/);
+      const isPreset = ['1_day', '3_days', '7_days', '14_days', '1_month', '3_months', '6_months', '1_year', 'lifetime'].includes(code.duration);
+      
+      if (daysMatch && !isPreset) {
+        setIsCustomDays(true);
+        setCustomDays(parseInt(daysMatch[1], 10) || 7);
+      } else {
+        setIsCustomDays(false);
+        if (daysMatch) setCustomDays(parseInt(daysMatch[1], 10) || 7);
+      }
+
       setFormData({
         code: code.code,
         tier: code.tier,
-        duration: code.duration,
+        duration: code.duration || '1_month',
         maxUses: code.maxUses,
         expiresAt: code.expiresAt ? new Date(code.expiresAt).toISOString().split('T')[0] : '',
         notes: code.notes || '',
@@ -36,7 +62,14 @@ const EditCodeModal = ({ isOpen, onClose, onSuccess, code }) => {
     setLoading(true);
 
     try {
-      await api.put(`/admin/redeem-codes/${code._id}`, formData);
+      const finalDuration = isCustomDays 
+        ? `${Math.min(29, Math.max(1, parseInt(customDays) || 1))}_days` 
+        : formData.duration;
+
+      await api.put(`/admin/redeem-codes/${code._id}`, {
+        ...formData,
+        duration: finalDuration
+      });
       showToast.success('Redeem code updated successfully');
       onSuccess();
       onClose();
@@ -118,18 +151,63 @@ const EditCodeModal = ({ isOpen, onClose, onSuccess, code }) => {
               <div className="space-y-1">
                 <span className="text-sm font-medium text-gray-400">Duration</span>
                 <select
-                  value={formData.duration}
-                  onChange={(e) => setFormData({...formData, duration: e.target.value})}
+                  value={isCustomDays ? 'custom_days' : formData.duration}
+                  onChange={(e) => {
+                    if (e.target.value === 'custom_days') {
+                      setIsCustomDays(true);
+                    } else {
+                      setIsCustomDays(false);
+                      setFormData({ ...formData, duration: e.target.value });
+                    }
+                  }}
                   className="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:border-blue-500 focus:outline-none"
                 >
-                  <option value="1_month">1 Month</option>
-                  <option value="3_months">3 Months</option>
-                  <option value="6_months">6 Months</option>
-                  <option value="1_year">1 Year</option>
-                  <option value="lifetime">Lifetime</option>
+                  {DURATION_PRESETS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
+
+            {/* Custom Days Stepper (Visible when Custom Days is selected) */}
+            {isCustomDays && (
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 animate-fade-in space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-blue-300 flex items-center gap-1.5">
+                    <Clock size={14} /> Custom Period: {customDays} {customDays === 1 ? 'Day' : 'Days'} Access
+                  </span>
+                  <span className="text-xs text-blue-400/80">Allowed: 1 to 29 Days</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="1"
+                    max="29"
+                    value={customDays}
+                    onChange={(e) => setCustomDays(parseInt(e.target.value) || 1)}
+                    className="flex-1 accent-blue-500 cursor-pointer h-2 bg-gray-800 rounded-lg"
+                  />
+                  <div className="flex items-center gap-1.5 w-24">
+                    <input
+                      type="number"
+                      min="1"
+                      max="29"
+                      value={customDays}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!isNaN(val)) {
+                          setCustomDays(Math.min(29, Math.max(1, val)));
+                        }
+                      }}
+                      className="w-full bg-gray-800 border border-blue-500/30 rounded-lg px-2.5 py-1 text-center text-white font-bold text-sm focus:outline-none focus:border-blue-400"
+                    />
+                    <span className="text-xs text-gray-400">Days</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">

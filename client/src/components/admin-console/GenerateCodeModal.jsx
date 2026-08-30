@@ -16,8 +16,23 @@ import showToast from '../../utils/toastUtils';
 import api from '../../api/axios';
 import useScrollLock from '../../hooks/useScrollLock';
 
+const DURATION_PRESETS = [
+  { value: '1_day', label: '1 Day (Trial / Promo)' },
+  { value: '3_days', label: '3 Days (Weekend Pass)' },
+  { value: '7_days', label: '7 Days (1 Week)' },
+  { value: '14_days', label: '14 Days (2 Weeks)' },
+  { value: '1_month', label: '1 Month' },
+  { value: '3_months', label: '3 Months' },
+  { value: '6_months', label: '6 Months' },
+  { value: '1_year', label: '1 Year' },
+  { value: 'lifetime', label: 'Lifetime' },
+  { value: 'custom_days', label: 'Custom Days (1–29)...' },
+];
+
 const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
   const [loading, setLoading] = useState(false);
+  const [isCustomDays, setIsCustomDays] = useState(false);
+  const [customDays, setCustomDays] = useState(7);
   const [form, setForm] = useState({
     tier: 'pro',
     duration: '1_month',
@@ -30,6 +45,8 @@ const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
   // Reset form on open
   useEffect(() => {
     if (isOpen) {
+      setIsCustomDays(false);
+      setCustomDays(7);
       setForm({
         tier: 'pro',
         duration: '1_month',
@@ -74,9 +91,13 @@ const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
         expiresAtISO = date.toISOString();
       }
 
+      const finalDuration = isCustomDays
+        ? `${Math.min(29, Math.max(1, parseInt(customDays) || 1))}_days`
+        : form.duration;
+
       const payload = {
         tier: form.tier,
-        duration: form.duration,
+        duration: finalDuration,
         maxUses: parseInt(form.maxUses) || 1,
         notes: form.notes || undefined,
         customCode: form.customCode ? form.customCode.toUpperCase() : undefined,
@@ -98,17 +119,6 @@ const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const getDurationLabel = (key) => {
-    const map = {
-      '1_month': '1 Month',
-      '3_months': '3 Months',
-      '6_months': '6 Months',
-      '1_year': '1 Year',
-      lifetime: 'Lifetime',
-    };
-    return map[key] || key;
   };
 
   return createPortal(
@@ -166,17 +176,62 @@ const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
                 </span>
                 <select
                   className="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-green-500/50 focus:outline-none transition-colors"
-                  value={form.duration}
-                  onChange={(e) => setForm({ ...form, duration: e.target.value })}
+                  value={isCustomDays ? 'custom_days' : form.duration}
+                  onChange={(e) => {
+                    if (e.target.value === 'custom_days') {
+                      setIsCustomDays(true);
+                    } else {
+                      setIsCustomDays(false);
+                      setForm({ ...form, duration: e.target.value });
+                    }
+                  }}
                 >
-                  {['1_month', '3_months', '6_months', '1_year', 'lifetime'].map((d) => (
-                    <option key={d} value={d}>
-                      {getDurationLabel(d)}
+                  {DURATION_PRESETS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
+
+            {/* Custom Days Stepper (Visible when Custom Days is selected) */}
+            {isCustomDays && (
+              <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 animate-fade-in space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-purple-300 flex items-center gap-1.5">
+                    <Clock size={14} /> Custom Period: {customDays} {customDays === 1 ? 'Day' : 'Days'} Access
+                  </span>
+                  <span className="text-xs text-purple-400/80">Allowed: 1 to 29 Days</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="1"
+                    max="29"
+                    value={customDays}
+                    onChange={(e) => setCustomDays(parseInt(e.target.value) || 1)}
+                    className="flex-1 accent-purple-500 cursor-pointer h-2 bg-gray-800 rounded-lg"
+                  />
+                  <div className="flex items-center gap-1.5 w-24">
+                    <input
+                      type="number"
+                      min="1"
+                      max="29"
+                      value={customDays}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!isNaN(val)) {
+                          setCustomDays(Math.min(29, Math.max(1, val)));
+                        }
+                      }}
+                      className="w-full bg-gray-800 border border-purple-500/30 rounded-lg px-2.5 py-1 text-center text-white font-bold text-sm focus:outline-none focus:border-purple-400"
+                    />
+                    <span className="text-xs text-gray-400">Days</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Custom Code & Max Uses Row */}
             <div className="grid grid-cols-2 gap-4">

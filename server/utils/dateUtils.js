@@ -11,6 +11,14 @@ export const calculateSubscriptionEndDate = (startDate, durationStr) => {
   let monthsToAdd = 0;
   let yearsToAdd = 0;
 
+  // Handle custom days (e.g. '1_day', '7_days', '14_days', '29_days')
+  const daysMatch = String(durationStr).match(/^(\d+)_days?$/);
+  if (daysMatch) {
+    const days = parseInt(daysMatch[1], 10);
+    copy.setDate(copy.getDate() + days);
+    return copy;
+  }
+
   switch (durationStr) {
     case '1_month': monthsToAdd = 1; break;
     case '3_months': monthsToAdd = 3; break;

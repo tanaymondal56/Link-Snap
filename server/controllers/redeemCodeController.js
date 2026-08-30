@@ -8,6 +8,9 @@ import { calculateSubscriptionEndDate } from '../utils/dateUtils.js';
 import { getEffectiveTier } from '../services/subscriptionService.js';
 import { invalidateUserAnalyticsCache } from './analyticsController.js';
 
+// Valid duration formats: 1-29 days, 1/3/6 months, 1 year, lifetime
+const isValidDuration = (d) => typeof d === 'string' && /^(lifetime|1_year|6_months|3_months|1_month|([1-9]|[12][0-9])_days?)$/.test(d);
+
 /**
  * Generate a new redeem code (Admin only)
  * POST /api/admin/redeem-codes
@@ -21,8 +24,8 @@ export const generateRedeemCode = async (req, res) => {
       return res.status(400).json({ message: 'Invalid tier. Must be "pro" or "business".' });
     }
 
-    if (!duration || !['1_month', '3_months', '6_months', '1_year', 'lifetime'].includes(duration)) {
-      return res.status(400).json({ message: 'Invalid duration.' });
+    if (!duration || !isValidDuration(duration)) {
+      return res.status(400).json({ message: 'Invalid duration. Must be 1-29 days, 1/3/6 months, 1 year, or lifetime.' });
     }
 
     // Generate or use custom code
@@ -130,9 +133,19 @@ export const updateRedeemCode = async (req, res) => {
     }
 
     const updates = {};
-    if (tier) updates.tier = tier;
-    if (duration) updates.duration = duration;
-    if (maxUses) updates.maxUses = parseInt(maxUses);
+    if (tier) {
+      if (!['pro', 'business'].includes(tier)) {
+        return res.status(400).json({ message: 'Invalid tier. Must be "pro" or "business".' });
+      }
+      updates.tier = tier;
+    }
+    if (duration) {
+      if (!isValidDuration(duration)) {
+        return res.status(400).json({ message: 'Invalid duration. Must be 1-29 days, 1/3/6 months, 1 year, or lifetime.' });
+      }
+      updates.duration = duration;
+    }
+    if (maxUses) updates.maxUses = Math.max(1, parseInt(maxUses) || 1);
     if (expiresAt !== undefined) updates.expiresAt = expiresAt ? new Date(expiresAt) : null;
     if (notes !== undefined) updates.notes = notes;
     if (isActive !== undefined) updates.isActive = isActive;
@@ -152,7 +165,7 @@ export const updateRedeemCode = async (req, res) => {
     const updatedCode = await RedeemCode.findByIdAndUpdate(
       id,
       { $set: updates },
-      { returnDocument: 'after' }
+      { returnDocument: 'after', runValidators: true }
     );
 
     logger.info(`[Redeem Code] Admin ${req.user.snapId} updated code ${updatedCode.code}`);

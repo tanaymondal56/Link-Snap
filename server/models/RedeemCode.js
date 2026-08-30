@@ -16,8 +16,13 @@ const redeemCodeSchema = new mongoose.Schema({
   },
   duration: { 
     type: String, 
-    enum: ['1_month', '3_months', '6_months', '1_year', 'lifetime'], 
-    required: true 
+    required: true,
+    validate: {
+      validator: function(v) {
+        return /^(lifetime|1_year|6_months|3_months|1_month|([1-9]|[12][0-9])_days?)$/.test(v);
+      },
+      message: props => `${props.value} is not a valid duration`
+    }
   },
   maxUses: { 
     type: Number, 
@@ -123,7 +128,16 @@ redeemCodeSchema.statics.generateCode = function(tier, duration) {
     '1_year': '1Y',
     'lifetime': 'LT'
   };
-  const durationCode = durationMap[duration] || 'XX';
+
+  let durationCode = durationMap[duration];
+  if (!durationCode) {
+    const daysMatch = String(duration).match(/^(\d+)_days?$/);
+    if (daysMatch) {
+      durationCode = `${daysMatch[1]}D`;
+    } else {
+      durationCode = 'XX';
+    }
+  }
   // Unambiguous alphabet: no 0/O/1/I/L to prevent transcription errors
   const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   const chunk = () => {

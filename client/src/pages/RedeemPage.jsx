@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate, useLocation, Link } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import { Loader2, Gift, AlertTriangle, CheckCircle, ArrowRight, X, CreditCard, Calendar } from 'lucide-react';
-import { formatDate } from '../utils/dateUtils';
+import { formatDate, formatDuration } from '../utils/dateUtils';
 import showToast from '../utils/toastUtils';
 import confetti from 'canvas-confetti';
 
@@ -231,7 +231,7 @@ const RedeemPage = () => {
                                             <div className="bg-gray-950/30 rounded-lg p-4 text-sm space-y-2 border border-white/5">
                                                 <div className="flex justify-between">
                                                     <span className="text-gray-400">Duration</span>
-                                                    <span className="text-white font-medium capitalize">{validationData.duration.replace('_', ' ')}</span>
+                                                    <span className="text-white font-medium">{formatDuration(validationData.duration)}</span>
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <span className="text-gray-400">New Expiry</span>

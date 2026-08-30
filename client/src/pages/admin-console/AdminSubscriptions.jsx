@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import api from '../../api/axios';
 import showToast from '../../utils/toastUtils';
-import { formatDate } from '../../utils/dateUtils';
+import { formatDate, formatDuration } from '../../utils/dateUtils';
 import { useDialog } from '../../components/ui/DialogProvider';
 import GlassTable from '../../components/admin-console/ui/GlassTable';
 import IdBadge from '../../components/ui/IdBadge';
@@ -620,14 +620,19 @@ const AdminSubscriptions = () => {
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     <div className="bg-white/5 rounded-lg p-2">
-                      <span className="text-gray-500 block">Tier</span>
-                      <span
-                        className={`font-bold uppercase ${
-                          code.tier === 'pro' ? 'text-purple-400' : 'text-amber-400'
-                        }`}
-                      >
-                        {code.tier}
-                      </span>
+                      <span className="text-gray-500 block">Tier / Duration</span>
+                      <div className="flex flex-col">
+                        <span
+                          className={`font-bold uppercase ${
+                            code.tier === 'pro' ? 'text-purple-400' : 'text-amber-400'
+                          }`}
+                        >
+                          {code.tier}
+                        </span>
+                        <span className="text-[10px] text-gray-400 font-medium">
+                          {formatDuration(code.duration)}
+                        </span>
+                      </div>
                     </div>
                     <div className="bg-white/5 rounded-lg p-2">
                       <span className="text-gray-500 block">Usage</span>
@@ -654,7 +659,7 @@ const AdminSubscriptions = () => {
               <thead className="bg-white/5">
                 <tr>
                   <th className="text-left px-4 py-3 text-gray-400 font-medium text-sm">Code</th>
-                  <th className="text-left px-4 py-3 text-gray-400 font-medium text-sm">Tier</th>
+                  <th className="text-left px-4 py-3 text-gray-400 font-medium text-sm">Tier & Duration</th>
                   <th className="text-left px-4 py-3 text-gray-400 font-medium text-sm">Expires</th>
                   <th className="text-left px-4 py-3 text-gray-400 font-medium text-sm">Usage</th>
                   <th className="text-left px-4 py-3 text-gray-400 font-medium text-sm">Status</th>
@@ -686,15 +691,20 @@ const AdminSubscriptions = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-bold uppercase ${
-                            code.tier === 'pro'
-                              ? 'bg-purple-500/20 text-purple-400'
-                              : 'bg-amber-500/20 text-amber-400'
-                          }`}
-                        >
-                          {code.tier}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span
+                            className={`px-2 py-0.5 rounded text-xs font-bold uppercase w-fit ${
+                              code.tier === 'pro'
+                                ? 'bg-purple-500/20 text-purple-400'
+                                : 'bg-amber-500/20 text-amber-400'
+                            }`}
+                          >
+                            {code.tier}
+                          </span>
+                          <span className="text-[11px] text-gray-400 font-medium">
+                            {formatDuration(code.duration)}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-gray-300">
                         {code.expiresAt ? (
