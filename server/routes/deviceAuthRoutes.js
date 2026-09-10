@@ -2,7 +2,7 @@ import express from 'express';
 import { verifyToken } from '../middleware/authMiddleware.js';
 import { verifyAdmin } from '../middleware/verifyAdmin.js';
 import { ipWhitelist, strictIpWhitelist } from '../middleware/ipWhitelist.js';
-import { biometricAuthLimiter } from '../middleware/rateLimiter.js';
+import { biometricAuthLimiter, passkeyHealthCheckLimiter } from '../middleware/rateLimiter.js';
 import { dualLayerAuthActionLimiter } from '../middleware/dualLayerAuthRateLimiter.js';
 import {
   getRegistrationOptions,
@@ -73,9 +73,9 @@ router.delete('/devices', ipWhitelist, verifyToken, verifyAdmin, blockMasterAdmi
 // ============================================
 
 // Challenge scoped to the current user's active credentials
-router.post('/verify-passkey/options', ipWhitelist, verifyToken, verifyAdmin, blockMasterAdmin, biometricAuthLimiter, getVerificationOptions);
+router.post('/verify-passkey/options', ipWhitelist, verifyToken, verifyAdmin, blockMasterAdmin, passkeyHealthCheckLimiter, getVerificationOptions);
 
 // Verify the assertion — counter + lastAccess updated, no tokens issued
-router.post('/verify-passkey', ipWhitelist, verifyToken, verifyAdmin, blockMasterAdmin, biometricAuthLimiter, dualLayerAuthActionLimiter, verifyPasskey);
+router.post('/verify-passkey', ipWhitelist, verifyToken, verifyAdmin, blockMasterAdmin, passkeyHealthCheckLimiter, verifyPasskey);
 
 export default router;

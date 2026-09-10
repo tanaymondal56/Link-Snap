@@ -84,6 +84,7 @@ const DeviceManagement = () => {
   const [verifying, setVerifying] = useState(false);
   const [verifyingDeviceId, setVerifyingDeviceId] = useState(null);
   const [verifyResult, setVerifyResult] = useState(null); // { ok, deviceName?, message, at }
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
 
   // Check WebAuthn support
   const [webAuthnSupported, setWebAuthnSupported] = useState(supportsWebAuthn());
@@ -264,7 +265,16 @@ const DeviceManagement = () => {
             Refresh
           </button>
           <button
-            onClick={() => handleVerifyPasskey(null)}
+            onClick={() => {
+              const active = devices.filter((d) => d.isActive);
+              if (active.length > 1) {
+                setShowVerifyModal(true);
+              } else if (active.length === 1) {
+                handleVerifyPasskey(active[0]._id);
+              } else {
+                handleVerifyPasskey(null);
+              }
+            }}
             disabled={verifying || registering || !webAuthnSupported || isMasterAdmin}
             className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-emerald-500/30 text-emerald-300 hover:text-emerald-200 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
             title={
@@ -451,13 +461,17 @@ const DeviceManagement = () => {
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3 w-3" />
                         Registered: {formatPreferredIP(device.registeredIP) || 'Unknown'}
-                        {device.registeredGeo?.city && ` (${device.registeredGeo.city})`}
+                        {device.registeredGeo?.city && device.registeredGeo.city !== 'Unknown' && (
+                          <span> ({device.registeredGeo.city})</span>
+                        )}
                       </span>
                       {device.lastAccessIP && (
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           Last: {formatPreferredIP(device.lastAccessIP)}
-                          {device.lastAccessGeo?.city && ` (${device.lastAccessGeo.city})`}
+                          {device.lastAccessGeo?.city && device.lastAccessGeo.city !== 'Unknown' && (
+                            <span> ({device.lastAccessGeo.city})</span>
+                          )}
                         </span>
                       )}
                     </div>
@@ -584,6 +598,79 @@ const DeviceManagement = () => {
                 Revoke
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Verify Passkey Device Selection Modal */}
+      {showVerifyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-gray-900/95 border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                  <ShieldCheck className="h-5 w-5 text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Choose Passkey</h3>
+                  <p className="text-gray-400 text-xs">Select which passkey you want to verify</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowVerifyModal(false)}
+                className="p-1 text-gray-500 hover:text-gray-300 rounded"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2 mb-4">
+              {devices.filter((d) => d.isActive).map((dev) => (
+                <button
+                  key={dev._id}
+                  onClick={() => {
+                    setShowVerifyModal(false);
+                    handleVerifyPasskey(dev._id);
+                  }}
+                  className="w-full text-left p-3 rounded-xl bg-white/5 hover:bg-purple-500/10 border border-white/10 hover:border-purple-500/30 transition-all flex items-center justify-between group"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-white group-hover:text-purple-300 text-sm truncate">
+                      {dev.deviceName}
+                    </p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {dev.deviceModel} • {dev.deviceOS} {dev.credentialDeviceType === 'multiDevice' ? '(Synced / Cloud)' : '(Device-Bound)'}
+                    </p>
+                  </div>
+                  <ShieldCheck className="h-4 w-4 text-purple-400 shrink-0 ml-2" />
+                </button>
+              ))}
+
+              <button
+                onClick={() => {
+                  setShowVerifyModal(false);
+                  handleVerifyPasskey(null);
+                }}
+                className="w-full text-left p-3 rounded-xl bg-white/5 hover:bg-emerald-500/10 border border-white/10 hover:border-emerald-500/30 transition-all flex items-center justify-between group"
+              >
+                <div>
+                  <p className="font-medium text-white group-hover:text-emerald-300 text-sm">
+                    Any Device (Browser Sheet)
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Prompt all local, cloud, and cross-device passkeys
+                  </p>
+                </div>
+                <Fingerprint className="h-4 w-4 text-emerald-400 shrink-0 ml-2" />
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowVerifyModal(false)}
+              className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 rounded-xl text-sm font-medium transition-all"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

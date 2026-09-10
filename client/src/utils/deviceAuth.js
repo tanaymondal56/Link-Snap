@@ -560,14 +560,11 @@ export const verifyPasskey = async (deviceId = null) => {
   }
 
   try {
-    // 1. Get a user-scoped challenge (optionally narrowed to a specific deviceId or this browser's active passkey)
+    // 1. Get a user-scoped challenge (optionally narrowed to a specific deviceId)
     const targetDeviceId = typeof deviceId === 'string' && deviceId.trim() ? deviceId.trim() : null;
-    const activeLocalMarker = !targetDeviceId ? getTrustedDeviceMarker() : null;
     const payload = {};
     if (targetDeviceId) {
       payload.deviceId = targetDeviceId;
-    } else if (activeLocalMarker) {
-      payload.deviceId = activeLocalMarker;
     }
 
     const optionsPromise = api.post('/.d/verify-passkey/options', payload);

@@ -488,3 +488,17 @@ export const biometricAuthLimiter = rateLimit({
     skip: (req) => isWhitelisted(getUserIP(req)),
 });
 
+// ─── Passkey Health-Check Rate Limiting ─────────────────────────────────────
+// Applied to authenticated passkey verification testing in admin console
+export const passkeyHealthCheckLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000, // 5 minutes
+    max: 30, // 30 requests per 5 minutes
+    store: createRedisStore('passkey-health'),
+    keyGenerator: (req) => `${req.user?._id || getUserIP(req)}`,
+    validate: { keyGeneratorIpFallback: false },
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many passkey verification attempts. Please wait a moment.' });
+    },
+    skip: (req) => isWhitelisted(getUserIP(req)),
+});
+

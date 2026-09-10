@@ -374,8 +374,8 @@ export const verifyRegistration = async (req, res) => {
       browser: deviceFingerprint.browser,
       registeredIP: clientIP,
       registeredGeo: {
-        city: 'Unknown',
-        country: 'Unknown',
+        city: req.headers['cf-ipcity'] || 'Unknown',
+        country: req.headers['cf-ipcountry'] || 'Unknown',
         isp: 'Unknown',
       },
     });
@@ -757,7 +757,8 @@ export const getVerificationOptions = async (req, res) => {
       // offer credentials it actually holds, which is the health-check itself.
       allowCredentials: devices.map((d) => ({
         id: toBase64Url(d.credentialId),
-        transports: d.transports?.length > 0 ? d.transports : ['internal', 'hybrid', 'usb', 'ble', 'nfc'],
+        // Ensure browser allows internal authenticators (Windows Hello / Chrome Password Manager) as well as phone QR / USB
+        transports: Array.from(new Set([...(Array.isArray(d.transports) ? d.transports : []), 'internal', 'hybrid', 'usb'])),
       })),
       timeout: 60000,
     });
@@ -885,7 +886,11 @@ export const verifyPasskey = async (req, res) => {
     const newCounter = verification.authenticationInfo.newCounter;
     const updateSet = {
       lastAccessIP: clientIP,
-      lastAccessGeo: { city: 'Unknown', country: 'Unknown', isp: 'Unknown' },
+      lastAccessGeo: {
+        city: req.headers['cf-ipcity'] || 'Unknown',
+        country: req.headers['cf-ipcountry'] || 'Unknown',
+        isp: 'Unknown',
+      },
       updatedAt: new Date(),
     };
     if (verification.authenticationInfo.credentialDeviceType) {

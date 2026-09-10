@@ -51,6 +51,11 @@ export async function onRequest(context) {
     headers.set('cf-pseudo-ipv4', pseudoIPv4);
   }
 
+  // Forward Cloudflare GeoIP metadata
+  const cf = request.cf || {};
+  if (cf.city) headers.set('cf-ipcity', cf.city);
+  if (cf.country) headers.set('cf-ipcountry', cf.country);
+
   // Remove hop-by-hop headers
   headers.delete('host');
 
