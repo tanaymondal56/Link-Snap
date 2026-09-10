@@ -4,53 +4,42 @@ import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
 } from '@simplewebauthn/server';
+import crypto from 'node:crypto';
+import mongoose from 'mongoose';
+import { LRUCache } from 'lru-cache';
 import TrustedDevice from '../models/TrustedDevice.js';
 import User from '../models/User.js';
 import { generateAccessToken } from '../utils/generateToken.js';
 import { createSession } from '../utils/sessionHelper.js';
+import { issueDbscRegistration } from './authController.js';
 import logger from '../utils/logger.js';
 import LoginHistory from '../models/LoginHistory.js';
 import { getUserIP } from '../middleware/strictProxyGate.js';
 import { redisGet, redisSet, redisDel, redisIncr, redisGetDel, getRedisClient } from '../config/redis.js';
 
-// Config
+// Config - Strictly permitted origins and RP IDs
 const rpName = process.env.WEBAUTHN_RP_NAME || 'Link Snap Admin';
-const rpID = process.env.WEBAUTHN_RP_ID || 'localhost';
-const origin = process.env.WEBAUTHN_ORIGIN || `https://${rpID}`;
+const rpID = process.env.WEBAUTHN_RP_ID || (process.env.NODE_ENV === 'production' ? 'lksnp.qzz.io' : 'localhost');
 
-// Challenge store - In-memory with TTL (use Redis in production for scaling)
-const challengeStore = new Map();
+const ALLOWED_ORIGINS = [
+  'https://lksnp.qzz.io',
+  'https://beta.lksnp.qzz.io',
+  'http://localhost:3000',
+];
 
-// Rate limiting store for biometric attempts
-const rateLimitStore = new Map();
+const ALLOWED_RP_IDS = [
+  'lksnp.qzz.io',
+  'localhost',
+];
+
+// In-memory LRU cache fallback (max items + TTL prevents OOM/DoS without nuclear clear)
+const challengeStore = new LRUCache({ max: 5000, ttl: 60000 });
+const rateLimitStore = new LRUCache({ max: 5000, ttl: 300000 }); // 5 min attempt window matching Redis
 const MAX_ATTEMPTS = 3;
 const LOCKOUT_DURATION = 30000; // 30 seconds
 
-// Helper: Clean up expired challenges and rate limits (with emergency OOM protection)
-const cleanup = () => {
-  const now = Date.now();
-  if (challengeStore.size > 5000) challengeStore.clear();
-  if (rateLimitStore.size > 5000) rateLimitStore.clear();
-  for (const [key, data] of challengeStore) {
-    if (now > data.expires) {
-      challengeStore.delete(key);
-    }
-  }
-  for (const [key, data] of rateLimitStore) {
-    if (now > data.lockedUntil) {
-      rateLimitStore.delete(key);
-    }
-  }
-};
-
-// Cleanup every minute (unref to prevent event loop blocking)
-let cleanupInterval = setInterval(cleanup, 60000).unref();
-
 export const stopDeviceAuthIntervals = () => {
-  if (cleanupInterval) {
-    clearInterval(cleanupInterval);
-    cleanupInterval = null;
-  }
+  // LRUCache handles TTL evictions automatically; no interval needed
 };
 
 /**
@@ -172,8 +161,8 @@ export const getRegistrationOptions = async (req, res) => {
     const user = await User.findById(userId);
     const clientIP = getClientIP(req);
 
-    if (!user || user.role !== 'admin') {
-      logAccessAttempt('REGISTER_OPTIONS', false, { userId, ip: clientIP, reason: 'not_admin' });
+    if (!user || user.role !== 'admin' || !user.isActive) {
+      logAccessAttempt('REGISTER_OPTIONS', false, { userId, ip: clientIP, reason: 'not_admin_or_inactive' });
       return res.status(404).json({ message: 'Not Found' });
     }
 
@@ -181,7 +170,7 @@ export const getRegistrationOptions = async (req, res) => {
     const existingDevices = await TrustedDevice.getActiveDevices(userId);
     
     // Check device limit (configurable, default 10)
-    const maxDevices = parseInt(process.env.MAX_TRUSTED_DEVICES) || 10;
+    const maxDevices = parseInt(process.env.MAX_TRUSTED_DEVICES, 10) || 10;
     if (existingDevices.length >= maxDevices) {
       logAccessAttempt('REGISTER_OPTIONS', false, { userId, ip: clientIP, reason: 'device_limit' });
       return res.status(400).json({ message: `Maximum ${maxDevices} devices allowed` });
@@ -190,19 +179,19 @@ export const getRegistrationOptions = async (req, res) => {
     const excludeCredentials = existingDevices.map(device => ({
       id: toBase64Url(device.credentialId),
       type: 'public-key',
-      transports: device.transports || ['internal'],
+      transports: device.transports?.length > 0 ? device.transports : ['internal'],
     }));
 
     const options = await generateRegistrationOptions({
       rpName,
       rpID,
-      userID: new Uint8Array(Buffer.from(userId.toString())),
+      userID: new Uint8Array(Buffer.from(userId.toString(), 'utf8')),
       userName: user.email,
-      userDisplayName: user.name || user.email,
+      userDisplayName: user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : (user.username || user.email),
       attestationType: 'none',
       excludeCredentials,
       authenticatorSelection: {
-        residentKey: 'preferred',
+        residentKey: 'required',
         userVerification: 'required',
         authenticatorAttachment: 'platform',
       },
@@ -246,15 +235,37 @@ export const verifyRegistration = async (req, res) => {
   const clientIP = getClientIP(req);
   
   try {
+    const rateCheck = await checkRateLimit(clientIP);
+    if (!rateCheck.allowed) {
+      logAccessAttempt('REGISTER_VERIFY', false, { ip: clientIP, reason: 'rate_limited' });
+      return res.status(429).json({
+        message: `Too many attempts. Try again in ${rateCheck.remainingSeconds} seconds`,
+        retryAfter: rateCheck.remainingSeconds,
+      });
+    }
+
+    const { response, deviceName, deviceInfo } = req.body || {};
+    if (!response || typeof response !== 'object' || typeof response.id !== 'string') {
+      await recordFailedAttempt(clientIP);
+      return res.status(400).json({ message: 'Invalid registration response payload' });
+    }
+
     const userId = req.user._id || req.user.id;
     const user = await User.findById(userId);
  
-    if (!user || user.role !== 'admin') {
-      logAccessAttempt('REGISTER_VERIFY', false, { userId, ip: clientIP, reason: 'not_admin' });
+    if (!user || user.role !== 'admin' || !user.isActive) {
+      await recordFailedAttempt(clientIP);
+      logAccessAttempt('REGISTER_VERIFY', false, { userId, ip: clientIP, reason: 'not_admin_or_inactive' });
       return res.status(404).json({ message: 'Not Found' });
     }
- 
-    const { response, deviceName, deviceInfo } = req.body;
+
+    // Check device limit
+    const existingDevices = await TrustedDevice.getActiveDevices(userId);
+    const maxDevices = parseInt(process.env.MAX_TRUSTED_DEVICES, 10) || 10;
+    const isReRegistration = existingDevices.some(d => toBase64Url(d.credentialId) === response.id);
+    if (!isReRegistration && existingDevices.length >= maxDevices) {
+      return res.status(400).json({ message: `Maximum ${maxDevices} devices allowed` });
+    }
  
     // Get stored challenge
     let stored;
@@ -267,6 +278,7 @@ export const verifyRegistration = async (req, res) => {
     }
     
     if (!stored || Date.now() > stored.expires) {
+      await recordFailedAttempt(clientIP);
       logAccessAttempt('REGISTER_VERIFY', false, { userId, ip: clientIP, reason: 'challenge_expired' });
       return res.status(400).json({ message: 'Challenge expired' });
     }
@@ -274,11 +286,13 @@ export const verifyRegistration = async (req, res) => {
     const verification = await verifyRegistrationResponse({
       response,
       expectedChallenge: stored.challenge,
-      expectedOrigin: origin,
-      expectedRPID: rpID,
+      expectedOrigin: ALLOWED_ORIGINS,
+      expectedRPID: ALLOWED_RP_IDS,
+      requireUserVerification: true,
     });
  
     if (!verification.verified || !verification.registrationInfo) {
+      await recordFailedAttempt(clientIP);
       logAccessAttempt('REGISTER_VERIFY', false, { userId, ip: clientIP, reason: 'verification_failed' });
       return res.status(400).json({ message: 'Verification failed' });
     }
@@ -286,13 +300,7 @@ export const verifyRegistration = async (req, res) => {
     // Clear challenge
     challengeStore.delete(userId.toString());
 
-
-    // === DUPLICATE DEVICE DETECTION ===
-    // Check if user already has a device with similar fingerprint
-    // If so, auto-deactivate the old one to prevent duplicates
-    
     // Sanitize deviceInfo to prevent NoSQL injection
-    // Ensure all values are plain strings, max 100 chars each
     const sanitizeDeviceField = (value) => {
       if (typeof value !== 'string') return 'Unknown';
       return String(value).slice(0, 100).trim() || 'Unknown';
@@ -303,58 +311,41 @@ export const verifyRegistration = async (req, res) => {
       os: sanitizeDeviceField(deviceInfo?.os),
       browser: sanitizeDeviceField(deviceInfo?.browser).replace(' (PWA)', ''), // Normalize PWA suffix
     };
-    
-    const existingDevices = await TrustedDevice.find({ 
-      userId, 
-      isActive: true,
-      deviceModel: deviceFingerprint.model,
-      deviceOS: deviceFingerprint.os,
-    });
-    
-    // Deactivate old devices with same fingerprint (likely re-registration after data clear)
-    if (existingDevices.length > 0) {
-      for (const oldDevice of existingDevices) {
-        // Match browser (ignore PWA suffix difference)
-        const oldBrowser = (oldDevice.browser || '').replace(' (PWA)', '');
-        if (oldBrowser === deviceFingerprint.browser) {
-          await TrustedDevice.revokeDevice(oldDevice._id, userId);
-          logAccessAttempt('DEVICE_AUTO_REVOKE', true, { 
-            userId, 
-            ip: clientIP, 
-            oldDeviceId: oldDevice._id,
-            reason: 'duplicate_device_re-registration'
-          });
-        }
-      }
-    }
 
-    // Extract credential info (Support simplewebauthn v13 structure)
+    // Canonical SimpleWebAuthn v14 credential data
     const regInfo = verification.registrationInfo;
-    let credId = regInfo.credentialID;
-    let credPublicKey = regInfo.credentialPublicKey;
-    
-    // v13+ specific: data nests under 'credential' object
-    if (!credId && regInfo.credential) {
-      credId = regInfo.credential.id;
-      credPublicKey = regInfo.credential.publicKey;
-    }
+    const credential = regInfo.credential;
 
-    if (!credId || !credPublicKey) {
-       logger.error('[Device Auth] CRITICAL: Missing credentialID or publicKey:', Object.keys(regInfo));
+    if (!credential?.id || !credential?.publicKey) {
+       logger.error('[Device Auth] CRITICAL: Missing credential.id or publicKey in registrationInfo:', Object.keys(regInfo));
        return res.status(500).json({ message: 'Server error: Invalid authenticator data' });
     }
 
-    const credIdBuffer = credId instanceof Buffer ? credId : Buffer.from(credId, 'base64url');
-    const credPublicKeyBuffer = credPublicKey instanceof Buffer ? credPublicKey : Buffer.from(credPublicKey, 'base64url');
+    const credIdBuffer = Buffer.from(credential.id, 'base64url');
+    // In v14, credential.publicKey is Uint8Array; wrap directly in Buffer
+    const credPublicKeyBuffer = Buffer.from(credential.publicKey);
 
+    // If this exact credential ID was previously registered by this user, revoke the prior record
+    await TrustedDevice.updateMany(
+      { userId, credentialId: credIdBuffer, isActive: true },
+      { $set: { isActive: false, revokedAt: new Date() } }
+    );
 
+    const resolvedTransports = (credential.transports?.length > 0)
+      ? credential.transports
+      : (response.response?.transports?.length > 0)
+        ? response.response.transports
+        : ['internal'];
 
     const trustedDevice = new TrustedDevice({
       userId,
       credentialId: credIdBuffer,
       publicKey: credPublicKeyBuffer,
-      counter: verification.registrationInfo.counter,
-      transports: response.response?.transports || ['internal'],
+      counter: credential.counter ?? 0, // Canonical v14 location
+      credentialDeviceType: regInfo.credentialDeviceType || 'singleDevice',
+      credentialBackedUp: Boolean(regInfo.credentialBackedUp),
+      aaguid: regInfo.aaguid || null,
+      transports: resolvedTransports,
       deviceName: typeof deviceName === 'string' ? String(deviceName).slice(0, 50).trim() || 'Unknown Device' : 'Unknown Device',
       deviceModel: deviceFingerprint.model,
       deviceOS: deviceFingerprint.os,
@@ -368,6 +359,7 @@ export const verifyRegistration = async (req, res) => {
     });
 
     await trustedDevice.save();
+    await clearRateLimit(clientIP);
 
     logAccessAttempt('REGISTER_VERIFY', true, { 
       userId, 
@@ -382,7 +374,11 @@ export const verifyRegistration = async (req, res) => {
       message: 'Device registered successfully',
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ message: 'Credential already registered and active' });
+    }
     logger.error('[Device Auth] Registration verify error:', error);
+    await recordFailedAttempt(clientIP);
     logAccessAttempt('REGISTER_VERIFY', false, { ip: clientIP, error: error.message });
     res.status(500).json({ message: 'Internal error' });
   }
@@ -409,12 +405,11 @@ export const getAuthenticationOptions = async (req, res) => {
     const options = await generateAuthenticationOptions({
       rpID,
       userVerification: 'required',
-      allowCredentials: [],
       timeout: 60000,
     });
 
-    // Store challenge with a temporary ID
-    const tempId = `auth_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    // Store challenge with a cryptographically secure temporary ID
+    const tempId = `auth_${Date.now()}_${crypto.randomBytes(16).toString('hex')}`;
     const redis = getRedisClient();
     if (redis) {
       await redisSet(`ls:wn:challenge:${tempId}`, 60, {
@@ -457,7 +452,11 @@ export const verifyAuthentication = async (req, res) => {
       });
     }
 
-    const { response, challengeId } = req.body;
+    const { response, challengeId } = req.body || {};
+    if (!response || typeof response !== 'object' || typeof response.id !== 'string' || !challengeId || typeof challengeId !== 'string') {
+      await recordFailedAttempt(clientIP);
+      return res.status(400).json({ message: 'Invalid authentication request payload' });
+    }
 
     // Get stored challenge
     let stored;
@@ -509,22 +508,27 @@ export const verifyAuthentication = async (req, res) => {
        });
     }
 
+    // Convert stored MongoDB Buffer to Uint8Array safely for SimpleWebAuthn
+    const publicKeyUint8 = new Uint8Array(device.publicKey);
+
+    // For synced passkeys (multiDevice), if counter is 0 or unchanged, pass counter = 0
+    // to prevent false-positive clone rollback lockout when switching between synced devices
+    const isMultiDevice = device.credentialDeviceType === 'multiDevice';
+    const effectiveCounter = isMultiDevice ? 0 : device.counter;
+
     const verification = await verifyAuthenticationResponse({
       response,
       expectedChallenge: stored.challenge,
-      expectedOrigin: origin,
-      expectedRPID: rpID,
-      authenticator: {
-        credentialID: device.credentialId,
-        credentialPublicKey: device.publicKey,
-        counter: device.counter,
-      },
-      // Support newer simplewebauthn versions (v11+) which use 'credential'
+      expectedOrigin: ALLOWED_ORIGINS,
+      expectedRPID: ALLOWED_RP_IDS,
+      expectedTopOrigin: ALLOWED_ORIGINS,
       credential: {
-        id: device.credentialId,
-        publicKey: device.publicKey,
-        counter: device.counter,
-      }
+        id: toBase64Url(device.credentialId),
+        publicKey: publicKeyUint8,
+        counter: effectiveCounter,
+        transports: device.transports,
+      },
+      requireUserVerification: true,
     });
 
     if (!verification.verified) {
@@ -540,16 +544,10 @@ export const verifyAuthentication = async (req, res) => {
       return res.status(400).json({ message: 'Verification failed' });
     }
 
-    // Clear challenge
+    // Clear challenge from in-memory fallback
     challengeStore.delete(challengeId);
 
-    // Update counter (replay protection)
-    device.counter = verification.authenticationInfo.newCounter;
-
-    // Update last access
-    await device.updateLastAccess(clientIP, {});
-
-    // Check if user is still admin
+    // CRITICAL: Authorize user BEFORE mutating device state in database
     const user = device.userId;
     if (!user || user.role !== 'admin') {
       await recordFailedAttempt(clientIP);
@@ -563,6 +561,7 @@ export const verifyAuthentication = async (req, res) => {
 
     // Check if user is banned
     if (!user.isActive) {
+      await recordFailedAttempt(clientIP);
       logAccessAttempt('AUTH_VERIFY', false, { 
         ip: clientIP, 
         userId: user._id,
@@ -571,12 +570,35 @@ export const verifyAuthentication = async (req, res) => {
       return res.status(403).json({ message: 'Account suspended' });
     }
 
+    // Atomic counter & access update (prevents race condition & counter rollback)
+    const newCounter = verification.authenticationInfo.newCounter;
+    const updateSet = {
+      lastAccessIP: clientIP,
+      lastAccessGeo: { city: 'Unknown', country: 'Unknown', isp: 'Unknown' },
+      updatedAt: new Date(),
+    };
+    if (verification.authenticationInfo.credentialDeviceType) {
+      updateSet.credentialDeviceType = verification.authenticationInfo.credentialDeviceType;
+    }
+    if (typeof verification.authenticationInfo.credentialBackedUp === 'boolean') {
+      updateSet.credentialBackedUp = verification.authenticationInfo.credentialBackedUp;
+    }
+
+    await TrustedDevice.updateOne(
+      { _id: device._id },
+      {
+        $max: { counter: newCounter },
+        $set: updateSet,
+      }
+    );
+
     // Clear rate limit on success
     await clearRateLimit(clientIP);
 
-    // === CRITICAL FIX: Generate JWT tokens ===
-    const accessToken = generateAccessToken(user._id);
-    const { refreshToken } = await createSession(user._id, req);
+    // === Generate JWT tokens with admin role and DBSC session binding ===
+    const { refreshToken, session: newSession, dbscSessionId } = await createSession(user._id, req);
+    await issueDbscRegistration(res, newSession);
+    const accessToken = generateAccessToken(user._id, user.role, dbscSessionId);
 
     // Update lastLoginAt (for user activity tracking)
     await User.findByIdAndUpdate(user._id, { $set: { lastLoginAt: new Date() } });
@@ -627,7 +649,7 @@ export const verifyAuthentication = async (req, res) => {
     });
   } catch (error) {
     logger.error('[Device Auth] Auth verify error:', error);
-    recordFailedAttempt(clientIP);
+    await recordFailedAttempt(clientIP);
     logAccessAttempt('AUTH_VERIFY', false, { ip: clientIP, error: error.message });
     res.status(500).json({ message: 'Internal error' });
   }
@@ -654,7 +676,7 @@ export const getVerificationOptions = async (req, res) => {
     const devices = await TrustedDevice.find({
       userId: req.user._id,
       isActive: true,
-    }).select('credentialId').lean();
+    }).select('credentialId transports').lean();
 
     if (devices.length === 0) {
       return res.status(404).json({ message: 'No active passkeys found for your account' });
@@ -667,12 +689,12 @@ export const getVerificationOptions = async (req, res) => {
       // offer credentials it actually holds, which is the health-check itself.
       allowCredentials: devices.map((d) => ({
         id: toBase64Url(d.credentialId),
-        transports: ['internal', 'hybrid', 'usb', 'ble', 'nfc'],
+        transports: d.transports?.length > 0 ? d.transports : ['internal', 'hybrid', 'usb', 'ble', 'nfc'],
       })),
       timeout: 60000,
     });
 
-    const tempId = `vauth_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const tempId = `vauth_${Date.now()}_${crypto.randomBytes(16).toString('hex')}`;
     const payload = {
       challenge: options.challenge,
       expires: Date.now() + 60000,
@@ -713,7 +735,11 @@ export const verifyPasskey = async (req, res) => {
       });
     }
 
-    const { response, challengeId } = req.body;
+    const { response, challengeId } = req.body || {};
+    if (!response || typeof response !== 'object' || typeof response.id !== 'string' || !challengeId || typeof challengeId !== 'string') {
+      await recordFailedAttempt(clientIP);
+      return res.status(400).json({ message: 'Invalid passkey verification payload' });
+    }
 
     // One-time challenge (same store as login, but scope-checked below)
     let stored;
@@ -757,22 +783,24 @@ export const verifyPasskey = async (req, res) => {
       return res.status(400).json({ message: 'No matching active passkey for your account' });
     }
 
+    const publicKeyUint8 = new Uint8Array(device.publicKey);
+
+    const isMultiDevice = device.credentialDeviceType === 'multiDevice';
+    const effectiveCounter = isMultiDevice ? 0 : device.counter;
+
     const verification = await verifyAuthenticationResponse({
       response,
       expectedChallenge: stored.challenge,
-      expectedOrigin: origin,
-      expectedRPID: rpID,
-      authenticator: {
-        credentialID: device.credentialId,
-        credentialPublicKey: device.publicKey,
-        counter: device.counter,
-      },
-      // Support newer simplewebauthn versions (v11+) which use 'credential'
+      expectedOrigin: ALLOWED_ORIGINS,
+      expectedRPID: ALLOWED_RP_IDS,
+      expectedTopOrigin: ALLOWED_ORIGINS,
       credential: {
-        id: device.credentialId,
-        publicKey: device.publicKey,
-        counter: device.counter,
+        id: toBase64Url(device.credentialId),
+        publicKey: publicKeyUint8,
+        counter: effectiveCounter,
+        transports: device.transports,
       },
+      requireUserVerification: true,
     });
 
     if (!verification.verified) {
@@ -785,9 +813,27 @@ export const verifyPasskey = async (req, res) => {
       return res.status(400).json({ message: 'Verification failed — the passkey did not validate' });
     }
 
-    // Keep replay protection intact even though this is not a login
-    device.counter = verification.authenticationInfo.newCounter;
-    await device.updateLastAccess(clientIP, {});
+    // Atomic counter update for replay protection
+    const newCounter = verification.authenticationInfo.newCounter;
+    const updateSet = {
+      lastAccessIP: clientIP,
+      lastAccessGeo: { city: 'Unknown', country: 'Unknown', isp: 'Unknown' },
+      updatedAt: new Date(),
+    };
+    if (verification.authenticationInfo.credentialDeviceType) {
+      updateSet.credentialDeviceType = verification.authenticationInfo.credentialDeviceType;
+    }
+    if (typeof verification.authenticationInfo.credentialBackedUp === 'boolean') {
+      updateSet.credentialBackedUp = verification.authenticationInfo.credentialBackedUp;
+    }
+
+    await TrustedDevice.updateOne(
+      { _id: device._id },
+      {
+        $max: { counter: newCounter },
+        $set: updateSet,
+      }
+    );
 
     await clearRateLimit(clientIP);
     logAccessAttempt('PASSKEY_VERIFY', true, {
@@ -806,7 +852,7 @@ export const verifyPasskey = async (req, res) => {
     });
   } catch (error) {
     logger.error('[Device Auth] Passkey verify error:', error);
-    recordFailedAttempt(clientIP);
+    await recordFailedAttempt(clientIP);
     logAccessAttempt('PASSKEY_VERIFY', false, { ip: clientIP, error: error.message });
     res.status(500).json({ message: 'Internal error' });
   }
@@ -818,11 +864,16 @@ export const verifyPasskey = async (req, res) => {
 export const getDevices = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
-    const devices = await TrustedDevice.find({ userId })
-      .select('-credentialId -publicKey')
+    const rawDevices = await TrustedDevice.find({ userId })
+      .select('-publicKey')
       .lean();
-      // .sort({ updatedAt: -1 }); // Removed to fix Cosmos DB specific error
     
+    // Map credentialId Buffer to Base64URL string for client-side matching & WebAuthn signals
+    const devices = rawDevices.map((d) => ({
+      ...d,
+      credentialId: toBase64Url(d.credentialId),
+    }));
+
     // Sort in memory instead (list is small, usually < 10)
     devices.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
@@ -841,6 +892,10 @@ export const updateDeviceName = async (req, res) => {
     const userId = req.user._id || req.user.id;
     const { deviceId } = req.params;
     const { deviceName } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(deviceId)) {
+      return res.status(404).json({ message: 'Device not found' });
+    }
 
     const device = await TrustedDevice.findOne({ _id: deviceId, userId });
     if (!device) {
@@ -866,15 +921,20 @@ export const revokeDevice = async (req, res) => {
     const userId = req.user._id || req.user.id;
     const { deviceId } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(deviceId)) {
+      return res.status(404).json({ message: 'Device not found' });
+    }
+
     const device = await TrustedDevice.findOne({ _id: deviceId, userId });
     if (!device) {
       return res.status(404).json({ message: 'Device not found' });
     }
 
+    const credIdBase64 = toBase64Url(device.credentialId);
     await TrustedDevice.revokeDevice(deviceId, userId);
 
     logAccessAttempt('DEVICE_REVOKE', true, { userId, deviceId, deviceName: device.deviceName });
-    res.json({ success: true, message: 'Device revoked' });
+    res.json({ success: true, message: 'Device revoked', credentialId: credIdBase64 });
   } catch (error) {
     logger.error('[Device Auth] Revoke device error:', error);
     res.status(500).json({ message: 'Internal error' });
@@ -908,12 +968,16 @@ export const revokeAllDevices = async (req, res) => {
  */
 export const checkTrustedDevice = async (credentialId) => {
   try {
+    if (!credentialId || typeof credentialId !== 'string') {
+      return { trusted: false };
+    }
+
     const device = await TrustedDevice.findOne({
       credentialId: Buffer.from(credentialId, 'base64url'),
       isActive: true,
     }).populate('userId');
 
-    if (device && device.userId && device.userId.role === 'admin') {
+    if (device && device.userId && device.userId.role === 'admin' && device.userId.isActive) {
       return { trusted: true, userId: device.userId._id };
     }
 

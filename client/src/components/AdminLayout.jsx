@@ -21,12 +21,27 @@ import {
   hasTrustedDeviceMarker,
   authenticateWithBiometric,
   supportsWebAuthn,
-  isBioAuthExpired
+  isBioAuthExpired,
+  setLastBioAuthTime,
+  cancelWebAuthnCeremony,
 } from '../utils/deviceAuth';
 
 const AdminLayout = ({ children }) => {
   const { user, login, logout, loading: authLoading, isAdmin, setUser } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        cancelWebAuthnCeremony();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      cancelWebAuthnCeremony();
+    };
+  }, []);
   
   // Access states
   const [isAllowedIP, setIsAllowedIP] = useState(null);
@@ -248,10 +263,19 @@ const AdminLayout = ({ children }) => {
       setBiometricState('failed');
       
       if (result.error === 'cancelled') {
-        // User cancelled - redirect silently
-        setTimeout(() => {
-          window.location.replace('/');
-        }, 100);
+        // User cancelled or aborted
+        setBiometricState('idle');
+        if (isReauthRequired) {
+          // Prevent bypassing 24h re-auth barrier on cancel!
+          setBiometricError('Session re-verification required to continue.');
+        } else if (wasIPAllowed) {
+          setShowBiometricPrompt(false);
+          setIsAllowedIP(true);
+        } else {
+          setTimeout(() => {
+            window.location.replace('/');
+          }, 300);
+        }
       } else {
         // Show error message
         setBiometricError(result.error || 'Verification failed');
@@ -262,15 +286,22 @@ const AdminLayout = ({ children }) => {
           setTimeout(() => {
             setBiometricState('idle');
           }, 2000);
-        } else {
-          // Failed - redirect after showing message
+        } else if (wasIPAllowed && !isReauthRequired) {
+          // Admin on whitelisted IP should NEVER be locked out to '/' on biometric error
+          setTimeout(() => {
+            setBiometricState('idle');
+            setShowBiometricPrompt(false);
+            setIsAllowedIP(true);
+          }, 2500);
+        } else if (!wasIPAllowed) {
+          // Non-whitelisted IP: fail closed to protect stealth mode
           setTimeout(() => {
             window.location.replace('/');
           }, 2500);
         }
       }
     }
-  }, [setUser, navigate]);
+  }, [setUser, navigate, wasIPAllowed, isReauthRequired]);
 
   // Retry handler for rate-limited state
   const handleRetryBiometric = useCallback(() => {
@@ -295,6 +326,8 @@ const AdminLayout = ({ children }) => {
       if (!result.success) {
         setLoginError(result.error || 'Invalid credentials');
       } else {
+        // Prevent the 24h bio re-auth trap immediately after valid password login
+        setLastBioAuthTime();
         // Redirect to New Admin Console on success
         navigate('/admin-console/overview', { replace: true });
       }
@@ -374,10 +407,16 @@ const AdminLayout = ({ children }) => {
                   Verify with Biometrics
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
+                    cancelWebAuthnCeremony();
                     setShowBiometricPrompt(false);
-                    // Only show login form if IP was actually allowed
-                    // If IP was blocked, redirect to home (login won't work anyway)
+                    if (isReauthRequired) {
+                      // Re-auth cannot be bypassed by clicking Back: log user out to force password re-entry
+                      await logout();
+                      setIsReauthRequired(false);
+                      setIsAllowedIP(true);
+                      return;
+                    }
                     if (wasIPAllowed) {
                       setIsAllowedIP(true);
                     } else {
@@ -387,7 +426,7 @@ const AdminLayout = ({ children }) => {
                   className="mt-4 w-full py-3 px-6 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white font-medium transition-all flex items-center justify-center gap-2 border border-white/10"
                 >
                   <ArrowRight className="h-4 w-4 rotate-180" />
-                  {wasIPAllowed ? 'Back to Password Login' : 'Exit'}
+                  {isReauthRequired ? 'Log Out to Switch Account' : wasIPAllowed ? 'Back to Password Login' : 'Exit'}
                 </button>
               </>
               )}

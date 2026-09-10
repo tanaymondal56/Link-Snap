@@ -76,18 +76,36 @@ const trustedDeviceSchema = new mongoose.Schema({
     default: null
   },
 
-  // Transports (for WebAuthn)
-  transports: [{
+  // WebAuthn Passkey metadata & backup flags
+  credentialDeviceType: {
     type: String,
-    enum: ['usb', 'ble', 'nfc', 'internal', 'hybrid']
-  }]
+    enum: ['singleDevice', 'multiDevice'],
+    default: 'singleDevice'
+  },
+  credentialBackedUp: {
+    type: Boolean,
+    default: false
+  },
+  aaguid: {
+    type: String,
+    default: null
+  },
+
+  // Transports (for WebAuthn - flexible string array for v14)
+  transports: {
+    type: [String],
+    default: ['internal']
+  }
 }, {
   timestamps: true
 });
 
 // Indexes
 trustedDeviceSchema.index({ userId: 1, isActive: 1 });
-trustedDeviceSchema.index({ credentialId: 1 }, { unique: true });
+trustedDeviceSchema.index(
+  { credentialId: 1 },
+  { unique: true, partialFilterExpression: { isActive: true } }
+);
 // Retention: Delete revoked devices 90 days after revocation
 trustedDeviceSchema.index(
     { revokedAt: 1 }, 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Smartphone,
   Monitor,
@@ -25,7 +25,11 @@ import {
   revokeAllDevices,
   verifyPasskey,
   supportsWebAuthn,
-  getDeviceInfo
+  checkBiometricsAvailable,
+  cancelWebAuthnCeremony,
+  getDeviceInfo,
+  getTrustedDeviceMarker,
+  clearTrustedDeviceMarker,
 } from '../../utils/deviceAuth';
 
 import { useAuth } from '../../context/AuthContext';
@@ -67,8 +71,24 @@ const DeviceManagement = () => {
   const [verifyResult, setVerifyResult] = useState(null); // { ok, deviceName?, message, at }
 
   // Check WebAuthn support
-  const webAuthnSupported = supportsWebAuthn();
+  const [webAuthnSupported, setWebAuthnSupported] = useState(supportsWebAuthn());
+  const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const currentDeviceInfo = getDeviceInfo();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    checkBiometricsAvailable().then((avail) => {
+      if (isMountedRef.current) {
+        setBiometricsAvailable(avail);
+        setWebAuthnSupported(supportsWebAuthn());
+      }
+    });
+    return () => {
+      isMountedRef.current = false;
+      cancelWebAuthnCeremony();
+    };
+  }, []);
 
   const fetchDevices = useCallback(async () => {
     // Don't fetch if auth is still initializing (token not ready)
@@ -76,12 +96,20 @@ const DeviceManagement = () => {
 
     setLoading(true);
     const result = await getDevices();
-    if (result.success) {
+    if (isMountedRef.current && result.success) {
       setDevices(result.devices);
-    } else {
+      // Reconcile localStorage marker: if current device was revoked remotely, purge marker
+      const localMarker = getTrustedDeviceMarker();
+      if (localMarker) {
+        const stillActive = result.devices.some(d => (d._id === localMarker || d.credentialId === localMarker) && d.isActive);
+        if (!stillActive) {
+          clearTrustedDeviceMarker();
+        }
+      }
+    } else if (isMountedRef.current) {
       showToast.error('Failed to load devices');
     }
-    setLoading(false);
+    if (isMountedRef.current) setLoading(false);
   }, [isAuthChecking]);
 
   useEffect(() => {
@@ -99,13 +127,13 @@ const DeviceManagement = () => {
     setRegistering(true);
     const result = await registerDevice();
     
-    if (result.success) {
+    if (isMountedRef.current && result.success) {
       showToast.success('Device registered successfully!');
       fetchDevices();
-    } else if (result.error !== 'cancelled') {
+    } else if (isMountedRef.current && result.error !== 'cancelled') {
       showToast.error(result.error || 'Registration failed');
     }
-    setRegistering(false);
+    if (isMountedRef.current) setRegistering(false);
   };
 
   // Live health-check: proves an active passkey still exists on this device
@@ -119,9 +147,9 @@ const DeviceManagement = () => {
     setVerifying(true);
     setVerifyResult(null);
     const result = await verifyPasskey();
-    setVerifying(false);
+    if (isMountedRef.current) setVerifying(false);
 
-    if (result.success) {
+    if (isMountedRef.current && result.success) {
       setVerifyResult({
         ok: true,
         message: `Your passkey for "${result.device?.deviceName || 'this device'}" is present and cryptographically valid.`,
@@ -129,7 +157,7 @@ const DeviceManagement = () => {
       });
       showToast.success('Passkey verified successfully', 'Health Check');
       fetchDevices(); // lastAccess was bumped server-side — reflect it
-    } else if (result.error !== 'cancelled') {
+    } else if (isMountedRef.current && result.error !== 'cancelled') {
       setVerifyResult({
         ok: false,
         message: result.error || 'The passkey could not be verified. Re-register this device if the problem persists.',
@@ -149,15 +177,16 @@ const DeviceManagement = () => {
     setRevokeConfirmModal({ show: false, deviceId: null, deviceName: '' });
 
     setRevoking(deviceId);
-    const result = await revokeDevice(deviceId);
+    const targetDevice = devices.find(d => d._id === deviceId);
+    const result = await revokeDevice(deviceId, targetDevice?.credentialId);
     
-    if (result.success) {
+    if (isMountedRef.current && result.success) {
       showToast.success(`${deviceName} revoked`);
       fetchDevices();
-    } else {
+    } else if (isMountedRef.current) {
       showToast.error(result.error || 'Failed to revoke device');
     }
-    setRevoking(null);
+    if (isMountedRef.current) setRevoking(null);
   };
 
   const handleRevokeAll = async () => {
@@ -169,15 +198,15 @@ const DeviceManagement = () => {
     setRevokingAll(true);
     const result = await revokeAllDevices();
     
-    if (result.success) {
+    if (isMountedRef.current && result.success) {
       showToast.success('All devices revoked');
       setShowRevokeAll(false);
       setRevokeConfirmText('');
       fetchDevices();
-    } else {
+    } else if (isMountedRef.current) {
       showToast.error(result.error || 'Failed to revoke devices');
     }
-    setRevokingAll(false);
+    if (isMountedRef.current) setRevokingAll(false);
   };
 
   const getDeviceIcon = (device) => {
@@ -289,11 +318,26 @@ const DeviceManagement = () => {
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
             <div>
-              <p className="text-yellow-400 font-medium">Biometrics Not Available</p>
+              <p className="text-yellow-400 font-medium">WebAuthn Not Supported</p>
               <p className="text-gray-400 text-sm mt-1">
                 {!window.isSecureContext 
-                  ? "Biometrics requires a secure connection (HTTPS). If testing locally, use localhost or set up HTTPS."
-                  : "This browser doesn't support WebAuthn. Try Chrome, Safari, or Edge."}
+                  ? "Passkeys require a secure connection (HTTPS). If testing locally, use localhost or set up HTTPS."
+                  : "This browser doesn't support WebAuthn passkeys. Try Chrome, Safari, or Edge."}
+              </p>
+            </div>
+          </div>
+        </BentoCard>
+      )}
+
+      {/* Platform Biometrics Notice */}
+      {webAuthnSupported && !biometricsAvailable && (
+        <BentoCard className="border-blue-500/30 bg-blue-500/5">
+          <div className="flex items-start gap-3">
+            <Shield className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-blue-400 font-medium">Platform Authenticator Not Detected</p>
+              <p className="text-gray-400 text-sm mt-1">
+                No built-in biometric sensor (Touch ID, Windows Hello, Android Biometrics) was detected on this device. Link-Snap admin access enforces platform authenticator security.
               </p>
             </div>
           </div>
@@ -358,6 +402,22 @@ const DeviceManagement = () => {
                       {device.isActive && isDeviceInactive(device) && (
                         <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">
                           Inactive
+                        </span>
+                      )}
+                      {device.isActive && device.credentialDeviceType && (
+                        <span
+                          className={`px-2 py-0.5 text-xs rounded-full ${
+                            device.credentialDeviceType === 'multiDevice'
+                              ? 'bg-blue-500/20 text-blue-400'
+                              : 'bg-purple-500/20 text-purple-400'
+                          }`}
+                          title={
+                            device.credentialDeviceType === 'multiDevice'
+                              ? 'Synced Passkey (Cloud-backed, e.g. iCloud Keychain / Google Password Manager)'
+                              : 'Device-bound / Hardware Security Key'
+                          }
+                        >
+                          {device.credentialDeviceType === 'multiDevice' ? 'Synced Passkey' : 'Device-Bound'}
                         </span>
                       )}
                     </div>

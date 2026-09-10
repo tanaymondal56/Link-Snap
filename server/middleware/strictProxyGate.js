@@ -167,6 +167,8 @@ const isTrustedProxyIP = (ip) => {
         return isTailscaleSubnet(ip) ||
             isTrustedIP(ip) ||
             ip === '127.0.0.1' ||
+            ip === '::1' ||
+            ip === '::ffff:127.0.0.1' ||
             ip.startsWith('127.') ||
             isEnvTrustedCIDR(ip);
     }
@@ -175,6 +177,8 @@ const isTrustedProxyIP = (ip) => {
     return isTailscaleSubnet(ip) ||
         isTrustedIP(ip) ||
         ip === '127.0.0.1' ||
+        ip === '::1' ||
+        ip === '::ffff:127.0.0.1' ||
         ip.startsWith('127.') ||
         ip.startsWith('10.42.') ||
         ip.startsWith('10.244.') ||

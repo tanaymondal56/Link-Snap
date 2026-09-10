@@ -2,6 +2,9 @@ import {
   startAuthentication,
   startRegistration,
   browserSupportsWebAuthn,
+  platformAuthenticatorIsAvailable,
+  sendSignal,
+  WebAuthnAbortService,
 } from '@simplewebauthn/browser';
 import api from '../api/axios';
 
@@ -60,6 +63,7 @@ export const setTrustedDeviceMarker = (credentialId) => {
 export const clearTrustedDeviceMarker = () => {
   try {
     localStorage.removeItem(DEVICE_KEY);
+    localStorage.removeItem(BIO_AUTH_TIME_KEY);
   } catch (error) {
     console.warn('[DeviceAuth] Could not clear device marker:', error);
   }
@@ -91,7 +95,8 @@ export const setLastBioAuthTime = () => {
 export const getLastBioAuthTime = () => {
   try {
     const time = localStorage.getItem(BIO_AUTH_TIME_KEY);
-    return time ? parseInt(time, 10) : null;
+    const parsed = time ? parseInt(time, 10) : null;
+    return (parsed && !Number.isNaN(parsed)) ? parsed : null;
   } catch {
     return null;
   }
@@ -112,6 +117,30 @@ export const isBioAuthExpired = () => {
  */
 export const supportsWebAuthn = () => {
   return browserSupportsWebAuthn();
+};
+
+/**
+ * Robust asynchronous check for passkey / platform authenticator support
+ */
+export const checkBiometricsAvailable = async () => {
+  if (!browserSupportsWebAuthn()) return false;
+  try {
+    // Server strictly enforces authenticatorAttachment: 'platform'
+    return await platformAuthenticatorIsAvailable();
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Safely cancel any in-flight WebAuthn prompt (e.g. on unmount or tab switch)
+ */
+export const cancelWebAuthnCeremony = () => {
+  try {
+    WebAuthnAbortService.cancelCeremony();
+  } catch (e) {
+    console.warn('[DeviceAuth] Could not cancel ceremony:', e);
+  }
 };
 
 /**
@@ -181,18 +210,24 @@ export const authenticateWithBiometric = async () => {
   try {
     // 1. Get challenge from server with timeout
     const challengePromise = api.post('/.d/challenge');
-    const { data: options } = await Promise.race([
+    const { data: rawOptions } = await Promise.race([
       challengePromise,
       createTimeout(AUTH_TIMEOUT)
     ]);
     
+    // Separate backend tracking challengeId from WebAuthn options
+    const { challengeId, ...authOptions } = rawOptions || {};
+    if (!authOptions || !authOptions.challenge) {
+      throw new Error('Invalid authentication options received from server');
+    }
+
     // 2. Start WebAuthn authentication (has its own timeout via options.timeout)
-    const authResponse = await startAuthentication({ optionsJSON: options });
+    const authResponse = await startAuthentication({ optionsJSON: authOptions });
     
     // 3. Verify with server with timeout
     const verifyPromise = api.post('/.d/verify', {
       response: authResponse,
-      challengeId: options.challengeId,
+      challengeId,
     });
     
     const { data: result } = await Promise.race([
@@ -226,15 +261,28 @@ export const authenticateWithBiometric = async () => {
     return { success: false, error: 'Verification failed' };
   } catch (error) {
     console.error('[Biometric Auth] Error:', error);
+    cancelWebAuthnCeremony();
     
-    // User cancelled
-    if (error.name === 'NotAllowedError') {
+    // User cancelled or aborted
+    if (
+      error.name === 'NotAllowedError' ||
+      error.name === 'AbortError' ||
+      error.code === 'ERROR_CEREMONY_ABORTED'
+    ) {
       return { success: false, error: 'cancelled' };
     }
     
-    // Invalid authenticator state (e.g., credential not found on device)
+    // Invalid authenticator state (e.g., credential not found on device) -> purge stale marker
     if (error.name === 'InvalidStateError') {
+      clearTrustedDeviceMarker();
       return { success: false, error: 'Device credential not found. Please re-register this device.' };
+    }
+    
+    if (error.response?.status === 400 && error.response.data?.message?.includes('credential')) {
+      clearTrustedDeviceMarker();
+    }
+    if (error.response?.status === 404) {
+      clearTrustedDeviceMarker();
     }
     
     // Timeout
@@ -266,8 +314,9 @@ export const authenticateWithBiometric = async () => {
       return { success: false, error: 'Server error. Please try again later.' };
     }
     
-    // Device not found (credential ID not in database)
+    // Device not found (credential ID not in database) -> purge stale marker
     if (error.response?.status === 400 && error.response.data?.message?.includes('credential')) {
+      clearTrustedDeviceMarker();
       return { success: false, error: 'Device not recognized. Please re-register this device.' };
     }
     
@@ -294,6 +343,10 @@ export const registerDevice = async (deviceName = null) => {
       createTimeout(AUTH_TIMEOUT)
     ]);
     
+    if (!options || !options.challenge) {
+      throw new Error('Invalid registration options received from server');
+    }
+
     // 2. Start WebAuthn registration
     const regResponse = await startRegistration({ optionsJSON: options });
     
@@ -312,15 +365,21 @@ export const registerDevice = async (deviceName = null) => {
     if (result.success) {
       // Store device marker in localStorage
       setTrustedDeviceMarker(result.deviceId);
+      setLastBioAuthTime();
       return { success: true, deviceId: result.deviceId };
     }
     
     return { success: false, error: 'Registration failed' };
   } catch (error) {
     console.error('[Device Registration] Error:', error);
+    cancelWebAuthnCeremony();
     
-    // User cancelled
-    if (error.name === 'NotAllowedError') {
+    // User cancelled or aborted
+    if (
+      error.name === 'NotAllowedError' ||
+      error.name === 'AbortError' ||
+      error.code === 'ERROR_CEREMONY_ABORTED'
+    ) {
       return { success: false, error: 'cancelled' };
     }
     
@@ -408,9 +467,10 @@ export const updateDeviceName = async (deviceId, newName) => {
 /**
  * Revoke a specific device
  */
-export const revokeDevice = async (deviceId) => {
+export const revokeDevice = async (deviceId, credentialId = null) => {
   try {
-    await api.delete(`/.d/devices/${deviceId}`);
+    const response = await api.delete(`/.d/devices/${deviceId}`);
+    const credIdToSignal = credentialId || response.data?.credentialId;
     
     // If revoking current device, clear marker
     try {
@@ -420,6 +480,24 @@ export const revokeDevice = async (deviceId) => {
       }
     } catch {
       // localStorage access failed, marker may already be gone
+    }
+
+    // WebAuthn Signal API (v14): notify credential manager that this passkey is revoked
+    try {
+      if (
+        credIdToSignal &&
+        typeof window !== 'undefined' &&
+        typeof window.PublicKeyCredential?.signalUnknownCredential === 'function'
+      ) {
+        const rpId = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname.replace(/^beta\./, '');
+        await sendSignal({
+          signalName: 'unknownCredential',
+          rpID: rpId,
+          credentialID: credIdToSignal,
+        });
+      }
+    } catch {
+      // Signal API is non-blocking enhancement
     }
     
     return { success: true };
@@ -472,27 +550,41 @@ export const verifyPasskey = async () => {
   try {
     // 1. Get a user-scoped challenge (only THIS account's passkeys allowed)
     const optionsPromise = api.post('/.d/verify-passkey/options');
-    const { data: options } = await Promise.race([optionsPromise, createTimeout(AUTH_TIMEOUT)]);
+    const { data: rawOptions } = await Promise.race([optionsPromise, createTimeout(AUTH_TIMEOUT)]);
+
+    const { challengeId, ...authOptions } = rawOptions || {};
+    if (!authOptions || !authOptions.challenge) {
+      throw new Error('Invalid verification options received from server');
+    }
 
     // 2. User gesture: browser prompts for the passkey (biometric/PIN)
-    const authResponse = await startAuthentication({ optionsJSON: options });
+    const authResponse = await startAuthentication({ optionsJSON: authOptions });
 
     // 3. Server verifies the assertion — no tokens, counter updated
     const verifyPromise = api.post('/.d/verify-passkey', {
       response: authResponse,
-      challengeId: options.challengeId,
+      challengeId,
     });
     const { data: result } = await Promise.race([verifyPromise, createTimeout(AUTH_TIMEOUT)]);
 
     if (result.verified) {
+      setLastBioAuthTime();
       return { success: true, device: result.device };
     }
     return { success: false, error: 'Verification failed' };
   } catch (error) {
     console.error('[Passkey Verify] Error:', error);
+    cancelWebAuthnCeremony();
 
-    if (error.name === 'NotAllowedError') return { success: false, error: 'cancelled' };
+    if (
+      error.name === 'NotAllowedError' ||
+      error.name === 'AbortError' ||
+      error.code === 'ERROR_CEREMONY_ABORTED'
+    ) {
+      return { success: false, error: 'cancelled' };
+    }
     if (error.name === 'InvalidStateError') {
+      clearTrustedDeviceMarker();
       return { success: false, error: 'Passkey not found on this device. It may have been removed.' };
     }
     if (error.message === 'timeout') {
@@ -501,12 +593,17 @@ export const verifyPasskey = async () => {
     if (!error.response) {
       return { success: false, error: navigator.onLine ? 'Cannot reach server. Please try again later.' : 'You appear to be offline.' };
     }
+    if (error.response?.status === 400 && error.response.data?.message?.includes('passkey')) {
+      clearTrustedDeviceMarker();
+      return { success: false, error: error.response.data.message };
+    }
     if (error.response?.status === 404) {
+      clearTrustedDeviceMarker();
       return { success: false, error: error.response?.data?.message || 'No active passkey registered for your account.' };
     }
     if (error.response?.status === 429) {
       const retryAfter = error.response.data?.retryAfter || 30;
-      return { success: false, error: 'Too many attempts. Try again in '+retryAfter+' seconds.' };
+      return { success: false, error: 'Too many attempts. Try again in ' + retryAfter + ' seconds.' };
     }
     if (error.response?.status === 410) {
       return { success: false, error: 'Challenge expired. Please try again.' };

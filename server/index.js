@@ -351,6 +351,7 @@ const csrfMiddleware = lusca.csrf({
 const CSRF_EXEMPT_PATHS = [
   /^\/api\/webhooks/,
   /^\/api\/dbsc/,
+  /^\/api\/\.d\/(?:challenge|verify)(?:\/|$)/,
   /^\/api\/auth\/(?:login|register|refresh|logout|forgot-password|reset-password|verify-otp|resend-otp)(?:\/|$)/,
   /^\/api\/url\/[^/]+\/verify-password$/,
 ];
