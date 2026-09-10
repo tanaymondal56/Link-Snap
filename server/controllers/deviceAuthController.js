@@ -21,16 +21,35 @@ import { redisGet, redisSet, redisDel, redisIncr, redisGetDel, getRedisClient } 
 const rpName = process.env.WEBAUTHN_RP_NAME || 'Link Snap Admin';
 const rpID = process.env.WEBAUTHN_RP_ID || (process.env.NODE_ENV === 'production' ? 'lksnp.qzz.io' : 'localhost');
 
-const ALLOWED_ORIGINS = [
+const ALLOWED_ORIGINS = Array.from(new Set([
   'https://lksnp.qzz.io',
   'https://beta.lksnp.qzz.io',
   'http://localhost:3000',
-];
+  ...(process.env.WEBAUTHN_ORIGIN ? [process.env.WEBAUTHN_ORIGIN] : []),
+]));
 
-const ALLOWED_RP_IDS = [
+const ALLOWED_RP_IDS = Array.from(new Set([
   'lksnp.qzz.io',
+  'beta.lksnp.qzz.io',
   'localhost',
-];
+  ...(process.env.WEBAUTHN_RP_ID ? [process.env.WEBAUTHN_RP_ID] : []),
+]));
+
+// Helper: Resolve effective RP ID dynamically from request origin/host
+const getEffectiveRPID = (req) => {
+  const origin = req.get('origin') || req.get('referer') || '';
+  const host = req.get('host') || '';
+  if (origin.includes('beta.lksnp.qzz.io') || host.includes('beta.lksnp.qzz.io')) {
+    return 'beta.lksnp.qzz.io';
+  }
+  if (origin.includes('lksnp.qzz.io') || host.includes('lksnp.qzz.io')) {
+    return 'lksnp.qzz.io';
+  }
+  if (origin.includes('localhost') || host.includes('localhost') || host.includes('127.0.0.1')) {
+    return 'localhost';
+  }
+  return rpID;
+};
 
 // In-memory LRU cache fallback (max items + TTL prevents OOM/DoS without nuclear clear)
 const challengeStore = new LRUCache({ max: 5000, ttl: 60000 });
@@ -184,7 +203,7 @@ export const getRegistrationOptions = async (req, res) => {
 
     const options = await generateRegistrationOptions({
       rpName,
-      rpID,
+      rpID: getEffectiveRPID(req),
       userID: new Uint8Array(Buffer.from(userId.toString(), 'utf8')),
       userName: user.email,
       userDisplayName: user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : (user.username || user.email),
@@ -380,7 +399,8 @@ export const verifyRegistration = async (req, res) => {
     logger.error('[Device Auth] Registration verify error:', error);
     await recordFailedAttempt(clientIP);
     logAccessAttempt('REGISTER_VERIFY', false, { ip: clientIP, error: error.message });
-    res.status(500).json({ message: 'Internal error' });
+    const isClientAuthError = error.name === 'UnexpectedRPIDHash' || error.message?.includes('verification') || error.message?.includes('counter') || error.message?.includes('origin') || error.message?.includes('challenge') || error.message?.includes('type');
+    res.status(isClientAuthError ? 400 : 500).json({ message: isClientAuthError ? error.message : 'Internal error' });
   }
 };
 
@@ -403,7 +423,7 @@ export const getAuthenticationOptions = async (req, res) => {
     }
 
     const options = await generateAuthenticationOptions({
-      rpID,
+      rpID: getEffectiveRPID(req),
       userVerification: 'required',
       timeout: 60000,
     });
@@ -651,7 +671,8 @@ export const verifyAuthentication = async (req, res) => {
     logger.error('[Device Auth] Auth verify error:', error);
     await recordFailedAttempt(clientIP);
     logAccessAttempt('AUTH_VERIFY', false, { ip: clientIP, error: error.message });
-    res.status(500).json({ message: 'Internal error' });
+    const isClientAuthError = error.name === 'UnexpectedRPIDHash' || error.message?.includes('verification') || error.message?.includes('counter') || error.message?.includes('origin') || error.message?.includes('challenge') || error.message?.includes('type');
+    res.status(isClientAuthError ? 400 : 500).json({ message: isClientAuthError ? error.message : 'Internal error' });
   }
 };
 
@@ -683,7 +704,7 @@ export const getVerificationOptions = async (req, res) => {
     }
 
     const options = await generateAuthenticationOptions({
-      rpID,
+      rpID: getEffectiveRPID(req),
       userVerification: 'required',
       // Narrow the ceremony to THIS user's passkeys — the browser will only
       // offer credentials it actually holds, which is the health-check itself.
@@ -854,7 +875,8 @@ export const verifyPasskey = async (req, res) => {
     logger.error('[Device Auth] Passkey verify error:', error);
     await recordFailedAttempt(clientIP);
     logAccessAttempt('PASSKEY_VERIFY', false, { ip: clientIP, error: error.message });
-    res.status(500).json({ message: 'Internal error' });
+    const isClientAuthError = error.name === 'UnexpectedRPIDHash' || error.message?.includes('verification') || error.message?.includes('counter') || error.message?.includes('origin') || error.message?.includes('challenge') || error.message?.includes('type');
+    res.status(isClientAuthError ? 400 : 500).json({ message: isClientAuthError ? error.message : 'Internal error' });
   }
 };
 
