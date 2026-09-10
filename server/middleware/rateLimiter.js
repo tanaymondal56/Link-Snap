@@ -100,6 +100,8 @@ export const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100,
     store: createRedisStore('api'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     standardHeaders: true,
     legacyHeaders: false,
     handler: (req, res) => {
@@ -112,6 +114,8 @@ export const authLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: 10,
     store: createRedisStore('auth'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many login attempts from this IP, please try again after an hour' });
     },
@@ -137,6 +141,8 @@ export const refreshLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: 200,
     store: createRedisStore('refresh'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many session refresh attempts. Please log in again.' });
     },
@@ -211,6 +217,8 @@ export const redirectLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minute
     max: 100,
     store: createRedisStore('redirect'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).send('Too many requests. Please slow down.');
     },
@@ -221,6 +229,8 @@ export const appealLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: 5,
     store: createRedisStore('appeal'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many appeal requests. Please wait before trying again.' });
     },
@@ -231,6 +241,8 @@ export const verifyOtpLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5,
     store: createRedisStore('otp'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Whoa there! Too many attempts. Please take a short break and try again in about 15 minutes. ☕' });
     },
@@ -241,6 +253,8 @@ export const forgotPasswordLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 3,
     store: createRedisStore('forgot'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many password reset requests. Please try again in 15 minutes.' });
     },
@@ -251,6 +265,8 @@ export const resetPasswordLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5,
     store: createRedisStore('reset'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many reset attempts. Please try again in 15 minutes.' });
     },
@@ -261,6 +277,8 @@ export const passwordVerifyLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 10,
     store: createRedisStore('pwd_verify'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many password attempts. Please try again in 15 minutes.' });
     },
@@ -271,6 +289,8 @@ export const profileUpdateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 10,
     store: createRedisStore('profile'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many profile updates. Please try again later.' });
     },
@@ -281,6 +301,8 @@ export const usernameCheckLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: 20,
     store: createRedisStore('usr_check'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many requests. Please slow down.' });
     },
@@ -291,6 +313,8 @@ export const adminNotificationLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: 60,
     store: createRedisStore('notif_read'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many notification requests. Please try again later.' });
     },
@@ -301,6 +325,8 @@ export const adminNotificationWriteLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: 30,
     store: createRedisStore('notif_write'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many notification updates. Please try again later.' });
     },
@@ -311,6 +337,8 @@ export const passwordChangeLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5,
     store: createRedisStore('pwd_change'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many password change attempts. Please try again in 15 minutes.' });
     },
@@ -321,6 +349,8 @@ export const logoutLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: 10,
     store: createRedisStore('logout'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many logout requests. Please slow down.' });
     },
@@ -331,6 +361,8 @@ export const sessionManagementLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: 30,
     store: createRedisStore('session_mgmt'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many session requests. Please slow down.' });
     },
@@ -341,6 +373,8 @@ export const devLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 500, // higher limit for dev actions/testing
     store: createRedisStore('dev'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     standardHeaders: true,
     legacyHeaders: false,
     handler: (req, res) => {
@@ -401,6 +435,8 @@ const webhookStrictLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: 100, // Increased to 100 to accommodate dynamic IPs from LemonSqueezy
     store: createRedisStore('webhook_strict'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         // Return 403 not 429 to not reveal rate limiting details to probing attackers
         res.status(403).json({ message: 'Access denied.' });
@@ -430,6 +466,8 @@ export const bioPublicLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minute
     max: 60,
     store: createRedisStore('bio_public'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many requests. Please slow down.' });
     },
@@ -442,6 +480,8 @@ export const biometricAuthLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: 10,
     store: createRedisStore('biometric'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many authentication attempts. Please try again later.' });
     },

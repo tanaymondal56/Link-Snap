@@ -207,19 +207,50 @@ const isCloudflareEgressIP = (ip) => {
 
 const getRealUserIP = (req) => {
     const connectingIP = getConnectingIP(req);
+    const hopIsTrusted = isTrustedProxyIP(connectingIP);
 
-    if (!isTrustedProxyIP(connectingIP)) {
-        return connectingIP;
+    // 1. Direct Cloudflare connecting IP (set by Cloudflare edge / tunnel)
+    const cfIp = req.headers['cf-connecting-ip'];
+    if (cfIp && typeof cfIp === 'string' && hopIsTrusted) {
+        const trimmed = cfIp.trim();
+        // If it's a real visitor IP (not Cloudflare worker egress range), use it directly
+        if (!isCloudflareEgressIP(trimmed)) {
+            return trimmed;
+        }
     }
 
-    // Cloudflare is the ONLY trusted edge. CF-Connecting-IP is written by Cloudflare
-    // before the request enters the tunnel, so it cannot be spoofed by passers.
-    // Ignore True-Client-IP, X-Forwarded-For and X-Real-IP entirely.
-    const cfIp = req.headers['cf-connecting-ip'];
-    if (cfIp && typeof cfIp === 'string' && !isCloudflareEgressIP(cfIp)) {
+    // 2. If cf-connecting-ip is from a Cloudflare Worker/Pages BFF proxy, check the forwarded visitor IP
+    const cfVisitorIp = req.headers['cf-visitor-ip'];
+    if (cfVisitorIp && typeof cfVisitorIp === 'string' && hopIsTrusted) {
+        const trimmed = cfVisitorIp.trim();
+        if (trimmed && !isCloudflareEgressIP(trimmed)) {
+            return trimmed;
+        }
+    }
+
+    // 3. Fallback forwarded headers from trusted edge/proxy
+    const xRealIp = req.headers['x-real-ip'];
+    if (xRealIp && typeof xRealIp === 'string' && hopIsTrusted) {
+        const trimmed = xRealIp.trim();
+        if (trimmed && !isCloudflareEgressIP(trimmed)) {
+            return trimmed;
+        }
+    }
+
+    const xForwardedFor = req.headers['x-forwarded-for'];
+    if (xForwardedFor && typeof xForwardedFor === 'string' && hopIsTrusted) {
+        const clientHop = xForwardedFor.split(',')[0].trim();
+        if (clientHop && !isCloudflareEgressIP(clientHop)) {
+            return clientHop;
+        }
+    }
+
+    // 4. If cfIp was present (even if worker egress), prefer it over internal K8s cluster socket IP (10.42.*)
+    if (cfIp && typeof cfIp === 'string' && cfIp.trim() && hopIsTrusted) {
         return cfIp.trim();
     }
 
+    // 5. Fallback to direct TCP connection IP (local development or internal calls)
     return connectingIP;
 };
 
@@ -277,6 +308,25 @@ const isTrustedIP = (ip) => {
  */
 export const strictProxyGate = (req, res, next) => {
     // ═══════════════════════════════════════════════════════════════════════════
+    // UNIVERSAL REAL USER IP EXTRACTION
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Extract real client IP using Cloudflare headers (CF-Connecting-IP / CF-Visitor-IP)
+    const realIP = getRealUserIP(req);
+    req.realUserIP = realIP;
+
+    // Dynamically bind req.ip to ensure third-party middlewares, rate limiters,
+    // and loggers automatically receive the real Cloudflare user IP
+    try {
+        Object.defineProperty(req, 'ip', {
+            configurable: true,
+            enumerable: true,
+            get: () => req.realUserIP,
+        });
+    } catch {
+        // Ignore if property is already non-configurable
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // 0. STATIC ASSETS BYPASS
     // ═══════════════════════════════════════════════════════════════════════════
     // Allow static assets to be served without proxy authentication
@@ -294,8 +344,6 @@ export const strictProxyGate = (req, res, next) => {
         req.path === '/favicon-32x32.png' ||
         req.path === '/apple-touch-icon.png'
     ) {
-        // Set real user IP for logging (use connecting IP for static assets)
-        req.realUserIP = getConnectingIP(req);
         return next();
     }
 
@@ -319,10 +367,7 @@ export const strictProxyGate = (req, res, next) => {
 
     const isPublicApi = publicApiPaths.some(path => req.path.startsWith(path));
 
-
     if (isPublicApi) {
-        // Still extract real user IP for rate limiting and logging
-        req.realUserIP = getRealUserIP(req) || getConnectingIP(req);
         // Debug only — avoid log spam in production for every public request
         if (process.env.NODE_ENV !== 'production') {
             console.log(`[ProxyGate] ✅ Public API bypass for: ${req.path}`);
@@ -455,8 +500,8 @@ export const strictProxyGate = (req, res, next) => {
  */
 export const getUserIP = (req) => {
     // If proxy gate has processed the request, use the extracted real IP
-    // Otherwise fall back to Express's IP detection
-    return req.realUserIP || req.ip || 'unknown';
+    // Otherwise check CF-Connecting-IP header or fall back to Express's IP detection
+    return req.realUserIP || req.headers?.['cf-connecting-ip'] || req.ip || 'unknown';
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

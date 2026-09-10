@@ -68,6 +68,7 @@ const DeviceManagement = () => {
   // Custom confirm modal state (replaces native confirm)
   const [revokeConfirmModal, setRevokeConfirmModal] = useState({ show: false, deviceId: null, deviceName: '' });
   const [verifying, setVerifying] = useState(false);
+  const [verifyingDeviceId, setVerifyingDeviceId] = useState(null);
   const [verifyResult, setVerifyResult] = useState(null); // { ok, deviceName?, message, at }
 
   // Check WebAuthn support
@@ -138,16 +139,21 @@ const DeviceManagement = () => {
 
   // Live health-check: proves an active passkey still exists on this device
   // and validates against the server. Real WebAuthn assertion — no login.
-  const handleVerifyPasskey = async () => {
+  // If deviceId is provided, scopes the challenge to that specific passkey.
+  const handleVerifyPasskey = async (deviceId = null) => {
     if (!webAuthnSupported) {
       showToast.error('Biometrics not supported on this device');
       return;
     }
 
     setVerifying(true);
+    setVerifyingDeviceId(deviceId);
     setVerifyResult(null);
-    const result = await verifyPasskey();
-    if (isMountedRef.current) setVerifying(false);
+    const result = await verifyPasskey(deviceId);
+    if (isMountedRef.current) {
+      setVerifying(false);
+      setVerifyingDeviceId(null);
+    }
 
     if (isMountedRef.current && result.success) {
       setVerifyResult({
@@ -452,8 +458,21 @@ const DeviceManagement = () => {
                 {device.isActive && (
                   <div className="flex items-center gap-2 shrink-0">
                     <button
+                      onClick={() => handleVerifyPasskey(device._id)}
+                      disabled={verifying || !webAuthnSupported || isMasterAdmin}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-300 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+                      title={isMasterAdmin ? 'Disabled for Master Admin' : `Test passkey assertion specifically for ${device.deviceName}`}
+                    >
+                      {verifyingDeviceId === device._id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ShieldCheck className="h-4 w-4" />
+                      )}
+                      Verify
+                    </button>
+                    <button
                       onClick={() => handleRevokeDevice(device._id, device.deviceName)}
-                      disabled={revoking === device._id}
+                      disabled={revoking === device._id || verifying}
                       className="flex items-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-lg text-sm transition-all"
                     >
                       {revoking === device._id ? (

@@ -60,15 +60,20 @@ const checkIpAccess = (req) => {
     envTrustedProxies.includes(normalizedSocketIP) ||
     isInternalProxySubnet(normalizedSocketIP); // ← Added K8s/Tailscale detection
 
-  // Get client IP - prefer realUserIP set by strictProxyGate middleware
+  // Get client IP - strictly prioritize Cloudflare headers (CF-Connecting-IP / CF-Visitor-IP)
+  // and ensure internal cluster pod subnets (10.42.*, 10.244.*) are never treated as client IPs.
   let clientIP;
-  if (req.realUserIP) {
-    // strictProxyGate already extracted the real user IP
+  const cfConnectingIP = typeof req.headers['cf-connecting-ip'] === 'string' ? req.headers['cf-connecting-ip'].trim() : null;
+  const cfVisitorIP = typeof req.headers['cf-visitor-ip'] === 'string' ? req.headers['cf-visitor-ip'].trim() : null;
+
+  if (cfConnectingIP && !isInternalProxySubnet(cfConnectingIP) && !cfConnectingIP.startsWith('2a06:98c0:')) {
+    clientIP = cfConnectingIP;
+  } else if (cfVisitorIP && !isInternalProxySubnet(cfVisitorIP) && !cfVisitorIP.startsWith('2a06:98c0:')) {
+    clientIP = cfVisitorIP;
+  } else if (req.realUserIP && !isInternalProxySubnet(req.realUserIP)) {
     clientIP = req.realUserIP;
   } else if (isFromTrustedProxy) {
-    // Cloudflare is the ONLY trusted edge — CF-Connecting-IP is set by Cloudflare
-    // and cannot be spoofed by end users (unlike X-Forwarded-For / X-Real-IP).
-    clientIP = req.headers['cf-connecting-ip'] || req.ip || socketIP || 'unknown';
+    clientIP = cfConnectingIP || cfVisitorIP || req.realUserIP || req.ip || socketIP || 'unknown';
   } else {
     // Direct connection - use socket IP, ignore headers (prevent spoofing)
     clientIP = socketIP || 'unknown';

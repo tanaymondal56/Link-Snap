@@ -38,10 +38,17 @@ export async function onRequest(context) {
   headers.set('CF-Access-Client-Id', env.CF_CLIENT_ID);
   headers.set('CF-Access-Client-Secret', env.CF_CLIENT_SECRET);
 
-  // Remove hop-by-hop headers that must not be forwarded
+  // Extract and preserve real client IP from incoming Cloudflare request
+  const clientIP = request.headers.get('cf-connecting-ip');
+  if (clientIP) {
+    headers.set('cf-connecting-ip', clientIP);
+    headers.set('cf-visitor-ip', clientIP);
+    headers.set('x-real-ip', clientIP);
+    headers.set('x-forwarded-for', clientIP);
+  }
+
+  // Remove hop-by-hop headers
   headers.delete('host');
-  headers.delete('cf-connecting-ip');
-  headers.delete('x-real-ip');
 
   // Forward the request to the backend
   const upstreamRequest = new Request(targetUrl, {

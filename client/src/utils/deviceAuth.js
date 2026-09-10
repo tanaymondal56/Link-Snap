@@ -144,6 +144,24 @@ export const cancelWebAuthnCeremony = () => {
 };
 
 /**
+ * Detects whether an error was caused by a user cancelling, dismissing, or aborting the passkey prompt.
+ */
+export const isWebAuthnCancellation = (error) => {
+  if (!error) return false;
+  return (
+    error.name === 'NotAllowedError' ||
+    error.name === 'AbortError' ||
+    error.code === 'ERROR_CEREMONY_ABORTED' ||
+    (error.code === 'ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY' &&
+      (error.cause?.name === 'NotAllowedError' || error.cause?.name === 'AbortError')) ||
+    error.cause?.name === 'NotAllowedError' ||
+    error.cause?.name === 'AbortError' ||
+    (typeof error.message === 'string' &&
+      (error.message.toLowerCase().includes('not allowed') || error.message.toLowerCase().includes('aborted')))
+  );
+};
+
+/**
  * Get device info for registration
  */
 export const getDeviceInfo = () => {
@@ -260,17 +278,14 @@ export const authenticateWithBiometric = async () => {
     
     return { success: false, error: 'Verification failed' };
   } catch (error) {
-    console.error('[Biometric Auth] Error:', error);
     cancelWebAuthnCeremony();
     
     // User cancelled or aborted
-    if (
-      error.name === 'NotAllowedError' ||
-      error.name === 'AbortError' ||
-      error.code === 'ERROR_CEREMONY_ABORTED'
-    ) {
+    if (isWebAuthnCancellation(error)) {
       return { success: false, error: 'cancelled' };
     }
+
+    console.error('[Biometric Auth] Error:', error);
     
     // Invalid authenticator state (e.g., credential not found on device) -> purge stale marker
     if (error.name === 'InvalidStateError') {
@@ -371,17 +386,14 @@ export const registerDevice = async (deviceName = null) => {
     
     return { success: false, error: 'Registration failed' };
   } catch (error) {
-    console.error('[Device Registration] Error:', error);
     cancelWebAuthnCeremony();
     
     // User cancelled or aborted
-    if (
-      error.name === 'NotAllowedError' ||
-      error.name === 'AbortError' ||
-      error.code === 'ERROR_CEREMONY_ABORTED'
-    ) {
+    if (isWebAuthnCancellation(error)) {
       return { success: false, error: 'cancelled' };
     }
+
+    console.error('[Device Registration] Error:', error);
     
     // Credential already exists on this device (trying to register same authenticator twice)
     if (error.name === 'InvalidStateError') {
@@ -539,7 +551,7 @@ export const revokeAllDevices = async () => {
  * (health-check — performs a real WebAuthn assertion but creates NO session).
  * Returns: { success: boolean, device?: { _id, deviceName }, error?: string }
  */
-export const verifyPasskey = async () => {
+export const verifyPasskey = async (deviceId = null) => {
   if (!supportsWebAuthn()) {
     return { success: false, error: 'This browser does not support passkeys.' };
   }
@@ -548,8 +560,8 @@ export const verifyPasskey = async () => {
   }
 
   try {
-    // 1. Get a user-scoped challenge (only THIS account's passkeys allowed)
-    const optionsPromise = api.post('/.d/verify-passkey/options');
+    // 1. Get a user-scoped challenge (optionally narrowed to a specific deviceId)
+    const optionsPromise = api.post('/.d/verify-passkey/options', deviceId ? { deviceId } : {});
     const { data: rawOptions } = await Promise.race([optionsPromise, createTimeout(AUTH_TIMEOUT)]);
 
     const { challengeId, ...authOptions } = rawOptions || {};
@@ -573,16 +585,14 @@ export const verifyPasskey = async () => {
     }
     return { success: false, error: 'Verification failed' };
   } catch (error) {
-    console.error('[Passkey Verify] Error:', error);
     cancelWebAuthnCeremony();
 
-    if (
-      error.name === 'NotAllowedError' ||
-      error.name === 'AbortError' ||
-      error.code === 'ERROR_CEREMONY_ABORTED'
-    ) {
+    // User cancelled or aborted
+    if (isWebAuthnCancellation(error)) {
       return { success: false, error: 'cancelled' };
     }
+
+    console.error('[Passkey Verify] Error:', error);
     if (error.name === 'InvalidStateError') {
       clearTrustedDeviceMarker();
       return { success: false, error: 'Passkey not found on this device. It may have been removed.' };

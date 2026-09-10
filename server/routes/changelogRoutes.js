@@ -4,6 +4,7 @@ import { verifyToken } from '../middleware/authMiddleware.js';
 import { verifyAdmin } from '../middleware/verifyAdmin.js';
 import { ipWhitelist } from '../middleware/ipWhitelist.js';
 import { optionalAuth } from '../middleware/optionalAuth.js';
+import { getUserIP } from '../middleware/strictProxyGate.js';
 import {
     getPublicChangelogs,
     getPublicLatestVersion,
@@ -33,6 +34,8 @@ const publicRateLimiter = rateLimit({
     message: { message: 'Too many requests, please try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: (req) => getUserIP(req),
+    validate: false,
 });
 
 // Rate limiter for voting (30 per minute per user)
@@ -42,7 +45,7 @@ const voteLimiter = rateLimit({
     message: { message: 'Too many vote attempts. Please slow down.' },
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => req.user?._id?.toString() || req.ip,
+    keyGenerator: (req) => req.user?._id?.toString() || getUserIP(req),
     validate: false
 });
 
@@ -53,7 +56,7 @@ const importRateLimiter = rateLimit({
     message: { message: 'Too many imports. Please wait before importing again.' },
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => req.user?._id?.toString() || req.ip,
+    keyGenerator: (req) => req.user?._id?.toString() || getUserIP(req),
     validate: false
 });
 

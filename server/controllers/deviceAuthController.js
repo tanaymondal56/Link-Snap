@@ -212,7 +212,9 @@ export const getRegistrationOptions = async (req, res) => {
       authenticatorSelection: {
         residentKey: 'required',
         userVerification: 'required',
-        authenticatorAttachment: 'platform',
+        // Omitting authenticatorAttachment lets Chromium/OS display the full choice menu
+        // (Windows Hello, Google Password Manager, Phone/Tablet QR code, or USB/NFC Security Key).
+        ...(req.query?.attachment || req.body?.attachment ? { authenticatorAttachment: req.query.attachment || req.body.attachment } : {}),
       },
       timeout: 60000, // 60 seconds timeout
     });
@@ -694,13 +696,19 @@ export const getVerificationOptions = async (req, res) => {
       });
     }
 
-    const devices = await TrustedDevice.find({
+    const targetDeviceId = req.query?.deviceId || req.body?.deviceId;
+    const query = {
       userId: req.user._id,
       isActive: true,
-    }).select('credentialId transports').lean();
+    };
+    if (targetDeviceId) {
+      query._id = targetDeviceId;
+    }
+
+    const devices = await TrustedDevice.find(query).select('credentialId transports').lean();
 
     if (devices.length === 0) {
-      return res.status(404).json({ message: 'No active passkeys found for your account' });
+      return res.status(404).json({ message: targetDeviceId ? 'Specified passkey not found or inactive' : 'No active passkeys found for your account' });
     }
 
     const options = await generateAuthenticationOptions({
