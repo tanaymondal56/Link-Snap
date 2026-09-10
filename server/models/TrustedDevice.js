@@ -21,6 +21,11 @@ const trustedDeviceSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // WebAuthn Relying Party ID bound to this passkey
+  rpId: {
+    type: String,
+    default: null,
+  },
 
   // Device information
   deviceName: {

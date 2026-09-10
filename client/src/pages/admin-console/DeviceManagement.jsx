@@ -46,6 +46,20 @@ const formatDate = (date) => {
   });
 };
 
+/**
+ * Format IP address preferring IPv4 if an IP field contains dual-stack or comma-separated addresses
+ */
+const formatPreferredIP = (ip) => {
+  if (!ip || typeof ip !== 'string') return ip || '';
+  if (ip.includes(',') || ip.includes('/')) {
+    const parts = ip.split(/[,/]/).map((p) => p.trim()).filter(Boolean);
+    const v4 = parts.find((p) => /^(\d{1,3}\.){3}\d{1,3}$/.test(p));
+    if (v4) return v4;
+    return parts[0] || ip;
+  }
+  return ip;
+};
+
 const isDeviceInactive = (device) => {
   if (!device.updatedAt) return false;
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
@@ -141,15 +155,16 @@ const DeviceManagement = () => {
   // and validates against the server. Real WebAuthn assertion — no login.
   // If deviceId is provided, scopes the challenge to that specific passkey.
   const handleVerifyPasskey = async (deviceId = null) => {
+    const validDeviceId = typeof deviceId === 'string' && deviceId.trim() ? deviceId.trim() : null;
     if (!webAuthnSupported) {
       showToast.error('Biometrics not supported on this device');
       return;
     }
 
     setVerifying(true);
-    setVerifyingDeviceId(deviceId);
+    setVerifyingDeviceId(validDeviceId);
     setVerifyResult(null);
-    const result = await verifyPasskey(deviceId);
+    const result = await verifyPasskey(validDeviceId);
     if (isMountedRef.current) {
       setVerifying(false);
       setVerifyingDeviceId(null);
@@ -249,7 +264,7 @@ const DeviceManagement = () => {
             Refresh
           </button>
           <button
-            onClick={handleVerifyPasskey}
+            onClick={() => handleVerifyPasskey(null)}
             disabled={verifying || registering || !webAuthnSupported || isMasterAdmin}
             className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-emerald-500/30 text-emerald-300 hover:text-emerald-200 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
             title={
@@ -435,13 +450,13 @@ const DeviceManagement = () => {
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3 w-3" />
-                        Registered: {device.registeredIP || 'Unknown'}
+                        Registered: {formatPreferredIP(device.registeredIP) || 'Unknown'}
                         {device.registeredGeo?.city && ` (${device.registeredGeo.city})`}
                       </span>
                       {device.lastAccessIP && (
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          Last: {device.lastAccessIP}
+                          Last: {formatPreferredIP(device.lastAccessIP)}
                           {device.lastAccessGeo?.city && ` (${device.lastAccessGeo.city})`}
                         </span>
                       )}

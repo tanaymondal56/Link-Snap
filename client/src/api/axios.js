@@ -105,8 +105,14 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // If there is no request config (e.g. cancelled request, timeout, or serialization error), reject cleanly
+    if (!originalRequest) {
+      return Promise.reject(error);
+    }
+
     // Skip refresh logic for auth endpoints to avoid loops, EXCEPT for /auth/me which is a normal protected route
-    const isAuthEndpoint = originalRequest.url.includes('/auth/') && !originalRequest.url.includes('/auth/me');
+    const requestUrl = originalRequest.url || '';
+    const isAuthEndpoint = requestUrl.includes('/auth/') && !requestUrl.includes('/auth/me');
 
     // If error is 401 (Unauthorized) with TOKEN_EXPIRED code and we haven't tried to refresh yet.
     // Only refresh on expired tokens; do not refresh on DBSC failures or other auth errors.

@@ -367,6 +367,7 @@ export const verifyRegistration = async (req, res) => {
       credentialBackedUp: Boolean(regInfo.credentialBackedUp),
       aaguid: regInfo.aaguid || null,
       transports: resolvedTransports,
+      rpId: getEffectiveRPID(req),
       deviceName: typeof deviceName === 'string' ? String(deviceName).slice(0, 50).trim() || 'Unknown Device' : 'Unknown Device',
       deviceModel: deviceFingerprint.model,
       deviceOS: deviceFingerprint.os,
@@ -696,7 +697,8 @@ export const getVerificationOptions = async (req, res) => {
       });
     }
 
-    const targetDeviceId = req.query?.deviceId || req.body?.deviceId;
+    const rawDeviceId = req.query?.deviceId || req.body?.deviceId;
+    const targetDeviceId = typeof rawDeviceId === 'string' && rawDeviceId.trim() ? rawDeviceId.trim() : null;
     const query = {
       userId: req.user._id,
       isActive: true,
@@ -705,14 +707,51 @@ export const getVerificationOptions = async (req, res) => {
       query._id = targetDeviceId;
     }
 
-    const devices = await TrustedDevice.find(query).select('credentialId transports').lean();
+    const devices = await TrustedDevice.find(query)
+      .select('credentialId transports rpId deviceOS deviceName createdAt')
+      .lean();
 
     if (devices.length === 0) {
       return res.status(404).json({ message: targetDeviceId ? 'Specified passkey not found or inactive' : 'No active passkeys found for your account' });
     }
 
+    // Determine the optimal Relying Party ID (RP ID) for the credential challenge
+    let targetRPID = null;
+
+    // 1. Explicit valid RP ID provided in query/body
+    const explicitRPID = req.query?.rpId || req.body?.rpId;
+    if (explicitRPID && ALLOWED_RP_IDS.includes(explicitRPID)) {
+      targetRPID = explicitRPID;
+    }
+
+    // 2. If a specific device is targeted, use its stored rpId or infer legacy origin
+    if (!targetRPID && targetDeviceId && devices.length === 1) {
+      const dev = devices[0];
+      if (dev.rpId && ALLOWED_RP_IDS.includes(dev.rpId)) {
+        targetRPID = dev.rpId;
+      } else if (dev.deviceOS === 'Windows' || (dev.deviceName && dev.deviceName.toLowerCase().includes('windows'))) {
+        // Windows Hello credentials created on apex domain are bound to 'lksnp.qzz.io'
+        targetRPID = 'lksnp.qzz.io';
+      }
+    }
+
+    // 3. If no specific device is targeted, but user is on Windows and has a registered Windows passkey
+    if (!targetRPID) {
+      const userAgent = req.get('user-agent') || '';
+      const isWindowsClient = userAgent.includes('Windows');
+      const hasWindowsKey = devices.some((d) => d.deviceOS === 'Windows' || (d.deviceName && d.deviceName.toLowerCase().includes('windows')));
+      if (isWindowsClient && hasWindowsKey) {
+        targetRPID = 'lksnp.qzz.io';
+      }
+    }
+
+    // 4. Default to dynamic origin/host RP ID
+    if (!targetRPID) {
+      targetRPID = getEffectiveRPID(req);
+    }
+
     const options = await generateAuthenticationOptions({
-      rpID: getEffectiveRPID(req),
+      rpID: targetRPID,
       userVerification: 'required',
       // Narrow the ceremony to THIS user's passkeys — the browser will only
       // offer credentials it actually holds, which is the health-check itself.

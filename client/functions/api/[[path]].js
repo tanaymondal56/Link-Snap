@@ -40,11 +40,15 @@ export async function onRequest(context) {
 
   // Extract and preserve real client IP from incoming Cloudflare request
   const clientIP = request.headers.get('cf-connecting-ip');
+  const pseudoIPv4 = request.headers.get('cf-pseudo-ipv4');
   if (clientIP) {
     headers.set('cf-connecting-ip', clientIP);
     headers.set('cf-visitor-ip', clientIP);
     headers.set('x-real-ip', clientIP);
     headers.set('x-forwarded-for', clientIP);
+  }
+  if (pseudoIPv4) {
+    headers.set('cf-pseudo-ipv4', pseudoIPv4);
   }
 
   // Remove hop-by-hop headers
