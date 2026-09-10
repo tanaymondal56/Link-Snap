@@ -15,6 +15,7 @@ import { issueDbscRegistration } from './authController.js';
 import logger from '../utils/logger.js';
 import LoginHistory from '../models/LoginHistory.js';
 import { getUserIP } from '../middleware/strictProxyGate.js';
+import { isIPv4, formatPreferredIP } from '../utils/ipUtils.js';
 import { redisGet, redisSet, redisDel, redisIncr, redisGetDel, getRedisClient } from '../config/redis.js';
 
 // Config - Strictly permitted origins and RP IDs
@@ -372,7 +373,7 @@ export const verifyRegistration = async (req, res) => {
       deviceModel: deviceFingerprint.model,
       deviceOS: deviceFingerprint.os,
       browser: deviceFingerprint.browser,
-      registeredIP: clientIP,
+      registeredIP: formatPreferredIP(clientIP),
       registeredGeo: {
         city: req.headers['cf-ipcity'] || 'Unknown',
         country: req.headers['cf-ipcountry'] || 'Unknown',
@@ -595,9 +596,15 @@ export const verifyAuthentication = async (req, res) => {
 
     // Atomic counter & access update (prevents race condition & counter rollback)
     const newCounter = verification.authenticationInfo.newCounter;
+    const existingIsIPv4 = isIPv4(device.lastAccessIP);
+    const currentIsIPv4 = isIPv4(clientIP);
     const updateSet = {
-      lastAccessIP: clientIP,
-      lastAccessGeo: { city: 'Unknown', country: 'Unknown', isp: 'Unknown' },
+      ...(currentIsIPv4 || !existingIsIPv4 ? { lastAccessIP: clientIP } : {}),
+      lastAccessGeo: {
+        city: req.headers['cf-ipcity'] || 'Unknown',
+        country: req.headers['cf-ipcountry'] || 'Unknown',
+        isp: 'Unknown',
+      },
       updatedAt: new Date(),
     };
     if (verification.authenticationInfo.credentialDeviceType) {
@@ -884,8 +891,10 @@ export const verifyPasskey = async (req, res) => {
 
     // Atomic counter update for replay protection
     const newCounter = verification.authenticationInfo.newCounter;
+    const existingIsIPv4 = isIPv4(device.lastAccessIP);
+    const currentIsIPv4 = isIPv4(clientIP);
     const updateSet = {
-      lastAccessIP: clientIP,
+      ...(currentIsIPv4 || !existingIsIPv4 ? { lastAccessIP: clientIP } : {}),
       lastAccessGeo: {
         city: req.headers['cf-ipcity'] || 'Unknown',
         country: req.headers['cf-ipcountry'] || 'Unknown',

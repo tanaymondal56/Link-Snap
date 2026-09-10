@@ -33,6 +33,7 @@ import {
 } from '../../utils/deviceAuth';
 
 import { useAuth } from '../../context/AuthContext';
+import { formatPreferredIP } from '../../utils/ipUtils';
 
 // Helper functions (outside component for purity)
 const formatDate = (date) => {
@@ -44,20 +45,6 @@ const formatDate = (date) => {
     hour: '2-digit',
     minute: '2-digit'
   });
-};
-
-/**
- * Format IP address preferring IPv4 if an IP field contains dual-stack or comma-separated addresses
- */
-const formatPreferredIP = (ip) => {
-  if (!ip || typeof ip !== 'string') return ip || '';
-  if (ip.includes(',') || ip.includes('/')) {
-    const parts = ip.split(/[,/]/).map((p) => p.trim()).filter(Boolean);
-    const v4 = parts.find((p) => /^(\d{1,3}\.){3}\d{1,3}$/.test(p));
-    if (v4) return v4;
-    return parts[0] || ip;
-  }
-  return ip;
 };
 
 const isDeviceInactive = (device) => {

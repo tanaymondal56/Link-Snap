@@ -25,6 +25,7 @@ import {
 import api from '../../api/axios';
 import showToast from '../../utils/toastUtils';
 import { formatDate, formatDuration } from '../../utils/dateUtils';
+import { formatPreferredIP } from '../../utils/ipUtils';
 import { useDialog } from '../../components/ui/DialogProvider';
 import GlassTable from '../../components/admin-console/ui/GlassTable';
 import IdBadge from '../../components/ui/IdBadge';
@@ -1225,7 +1226,7 @@ const AdminSubscriptions = () => {
                     {selectedLog.ipAddress && (
                       <div className="flex justify-between">
                         <span className="text-gray-500">IP Address</span>
-                        <span className="text-gray-300">{selectedLog.ipAddress}</span>
+                        <span className="text-gray-300">{formatPreferredIP(selectedLog.ipAddress)}</span>
                       </div>
                     )}
                     {selectedLog.userAgent && (

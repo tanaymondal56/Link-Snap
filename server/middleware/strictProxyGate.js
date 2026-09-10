@@ -45,6 +45,7 @@
 
 import crypto from 'node:crypto';
 import ipaddr from 'ipaddr.js';
+import { isIPv4, isInternalClusterIP, isCloudflareEgressIP, formatPreferredIP } from '../utils/ipUtils.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
@@ -199,27 +200,6 @@ const isTrustedProxyIP = (ip) => {
  * @param {import('express').Request} req - Express request object
  * @returns {string} The real user's IP address
  */
-const isCloudflareEgressIP = (ip) => {
-    if (!ip || typeof ip !== 'string') return false;
-    const normalized = ip.replace(/^::ffff:/, '').trim();
-    return normalized.startsWith('2a06:98c0:');
-};
-
-const isIPv4Address = (ip) => {
-    if (!ip || typeof ip !== 'string') return false;
-    const normalized = ip.replace(/^::ffff:/, '').trim();
-    return /^(\d{1,3}\.){3}\d{1,3}$/.test(normalized);
-};
-
-const isInternalClusterIP = (ip) => {
-    if (!ip || typeof ip !== 'string') return false;
-    const normalized = ip.replace(/^::ffff:/, '').trim();
-    return normalized.startsWith('10.42.') ||
-        normalized.startsWith('10.244.') ||
-        normalized.startsWith('127.') ||
-        normalized === '::1';
-};
-
 const getRealUserIP = (req) => {
     const connectingIP = getConnectingIP(req);
     const hopIsTrusted = isTrustedProxyIP(connectingIP);
@@ -230,10 +210,10 @@ const getRealUserIP = (req) => {
         const addCandidate = (val) => {
             if (!val || typeof val !== 'string') return;
             val.split(',').forEach((raw) => {
-                const trimmed = raw.replace(/^::ffff:/, '').trim();
-                if (trimmed && !isCloudflareEgressIP(trimmed) && !isInternalClusterIP(trimmed)) {
-                    if (!candidateIPs.includes(trimmed)) {
-                        candidateIPs.push(trimmed);
+                const formatted = formatPreferredIP(raw);
+                if (formatted && !isCloudflareEgressIP(formatted) && !isInternalClusterIP(formatted)) {
+                    if (!candidateIPs.includes(formatted)) {
+                        candidateIPs.push(formatted);
                     }
                 }
             });
@@ -250,7 +230,7 @@ const getRealUserIP = (req) => {
         addCandidate(req.headers['x-forwarded-for']);
 
         // PREFER IPv4: If client has both IPv4 and IPv6 available, return IPv4
-        const ipv4Candidate = candidateIPs.find((ip) => isIPv4Address(ip));
+        const ipv4Candidate = candidateIPs.find((ip) => isIPv4(ip));
         if (ipv4Candidate) {
             return ipv4Candidate;
         }
@@ -263,12 +243,19 @@ const getRealUserIP = (req) => {
         // If cfIp was present (even if worker egress), prefer it over internal K8s cluster socket IP (10.42.*)
         const cfIp = req.headers['cf-connecting-ip'];
         if (cfIp && typeof cfIp === 'string' && cfIp.trim()) {
-            return cfIp.trim();
+            const formattedCfIp = formatPreferredIP(cfIp);
+            if (!isInternalClusterIP(formattedCfIp)) {
+                return formattedCfIp;
+            }
         }
     }
 
     // Direct connection fallback (local development or internal calls)
-    return connectingIP;
+    const fallback = formatPreferredIP(connectingIP);
+    if (fallback && !isInternalClusterIP(fallback)) {
+        return fallback;
+    }
+    return '127.0.0.1';
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -518,8 +505,15 @@ export const strictProxyGate = (req, res, next) => {
 export const getUserIP = (req) => {
     // If proxy gate has processed the request, use the extracted real IP
     // Otherwise check CF-Connecting-IP header or fall back to Express's IP detection
-    return req.realUserIP || req.headers?.['cf-connecting-ip'] || req.ip || 'unknown';
+    const raw = req.realUserIP || req.headers?.['cf-connecting-ip'] || req.ip || 'unknown';
+    const formatted = formatPreferredIP(raw);
+    if (formatted && !isInternalClusterIP(formatted)) {
+        return formatted;
+    }
+    return '127.0.0.1';
 };
+
+export { formatPreferredIP };
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STARTUP VALIDATION

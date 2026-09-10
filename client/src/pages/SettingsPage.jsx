@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 
 import { formatDate } from '../utils/dateUtils';
+import { formatPreferredIP } from '../utils/ipUtils';
 import api from '../api/axios';
 import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
@@ -1216,7 +1217,7 @@ const SettingsPage = () => {
                           <div className="flex items-center gap-4 mt-1 text-sm text-gray-500 flex-wrap">
                             <span className="flex items-center gap-1">
                               <MapPin size={12} />
-                              {session.ipAddress || 'Unknown IP'}
+                              {formatPreferredIP(session.ipAddress) || 'Unknown IP'}
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock size={12} />

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { isIPv4 } from '../utils/ipUtils.js';
 
 const trustedDeviceSchema = new mongoose.Schema({
   // User reference
@@ -120,13 +121,19 @@ trustedDeviceSchema.index(
     }
 );
 
-// Instance method to update last access
+// Instance method to update last access, preferring IPv4
 trustedDeviceSchema.methods.updateLastAccess = async function(ip, geo = {}) {
-  this.lastAccessIP = ip;
+  if (ip && ip !== 'unknown') {
+    const existingIsIPv4 = isIPv4(this.lastAccessIP);
+    const currentIsIPv4 = isIPv4(ip);
+    if (currentIsIPv4 || !existingIsIPv4) {
+      this.lastAccessIP = ip;
+    }
+  }
   this.lastAccessGeo = {
-    city: geo.city || 'Unknown',
-    country: geo.country || 'Unknown',
-    isp: geo.isp || 'Unknown'
+    city: geo.city || this.lastAccessGeo?.city || 'Unknown',
+    country: geo.country || this.lastAccessGeo?.country || 'Unknown',
+    isp: geo.isp || this.lastAccessGeo?.isp || 'Unknown'
   };
   this.updatedAt = new Date();
   await this.save();

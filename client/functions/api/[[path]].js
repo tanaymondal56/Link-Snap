@@ -39,13 +39,15 @@ export async function onRequest(context) {
   headers.set('CF-Access-Client-Secret', env.CF_CLIENT_SECRET);
 
   // Extract and preserve real client IP from incoming Cloudflare request
-  const clientIP = request.headers.get('cf-connecting-ip');
+  const rawClientIP = request.headers.get('cf-connecting-ip');
   const pseudoIPv4 = request.headers.get('cf-pseudo-ipv4');
+  const clientIP = rawClientIP === '::1' || rawClientIP === '0:0:0:0:0:0:0:1' ? '127.0.0.1' : rawClientIP;
   if (clientIP) {
     headers.set('cf-connecting-ip', clientIP);
     headers.set('cf-visitor-ip', clientIP);
     headers.set('x-real-ip', clientIP);
-    headers.set('x-forwarded-for', clientIP);
+    const existingXFF = request.headers.get('x-forwarded-for');
+    headers.set('x-forwarded-for', existingXFF ? `${clientIP}, ${existingXFF}` : clientIP);
   }
   if (pseudoIPv4) {
     headers.set('cf-pseudo-ipv4', pseudoIPv4);

@@ -476,6 +476,24 @@ const startServer = async () => {
         logger.error(`[BloomFilter] Background seeding error: ${err.message}`);
     });
 
+    // Normalize legacy ::1 and internal cluster IPs in DB in the background
+    (async () => {
+        try {
+            const TrustedDevice = (await import('./models/TrustedDevice.js')).default;
+            const Session = (await import('./models/Session.js')).default;
+            await Promise.all([
+                TrustedDevice.updateMany({ registeredIP: { $in: ['::1', '0:0:0:0:0:0:0:1'] } }, { $set: { registeredIP: '127.0.0.1' } }),
+                TrustedDevice.updateMany({ lastAccessIP: { $in: ['::1', '0:0:0:0:0:0:0:1'] } }, { $set: { lastAccessIP: '127.0.0.1' } }),
+                TrustedDevice.updateMany({ registeredIP: /^10\.(42|244)\./ }, { $set: { registeredIP: '127.0.0.1' } }),
+                TrustedDevice.updateMany({ lastAccessIP: /^10\.(42|244)\./ }, { $set: { lastAccessIP: '127.0.0.1' } }),
+                Session.updateMany({ ipAddress: { $in: ['::1', '0:0:0:0:0:0:0:1'] } }, { $set: { ipAddress: '127.0.0.1' } }),
+                Session.updateMany({ ipAddress: /^10\.(42|244)\./ }, { $set: { ipAddress: '127.0.0.1' } }),
+            ]);
+        } catch (err) {
+            logger.warn(`[IPNormalization] Legacy IP normalization warning: ${err.message}`);
+        }
+    })();
+
     // ═══════════════════════════════════════════════════════════════════════════
     // VALIDATE PROXY GATE CONFIGURATION
     // ═══════════════════════════════════════════════════════════════════════════

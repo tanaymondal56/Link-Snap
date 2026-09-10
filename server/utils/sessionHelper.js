@@ -4,6 +4,7 @@ import { parseUserAgent } from './parseUserAgent.js';
 import { generateRefreshToken } from './generateToken.js';
 import logger from './logger.js';
 import { getUserIP } from '../middleware/strictProxyGate.js';
+import { formatPreferredIP, isIPv4 } from './ipUtils.js';
 
 // Session configuration - can be moved to env for easier tuning
 const MAX_SESSIONS_PER_USER = parseInt(process.env.MAX_SESSIONS_PER_USER) || 10;
@@ -30,29 +31,32 @@ export const getClientIP = (req) => {
 };
 
 /**
- * Mask IP address for display (privacy)
+ * Mask IP address for display (privacy), preferring IPv4
  * @param {string} ip - Full IP address
  * @returns {string} Masked IP (e.g., 192.168.1.xxx)
  */
 export const maskIP = (ip) => {
   if (!ip || ip === 'Unknown') return 'Unknown';
   
+  const preferred = formatPreferredIP(ip);
+  if (!preferred || preferred === 'Unknown') return 'Unknown';
+
+  // Handle IPv4
+  if (isIPv4(preferred)) {
+    const parts = preferred.split('.');
+    return `${parts[0]}.${parts[1]}.${parts[2]}.xxx`;
+  }
+
   // Handle IPv6
-  if (ip.includes(':')) {
-    const parts = ip.split(':');
+  if (preferred.includes(':')) {
+    const parts = preferred.split(':');
     if (parts.length > 4) {
       return parts.slice(0, 4).join(':') + ':xxxx:xxxx';
     }
-    return ip;
+    return preferred;
   }
   
-  // Handle IPv4
-  const parts = ip.split('.');
-  if (parts.length === 4) {
-    return `${parts[0]}.${parts[1]}.${parts[2]}.xxx`;
-  }
-  
-  return ip;
+  return preferred;
 };
 
 /**
@@ -183,9 +187,17 @@ export const refreshSessionActivity = async (session, req) => {
     lastActiveAt: new Date()
   };
   
-  // Update IP if changed (mobile users moving between networks)
+  // Update IP if changed, strictly preserving existing preferred IPv4 over IPv6
   const currentIP = getClientIP(req);
-  if (currentIP !== session.ipAddress && currentIP !== 'Unknown') {
+  let shouldUpdateIP = false;
+  if (currentIP && currentIP !== 'Unknown' && currentIP !== session.ipAddress) {
+    const existingIsIPv4 = isIPv4(session.ipAddress);
+    const currentIsIPv4 = isIPv4(currentIP);
+    if (currentIsIPv4 || !existingIsIPv4) {
+      shouldUpdateIP = true;
+    }
+  }
+  if (shouldUpdateIP) {
     updates.ipAddress = currentIP;
   }
   
@@ -266,9 +278,15 @@ export const rotateRefreshToken = async (oldToken, req) => {
   }
 
   const currentIP = getClientIP(req);
-  const ipUpdates = currentIP !== existingSession.ipAddress && currentIP !== 'Unknown'
-    ? { ipAddress: currentIP }
-    : {};
+  let shouldUpdateIP = false;
+  if (currentIP && currentIP !== 'Unknown' && currentIP !== existingSession.ipAddress) {
+    const existingIsIPv4 = isIPv4(existingSession.ipAddress);
+    const currentIsIPv4 = isIPv4(currentIP);
+    if (currentIsIPv4 || !existingIsIPv4) {
+      shouldUpdateIP = true;
+    }
+  }
+  const ipUpdates = shouldUpdateIP ? { ipAddress: currentIP } : {};
 
   // Atomic conditional update: only succeeds if the session STILL has the old hash.
   // If two concurrent requests reach here simultaneously, only one will win.
