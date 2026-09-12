@@ -53,10 +53,12 @@ export async function onRequest(context) {
     headers.set('cf-pseudo-ipv4', pseudoIPv4);
   }
 
-  // Forward Cloudflare GeoIP metadata
+  // Forward Cloudflare GeoIP metadata and Ray ID for request tracing
   const cf = request.cf || {};
   if (cf.city) headers.set('cf-ipcity', cf.city);
   if (cf.country) headers.set('cf-ipcountry', cf.country);
+  const cfRay = request.headers.get('cf-ray');
+  if (cfRay) headers.set('cf-ray', cfRay);
 
   // Remove hop-by-hop headers
   headers.delete('host');
@@ -69,13 +71,28 @@ export async function onRequest(context) {
     redirect: 'follow',
   });
 
+  // Explicit upstream timeout (30s)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
   try {
-    const response = await fetch(upstreamRequest);
+    const response = await fetch(upstreamRequest, { signal: controller.signal });
 
     // Strip any upstream CORS headers — CF Pages will add its own
     const responseHeaders = new Headers(response.headers);
     responseHeaders.delete('access-control-allow-origin');
     responseHeaders.delete('access-control-allow-credentials');
+
+    // Preserve multiple Set-Cookie headers (Fetch Headers constructor folds them by default)
+    if (typeof response.headers.getSetCookie === 'function') {
+      const cookies = response.headers.getSetCookie();
+      if (cookies && cookies.length > 0) {
+        responseHeaders.delete('set-cookie');
+        for (const cookie of cookies) {
+          responseHeaders.append('set-cookie', cookie);
+        }
+      }
+    }
 
     return new Response(response.body, {
       status: response.status,
@@ -83,10 +100,19 @@ export async function onRequest(context) {
       headers: responseHeaders,
     });
   } catch (err) {
+    if (controller.signal.aborted) {
+      console.error('[BFF] Upstream fetch timed out after 30s');
+      return new Response(
+        JSON.stringify({ error: 'Gateway timeout' }),
+        { status: 504, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
     console.error('[BFF] Upstream fetch failed:', err.message);
     return new Response(
-      JSON.stringify({ error: 'Backend unreachable', message: err.message }),
+      JSON.stringify({ error: 'Backend unreachable' }),
       { status: 502, headers: { 'Content-Type': 'application/json' } }
     );
+  } finally {
+    clearTimeout(timeoutId);
   }
 }

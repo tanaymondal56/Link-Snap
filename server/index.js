@@ -52,6 +52,7 @@ import { connectRedis, checkRedisConnection, disconnectRedis, isRedisConfigured 
 import { seedBloomFilters } from './services/bloomFilterService.js';
 
 const app = express();
+app.disable('x-powered-by');
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TRUST PROXY CONFIGURATION
@@ -160,10 +161,19 @@ app.use(helmet({
       fontSrc: ["'self'", "https:", "data:"],
       frameSrc: ["'self'", 'https://*.razorpay.com', 'https://razorpay.com'],
       objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'", 'https://*.razorpay.com', 'https://razorpay.com'],
+      frameAncestors: ["'none'"],
+      workerSrc: ["'self'", "blob:"],
+      manifestSrc: ["'self'"],
       upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
     },
   },
   crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+  crossOriginResourcePolicy: { policy: 'same-site' },
+  originAgentCluster: true,
+  dnsPrefetchControl: { allow: true },
   hsts: {
     maxAge: 31536000, // 1 year
     includeSubDomains: true,
@@ -176,6 +186,15 @@ app.use(helmet({
     policy: 'strict-origin-when-cross-origin',
   },
 }));
+
+// Permissions-Policy header for API and server-rendered responses
+app.use((req, res, next) => {
+  res.setHeader(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), run-ad-auction=(), join-ad-interest-group=(), browsing-topics=(), shared-storage=(), publickey-credentials-get=(self), publickey-credentials-create=(self), payment=(self "https://*.razorpay.com" "https://razorpay.com"), clipboard-write=(self), clipboard-read=(self), fullscreen=(self)'
+  );
+  next();
+});
 
 const normalizeOrigin = (value) => String(value || '').trim().replace(/\/$/, '');
 
@@ -261,6 +280,21 @@ app.use(cors({
     return callback(new Error(msg), false);
   },
   credentials: true,
+  maxAge: 86400, // 24 hours preflight cache
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  exposedHeaders: [
+    'Content-Disposition',
+    'Retry-After',
+    'RateLimit-Limit',
+    'RateLimit-Remaining',
+    'RateLimit-Reset',
+    'Sec-Session-Registration',
+    'Secure-Session-Registration',
+    'Sec-Session-Response',
+    'Secure-Session-Response',
+    'Sec-Session-Challenge',
+    'Secure-Session-Challenge',
+  ],
 }));
 
 // Use JSON parser with raw body capture for webhooks
@@ -401,6 +435,15 @@ app.get('/api/health/deep', async (req, res) => {
       redis: redisStatus,
     },
   });
+});
+
+// Universal cache protection for sensitive authenticated API endpoints
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  next();
 });
 
 // Rate Limiting

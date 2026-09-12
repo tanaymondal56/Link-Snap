@@ -194,11 +194,14 @@ export default defineConfig(async ({ mode }) => {
       port: 3000,
       host: true,
       headers: {
-        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+        'Cross-Origin-Resource-Policy': 'same-origin',
+        'Origin-Agent-Cluster': '?1',
         'X-Frame-Options': 'DENY',
         'X-Content-Type-Options': 'nosniff',
         'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com https://ajax.cloudflare.com https://*.razorpay.com https://razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; frame-src 'self' https://*.razorpay.com https://razorpay.com; connect-src 'self' http://localhost:5000 ws://localhost:5000 ws://localhost:3000 https://api.lksnp.qzz.io wss://api.lksnp.qzz.io https://lksnp.qzz.io https://beta.lksnp.qzz.io wss://beta.lksnp.qzz.io https://api-beta.lksnp.qzz.io wss://api-beta.lksnp.qzz.io https://cloudflareinsights.com https://static.cloudflareinsights.com https://*.razorpay.com https://razorpay.com;"
+        'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), run-ad-auction=(), join-ad-interest-group=(), browsing-topics=(), shared-storage=(), publickey-credentials-get=(self), publickey-credentials-create=(self), payment=(self "https://*.razorpay.com" "https://razorpay.com"), clipboard-write=(self), clipboard-read=(self), fullscreen=(self)',
+        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com https://ajax.cloudflare.com https://*.razorpay.com https://razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; frame-src 'self' https://*.razorpay.com https://razorpay.com; connect-src 'self' http://localhost:5000 ws://localhost:5000 ws://localhost:3000 https://api.lksnp.qzz.io wss://api.lksnp.qzz.io https://lksnp.qzz.io https://beta.lksnp.qzz.io wss://beta.lksnp.qzz.io https://api-beta.lksnp.qzz.io wss://api-beta.lksnp.qzz.io https://cloudflareinsights.com https://static.cloudflareinsights.com https://*.razorpay.com https://razorpay.com; base-uri 'self'; form-action 'self' https://*.razorpay.com https://razorpay.com; frame-ancestors 'none'; object-src 'none'; worker-src 'self' blob:; manifest-src 'self';"
       },
       proxy: {
         '/api': {

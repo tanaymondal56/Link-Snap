@@ -24,12 +24,27 @@ export async function onRequest(context) {
     headers.set('CF-Access-Client-Secret', env.CF_CLIENT_SECRET);
   }
 
-  // Ensure the backend receives the real client IP for analytics and rate-limiting
-  const clientIP = request.headers.get('cf-connecting-ip');
+  // Extract and preserve real client IP from incoming Cloudflare request
+  const rawClientIP = request.headers.get('cf-connecting-ip');
+  const pseudoIPv4 = request.headers.get('cf-pseudo-ipv4');
+  const clientIP = rawClientIP === '::1' || rawClientIP === '0:0:0:0:0:0:0:1' ? '127.0.0.1' : rawClientIP;
   if (clientIP) {
-    headers.set('X-Forwarded-For', clientIP);
-    headers.set('X-Real-IP', clientIP);
+    headers.set('cf-connecting-ip', clientIP);
+    headers.set('cf-visitor-ip', clientIP);
+    headers.set('x-real-ip', clientIP);
+    const existingXFF = request.headers.get('x-forwarded-for');
+    headers.set('x-forwarded-for', existingXFF ? `${clientIP}, ${existingXFF}` : clientIP);
   }
+  if (pseudoIPv4) {
+    headers.set('cf-pseudo-ipv4', pseudoIPv4);
+  }
+
+  // Forward Cloudflare GeoIP metadata and Ray ID for request tracing
+  const cf = request.cf || {};
+  if (cf.city) headers.set('cf-ipcity', cf.city);
+  if (cf.country) headers.set('cf-ipcountry', cf.country);
+  const cfRay = request.headers.get('cf-ray');
+  if (cfRay) headers.set('cf-ray', cfRay);
 
   // Remove hop-by-hop headers
   headers.delete('host');
@@ -41,8 +56,12 @@ export async function onRequest(context) {
     redirect: 'manual', // IMPORTANT: We must NOT follow redirects! We want to pass the 302 back to the browser.
   });
 
+  // Explicit upstream timeout (30s)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
   try {
-    const response = await fetch(upstreamRequest);
+    const response = await fetch(upstreamRequest, { signal: controller.signal });
 
     // If the backend returns a 404, it means this isn't a valid short link.
     // It's likely a React Router SPA path (e.g., /dashboard).
@@ -57,6 +76,17 @@ export async function onRequest(context) {
     responseHeaders.delete('access-control-allow-origin');
     responseHeaders.delete('access-control-allow-credentials');
 
+    // Preserve multiple Set-Cookie headers (Fetch Headers constructor folds them by default)
+    if (typeof response.headers.getSetCookie === 'function') {
+      const cookies = response.headers.getSetCookie();
+      if (cookies && cookies.length > 0) {
+        responseHeaders.delete('set-cookie');
+        for (const cookie of cookies) {
+          responseHeaders.append('set-cookie', cookie);
+        }
+      }
+    }
+
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
@@ -68,5 +98,7 @@ export async function onRequest(context) {
     // If backend is down, fallback to the React app so the dashboard still works
     const indexRequest = new Request(new URL('/', request.url), request);
     return env.ASSETS.fetch(indexRequest);
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
