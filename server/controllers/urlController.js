@@ -17,6 +17,7 @@ import logger from '../utils/logger.js';
 import { invalidateAnalyticsCache } from './analyticsController.js';
 import { bloomAdd } from '../services/bloomFilterService.js';
 import { queueClickIncrement } from '../services/clickStatsService.js';
+import { getPreviewUnlockToken } from '../utils/urlSecurity.js';
 
 // Extract domain from URL (safe - no network request)
 const extractDomain = (url) => {
@@ -898,7 +899,7 @@ const updateUrl = async (req, res, next) => {
 const verifyLinkPassword = async (req, res, next) => {
     try {
         const { shortId } = req.params;
-        const { password } = req.body;
+        const { password, preview } = req.body;
 
         if (!password) {
             res.status(400);
@@ -934,7 +935,29 @@ const verifyLinkPassword = async (req, res, next) => {
             throw new Error('Incorrect password');
         }
 
-        // Password correct - increment clicks and track visit
+        // Handle Preview Unlock: Return unlock token and cookie without incrementing clicks
+        if (preview) {
+            const token = getPreviewUnlockToken(url._id.toString(), url.passwordHash);
+            const isProduction = process.env.NODE_ENV === 'production';
+            const isCrossOriginFrontend = process.env.CROSS_ORIGIN_FRONTEND === 'true';
+
+            res.cookie(`pwd_unlocked_${url.shortId}`, token, {
+                maxAge: 15 * 60 * 1000,
+                httpOnly: true,
+                secure: isProduction || isCrossOriginFrontend,
+                sameSite: isCrossOriginFrontend ? 'lax' : 'strict',
+                path: '/',
+            });
+
+            return res.json({
+                success: true,
+                isPreview: true,
+                token,
+                shortId: url.shortId
+            });
+        }
+
+        // Password correct (Redirect flow) - increment clicks and track visit
         queueClickIncrement(url._id.toString());
 
         // Check Time-Based Redirect first (Pro feature)

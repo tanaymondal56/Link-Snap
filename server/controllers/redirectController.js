@@ -7,7 +7,7 @@ import { getDeviceRedirectUrl } from '../services/deviceDetector.js';
 import { queueClickIncrement } from '../services/clickStatsService.js';
 import { isLinkActive, getTimeBasedDestination } from '../services/timeService.js';
 import { hasFeature } from '../services/subscriptionService.js';
-import { sanitizeAlias } from '../utils/urlSecurity.js';
+import { sanitizeAlias, getPreviewUnlockToken } from '../utils/urlSecurity.js';
 import { bloomExists } from '../services/bloomFilterService.js';
 
 // Helper to escape HTML to prevent XSS
@@ -21,11 +21,59 @@ const escapeHtml = (unsafe) => {
         .replace(/'/g, "&#039;");
 };
 
+// Domain and URL helpers to guarantee public client host resolution
+export const getPublicHost = (req) => {
+    let rawHost = (req.headers['x-forwarded-host'] || req.get('host') || '').trim();
+    if (rawHost.includes(',')) {
+        rawHost = rawHost.split(',')[0].trim();
+    }
+    // Strip upstream internal API subdomains
+    if (rawHost.startsWith('api-beta.')) {
+        return rawHost.replace(/^api-beta\./, 'beta.');
+    }
+    if (rawHost.startsWith('api.')) {
+        return rawHost.replace(/^api\./, '');
+    }
+    if (rawHost) {
+        return rawHost;
+    }
+    const fallback = process.env.BASE_URL || process.env.CLIENT_URL || 'https://lksnp.qzz.io';
+    try {
+        return new URL(fallback).host;
+    } catch {
+        return 'lksnp.qzz.io';
+    }
+};
 
+export const getPublicProtocol = (req) => {
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    if (forwardedProto) {
+        return forwardedProto.split(',')[0].trim();
+    }
+    return req.protocol || (req.secure ? 'https' : 'http');
+};
+
+export const getPublicBaseUrl = (req) => {
+    return `${getPublicProtocol(req)}://${getPublicHost(req)}`;
+};
+
+export const isInternalDomain = (domain) => {
+    if (!domain) return false;
+    const clean = domain.toLowerCase().replace(/:\d+$/, '');
+    return clean === 'lksnp.qzz.io' || clean.endsWith('.lksnp.qzz.io') || clean === 'localhost';
+};
+
+export const getDisplayTitle = (title, shortId, customAlias = null) => {
+    if (title && !isInternalDomain(title) && title !== 'Untitled Link') {
+        return title;
+    }
+    return customAlias ? `/${customAlias}` : `/${shortId}`;
+};
 
 // Beautiful HTML page for link preview (when user adds + or / at end)
 const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCustom, nonce = '') => {
-    const safeTitle = escapeHtml(url.title || url.shortId);
+    const displayTitle = getDisplayTitle(url.title, url.shortId, url.customAlias);
+    const safeTitle = escapeHtml(displayTitle);
     const safeOriginalUrl = escapeHtml(url.originalUrl);
     // Escape user-controllable URLs to prevent XSS
     const safeShortUrl = escapeHtml(shortUrl);
@@ -588,7 +636,7 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
             
             <div class="cta-section">
                 ${url.isActive ? `
-                    <a href="${url.originalUrl}" class="btn btn-primary" rel="noopener noreferrer">
+                    <a href="${safeOriginalUrl}" class="btn btn-primary" rel="noopener noreferrer">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                             <polyline points="15 3 21 3 21 9"/>
@@ -627,6 +675,11 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
         const safeShortUrlJS = ${JSON.stringify(shortUrl || '')};
         const safeRandomUrlJS = ${JSON.stringify(randomUrl || '')};
         const safeCustomUrlJS = ${JSON.stringify(customUrl || '')};
+
+        if (window.location.search.includes('unlocked=')) {
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+        }
 
         // Favicon error handler
         document.querySelectorAll('.favicon img').forEach(img => {
@@ -1100,12 +1153,14 @@ const getExpiredLinkPage = (shortId, expiresAt) => {
 };
 
 // HTML page for scheduled/pending links (not yet active)
-const getScheduledLinkPage = (shortId, activeStartTime, nonce = '') => {
+const getScheduledLinkPage = (shortId, activeStartTime, nonce = '', req = null) => {
     const safeShortId = escapeHtml(shortId);
     const activateDate = new Date(activeStartTime);
     const isoDate = activateDate.toISOString();
-    // Get base URL for display (short link only, no real destination exposed)
-    const baseUrl = (process.env.BASE_URL || process.env.CLIENT_URL || 'https://linksnap.io').replace(/\/$/, '');
+    // Get base URL for display (use public base URL if req is present)
+    const baseUrl = req
+        ? getPublicBaseUrl(req)
+        : (process.env.BASE_URL || process.env.CLIENT_URL || 'https://lksnp.qzz.io').replace(/\/$/, '');
     const shortLink = `${baseUrl}/${safeShortId}`;
 
     return `
@@ -1261,10 +1316,9 @@ const getScheduledLinkPage = (shortId, activeStartTime, nonce = '') => {
 };
 
 // HTML page for password-protected links
-const getPasswordEntryPage = (shortId, title, nonce = '') => {
-    const safeTitle = escapeHtml(title || shortId);
-    // Escape shortId for use in JavaScript string is no longer needed 
-    // since we use JSON.stringify for safe injection.
+const getPasswordEntryPage = (shortId, title, nonce = '', isPreview = false) => {
+    const displayTitle = getDisplayTitle(title, shortId);
+    const safeTitle = escapeHtml(displayTitle);
     return `
 <!DOCTYPE html>
 <html lang="en">
@@ -1339,7 +1393,7 @@ const getPasswordEntryPage = (shortId, title, nonce = '') => {
                         <input type="password" id="password" class="password-input" placeholder="Enter password" autocomplete="off" required />
                         <button type="button" class="toggle-password" id="togglePasswordBtn">
                             <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/>
                                 <circle cx="12" cy="12" r="3"/>
                             </svg>
                         </button>
@@ -1369,6 +1423,7 @@ const getPasswordEntryPage = (shortId, title, nonce = '') => {
     <style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
     <script data-cfasync="false" nonce="${nonce}">
         const targetShortId = ${JSON.stringify(shortId)};
+        const isPreview = ${JSON.stringify(Boolean(isPreview))};
         const form = document.getElementById('passwordForm');
         const passwordInput = document.getElementById('password');
         const errorMsg = document.getElementById('errorMsg');
@@ -1384,7 +1439,7 @@ const getPasswordEntryPage = (shortId, title, nonce = '') => {
                 passwordInput.type = type;
                 const eyeIcon = document.getElementById('eyeIcon');
                 eyeIcon.innerHTML = type === 'password' 
-                    ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+                    ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/>'
                     : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
             });
         }
@@ -1403,14 +1458,19 @@ const getPasswordEntryPage = (shortId, title, nonce = '') => {
                 const res = await fetch('/api/url/' + encodeURIComponent(targetShortId) + '/verify-password', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password })
+                    body: JSON.stringify({ password, preview: isPreview })
                 });
                 const data = await res.json();
                 
                 if (res.ok && data.success) {
-                    const separator = data.originalUrl.includes('?') ? '&' : '?';
-                    const qs = window.location.search.substring(1);
-                    window.location.href = qs ? data.originalUrl + separator + qs : data.originalUrl;
+                    if (isPreview) {
+                        const target = window.location.pathname + (data.token ? '?unlocked=' + encodeURIComponent(data.token) : '');
+                        window.location.href = target;
+                    } else {
+                        const separator = data.originalUrl.includes('?') ? '&' : '?';
+                        const qs = window.location.search.substring(1);
+                        window.location.href = qs ? data.originalUrl + separator + qs : data.originalUrl;
+                    }
                 } else {
                     throw new Error(data.message || 'Incorrect password');
                 }
@@ -1544,7 +1604,7 @@ export const redirectUrl = async (req, res, next) => {
             // Check if link is ready to go live (activeStartTime)
             if (cached.activeStartTime && !isLinkActive(cached.activeStartTime)) {
                 // Show countdown page until link activates
-                return res.status(200).send(getScheduledLinkPage(shortId, cached.activeStartTime, res.locals.nonce));
+                return res.status(200).send(getScheduledLinkPage(shortId, cached.activeStartTime, res.locals.nonce, req));
             }
 
             // Check if link has expired
@@ -1667,7 +1727,7 @@ export const redirectUrl = async (req, res, next) => {
         // Check if link is ready to go live (activeStartTime)
         if (url.activeStartTime && !isLinkActive(url.activeStartTime)) {
             // Show countdown page until link activates
-            return res.status(200).send(getScheduledLinkPage(shortId, url.activeStartTime, res.locals.nonce));
+            return res.status(200).send(getScheduledLinkPage(shortId, url.activeStartTime, res.locals.nonce, req));
         }
 
         // Check if link has expired
@@ -1777,10 +1837,10 @@ export const previewUrl = async (req, res) => {
     }
 
     try {
-        // Query database for the URL
+        // Query database for the URL (include passwordHash for unlock verification)
         let url = await Url.findOne({
             $or: [{ shortId }, { customAlias: shortId }],
-        }).lean();
+        }).select('+passwordHash').lean();
 
         // Removed case-insensitive fallback to prevent alias hijacking
 
@@ -1807,19 +1867,23 @@ export const previewUrl = async (req, res) => {
             return res.status(410).send(getExpiredLinkPage(shortId, url.expiresAt));
         }
 
-        // Check if link is password protected - redirect to password page instead of preview
+        // Check if link is password protected
         if (url.isPasswordProtected) {
-            return res.send(getPasswordEntryPage(shortId, url.title, res.locals.nonce));
+            const expectedToken = getPreviewUnlockToken(url._id.toString(), url.passwordHash);
+            const unlockCookie = req.cookies?.[`pwd_unlocked_${url.shortId}`];
+            const unlockQuery = req.query?.unlocked;
+            const isUnlocked = (unlockCookie === expectedToken) || (unlockQuery === expectedToken);
+
+            if (!isUnlocked) {
+                return res.send(getPasswordEntryPage(shortId, url.title, res.locals.nonce, true));
+            }
         }
 
-        // Generate the short URL (use what was accessed)
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.get('host');
-        const accessedUrl = `${protocol}://${host}/${shortId}`;
-
-        // Generate both URLs for display
-        const randomUrl = `${protocol}://${host}/${url.shortId}`;
-        const customUrl = url.customAlias ? `${protocol}://${host}/${url.customAlias}` : null;
+        // Generate the short URLs using public base URL
+        const publicBaseUrl = getPublicBaseUrl(req);
+        const accessedUrl = `${publicBaseUrl}/${shortId}`;
+        const randomUrl = `${publicBaseUrl}/${url.shortId}`;
+        const customUrl = url.customAlias ? `${publicBaseUrl}/${url.customAlias}` : null;
 
         // Determine if we're viewing via custom alias
         const viewingViaCustom = url.customAlias && shortId === url.customAlias;

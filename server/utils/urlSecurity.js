@@ -2,6 +2,7 @@
  * URL Security Validator
  * Prevents SSRF attacks by blocking internal/private network URLs
  */
+import crypto from 'crypto';
 
 // Private IPv4 ranges (RFC 1918 + loopback + link-local)
 const PRIVATE_IPV4_RANGES = [
@@ -140,4 +141,15 @@ export const sanitizeAlias = (alias) => {
     }
 
     return { valid: true, sanitized };
+};
+
+/**
+ * Generate HMAC token to verify password unlock for preview page
+ * @param {string} urlId
+ * @param {string} passwordHash
+ * @returns {string} HMAC SHA256 token
+ */
+export const getPreviewUnlockToken = (urlId, passwordHash) => {
+    const secret = process.env.JWT_SECRET || process.env.SESSION_SECRET || 'linksnap_preview_secret';
+    return crypto.createHmac('sha256', secret).update(`${urlId}:${passwordHash}`).digest('hex');
 };

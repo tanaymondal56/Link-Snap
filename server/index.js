@@ -191,7 +191,7 @@ app.use(helmet({
 app.use((req, res, next) => {
   res.setHeader(
     'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=(), run-ad-auction=(), join-ad-interest-group=(), browsing-topics=(), shared-storage=(), publickey-credentials-get=(self), publickey-credentials-create=(self), payment=(self "https://*.razorpay.com" "https://razorpay.com"), clipboard-write=(self), clipboard-read=(self), fullscreen=(self)'
+    'camera=(), microphone=(), geolocation=(), run-ad-auction=(), join-ad-interest-group=(), browsing-topics=(), publickey-credentials-get=(self), payment=(self "https://*.razorpay.com" "https://razorpay.com"), clipboard-write=(self), clipboard-read=(self), fullscreen=(self)'
   );
   next();
 });
@@ -246,8 +246,9 @@ const allowedOrigins = Array.from(new Set([
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, or same-origin in production)
-    if (!origin) return callback(null, true);
+    // Non-CORS requests (direct browser navigation, curl, security scanners) do not send an Origin header.
+    // Calling callback(null, false) passes the request through without injecting 'Access-Control-Allow-Origin: *'.
+    if (!origin) return callback(null, false);
 
     const normalizedOrigin = normalizeOrigin(origin);
 

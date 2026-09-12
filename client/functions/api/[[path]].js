@@ -60,6 +60,10 @@ export async function onRequest(context) {
   const cfRay = request.headers.get('cf-ray');
   if (cfRay) headers.set('cf-ray', cfRay);
 
+  // Forward original public host and protocol to backend
+  headers.set('x-forwarded-host', url.host);
+  headers.set('x-forwarded-proto', url.protocol.replace(':', ''));
+
   // Remove hop-by-hop headers
   headers.delete('host');
 
