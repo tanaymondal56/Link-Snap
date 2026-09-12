@@ -69,6 +69,7 @@ export const getFromCache = async (shortId) => {
  */
 export const setInCache = async (shortId, urlData) => {
     const payload = {
+        shortId: urlData.shortId || shortId,
         originalUrl: urlData.originalUrl,
         isActive: urlData.isActive,
         _id: urlData._id,
@@ -81,6 +82,9 @@ export const setInCache = async (shortId, urlData) => {
         title: urlData.title || null,
         activeStartTime: urlData.activeStartTime || null,
         timeRedirects: urlData.timeRedirects || null,
+        safetyStatus: urlData.safetyStatus || 'unchecked',
+        safetyDetails: urlData.safetyDetails || null,
+        customAlias: urlData.customAlias || null,
     };
 
     const redis = getRedisClient();

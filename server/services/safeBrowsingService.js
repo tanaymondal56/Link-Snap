@@ -3,6 +3,7 @@ import axios from 'axios';
 import Url from '../models/Url.js';
 import { getSettings } from '../utils/getSettings.js';
 import crypto from 'node:crypto';
+import { invalidateCache } from './cacheService.js';
 
 const SAFE_BROWSING_API_URL = 'https://safebrowsing.googleapis.com/v4/threatMatches:find';
 
@@ -218,6 +219,10 @@ const runBatchScan = async (query, maxLimit = 500) => {
                     else status = 'malware';
                     details = foundThreat;
                     threats++;
+
+                    // Invalidate Redis cache immediately so users aren't served stale redirects
+                    invalidateCache(doc.shortId).catch(() => {});
+                    if (doc.customAlias) invalidateCache(doc.customAlias).catch(() => {});
                 }
 
                 return {

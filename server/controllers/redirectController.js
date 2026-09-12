@@ -70,8 +70,421 @@ export const getDisplayTitle = (title, shortId, customAlias = null) => {
     return customAlias ? `/${customAlias}` : `/${shortId}`;
 };
 
+// Malicious safety statuses check
+export const isMaliciousStatus = (status) => ['malware', 'phishing', 'unwanted'].includes(status);
+
+const formatThreatType = (details) => {
+    if (!details) return null;
+    const clean = String(details).trim().toUpperCase();
+    if (clean === 'SOCIAL_ENGINEERING') return 'Social Engineering (Phishing)';
+    if (clean === 'MALWARE') return 'Malicious Software (Malware)';
+    if (clean === 'UNWANTED_SOFTWARE') return 'Unwanted Software';
+    if (clean === 'POTENTIALLY_HARMFUL_APPLICATION') return 'Potentially Harmful Application';
+    return details;
+};
+
+// Threat details formatter
+export const getThreatInfo = (safetyStatus, safetyDetails) => {
+    const formattedCategory = formatThreatType(safetyDetails);
+    switch (safetyStatus) {
+        case 'phishing':
+            return {
+                badgeText: 'Phishing Detected',
+                title: 'Deceptive Site Ahead',
+                description: 'This destination has been flagged as a phishing hazard. Attackers may attempt to trick you into revealing sensitive personal info, passwords, or banking details.',
+                hazardType: formattedCategory || 'Social Engineering (Phishing)',
+                iconColor: '#ef4444'
+            };
+        case 'malware':
+            return {
+                badgeText: 'Malware Detected',
+                title: 'Malicious Site Ahead',
+                description: 'This destination has been flagged as distributing harmful software. Accessing this site may attempt to infect your device, steal sensitive data, or install ransomware.',
+                hazardType: formattedCategory || 'Malicious Software (Malware)',
+                iconColor: '#ef4444'
+            };
+        case 'unwanted':
+            return {
+                badgeText: 'Harmful Site Detected',
+                title: 'Unwanted Software Warning',
+                description: 'This destination has been flagged for hosting unwanted or deceptive software that may modify system settings or inject unauthorized behavior.',
+                hazardType: formattedCategory || 'Unwanted Software / Harmful Programs',
+                iconColor: '#f97316'
+            };
+        default:
+            return {
+                badgeText: 'Security Warning',
+                title: 'Potentially Hazardous Link',
+                description: 'This destination has been flagged by security analysis systems as potentially unsafe.',
+                hazardType: formattedCategory || 'Flagged Security Hazard',
+                iconColor: '#ef4444'
+            };
+    }
+};
+
+// Interstitial security warning page when user navigates directly to a malicious link
+export const getDirectRedirectWarningPage = (urlData, shortId, nonce = '', req = null) => {
+    const threatInfo = getThreatInfo(urlData.safetyStatus, urlData.safetyDetails);
+    const { targetUrl } = getDeviceRedirectUrl(urlData, req?.headers?.['user-agent']);
+    const destination = targetUrl || urlData.originalUrl;
+    const safeDestination = escapeHtml(destination);
+    const safeShortId = escapeHtml(shortId);
+    const publicBaseUrl = req ? getPublicBaseUrl(req) : 'https://lksnp.qzz.io';
+    const previewLink = `${publicBaseUrl}/${safeShortId}+`;
+    const safePreviewLink = escapeHtml(previewLink);
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Warning: Redirection Intercepted - Link Snap</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="/favicon.ico">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #0b0709 0%, #170709 50%, #0d0a14 100%);
+            color: #fff;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(90px);
+            opacity: 0.35;
+            animation: float 8s ease-in-out infinite;
+        }
+
+        .orb-1 {
+            width: 500px;
+            height: 500px;
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+            top: -150px;
+            left: -150px;
+        }
+
+        .orb-2 {
+            width: 450px;
+            height: 450px;
+            background: linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%);
+            bottom: -120px;
+            right: -120px;
+            animation-delay: -4s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-25px) scale(1.04); }
+        }
+
+        .container {
+            position: relative;
+            z-index: 10;
+            max-width: 580px;
+            width: 100%;
+        }
+
+        .card {
+            background: rgba(26, 11, 14, 0.7);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            border-radius: 28px;
+            padding: 44px 36px;
+            box-shadow: 0 0 60px rgba(239, 68, 68, 0.18), 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+            text-align: center;
+        }
+
+        .hazard-icon-wrapper {
+            width: 84px;
+            height: 84px;
+            margin: 0 auto 24px;
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(185, 28, 28, 0.35) 100%);
+            border: 2px solid rgba(239, 68, 68, 0.5);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.3);
+            animation: pulse-danger 2.5s infinite;
+        }
+
+        @keyframes pulse-danger {
+            0%, 100% { box-shadow: 0 0 25px rgba(239, 68, 68, 0.3); }
+            50% { box-shadow: 0 0 45px rgba(239, 68, 68, 0.55); }
+        }
+
+        .hazard-icon-wrapper svg {
+            width: 44px;
+            height: 44px;
+            stroke: #ef4444;
+        }
+
+        .threat-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 16px;
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.45);
+            border-radius: 100px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #f87171;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #fff 0%, #fca5a5 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.25;
+        }
+
+        .subtitle {
+            color: #cbd5e1;
+            font-size: 0.95rem;
+            line-height: 1.55;
+            margin-bottom: 24px;
+        }
+
+        .destination-box {
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 16px;
+            padding: 18px;
+            margin-bottom: 24px;
+            text-align: left;
+        }
+
+        .destination-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #f87171;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .destination-url {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.88rem;
+            color: #fecaca;
+            word-break: break-all;
+            line-height: 1.5;
+            padding: 10px 12px;
+            background: rgba(239, 68, 68, 0.08);
+            border-radius: 8px;
+            border: 1px dashed rgba(239, 68, 68, 0.3);
+        }
+
+        .threat-details-box {
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 28px;
+            text-align: left;
+        }
+
+        .threat-details-box p {
+            font-size: 0.86rem;
+            color: #fca5a5;
+            line-height: 1.5;
+        }
+
+        .threat-details-box strong {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #f87171;
+        }
+
+        .cta-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 16px 24px;
+            border-radius: 14px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-safety {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-safety:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(16, 185, 129, 0.5);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #e2e8f0;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .btn-danger-link {
+            display: block;
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: #94a3b8;
+            text-decoration: underline;
+            text-align: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .btn-danger-link:hover {
+            color: #f87171;
+        }
+
+        .footer-text {
+            color: #64748b;
+            font-size: 0.78rem;
+            margin-top: 24px;
+        }
+
+        .footer-text a {
+            color: #f87171;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="container">
+        <div class="card">
+            <div class="hazard-icon-wrapper">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+            </div>
+
+            <div class="threat-pill">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                ${escapeHtml(threatInfo.badgeText)}
+            </div>
+
+            <h1>${escapeHtml(threatInfo.title)}</h1>
+            <p class="subtitle">
+                Link Snap detected a high-risk security hazard and intercepted this redirect before your browser visited the destination.
+            </p>
+
+            <div class="destination-box">
+                <div class="destination-label">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="15" y1="9" x2="9" y2="15"/>
+                        <line x1="9" y1="9" x2="15" y2="15"/>
+                    </svg>
+                    Flagged Destination URL
+                </div>
+                <div class="destination-url">${safeDestination}</div>
+            </div>
+
+            <div class="threat-details-box">
+                <strong>Threat Explanation</strong>
+                <p>${escapeHtml(threatInfo.description)}</p>
+                <p style="margin-top: 8px; font-size: 0.78rem; color: #f87171;">Security Classification: <strong>${escapeHtml(threatInfo.hazardType)}</strong></p>
+            </div>
+
+            <div class="cta-section">
+                <a href="/" class="btn btn-safety" id="returnSafetyBtn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        <polyline points="9 12 11 14 15 10"/>
+                    </svg>
+                    Return to Safety (Recommended)
+                </a>
+                <a href="${safePreviewLink}" class="btn btn-secondary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    Inspect Link Details (Safe Preview)
+                </a>
+                <a href="${safeDestination}" class="btn-danger-link" rel="noopener noreferrer nofollow">
+                    I understand the risks, proceed to destination anyway
+                </a>
+            </div>
+
+            <p class="footer-text">Protected by <a href="/">Link Snap</a> Security Shield</p>
+        </div>
+    </div>
+
+    <script data-cfasync="false" nonce="${nonce}">
+        const returnBtn = document.getElementById('returnSafetyBtn');
+        if (returnBtn && window.history.length > 1) {
+            returnBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                window.history.back();
+            });
+        }
+    </script>
+</body>
+</html>
+`;
+};
+
 // Beautiful HTML page for link preview (when user adds + or / at end)
 const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCustom, nonce = '') => {
+    const isMalicious = isMaliciousStatus(url.safetyStatus);
+    const threatInfo = isMalicious ? getThreatInfo(url.safetyStatus, url.safetyDetails) : null;
     const displayTitle = getDisplayTitle(url.title, url.shortId, url.customAlias);
     const safeTitle = escapeHtml(displayTitle);
     const safeOriginalUrl = escapeHtml(url.originalUrl);
@@ -80,13 +493,20 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
     const safeRandomUrl = escapeHtml(randomUrl || '');
     const safeCustomUrl = escapeHtml(customUrl || '');
 
+    let faviconDomain;
+    try {
+        faviconDomain = new URL(url.originalUrl).hostname;
+    } catch {
+        faviconDomain = '';
+    }
+
     return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Link Preview - ${safeTitle} | Link Snap</title>
+    <title>${isMalicious ? '⚠️ Security Warning - ' : 'Link Preview - '}${safeTitle} | Link Snap</title>
     <meta name="description" content="Preview for ${safeOriginalUrl}">
     <link rel="icon" href="/favicon.ico">
     <style>
@@ -143,6 +563,16 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
             left: 20%;
             animation-delay: -2s;
         }
+
+        .orb-threat-1 {
+            background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%) !important;
+            opacity: 0.3 !important;
+        }
+
+        .orb-threat-2 {
+            background: linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%) !important;
+            opacity: 0.25 !important;
+        }
         
         @keyframes float {
             0%, 100% { transform: translateY(0) scale(1); }
@@ -164,31 +594,53 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
             padding: 40px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
+
+        .card.threat {
+            background: rgba(26, 11, 14, 0.7);
+            border-color: rgba(239, 68, 68, 0.4);
+            box-shadow: 0 0 50px rgba(239, 68, 68, 0.2), 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+        }
         
         .header {
             text-align: center;
             margin-bottom: 32px;
         }
+
+        .header-badges {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
         
         .logo {
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
-            padding: 8px 16px;
+            height: 32px;
+            padding: 0 14px;
             background: rgba(99, 102, 241, 0.1);
-            border: 1px solid rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.25);
             border-radius: 100px;
-            margin-bottom: 24px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            line-height: 1;
+            margin: 0;
+            box-sizing: border-box;
         }
         
         .logo svg {
-            width: 20px;
-            height: 20px;
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
         }
         
         .logo span {
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             background: linear-gradient(135deg, #6366f1, #ec4899);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -198,14 +650,19 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
         .badge {
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 6px;
-            padding: 6px 14px;
+            height: 32px;
+            padding: 0 14px;
             background: rgba(34, 197, 94, 0.1);
             border: 1px solid rgba(34, 197, 94, 0.3);
             border-radius: 100px;
             font-size: 0.8rem;
+            font-weight: 600;
+            line-height: 1;
             color: #22c55e;
-            margin-bottom: 20px;
+            margin: 0;
+            box-sizing: border-box;
         }
         
         .badge.inactive {
@@ -213,10 +670,18 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
             border-color: rgba(239, 68, 68, 0.3);
             color: #ef4444;
         }
+
+        .badge.threat {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.5);
+            color: #f87171;
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
+        }
         
         .badge svg {
             width: 14px;
             height: 14px;
+            flex-shrink: 0;
         }
         
         h1 {
@@ -231,6 +696,68 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
             color: #818cf8;
             font-family: 'SF Mono', Monaco, monospace;
         }
+
+        .threat-alert-box {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            border-radius: 16px;
+            padding: 20px;
+            margin-top: 18px;
+            margin-bottom: 24px;
+            text-align: left;
+        }
+
+        .threat-alert-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .threat-alert-icon svg {
+            width: 22px;
+            height: 22px;
+            stroke: #ef4444;
+        }
+
+        .threat-alert-content {
+            flex: 1;
+        }
+
+        .threat-alert-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #f87171;
+            margin-bottom: 6px;
+        }
+
+        .threat-alert-desc {
+            font-size: 0.875rem;
+            color: #fca5a5;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+
+        .threat-alert-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: #f87171;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
         
         .destination-section {
             background: rgba(0, 0, 0, 0.2);
@@ -238,6 +765,23 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
             border-radius: 16px;
             padding: 20px;
             margin-bottom: 24px;
+        }
+
+        .destination-section.threat {
+            background: rgba(239, 68, 68, 0.05);
+            border-color: rgba(239, 68, 68, 0.25);
+        }
+
+        .destination-section.threat .destination-label {
+            color: #f87171;
+        }
+
+        .destination-section.threat .destination-label svg {
+            stroke: #ef4444;
+        }
+
+        .destination-section.threat .destination-url {
+            border-color: rgba(239, 68, 68, 0.2);
         }
         
         .destination-label {
@@ -374,6 +918,17 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
             cursor: pointer;
             border: none;
         }
+
+        .btn-safety {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-safety:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(16, 185, 129, 0.5);
+        }
         
         .btn-primary {
             background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
@@ -407,6 +962,23 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
         .btn svg {
             width: 20px;
             height: 20px;
+        }
+
+        .btn-danger-link {
+            display: block;
+            margin-top: 14px;
+            font-size: 0.85rem;
+            color: #94a3b8;
+            text-decoration: underline;
+            text-align: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .btn-danger-link:hover {
+            color: #f87171;
         }
         
         .footer {
@@ -525,35 +1097,48 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
     </style>
 </head>
 <body>
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
+    <div class="orb orb-1 ${isMalicious ? 'orb-threat-1' : ''}"></div>
+    <div class="orb orb-2 ${isMalicious ? 'orb-threat-2' : ''}"></div>
+    <div class="orb orb-3" ${isMalicious ? 'style="display:none"' : ''}></div>
     
     <div class="container">
-        <div class="card">
+        <div class="card ${isMalicious ? 'threat' : ''}">
             <div class="header">
-                <div class="logo">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                    </svg>
-                    <span>Link Snap</span>
-                </div>
-                
-                <div class="badge ${url.isActive ? '' : 'inactive'}">
-                    ${url.isActive ? `
+                <div class="header-badges">
+                    <div class="logo">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                            <polyline points="22 4 12 14.01 9 11.01"/>
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
                         </svg>
-                        Active Link
+                        <span>Link Snap</span>
+                    </div>
+                    
+                    ${isMalicious ? `
+                        <div class="badge threat">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                <line x1="12" y1="8" x2="12" y2="12"/>
+                                <line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                            ${escapeHtml(threatInfo.badgeText)}
+                        </div>
                     ` : `
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <line x1="15" y1="9" x2="9" y2="15"/>
-                            <line x1="9" y1="9" x2="15" y2="15"/>
-                        </svg>
-                        Inactive Link
+                        <div class="badge ${url.isActive ? '' : 'inactive'}">
+                            ${url.isActive ? `
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                    <polyline points="22 4 12 14.01 9 11.01"/>
+                                </svg>
+                                Active Link
+                            ` : `
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="15" y1="9" x2="9" y2="15"/>
+                                    <line x1="9" y1="9" x2="15" y2="15"/>
+                                </svg>
+                                Inactive Link
+                            `}
+                        </div>
                     `}
                 </div>
                 
@@ -583,21 +1168,51 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
                         </button>
                     </div>
                 ` : ''}
+                ${isMalicious ? `
+                    <div class="threat-alert-box">
+                        <div class="threat-alert-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                <line x1="12" y1="9" x2="12" y2="13"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                        </div>
+                        <div class="threat-alert-content">
+                            <div class="threat-alert-title">${escapeHtml(threatInfo.title)}</div>
+                            <div class="threat-alert-desc">${escapeHtml(threatInfo.description)}</div>
+                            <div class="threat-alert-tag">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                </svg>
+                                Security Hazard: ${escapeHtml(threatInfo.hazardType)}
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
             </div>
             
-            <div class="destination-section">
+            <div class="destination-section ${isMalicious ? 'threat' : ''}">
                 <div class="destination-label">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                        <polyline points="15 3 21 3 21 9"/>
-                        <line x1="10" y1="14" x2="21" y2="3"/>
-                    </svg>
-                    Destination URL
+                    ${isMalicious ? `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                            <line x1="12" y1="9" x2="12" y2="13"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                        Flagged Malicious Destination
+                    ` : `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                            <polyline points="15 3 21 3 21 9"/>
+                            <line x1="10" y1="14" x2="21" y2="3"/>
+                        </svg>
+                        Destination URL
+                    `}
                 </div>
                 <div class="destination-url">
                     <div class="favicon">
-                        <img src="https://www.google.com/s2/favicons?domain=${new URL(url.originalUrl).hostname}&sz=64" alt="">
-                        <svg style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <img src="${faviconDomain ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(faviconDomain)}&sz=64` : ''}" ${!faviconDomain ? 'style="display:none"' : ''} alt="">
+                        <svg ${faviconDomain ? 'style="display:none"' : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"/>
                             <line x1="2" y1="12" x2="22" y2="12"/>
                             <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
@@ -622,46 +1237,68 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
                 </div>
             </div>
             
-            <div class="warning-box">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
-                <p>
-                    <strong>You're about to leave Link Snap.</strong><br>
-                    Make sure you trust this destination before proceeding. We're not responsible for external content.
-                </p>
-            </div>
-            
-            <div class="cta-section">
-                ${url.isActive ? `
-                    <a href="${safeOriginalUrl}" class="btn btn-primary" rel="noopener noreferrer">
+            ${isMalicious ? `
+                <div class="cta-section">
+                    <a href="/" class="btn btn-safety">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                            <polyline points="15 3 21 3 21 9"/>
-                            <line x1="10" y1="14" x2="21" y2="3"/>
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            <polyline points="9 12 11 14 15 10"/>
                         </svg>
-                        Continue to Destination
+                        Return to Safety (Recommended)
                     </a>
-                ` : `
-                    <button class="btn btn-primary" disabled style="opacity: 0.5; cursor: not-allowed;">
+                    <button class="btn btn-secondary" id="copyShortLinkBtn">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <line x1="15" y1="9" x2="9" y2="15"/>
-                            <line x1="9" y1="9" x2="15" y2="15"/>
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                         </svg>
-                        Link is Disabled
+                        Copy Short Link
                     </button>
-                `}
-                <button class="btn btn-secondary" id="copyShortLinkBtn">
+                    <a href="${safeOriginalUrl}" class="btn-danger-link" rel="noopener noreferrer nofollow">
+                        I understand the risks, continue to unsafe destination anyway
+                    </a>
+                </div>
+            ` : `
+                <div class="warning-box">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        <line x1="12" y1="9" x2="12" y2="13"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17"/>
                     </svg>
-                    Copy Short Link
-                </button>
-            </div>
+                    <p>
+                        <strong>You're about to leave Link Snap.</strong><br>
+                        Make sure you trust this destination before proceeding. We're not responsible for external content.
+                    </p>
+                </div>
+                
+                <div class="cta-section">
+                    ${url.isActive ? `
+                        <a href="${safeOriginalUrl}" class="btn btn-primary" rel="noopener noreferrer">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                                <polyline points="15 3 21 3 21 9"/>
+                                <line x1="10" y1="14" x2="21" y2="3"/>
+                            </svg>
+                            Continue to Destination
+                        </a>
+                    ` : `
+                        <button class="btn btn-primary" disabled style="opacity: 0.5; cursor: not-allowed;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="15" y1="9" x2="9" y2="15"/>
+                                <line x1="9" y1="9" x2="15" y2="15"/>
+                            </svg>
+                            Link is Disabled
+                        </button>
+                    `}
+                    <button class="btn btn-secondary" id="copyShortLinkBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                        Copy Short Link
+                    </button>
+                </div>
+            `}
             
             <div class="footer">
                 <p>Powered by <a href="/">Link Snap</a> — Fast, secure URL shortening</p>
@@ -694,21 +1331,47 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
         // Copy functionality
         function showToast() {
             const toast = document.getElementById('copyToast');
+            if (!toast) return;
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        function fallbackCopy(text) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast();
+            } catch (e) {
+                console.warn('Fallback copy failed', e);
+            }
+        }
+
+        function copyToClipboard(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(showToast).catch(() => fallbackCopy(text));
+            } else {
+                fallbackCopy(text);
+            }
         }
 
         const copyShortLinkBtn = document.getElementById('copyShortLinkBtn');
         if (copyShortLinkBtn) {
             copyShortLinkBtn.addEventListener('click', () => {
-                navigator.clipboard.writeText(safeShortUrlJS).then(showToast);
+                copyToClipboard(safeShortUrlJS);
             });
         }
 
         const altLinkUrl = document.getElementById('alternateLinkUrl');
         const altLinkCopy = document.getElementById('alternateLinkCopy');
         if (altLinkUrl) {
-            const copyAlt = () => navigator.clipboard.writeText(safeRandomUrlJS).then(showToast);
+            const copyAlt = () => copyToClipboard(safeRandomUrlJS);
             altLinkUrl.addEventListener('click', copyAlt);
             if (altLinkCopy) altLinkCopy.addEventListener('click', copyAlt);
         }
@@ -716,7 +1379,7 @@ const getLinkPreviewPage = (url, shortUrl, randomUrl, customUrl, viewingViaCusto
         const custLinkUrl = document.getElementById('customLinkUrl');
         const custLinkCopy = document.getElementById('customLinkCopy');
         if (custLinkUrl) {
-            const copyCust = () => navigator.clipboard.writeText(safeCustomUrlJS).then(showToast);
+            const copyCust = () => copyToClipboard(safeCustomUrlJS);
             custLinkUrl.addEventListener('click', copyCust);
             if (custLinkCopy) custLinkCopy.addEventListener('click', copyCust);
         }
@@ -1612,6 +2275,21 @@ export const redirectUrl = async (req, res, next) => {
                 return res.status(410).send(getExpiredLinkPage(shortId, cached.expiresAt));
             }
 
+            // Check if link safetyStatus is present; if legacy cached entry, load from DB
+            if (cached.safetyStatus === undefined && cached._id) {
+                const freshDoc = await Url.findById(cached._id).select('safetyStatus safetyDetails').lean();
+                if (freshDoc) {
+                    cached.safetyStatus = freshDoc.safetyStatus || 'unchecked';
+                    cached.safetyDetails = freshDoc.safetyDetails || null;
+                    await setInCache(shortId, cached);
+                }
+            }
+
+            // Check if link is malicious -> Intercept direct redirect with security warning page
+            if (isMaliciousStatus(cached.safetyStatus)) {
+                return res.status(200).send(getDirectRedirectWarningPage(cached, shortId, res.locals.nonce, req));
+            }
+
             // Check if link is password protected
             if (cached.isPasswordProtected) {
                 return res.send(getPasswordEntryPage(shortId, cached.title, res.locals.nonce));
@@ -1724,6 +2402,14 @@ export const redirectUrl = async (req, res, next) => {
             return res.status(410).send(getInactiveLinkPage(shortId));
         }
 
+        // Store in cache with ban status and safety status so fast-path handles all subsequent requests
+        await setInCache(shortId, {
+            ...url,
+            ownerId: url.createdBy,
+            ownerBanned,
+            disableLinksOnBan
+        });
+
         // Check if link is ready to go live (activeStartTime)
         if (url.activeStartTime && !isLinkActive(url.activeStartTime)) {
             // Show countdown page until link activates
@@ -1733,6 +2419,11 @@ export const redirectUrl = async (req, res, next) => {
         // Check if link has expired
         if (url.expiresAt && new Date() > new Date(url.expiresAt)) {
             return res.status(410).send(getExpiredLinkPage(shortId, url.expiresAt));
+        }
+
+        // Check if link is malicious -> Intercept direct redirect with security warning page
+        if (isMaliciousStatus(url.safetyStatus)) {
+            return res.status(200).send(getDirectRedirectWarningPage(url, shortId, res.locals.nonce, req));
         }
 
         // Check if link is password protected
@@ -1747,14 +2438,6 @@ export const redirectUrl = async (req, res, next) => {
                 return res.status(403).send(getLimitReachedPage());
             }
         }
-
-        // 4. Store in cache with ban status
-        await setInCache(shortId, {
-            ...url,
-            ownerId: url.createdBy,
-            ownerBanned,
-            disableLinksOnBan
-        });
 
         // Increment clicks (buffered)
         queueClickIncrement(url._id);
@@ -1870,7 +2553,7 @@ export const previewUrl = async (req, res) => {
         // Check if link is password protected
         if (url.isPasswordProtected) {
             const expectedToken = getPreviewUnlockToken(url._id.toString(), url.passwordHash);
-            const unlockCookie = req.cookies?.[`pwd_unlocked_${url.shortId}`];
+            const unlockCookie = req.cookies?.[`pwd_unlocked_${url.shortId}`] || req.cookies?.[`pwd_unlocked_${shortId}`];
             const unlockQuery = req.query?.unlocked;
             const isUnlocked = (unlockCookie === expectedToken) || (unlockQuery === expectedToken);
 

@@ -370,8 +370,12 @@ const createShortUrl = async (req, res, next) => {
                              }
                          );
                     }
+                    await invalidateCache(newUrl.shortId);
+                    if (newUrl.customAlias) await invalidateCache(newUrl.customAlias);
                 } else {
                     await Url.findByIdAndUpdate(newUrl._id, { safetyStatus: 'unchecked' });
+                    await invalidateCache(newUrl.shortId);
+                    if (newUrl.customAlias) await invalidateCache(newUrl.customAlias);
                 }
             } catch (err) {
                  console.error('[SafeBrowsing] Async check failed:', err.message);
@@ -880,8 +884,12 @@ const updateUrl = async (req, res, next) => {
                                     }
                                 );
                         }
+                        await invalidateCache(url.shortId);
+                        if (url.customAlias) await invalidateCache(url.customAlias);
                     } else {
                         await Url.findByIdAndUpdate(url._id, { safetyStatus: 'unchecked' });
+                        await invalidateCache(url.shortId);
+                        if (url.customAlias) await invalidateCache(url.customAlias);
                     }
                 } catch (err) {
                         console.error('[SafeBrowsing] Update check failed:', err.message);
