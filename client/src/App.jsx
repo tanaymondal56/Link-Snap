@@ -180,6 +180,7 @@ function AppContent() {
             <Route path="/account-suspended" element={<AccountSuspended />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/redeem" element={<RedeemPage />} />
+            <Route path="/redeem/:code" element={<RedeemPage />} />
 
             {/* Legal Pages */}
             <Route path="/terms" element={<TermsPage />} />

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../context/AuthContext';
-import { Check, X, Shield, Zap, Globe, Lock, Hammer, Star, Building2, Users, KeyRound, Webhook, HeadsetIcon, BarChart3, FlaskConical, QrCode, Crown } from 'lucide-react';
+import { Check, X, Shield, Zap, Globe, Lock, Hammer, Star, Building2, Users, KeyRound, Webhook, HeadsetIcon, BarChart3, FlaskConical, QrCode, Crown, Gift, ArrowRight } from 'lucide-react';
 import api from '../api/axios';
 import { useNavigate, Link } from 'react-router';
 import showToast from '../utils/toastUtils';
@@ -14,6 +14,7 @@ const PricingPage = () => {
   const [checkoutLoading, setCheckoutLoading] = useState(null); // null | 'pro' | 'business'
   const [pricing, setPricing] = useState(null);
   const [billingInterval, setBillingInterval] = useState('monthly'); // 'monthly' | 'yearly' | 'one_time'
+  const [promoInput, setPromoInput] = useState('');
   const { initiatePayment, processing: rzpProcessing } = useRazorpay();
 
   useEffect(() => {
@@ -243,6 +244,15 @@ const PricingPage = () => {
                     ? 'Active Plan' 
                     : (user?.subscription?.tier === 'pro' && user?.subscription?.status === 'active' ? 'Manage Subscription' : 'Upgrade Now')}
             </button>
+            <div className="text-center mb-6 -mt-5">
+              <Link 
+                to="/redeem" 
+                className="inline-flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                <Gift size={13} className="text-pink-400" />
+                <span>Have a promo code? <strong>Redeem here</strong></span>
+              </Link>
+            </div>
             <ul className="space-y-3 flex-1">
                 <li className="text-xs text-amber-400 uppercase tracking-wider mb-2">Everything in Free, plus:</li>
                 <li className="flex items-center gap-3 text-sm text-white">
@@ -410,6 +420,59 @@ const PricingPage = () => {
                 </p>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Promo Code & Voucher Redemption Banner */}
+        <div className="mt-16 relative overflow-hidden rounded-3xl border border-purple-500/30 bg-gradient-to-r from-purple-950/40 via-gray-900/60 to-blue-950/40 backdrop-blur-xl p-8 sm:p-10 shadow-2xl">
+          {/* Subtle Ambient Glow */}
+          <div className="absolute top-0 right-0 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+          <div className="absolute bottom-0 left-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
+
+          <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
+            <div className="max-w-xl text-center lg:text-left space-y-3">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-semibold uppercase tracking-wider">
+                <Gift size={14} className="text-pink-400" />
+                Voucher & Promo Redemption
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-white">
+                Have a Promo Code or Gift Voucher?
+              </h2>
+              <p className="text-gray-400 text-sm sm:text-base leading-relaxed">
+                Unlock instant access to Pro or Business features, trial passes, or extended subscriptions without paying upfront.
+              </p>
+            </div>
+
+            {/* Quick-Redeem Input Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const clean = promoInput.trim().toUpperCase();
+                if (clean) {
+                  navigate(`/redeem?code=${encodeURIComponent(clean)}`);
+                } else {
+                  navigate('/redeem');
+                }
+              }}
+              className="w-full lg:w-auto flex flex-col sm:flex-row items-center gap-3"
+            >
+              <div className="relative w-full sm:w-72">
+                <input
+                  type="text"
+                  placeholder="Enter code (e.g. PROMO50)"
+                  value={promoInput}
+                  onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                  className="w-full bg-gray-900/90 border border-purple-500/30 rounded-xl px-4 py-3.5 text-white placeholder-gray-500 font-mono text-sm focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 transition-all uppercase"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full sm:w-auto px-6 py-3.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg shadow-purple-500/20 transition-all flex items-center justify-center gap-2 shrink-0 hover:scale-[1.02] active:scale-95"
+              >
+                <span>Redeem Code</span>
+                <ArrowRight size={16} />
+              </button>
+            </form>
           </div>
         </div>
       </div>

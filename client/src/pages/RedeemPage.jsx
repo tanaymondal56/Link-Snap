@@ -1,30 +1,34 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useNavigate, useLocation, Link } from 'react-router';
+import { useSearchParams, useParams, useNavigate, useLocation, Link } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
-import { Loader2, Gift, AlertTriangle, CheckCircle, ArrowRight, X, CreditCard, Calendar } from 'lucide-react';
+import { Loader2, Gift, AlertTriangle, CheckCircle, ArrowRight, X, CreditCard, Calendar, Share2 } from 'lucide-react';
 import { formatDate, formatDuration } from '../utils/dateUtils';
 import showToast from '../utils/toastUtils';
 import confetti from 'canvas-confetti';
 
 const RedeemPage = () => {
+  const { code: pathCode } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading } = useAuth();
   
-  const [code, setCode] = useState(searchParams.get('code') || '');
-  const [shouldAutoCheck, setShouldAutoCheck] = useState(!!searchParams.get('code'));
+  const initialCode = (pathCode || searchParams.get('code') || '').toUpperCase();
+  const [code, setCode] = useState(initialCode);
+  const [shouldAutoCheck, setShouldAutoCheck] = useState(!!initialCode);
   const [validationData, setValidationData] = useState(null);
   const [status, setStatus] = useState('idle'); // idle, validating, valid, invalid, redeeming, success
   const [error, setError] = useState(null);
 
   // Auto-validate on load if user is logged in and code exists
   const validateCode = useCallback(async (codeToValidate) => {
+    if (!codeToValidate || !codeToValidate.trim()) return;
+    const cleanCode = codeToValidate.trim().toUpperCase();
     setStatus('validating');
     setError(null);
     try {
-      const { data } = await api.post('/subscription/redeem/validate', { code: codeToValidate });
+      const { data } = await api.post('/subscription/redeem/validate', { code: cleanCode });
       setValidationData(data);
       setStatus('valid');
     } catch (err) {
@@ -35,15 +39,49 @@ const RedeemPage = () => {
     }
   }, []);
 
+  const handleCopyShareLink = async (targetCode = code) => {
+    const cleanCode = (targetCode || '').trim().toUpperCase();
+    if (!cleanCode) return;
+    const origin = window.location.origin;
+    const shareUrl = `${origin}/redeem?code=${encodeURIComponent(cleanCode)}`;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = shareUrl;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      showToast.success('Redeem link copied to clipboard!');
+    } catch {
+      showToast.error('Failed to copy link');
+    }
+  };
+
   useEffect(() => {
     if (user && shouldAutoCheck && status === 'idle') {
-      const urlCode = searchParams.get('code');
-      if (urlCode) {
-        validateCode(urlCode);
+      const targetCode = pathCode || searchParams.get('code');
+      if (targetCode) {
+        validateCode(targetCode);
       }
       setShouldAutoCheck(false);
     }
-  }, [user, shouldAutoCheck, searchParams, status, validateCode]);
+  }, [user, shouldAutoCheck, searchParams, pathCode, status, validateCode]);
+
+  useEffect(() => {
+    const activeCode = (pathCode || searchParams.get('code') || '').toUpperCase();
+    if (activeCode && activeCode !== code) {
+      setCode(activeCode);
+      if (user) {
+        validateCode(activeCode);
+      }
+    }
+  }, [pathCode, searchParams, user, validateCode, code]);
 
     const handleRedeem = async () => {
     setStatus('redeeming');
@@ -123,9 +161,19 @@ const RedeemPage = () => {
                             </div>
                             
                             {code && (
-                                <div className="bg-gray-800/50 rounded-lg p-3 inline-block border border-gray-700">
-                                    <span className="text-gray-400 text-xs uppercase tracking-wider font-bold">Code:</span>
-                                    <span className="ml-2 font-mono text-white">{code}</span>
+                                <div className="flex items-center justify-center gap-2">
+                                    <div className="bg-gray-800/50 rounded-lg p-3 inline-block border border-gray-700">
+                                        <span className="text-gray-400 text-xs uppercase tracking-wider font-bold">Code:</span>
+                                        <span className="ml-2 font-mono text-white">{code}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopyShareLink(code)}
+                                        className="p-3 bg-gray-800/60 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg border border-gray-700 transition-colors"
+                                        title="Copy shareable redeem link"
+                                    >
+                                        <Share2 size={16} />
+                                    </button>
                                 </div>
                             )}
 
@@ -207,9 +255,20 @@ const RedeemPage = () => {
                                             <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center border border-green-500/30">
                                                 <CheckCircle className="text-green-400" size={24} />
                                             </div>
-                                            <div>
+                                            <div className="flex-1">
                                                 <h3 className="text-lg font-bold text-white">Code Verified</h3>
-                                                <p className="text-gray-400 text-sm font-mono">{validationData.code}</p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <p className="text-gray-400 text-sm font-mono">{validationData.code}</p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCopyShareLink(validationData.code)}
+                                                        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-blue-400 hover:text-blue-300 border border-white/10 transition-colors"
+                                                        title="Copy shareable redeem link"
+                                                    >
+                                                        <Share2 size={12} />
+                                                        <span>Share Link</span>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
 

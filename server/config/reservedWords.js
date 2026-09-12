@@ -75,6 +75,8 @@ const reservedWords = [
     'saml',
     'redirect',
     'redirects',
+    'pricing',
+    'redeem',
 
     // ========== Future Route Reservations ==========
     'workspace',
