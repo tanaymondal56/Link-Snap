@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import express from 'express';
 import { getUrlAnalytics } from '../controllers/analyticsController.js';
 import { trackEdgeClick, trackBulkClicks } from '../controllers/edgeAnalyticsController.js';
@@ -28,7 +29,16 @@ const internalOnly = (req, res, next) => {
         return res.status(503).end();
     }
     
-    if (secret !== expectedSecret) {
+    // Security: Constant-time comparison to prevent timing side-channel attacks (CWE-208)
+    const matches = (() => {
+        if (!secret || typeof secret !== 'string') return false;
+        const bufA = Buffer.from(secret);
+        const bufB = Buffer.from(expectedSecret);
+        if (bufA.length !== bufB.length) return false;
+        return crypto.timingSafeEqual(bufA, bufB);
+    })();
+
+    if (!matches) {
         // Silent fail - don't reveal endpoint exists to attackers
         return res.status(404).end();
     }

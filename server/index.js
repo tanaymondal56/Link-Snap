@@ -169,7 +169,7 @@ app.use(helmet({
       upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
     },
   },
-  crossOriginEmbedderPolicy: false,
+  crossOriginEmbedderPolicy: { policy: 'credentialless' },
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
   crossOriginResourcePolicy: { policy: 'same-site' },
   originAgentCluster: true,

@@ -6,11 +6,28 @@ export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
 
+  // Helper to serve assets from env.ASSETS while stripping lax CORS and enforcing COEP
+  const serveCleanAsset = async (req) => {
+    const assetRes = await env.ASSETS.fetch(req);
+    const assetHeaders = new Headers(assetRes.headers);
+    assetHeaders.delete('access-control-allow-origin');
+    assetHeaders.delete('access-control-allow-credentials');
+    if (!assetHeaders.has('cross-origin-embedder-policy')) {
+      assetHeaders.set('cross-origin-embedder-policy', 'credentialless');
+    }
+    const hasNoBody = assetRes.status === 204 || assetRes.status === 304;
+    return new Response(hasNoBody ? null : assetRes.body, {
+      status: assetRes.status,
+      statusText: assetRes.statusText,
+      headers: assetHeaders,
+    });
+  };
+
   // 1. If it's the homepage or index.html, serve it directly from static assets.
   // Other static assets (js, css, images) are already excluded in _routes.json
   // and will bypass this function entirely.
   if (url.pathname === '/' || url.pathname === '/index.html') {
-    return env.ASSETS.fetch(request);
+    return serveCleanAsset(request);
   }
 
   const apiBase = env.API_BASE_URL || 'https://api.lksnp.qzz.io';
@@ -18,6 +35,13 @@ export async function onRequest(context) {
   const targetUrl = `${apiBase}${url.pathname}${url.search}`;
 
   const headers = new Headers(request.headers);
+  // Security: Strip any client-supplied internal secrets or CF-Access assertions
+  headers.delete('cf-access-client-id');
+  headers.delete('cf-access-client-secret');
+  headers.delete('cf-access-jwt-assertion');
+  headers.delete('x-linksnap-proxy-secret');
+  headers.delete('x-internal-analytics-secret');
+
   // Inject Cloudflare Access Service Tokens so the backend accepts the request
   if (env.CF_CLIENT_ID && env.CF_CLIENT_SECRET) {
     headers.set('CF-Access-Client-Id', env.CF_CLIENT_ID);
@@ -32,8 +56,7 @@ export async function onRequest(context) {
     headers.set('cf-connecting-ip', clientIP);
     headers.set('cf-visitor-ip', clientIP);
     headers.set('x-real-ip', clientIP);
-    const existingXFF = request.headers.get('x-forwarded-for');
-    headers.set('x-forwarded-for', existingXFF ? `${clientIP}, ${existingXFF}` : clientIP);
+    headers.set('x-forwarded-for', clientIP);
   }
   if (pseudoIPv4) {
     headers.set('cf-pseudo-ipv4', pseudoIPv4);
@@ -72,13 +95,20 @@ export async function onRequest(context) {
     // So we gracefully fallback to serving the React app's index.html.
     if (response.status === 404) {
       const indexRequest = new Request(new URL('/', request.url), request);
-      return env.ASSETS.fetch(indexRequest);
+      return serveCleanAsset(indexRequest);
     }
 
     // Otherwise, return the backend's response (301, 302, 200 HTML, etc)
     const responseHeaders = new Headers(response.headers);
-    responseHeaders.delete('access-control-allow-origin');
-    responseHeaders.delete('access-control-allow-credentials');
+    const incomingOrigin = request.headers.get('origin');
+    const acao = responseHeaders.get('access-control-allow-origin');
+    if (acao === '*' || !incomingOrigin) {
+      responseHeaders.delete('access-control-allow-origin');
+      responseHeaders.delete('access-control-allow-credentials');
+    }
+    if (!responseHeaders.has('cross-origin-embedder-policy')) {
+      responseHeaders.set('cross-origin-embedder-policy', 'credentialless');
+    }
 
     // Preserve multiple Set-Cookie headers (Fetch Headers constructor folds them by default)
     if (typeof response.headers.getSetCookie === 'function') {
@@ -91,7 +121,8 @@ export async function onRequest(context) {
       }
     }
 
-    return new Response(response.body, {
+    const hasNoBody = response.status === 204 || response.status === 304;
+    return new Response(hasNoBody ? null : response.body, {
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,
@@ -101,7 +132,7 @@ export async function onRequest(context) {
 
     // If backend is down, fallback to the React app so the dashboard still works
     const indexRequest = new Request(new URL('/', request.url), request);
-    return env.ASSETS.fetch(indexRequest);
+    return serveCleanAsset(indexRequest);
   } finally {
     clearTimeout(timeoutId);
   }

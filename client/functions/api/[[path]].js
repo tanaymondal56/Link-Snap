@@ -35,6 +35,13 @@ export async function onRequest(context) {
 
   // Clone headers and inject CF Access Service Token
   const headers = new Headers(request.headers);
+  // Security: Strip any client-supplied internal secrets or CF-Access assertions
+  headers.delete('cf-access-client-id');
+  headers.delete('cf-access-client-secret');
+  headers.delete('cf-access-jwt-assertion');
+  headers.delete('x-linksnap-proxy-secret');
+  headers.delete('x-internal-analytics-secret');
+
   headers.set('CF-Access-Client-Id', env.CF_CLIENT_ID);
   headers.set('CF-Access-Client-Secret', env.CF_CLIENT_SECRET);
 
@@ -46,8 +53,7 @@ export async function onRequest(context) {
     headers.set('cf-connecting-ip', clientIP);
     headers.set('cf-visitor-ip', clientIP);
     headers.set('x-real-ip', clientIP);
-    const existingXFF = request.headers.get('x-forwarded-for');
-    headers.set('x-forwarded-for', existingXFF ? `${clientIP}, ${existingXFF}` : clientIP);
+    headers.set('x-forwarded-for', clientIP);
   }
   if (pseudoIPv4) {
     headers.set('cf-pseudo-ipv4', pseudoIPv4);
@@ -82,10 +88,17 @@ export async function onRequest(context) {
   try {
     const response = await fetch(upstreamRequest, { signal: controller.signal });
 
-    // Strip any upstream CORS headers — CF Pages will add its own
+    // Strip lax/wildcard CORS headers, and enforce credentialless COEP
     const responseHeaders = new Headers(response.headers);
-    responseHeaders.delete('access-control-allow-origin');
-    responseHeaders.delete('access-control-allow-credentials');
+    const incomingOrigin = request.headers.get('origin');
+    const acao = responseHeaders.get('access-control-allow-origin');
+    if (acao === '*' || !incomingOrigin) {
+      responseHeaders.delete('access-control-allow-origin');
+      responseHeaders.delete('access-control-allow-credentials');
+    }
+    if (!responseHeaders.has('cross-origin-embedder-policy')) {
+      responseHeaders.set('cross-origin-embedder-policy', 'credentialless');
+    }
 
     // Preserve multiple Set-Cookie headers (Fetch Headers constructor folds them by default)
     if (typeof response.headers.getSetCookie === 'function') {
@@ -98,7 +111,8 @@ export async function onRequest(context) {
       }
     }
 
-    return new Response(response.body, {
+    const hasNoBody = response.status === 204 || response.status === 304;
+    return new Response(hasNoBody ? null : response.body, {
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,

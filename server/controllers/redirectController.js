@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import User from '../models/User.js';
 import Url from '../models/Url.js';
 import { trackVisit } from '../services/analyticsService.js';
@@ -21,6 +22,17 @@ const escapeHtml = (unsafe) => {
         .replace(/'/g, "&#039;");
 };
 
+export const isInternalDomain = (domain) => {
+    if (!domain || typeof domain !== 'string') return false;
+    const clean = domain.toLowerCase().replace(/:\d+$/, '').trim();
+    return clean === 'lksnp.qzz.io' ||
+           clean.endsWith('.lksnp.qzz.io') ||
+           clean === 'link-snap.pages.dev' ||
+           clean.endsWith('.link-snap.pages.dev') ||
+           clean === 'localhost' ||
+           clean === '127.0.0.1';
+};
+
 // Domain and URL helpers to guarantee public client host resolution
 export const getPublicHost = (req) => {
     let rawHost = (req.headers['x-forwarded-host'] || req.get('host') || '').trim();
@@ -29,14 +41,17 @@ export const getPublicHost = (req) => {
     }
     // Strip upstream internal API subdomains
     if (rawHost.startsWith('api-beta.')) {
-        return rawHost.replace(/^api-beta\./, 'beta.');
+        rawHost = rawHost.replace(/^api-beta\./, 'beta.');
+    } else if (rawHost.startsWith('api.')) {
+        rawHost = rawHost.replace(/^api\./, '');
     }
-    if (rawHost.startsWith('api.')) {
-        return rawHost.replace(/^api\./, '');
-    }
-    if (rawHost) {
+
+    // Security: Validate host against allowed domain patterns to prevent Host Header Poisoning
+    if (rawHost && isInternalDomain(rawHost)) {
         return rawHost;
     }
+
+    // Fallback to configured canonical host
     const fallback = process.env.BASE_URL || process.env.CLIENT_URL || 'https://lksnp.qzz.io';
     try {
         return new URL(fallback).host;
@@ -48,19 +63,16 @@ export const getPublicHost = (req) => {
 export const getPublicProtocol = (req) => {
     const forwardedProto = req.headers['x-forwarded-proto'];
     if (forwardedProto) {
-        return forwardedProto.split(',')[0].trim();
+        const proto = forwardedProto.split(',')[0].trim().toLowerCase();
+        if (proto === 'https' || proto === 'http') {
+            return proto;
+        }
     }
     return req.protocol || (req.secure ? 'https' : 'http');
 };
 
 export const getPublicBaseUrl = (req) => {
     return `${getPublicProtocol(req)}://${getPublicHost(req)}`;
-};
-
-export const isInternalDomain = (domain) => {
-    if (!domain) return false;
-    const clean = domain.toLowerCase().replace(/:\d+$/, '');
-    return clean === 'lksnp.qzz.io' || clean.endsWith('.lksnp.qzz.io') || clean === 'localhost';
 };
 
 export const getDisplayTitle = (title, shortId, customAlias = null) => {
@@ -2555,7 +2567,16 @@ export const previewUrl = async (req, res) => {
             const expectedToken = getPreviewUnlockToken(url._id.toString(), url.passwordHash);
             const unlockCookie = req.cookies?.[`pwd_unlocked_${url.shortId}`] || req.cookies?.[`pwd_unlocked_${shortId}`];
             const unlockQuery = req.query?.unlocked;
-            const isUnlocked = (unlockCookie === expectedToken) || (unlockQuery === expectedToken);
+
+            const safeCompare = (candidate, target) => {
+                if (!candidate || !target || typeof candidate !== 'string' || typeof target !== 'string') return false;
+                const bufA = Buffer.from(candidate);
+                const bufB = Buffer.from(target);
+                if (bufA.length !== bufB.length) return false;
+                return crypto.timingSafeEqual(bufA, bufB);
+            };
+
+            const isUnlocked = safeCompare(unlockCookie, expectedToken) || safeCompare(unlockQuery, expectedToken);
 
             if (!isUnlocked) {
                 return res.send(getPasswordEntryPage(shortId, url.title, res.locals.nonce, true));

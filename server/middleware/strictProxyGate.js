@@ -205,45 +205,55 @@ const getRealUserIP = (req) => {
     const hopIsTrusted = isTrustedProxyIP(connectingIP);
 
     if (hopIsTrusted) {
-        // Collect candidate client IPs from trusted headers
-        const candidateIPs = [];
-        const addCandidate = (val) => {
+        // Priority 1: Cloudflare Pseudo IPv4 (if dual-stack client has IPv4 mapping enabled)
+        const pseudoIPv4 = req.headers['cf-pseudo-ipv4'];
+        if (pseudoIPv4 && typeof pseudoIPv4 === 'string') {
+            const formatted = formatPreferredIP(pseudoIPv4.trim());
+            if (formatted && isIPv4(formatted) && !isCloudflareEgressIP(formatted) && !isInternalClusterIP(formatted)) {
+                return formatted;
+            }
+        }
+
+        // Priority 2: Direct Cloudflare connecting IP (authoritative, stamped by Cloudflare edge)
+        const cfIp = req.headers['cf-connecting-ip'];
+        if (cfIp && typeof cfIp === 'string') {
+            const formatted = formatPreferredIP(cfIp.trim());
+            if (formatted && !isCloudflareEgressIP(formatted) && !isInternalClusterIP(formatted)) {
+                return formatted;
+            }
+        }
+
+        // Priority 3: Pages BFF visitor IP (injected by our edge function)
+        const visitorIp = req.headers['cf-visitor-ip'];
+        if (visitorIp && typeof visitorIp === 'string') {
+            const formatted = formatPreferredIP(visitorIp.trim());
+            if (formatted && !isCloudflareEgressIP(formatted) && !isInternalClusterIP(formatted)) {
+                return formatted;
+            }
+        }
+
+        // Priority 4: Non-Cloudflare fallback only (e.g. plain Nginx proxy in private LAN/dev)
+        // Strictly inspect only the leftmost (client) IP in X-Forwarded-For to prevent spoofing
+        const fallbackCandidates = [];
+        const addFallback = (val) => {
             if (!val || typeof val !== 'string') return;
-            val.split(',').forEach((raw) => {
-                const formatted = formatPreferredIP(raw);
-                if (formatted && !isCloudflareEgressIP(formatted) && !isInternalClusterIP(formatted)) {
-                    if (!candidateIPs.includes(formatted)) {
-                        candidateIPs.push(formatted);
-                    }
-                }
-            });
+            const firstVal = val.split(',')[0].trim();
+            const formatted = formatPreferredIP(firstVal);
+            if (formatted && !isCloudflareEgressIP(formatted) && !isInternalClusterIP(formatted)) {
+                fallbackCandidates.push(formatted);
+            }
         };
 
-        // Trusted headers in priority order:
-        // 1. Cloudflare Pseudo IPv4 (if dual-stack client has IPv4 mapping enabled)
-        addCandidate(req.headers['cf-pseudo-ipv4']);
-        // 2. Direct Cloudflare connecting IP & Pages BFF visitor IP
-        addCandidate(req.headers['cf-connecting-ip']);
-        addCandidate(req.headers['cf-visitor-ip']);
-        // 3. Standard reverse proxy forwarded headers
-        addCandidate(req.headers['x-real-ip']);
-        addCandidate(req.headers['x-forwarded-for']);
+        addFallback(req.headers['x-real-ip']);
+        addFallback(req.headers['x-forwarded-for']);
 
-        // PREFER IPv4: If client has both IPv4 and IPv6 available, return IPv4
-        const ipv4Candidate = candidateIPs.find((ip) => isIPv4(ip));
-        if (ipv4Candidate) {
-            return ipv4Candidate;
+        if (fallbackCandidates.length > 0) {
+            return fallbackCandidates[0];
         }
 
-        // If only IPv6 candidates exist, return the first valid visitor IPv6 address
-        if (candidateIPs.length > 0) {
-            return candidateIPs[0];
-        }
-
-        // If cfIp was present (even if worker egress), prefer it over internal K8s cluster socket IP (10.42.*)
-        const cfIp = req.headers['cf-connecting-ip'];
+        // If cfIp was present but flagged as internal/egress, prefer it over internal K8s socket IP
         if (cfIp && typeof cfIp === 'string' && cfIp.trim()) {
-            const formattedCfIp = formatPreferredIP(cfIp);
+            const formattedCfIp = formatPreferredIP(cfIp.trim());
             if (!isInternalClusterIP(formattedCfIp)) {
                 return formattedCfIp;
             }
@@ -335,18 +345,19 @@ export const strictProxyGate = (req, res, next) => {
     // ═══════════════════════════════════════════════════════════════════════════
     // Allow static assets to be served without proxy authentication
     // These are public files that should be accessible directly
+    const path = req.path || '';
     if (
-        req.path.startsWith('/assets/') ||
-        req.path === '/manifest.json' ||
-        req.path === '/manifest.webmanifest' ||
-        req.path === '/robots.txt' ||
-        req.path === '/sitemap.xml' ||
-        req.path === '/sw.js' ||
-        req.path === '/favicon.ico' ||
-        req.path === '/favicon.svg' ||
-        req.path === '/favicon-16x16.png' ||
-        req.path === '/favicon-32x32.png' ||
-        req.path === '/apple-touch-icon.png'
+        path.startsWith('/assets/') ||
+        path === '/manifest.json' ||
+        path === '/manifest.webmanifest' ||
+        path === '/robots.txt' ||
+        path === '/sitemap.xml' ||
+        path === '/sw.js' ||
+        path === '/favicon.ico' ||
+        path === '/favicon.svg' ||
+        path === '/favicon-16x16.png' ||
+        path === '/favicon-32x32.png' ||
+        path === '/apple-touch-icon.png'
     ) {
         return next();
     }
@@ -369,12 +380,12 @@ export const strictProxyGate = (req, res, next) => {
         '/api/webhooks',         // External webhooks (Razorpay/LemonSqueezy) - secure via signature verification
     ];
 
-    const isPublicApi = publicApiPaths.some(path => req.path.startsWith(path));
+    const isPublicApi = publicApiPaths.some(apiPrefix => path.startsWith(apiPrefix));
 
     if (isPublicApi) {
         // Debug only — avoid log spam in production for every public request
         if (process.env.NODE_ENV !== 'production') {
-            console.log(`[ProxyGate] ✅ Public API bypass for: ${req.path}`);
+            console.log(`[ProxyGate] ✅ Public API bypass for: ${path}`);
         }
         return next();
     }
@@ -386,7 +397,7 @@ export const strictProxyGate = (req, res, next) => {
     // - Load balancer health probes
     // - External monitoring services (UptimeRobot, etc.)
     // - Nginx upstream health checks
-    if (req.path === CONFIG.healthCheckPath && req.method === 'GET') {
+    if (path === CONFIG.healthCheckPath && req.method === 'GET') {
         return res.status(200).json({
             status: 'ok',
             timestamp: new Date().toISOString(),
