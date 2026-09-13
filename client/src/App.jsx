@@ -20,6 +20,7 @@ const PWAUpdatePrompt = lazy(() => import('./components/PWAUpdatePrompt'));
 const PostUpdateChoiceModal = lazy(() => import('./components/PostUpdateChoiceModal'));
 // Lazy load AdminLayout
 const LazyAdminLayout = lazy(() => import('./components/AdminLayout'));
+const CookieBanner = lazy(() => import('./components/CookieBanner'));
 
 // Initialize version cache on app load (non-blocking)
 initializeVersion();
@@ -322,6 +323,10 @@ function App() {
                   <MobileBackButton />
                 </Suspense>
               )}
+              {/* GDPR Cookie Consent Banner */}
+              <Suspense fallback={null}>
+                <CookieBanner />
+              </Suspense>
             </DialogProvider>
           </ConfirmDialogProvider>
         </ToastProvider>

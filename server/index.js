@@ -125,19 +125,21 @@ app.use((req, res, next) => {
 // Build dynamic connectSrc for CSP based on configured allowed origins
 const dynamicConnectSrc = [
   "'self'",
-  process.env.CLIENT_URL || "http://localhost:3000",
+  ...(process.env.NODE_ENV === 'production'
+    ? (process.env.CLIENT_URL ? [process.env.CLIENT_URL] : ['https://lksnp.qzz.io'])
+    : [process.env.CLIENT_URL || "http://localhost:3000"]),
   // Allow all entries from ALLOWED_ORIGINS as well
   ...(() => {
     if (!process.env.ALLOWED_ORIGINS) return [];
     return process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean);
   })(),
-];
+].filter(Boolean);
 
 // Security headers with Helmet
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"],
+      defaultSrc: ["'none'"],
       scriptSrc: [
         // Security: 'unsafe-inline' and 'unsafe-eval' removed — either one
         // nullifies the nonce below, letting XSS payloads execute freely.
@@ -151,6 +153,7 @@ app.use(helmet({
       ],
       styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles
       imgSrc: ["'self'", "data:", "https:"],
+      mediaSrc: ["'self'", "data:"],
       connectSrc: [
         ...dynamicConnectSrc,
         'https://*.razorpay.com',
@@ -191,7 +194,7 @@ app.use(helmet({
 app.use((req, res, next) => {
   res.setHeader(
     'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=(), run-ad-auction=(), join-ad-interest-group=(), browsing-topics=(), publickey-credentials-get=(self), payment=(self "https://*.razorpay.com" "https://razorpay.com"), clipboard-write=(self), clipboard-read=(self), fullscreen=(self)'
+    'camera=(), microphone=(), geolocation=(), publickey-credentials-get=(self), payment=(self "https://checkout.razorpay.com" "https://api.razorpay.com" "https://razorpay.com"), clipboard-write=(self), clipboard-read=(self), fullscreen=(self)'
   );
   next();
 });
