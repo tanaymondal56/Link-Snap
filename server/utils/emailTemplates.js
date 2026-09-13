@@ -31,15 +31,12 @@ const escapeHtml = (unsafe) => {
 };
 
 // Get app URL - uses CLIENT_URL env var (required in production)
-// In development, falls back to localhost:3000 (Vite proxy) or localhost:5000 (direct API)
+// Ensures email links never point to localhost in emails sent over the internet
 const getAppUrl = () => {
-    let url = 'http://localhost:3000';
+    let url = process.env.CLIENT_URL;
     
-    if (process.env.CLIENT_URL) {
-        url = process.env.CLIENT_URL;
-    } else if (process.env.NODE_ENV === 'production') {
-        console.warn('WARNING: CLIENT_URL not set in production. Email links may not work correctly.');
-        url = '';
+    if (!url || url.includes('localhost') || url.includes('127.0.0.1')) {
+        url = process.env.NODE_ENV === 'production' ? 'https://lksnp.qzz.io' : 'https://beta.lksnp.qzz.io';
     }
     
     // Ensure no trailing slash

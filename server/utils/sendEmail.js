@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import { getSettings } from './getSettings.js';
 import { decryptEmailPassword } from '../models/Settings.js';
 import { Resend } from 'resend';
+import { generatePlainText } from './emailTemplates.js';
 
 const sendEmail = async (options) => {
     // Fetch settings directly (relying on getSettings' built-in Redis cache with invalidation logic)
@@ -57,11 +58,14 @@ const sendEmail = async (options) => {
         // Support explicit from overrides if passed by caller
         const finalFrom = options.from || `${fromName} <${fromEmail}>`;
 
+        const plainText = options.text || (options.message ? generatePlainText(options.message) : undefined);
+
         const { error } = await resend.emails.send({
             from: finalFrom,
             to: options.email,
             subject: options.subject,
             html: options.message,
+            ...(plainText ? { text: plainText } : {}),
         });
 
         if (error) {
@@ -150,11 +154,14 @@ const sendEmail = async (options) => {
 
     const finalFromSMTP = options.from || fromHeader;
 
+    const plainText = options.text || (options.message ? generatePlainText(options.message) : undefined);
+
     const mailOptions = {
         from: finalFromSMTP,
         to: options.email,
         subject: options.subject,
         html: options.message,
+        ...(plainText ? { text: plainText } : {}),
     };
 
     await transporter.sendMail(mailOptions);
