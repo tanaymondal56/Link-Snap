@@ -3,6 +3,7 @@ import { getSettings } from './getSettings.js';
 import { decryptEmailPassword } from '../models/Settings.js';
 import { Resend } from 'resend';
 import { generatePlainText } from './emailTemplates.js';
+import crypto from 'node:crypto';
 
 const sendEmail = async (options) => {
     // Fetch settings directly (relying on getSettings' built-in Redis cache with invalidation logic)
@@ -66,6 +67,10 @@ const sendEmail = async (options) => {
             subject: options.subject,
             html: options.message,
             ...(plainText ? { text: plainText } : {}),
+            reply_to: options.replyTo || supportEmail,
+            headers: {
+                'X-Entity-Ref-ID': crypto.randomUUID(),
+            },
         });
 
         if (error) {
@@ -162,6 +167,7 @@ const sendEmail = async (options) => {
         subject: options.subject,
         html: options.message,
         ...(plainText ? { text: plainText } : {}),
+        replyTo: options.replyTo || settings.emailUsername,
     };
 
     await transporter.sendMail(mailOptions);
