@@ -45,15 +45,13 @@ const sendEmail = async (options) => {
         let fromEmail;
         let fromName;
 
+        fromName = 'Link Snap';
         if (workType === 'auth') {
             fromEmail = authEmail;
-            fromName = 'Link Snap Security';
         } else if (workType === 'admin') {
             fromEmail = adminEmail;
-            fromName = 'Link Snap Admin';
         } else {
             fromEmail = supportEmail;
-            fromName = 'Link Snap Support';
         }
 
         // Support explicit from overrides if passed by caller
@@ -157,14 +155,7 @@ const sendEmail = async (options) => {
     const transporter = nodemailer.createTransport(transporterConfig);
 
     // Setup differentiated from header for SMTP (using display name to avoid authentication failures)
-    let fromHeader;
-    if (workType === 'auth') {
-        fromHeader = `"Link Snap Security" <${settings.emailUsername}>`;
-    } else if (workType === 'admin') {
-        fromHeader = `"Link Snap Admin" <${settings.emailUsername}>`;
-    } else {
-        fromHeader = `"Link Snap Support" <${settings.emailUsername}>`;
-    }
+    const fromHeader = `"Link Snap" <${settings.emailUsername}>`;
 
     const finalFromSMTP = options.from || fromHeader;
 
