@@ -702,15 +702,15 @@ export const accountExistsEmail = (user) => {
  */
 export const passwordResetEmail = (user, resetToken, otp) => {
     const firstName = escapeHtml(user.firstName) || 'there';
-    const resetUrl = `${getAppUrl()}/reset-password/${resetToken}`;
+    const resetUrl = `${getAppUrl()}/reset-password?email=${encodeURIComponent(user.email || '')}`;
     
     const content = `
     <!-- Icon -->
     <table border="0" cellpadding="0" cellspacing="0" width="100%">
       <tr>
         <td align="center" style="padding-bottom: 24px;">
-          <div style="background: linear-gradient(135deg, ${brandColors.primary} 0%, ${brandColors.primaryDark} 100%); width: 72px; height: 72px; border-radius: 50%; display: inline-block; text-align: center; line-height: 72px;">
-            <span style="font-size: 36px;">🔑</span>
+          <div style="background: linear-gradient(135deg, ${brandColors.primary} 0%, ${brandColors.secondary} 100%); width: 72px; height: 72px; border-radius: 50%; display: inline-block; text-align: center; line-height: 72px;">
+            <span style="font-size: 36px;">🔒</span>
           </div>
         </td>
       </tr>
@@ -718,51 +718,50 @@ export const passwordResetEmail = (user, resetToken, otp) => {
     
     <!-- Heading -->
     <h1 style="margin: 0 0 16px 0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 28px; font-weight: 700; color: ${brandColors.dark}; text-align: center;">
-      Reset Your Password
+      Account Recovery Code
     </h1>
     
-    <p style="margin: 0 0 16px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: ${brandColors.dark};">
+    <!-- Message -->
+    <p style="margin: 0 0 8px 0; font-family: Arial, sans-serif; font-size: 16px; color: ${brandColors.gray}; text-align: center; line-height: 1.6;">
       Hi ${firstName},
     </p>
-    
-    <p style="margin: 0 0 24px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: ${brandColors.gray};">
-      We received a request to reset the password for your Link Snap account. You can reset your password using the OTP code below or by clicking the button.
+    <p style="margin: 0 0 24px 0; font-family: Arial, sans-serif; font-size: 16px; color: ${brandColors.gray}; text-align: center; line-height: 1.6;">
+      We received a request to recover your Link Snap account. Use the code below to set a new password.
     </p>
     
-    <!-- OTP Box -->
-    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 24px 0;">
+    <!-- OTP Display -->
+    <p style="margin: 0 0 16px 0; font-family: Arial, sans-serif; font-size: 16px; color: ${brandColors.gray}; text-align: center; line-height: 1.6;">
+      Your 6-digit recovery code <strong>(expires in 10 minutes)</strong>:
+    </p>
+    
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 24px;">
       <tr>
         <td align="center">
-          <div style="background: linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary}); border-radius: 12px; padding: 20px 32px; display: inline-block; text-align: center;">
-            <p style="margin: 0 0 6px 0; font-family: Arial, sans-serif; font-size: 13px; color: rgba(255,255,255,0.9); text-transform: uppercase; letter-spacing: 1px;">Reset Code</p>
-            <p style="margin: 0; font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: ${brandColors.white};">${escapeHtml(otp)}</p>
-            <p style="margin: 6px 0 0 0; font-family: Arial, sans-serif; font-size: 12px; color: rgba(255,255,255,0.75);">Expires in 10 minutes</p>
+          <div style="font-family: monospace; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: ${brandColors.dark}; background-color: #f3f4f6; padding: 16px 32px; border-radius: 12px; display: inline-block; border: 2px dashed ${brandColors.grayLight};">
+            ${escapeHtml(otp)}
           </div>
         </td>
       </tr>
     </table>
     
-    <p style="margin: 0 0 16px 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: ${brandColors.gray}; text-align: center;">
-      Or reset directly by clicking the button below (valid for 1 hour):
+    <p style="margin: 0 0 8px 0; font-family: Arial, sans-serif; font-size: 14px; color: ${brandColors.gray}; text-align: center;">
+      Click the button below to enter your code on Link Snap:
     </p>
     
-    ${primaryButton('Reset Password', resetUrl)}
+    ${primaryButton('Enter Recovery Code', resetUrl)}
     
-    ${statusBox('info', '🔒', 'Security Notice', 'If you did not request a password reset, you can safely disregard this email. Your account remains secure and no changes were made.')}
+    ${statusBox('info', '🔒', 'Security Notice', 'If you did not request to reset your password, you can safely ignore this email. Your account remains secure.')}
     
     ${divider()}
     
     <p style="margin: 0; font-family: Arial, sans-serif; font-size: 13px; color: ${brandColors.grayLight}; text-align: center;">
-      If the button doesn't work, copy and paste this link into your browser:
-    </p>
-    <p style="margin: 8px 0 0 0; font-family: monospace; font-size: 12px; color: ${brandColors.primary}; text-align: center; word-break: break-all;">
-      ${resetUrl}
+      If you didn't request this code, you can safely ignore this email.
     </p>
   `;
 
     return {
-        subject: 'Reset your Link Snap password',
-        html: baseTemplate(content, `Hi ${firstName}, here is your password reset code: ${escapeHtml(otp)}`)
+        subject: 'Link Snap account recovery code',
+        html: baseTemplate(content, `Hi ${firstName}, your Link Snap recovery code is ${escapeHtml(otp)}`)
     };
 };
 
