@@ -61,6 +61,17 @@ const sendEmail = async (options) => {
 
         const plainText = options.text || (options.message ? generatePlainText(options.message) : undefined);
 
+        const unsubscribeMailto = `<mailto:${supportEmail}?subject=Unsubscribe>`;
+        const unsubHeader = options.unsubscribeUrl
+            ? `<${options.unsubscribeUrl}>, ${unsubscribeMailto}`
+            : unsubscribeMailto;
+
+        const customHeaders = {
+            'X-Entity-Ref-ID': crypto.randomUUID(),
+            'List-Unsubscribe': unsubHeader,
+            ...(options.unsubscribeUrl ? { 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : {}),
+        };
+
         const { error } = await resend.emails.send({
             from: finalFrom,
             to: options.email,
@@ -68,9 +79,7 @@ const sendEmail = async (options) => {
             html: options.message,
             ...(plainText ? { text: plainText } : {}),
             reply_to: options.replyTo || supportEmail,
-            headers: {
-                'X-Entity-Ref-ID': crypto.randomUUID(),
-            },
+            headers: customHeaders,
         });
 
         if (error) {
@@ -161,6 +170,11 @@ const sendEmail = async (options) => {
 
     const plainText = options.text || (options.message ? generatePlainText(options.message) : undefined);
 
+    const unsubscribeMailto = `<mailto:${settings.emailUsername}?subject=Unsubscribe>`;
+    const unsubHeader = options.unsubscribeUrl
+        ? `<${options.unsubscribeUrl}>, ${unsubscribeMailto}`
+        : unsubscribeMailto;
+
     const mailOptions = {
         from: finalFromSMTP,
         to: options.email,
@@ -168,6 +182,11 @@ const sendEmail = async (options) => {
         html: options.message,
         ...(plainText ? { text: plainText } : {}),
         replyTo: options.replyTo || settings.emailUsername,
+        headers: {
+            'X-Entity-Ref-ID': crypto.randomUUID(),
+            'List-Unsubscribe': unsubHeader,
+            ...(options.unsubscribeUrl ? { 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : {}),
+        },
     };
 
     await transporter.sendMail(mailOptions);
