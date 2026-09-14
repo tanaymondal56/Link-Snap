@@ -14,13 +14,13 @@ const run = async () => {
     await processScheduledChangelogs();
     await processExpiredSubscriptions();
     logger.info('[CronJob] Ban Expiry, Subscription Expiry & Changelog Publisher finished successfully.');
-    disconnectRedis();
+    await disconnectRedis();
     await mongoose.connection.close();
     process.exit(0);
   } catch (error) {
     logger.error(`[CronJob] Error: ${error.message}`);
     try {
-      disconnectRedis();
+      await disconnectRedis();
       await mongoose.connection.close();
     } catch (e) {
       logger.error(`[CronJob] Connection close error: ${e.message}`);
@@ -28,5 +28,19 @@ const run = async () => {
     process.exit(1);
   }
 };
+
+const handleShutdown = async (signal) => {
+  logger.warn(`[CronJob] Received ${signal}. Shutting down gracefully...`);
+  try {
+    await disconnectRedis();
+    await mongoose.connection.close();
+  } catch (e) {
+    logger.error(`[CronJob] Connection close error: ${e.message}`);
+  }
+  process.exit(1);
+};
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
 
 run();

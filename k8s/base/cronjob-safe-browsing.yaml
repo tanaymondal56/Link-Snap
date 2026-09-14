@@ -16,6 +16,7 @@ spec:
         metadata:
           labels:
             app: linksnap-cronjob
+            job: safe-browsing
         spec:
           automountServiceAccountToken: false
           restartPolicy: OnFailure
@@ -35,6 +36,9 @@ spec:
                 capabilities:
                   drop: ["ALL"]
               command: ["node", "scripts/runSafeBrowsingScan.js"]
+              env:
+                - name: NODE_OPTIONS
+                  value: "--max-old-space-size=180"
               envFrom:
                 - configMapRef:
                     name: linksnap-config

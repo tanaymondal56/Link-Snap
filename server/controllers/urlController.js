@@ -291,6 +291,41 @@ const createShortUrl = async (req, res, next) => {
             }
         }
 
+        // Safe Browsing Check at Creation Time (Bounded 800ms fast check)
+        let initialSafetyStatus = 'unchecked';
+        let initialSafetyDetails = null;
+        let initialLastCheckedAt = undefined;
+
+        try {
+            const settings = await getSettings();
+            if (settings?.safeBrowsingAutoCheck && settings?.safeBrowsingEnabled) {
+                const urlsToCheck = [originalUrl];
+                if (deviceRedirectsData?.rules) {
+                    deviceRedirectsData.rules.forEach(r => { if (r.url) urlsToCheck.push(r.url); });
+                }
+                if (timeRedirectsData?.rules) {
+                    timeRedirectsData.rules.forEach(r => { if (r.destination) urlsToCheck.push(r.destination); });
+                }
+
+                // Fast bounded lookup (Redis cache hits in <1ms; API call bounded at 800ms)
+                const safetyResult = await checkUrlsSafety(urlsToCheck, { timeoutMs: 800 });
+                if (safetyResult.status === 'safe') {
+                    initialSafetyStatus = 'safe';
+                    initialLastCheckedAt = new Date();
+                } else if (safetyResult.status === 'pending') {
+                    initialSafetyStatus = 'pending';
+                } else {
+                    // Threat detected (phishing, malware, unwanted)
+                    initialSafetyStatus = safetyResult.status;
+                    initialSafetyDetails = safetyResult.details;
+                    initialLastCheckedAt = new Date();
+                }
+            }
+        } catch (checkErr) {
+            logger.warn(`[SafeBrowsing] Fast creation check bypassed: ${checkErr.message}`);
+            initialSafetyStatus = 'pending';
+        }
+
         let newUrl;
         try {
             newUrl = await Url.create({
@@ -304,6 +339,9 @@ const createShortUrl = async (req, res, next) => {
                 deviceRedirects: deviceRedirectsData,
                 activeStartTime: activeStartTimeData,
                 timeRedirects: timeRedirectsData,
+                safetyStatus: initialSafetyStatus,
+                safetyDetails: initialSafetyDetails,
+                lastCheckedAt: initialLastCheckedAt,
             });
             
             // Add identifiers to URLs Bloom Filter
@@ -331,56 +369,32 @@ const createShortUrl = async (req, res, next) => {
             });
         }
 
-        // Safe Browsing Check (Async / Fire-and-forget)
-        (async () => {
-            try {
-                const settings = await getSettings();
-                if (settings?.safeBrowsingAutoCheck) {
-                    // Collect ALL URLs to check
+        // If the check timed out and was saved as pending, resolve in background
+        if (initialSafetyStatus === 'pending') {
+            (async () => {
+                try {
                     const urlsToCheck = [originalUrl];
-                    
                     if (deviceRedirectsData?.rules) {
-                        deviceRedirectsData.rules.forEach(r => { if(r.url) urlsToCheck.push(r.url); });
+                        deviceRedirectsData.rules.forEach(r => { if (r.url) urlsToCheck.push(r.url); });
                     }
                     if (timeRedirectsData?.rules) {
-                        timeRedirectsData.rules.forEach(r => { if(r.destination) urlsToCheck.push(r.destination); });
+                        timeRedirectsData.rules.forEach(r => { if (r.destination) urlsToCheck.push(r.destination); });
                     }
-
-                    const safetyResult = await checkUrlsSafety(urlsToCheck);
-                    
-                    if (safetyResult.status !== 'safe' && safetyResult.status !== 'pending') {
-                         await Url.findOneAndUpdate(
-                             { _id: newUrl._id, updatedAt: newUrl.updatedAt },
-                             {
-                                 $set: {
-                                     safetyStatus: safetyResult.status,
-                                     safetyDetails: safetyResult.details,
-                                     lastCheckedAt: new Date()
-                                 }
-                             }
-                         );
-                    } else if (safetyResult.status === 'safe') {
-                         await Url.findOneAndUpdate(
-                             { _id: newUrl._id, updatedAt: newUrl.updatedAt },
-                             {
-                                 $set: {
-                                     safetyStatus: 'safe',
-                                     lastCheckedAt: new Date()
-                                 }
-                             }
-                         );
+                    const safetyResult = await checkUrlsSafety(urlsToCheck, { timeoutMs: 5000 });
+                    if (safetyResult.status !== 'pending') {
+                        await Url.findByIdAndUpdate(newUrl._id, {
+                            safetyStatus: safetyResult.status,
+                            safetyDetails: safetyResult.details,
+                            lastCheckedAt: new Date(),
+                        });
+                        await invalidateCache(newUrl.shortId);
+                        if (newUrl.customAlias) await invalidateCache(newUrl.customAlias);
                     }
-                    await invalidateCache(newUrl.shortId);
-                    if (newUrl.customAlias) await invalidateCache(newUrl.customAlias);
-                } else {
-                    await Url.findByIdAndUpdate(newUrl._id, { safetyStatus: 'unchecked' });
-                    await invalidateCache(newUrl.shortId);
-                    if (newUrl.customAlias) await invalidateCache(newUrl.customAlias);
+                } catch (bgErr) {
+                    logger.error(`[SafeBrowsing] Background pending check error: ${bgErr.message}`);
                 }
-            } catch (err) {
-                 console.error('[SafeBrowsing] Async check failed:', err.message);
-            }
-        })();
+            })();
+        }
 
         // Return without passwordHash (already excluded by select: false)
         res.status(201).json(newUrl);
@@ -847,43 +861,26 @@ const updateUrl = async (req, res, next) => {
              (async () => {
                 try {
                     const settings = await getSettings();
-                    if (settings?.safeBrowsingAutoCheck) {
+                    if (settings?.safeBrowsingAutoCheck && settings?.safeBrowsingEnabled) {
                         // Re-fetch updated document to get unified view
                         const fullDoc = await Url.findById(url._id);
                         if (!fullDoc) return;
 
                         const urlsToCheck = [fullDoc.originalUrl];
-                         if (fullDoc.deviceRedirects?.enabled && fullDoc.deviceRedirects.rules) {
-                            fullDoc.deviceRedirects.rules.forEach(r => { if(r.url) urlsToCheck.push(r.url); });
+                        if (fullDoc.deviceRedirects?.enabled && fullDoc.deviceRedirects.rules) {
+                            fullDoc.deviceRedirects.rules.forEach(r => { if (r.url) urlsToCheck.push(r.url); });
                         }
                         if (fullDoc.timeRedirects?.enabled && fullDoc.timeRedirects.rules) {
-                            fullDoc.timeRedirects.rules.forEach(r => { if(r.destination) urlsToCheck.push(r.destination); });
+                            fullDoc.timeRedirects.rules.forEach(r => { if (r.destination) urlsToCheck.push(r.destination); });
                         }
 
-                        const safetyResult = await checkUrlsSafety(urlsToCheck);
+                        const safetyResult = await checkUrlsSafety(urlsToCheck, { timeoutMs: 3000 });
                         
-                        if (safetyResult.status !== 'safe' && safetyResult.status !== 'pending') {
-                                await Url.findOneAndUpdate(
-                                    { _id: url._id, updatedAt: fullDoc.updatedAt },
-                                    {
-                                        $set: {
-                                            safetyStatus: safetyResult.status,
-                                            safetyDetails: safetyResult.details,
-                                            lastCheckedAt: new Date()
-                                        }
-                                    }
-                                );
-                        } else if (safetyResult.status === 'safe') {
-                                await Url.findOneAndUpdate(
-                                    { _id: url._id, updatedAt: fullDoc.updatedAt },
-                                    {
-                                        $set: {
-                                            safetyStatus: 'safe',
-                                            lastCheckedAt: new Date()
-                                        }
-                                    }
-                                );
-                        }
+                        await Url.findByIdAndUpdate(url._id, {
+                            safetyStatus: safetyResult.status,
+                            safetyDetails: safetyResult.details,
+                            lastCheckedAt: safetyResult.status === 'pending' ? undefined : new Date(),
+                        });
                         await invalidateCache(url.shortId);
                         if (url.customAlias) await invalidateCache(url.customAlias);
                     } else {
@@ -892,7 +889,7 @@ const updateUrl = async (req, res, next) => {
                         if (url.customAlias) await invalidateCache(url.customAlias);
                     }
                 } catch (err) {
-                        console.error('[SafeBrowsing] Update check failed:', err.message);
+                    console.error('[SafeBrowsing] Update check failed:', err.message);
                 }
             })();
         }

@@ -43,4 +43,5 @@ data:
   USE_LOCAL_DB: "false"
   LOG_LEVEL: "info"
   K8S_DISABLE_VERSION_SYNC: "true"     # Skip writing package.json on ephemeral container filesystem
+  DISABLE_IN_PROCESS_CRON: "false"     # Set to "true" if relying exclusively on K8s CronJob pods
   # NOTE: REDIS_URL is set in linksnap-secrets (not here) because it contains credentials.

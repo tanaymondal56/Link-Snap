@@ -46,7 +46,7 @@ import { flushAndStop } from './services/clickStatsService.js';
 import { stopDeviceAuthIntervals } from './controllers/deviceAuthController.js';
 import { flushAnalyticsAndStop } from './services/analyticsService.js';
 import { stopBanScheduler } from './services/banScheduler.js';
-import { stopCronJobs } from './services/cronService.js';
+import { startCronJobs, stopCronJobs } from './services/cronService.js';
 import compression from 'compression';
 import mongoose from 'mongoose';
 import { connectRedis, checkRedisConnection, disconnectRedis, isRedisConfigured } from './config/redis.js';
@@ -526,6 +526,9 @@ const startServer = async () => {
 
     // Initialise Upstash Redis / Local Redis (non-blocking fallback gracefully if not configured)
     await connectRedis();
+
+    // Start background cron workers (Safe Browsing retries, backlog sweeps, subscription lifecycle)
+    startCronJobs();
 
     // Seed Bloom Filters in the background
     seedBloomFilters().catch(err => {

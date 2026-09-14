@@ -1,4 +1,4 @@
-import { scanPendingLinks, scanUncheckedLinks } from './safeBrowsingService.js';
+import { scanPendingLinks, scanUncheckedLinks, scanStaleLinks } from './safeBrowsingService.js';
 import { processExpiredSubscriptions } from './subscriptionService.js';
 import { processExpiredBans, processScheduledChangelogs } from './banScheduler.js';
 import logger from '../utils/logger.js';
@@ -7,13 +7,19 @@ import { getRedisClient } from '../config/redis.js';
 // Intervals
 const FIVE_MINUTES = 5 * 60 * 1000;
 const ONE_HOUR = 60 * 60 * 1000;
+const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 
 let safetyScanInterval = null;
 let backlogScanInterval = null;
+let staleScanInterval = null;
 let subscriptionSweepInterval = null;
 
 // Start all background jobs
 export const startCronJobs = () => {
+    if (process.env.DISABLE_IN_PROCESS_CRON === 'true') {
+        logger.info('[Cron] In-process background jobs disabled (K8s CronJobs active).');
+        return;
+    }
     if (safetyScanInterval) return; // Already running
 
     logger.info('[Cron] Starting background jobs...');
@@ -65,6 +71,25 @@ export const startCronJobs = () => {
     }, ONE_HOUR).unref();
     logger.info('[Cron] Safe Browsing backlog scanner started (Every 1 hour)');
 
+    // 3. Stale Links Scanner (Re-checks active links older than 30 days)
+    staleScanInterval = setInterval(async () => {
+        const redis = getRedisClient();
+        if (redis) {
+            // Lock for 23 hours to prevent multi-container cluster duplication
+            const acquired = await redis.set('ls:lock:cron:stale', '1', { nx: true, ex: 82800 });
+            if (!acquired) {
+                return;
+            }
+        }
+
+        try {
+            await scanStaleLinks();
+        } catch (err) {
+            logger.error(`[Cron] Stale links scan error: ${err.message}`);
+        }
+    }, TWENTY_FOUR_HOURS).unref();
+    logger.info('[Cron] Safe Browsing stale link scanner started (Every 24 hours)');
+
     // 3. Subscription & Ban Expiration Worker
     // Automatically sweeps expired subscriptions, temporary bans, and publishes scheduled changelogs
     subscriptionSweepInterval = setInterval(async () => {
@@ -97,6 +122,10 @@ export const stopCronJobs = () => {
     if (backlogScanInterval) {
         clearInterval(backlogScanInterval);
         backlogScanInterval = null;
+    }
+    if (staleScanInterval) {
+        clearInterval(staleScanInterval);
+        staleScanInterval = null;
     }
     if (subscriptionSweepInterval) {
         clearInterval(subscriptionSweepInterval);
