@@ -58,6 +58,9 @@ api.interceptors.request.use(
   (config) => {
     // Using HttpOnly cookies instead of Authorization header for access tokens
     
+    // Attach Link-Snap frontend client identifier
+    config.headers['X-LinkSnap-Client'] = 'web-app';
+
     // Attach CSRF token for state-changing requests
     const method = config.method?.toUpperCase();
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {

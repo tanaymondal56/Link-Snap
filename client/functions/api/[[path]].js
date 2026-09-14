@@ -41,9 +41,17 @@ export async function onRequest(context) {
   headers.delete('cf-access-jwt-assertion');
   headers.delete('x-linksnap-proxy-secret');
   headers.delete('x-internal-analytics-secret');
+  headers.delete('x-linksnap-bff');
+  headers.delete('x-linksnap-bff-secret');
+  headers.delete('x-linksnap-client');
 
   headers.set('CF-Access-Client-Id', env.CF_CLIENT_ID);
   headers.set('CF-Access-Client-Secret', env.CF_CLIENT_SECRET);
+  headers.set('X-LinkSnap-BFF', 'true');
+  if (env.BFF_SECRET) {
+    headers.set('X-LinkSnap-BFF-Secret', env.BFF_SECRET);
+  }
+  headers.set('X-LinkSnap-Client', 'web-app');
 
   // Extract and preserve real client IP from incoming Cloudflare request
   const rawClientIP = request.headers.get('cf-connecting-ip');

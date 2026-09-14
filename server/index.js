@@ -11,6 +11,7 @@ import errorHandler from './middleware/errorHandler.js';
 import mongoSanitize from './middleware/sanitizer.js';
 import logger from './utils/logger.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
+import frontendGate from './middleware/frontendGate.js';
 import lusca from 'lusca';
 import cookieSession from 'cookie-session';
 import crypto from 'node:crypto';
@@ -450,6 +451,9 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
+// Frontend-Only Origin Enforcement Gate
+app.use('/api', frontendGate);
+
 // Rate Limiting
 app.use('/api', apiLimiter);
 // app.use('/api/auth', authLimiter); // Moved to specific routes in authRoutes.js
@@ -512,6 +516,11 @@ const startServer = async () => {
     const server = app.listen(PORT, () => {
       logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
     });
+
+    // Enforce strict HTTP timeouts (Defense-in-depth against Slowloris socket exhaustion)
+    server.headersTimeout = 10000;  // 10s max to receive full request headers
+    server.requestTimeout = 30000;  // 30s max for full request lifecycle
+    server.keepAliveTimeout = 5000; // 5s keep-alive window
 
     await connectDB();
 

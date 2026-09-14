@@ -1,10 +1,16 @@
 import rateLimit from 'express-rate-limit';
 import { getEffectiveTier } from '../services/subscriptionService.js';
-import { getAnonFingerprint } from '../utils/fingerprint.js';
 import { getUserIP } from './strictProxyGate.js';
 import RedisStore from 'rate-limit-redis';
 import { getRedisClient, getRedisDriver, isRedisConfigured, connectRedis } from '../config/redis.js';
 import ipaddr from 'ipaddr.js';
+import { LRUCache } from 'lru-cache';
+
+// Emergency in-memory fail-closed fallback store if Redis drops
+const localMemoryLimitStore = new LRUCache({
+    max: 50000,
+    ttl: 60 * 60 * 1000, // 1 hour default
+});
 
 // IPs that bypass rate limiting
 const envAllowedIPs = process.env.RATE_LIMIT_WHITELIST_IPS 
@@ -39,12 +45,26 @@ const createRedisStore = (prefix) => {
                 redis = await connectRedis();
             }
 
-            // Runtime fail-open: Redis not active yet/at all → simulated success
+            // Resilient in-memory fail-closed fallback: when Redis is unavailable,
+            // enforce rate limits locally in-process instead of allowing unbounded requests.
             if (!redis) {
                 const cmd = args[0]?.toLowerCase();
-                if (cmd === 'script') return 'mock_sha';
-                if (cmd === 'evalsha' || cmd === 'eval') return [1, 0];
-                return [1, 0];
+                if (cmd === 'script') return 'local_mock_sha';
+                if (cmd === 'evalsha' || cmd === 'eval') {
+                    const numKeys = parseInt(args[2] || '1', 10);
+                    const key = args[3] || 'default';
+                    const windowMs = parseInt(args[3 + numKeys] || '60000', 10);
+                    const current = (localMemoryLimitStore.get(key) || 0) + 1;
+                    const remaining = localMemoryLimitStore.getRemainingTTL(key);
+                    const effectiveTtl = (remaining && remaining > 0) ? remaining : (windowMs || 60000);
+                    localMemoryLimitStore.set(key, current, { ttl: effectiveTtl });
+                    return [current, effectiveTtl];
+                }
+                if (cmd === 'del') {
+                    localMemoryLimitStore.delete(args[1]);
+                    return 1;
+                }
+                return [1, 60000];
             }
 
             // ioredis TCP client: native .call() passthrough — most efficient path
@@ -154,10 +174,11 @@ const anonCreateLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: 5,
     store: createRedisStore('create:anon'),
-    keyGenerator: (req) => `anon:${getAnonFingerprint(req)}`,
+    // Key strictly on client IP to close the User-Agent rotation bypass
+    keyGenerator: (req) => `anon:ip:${getUserIP(req)}`,
     handler: (req, res) => res.status(429).json({
         type: 'rate_limit',
-        message: 'Anonymous limit reached. Sign up for more!',
+        message: 'Anonymous limit reached (5 links/hour). Sign up for more!',
         retryAfter: 3600
     }),
     standardHeaders: true,

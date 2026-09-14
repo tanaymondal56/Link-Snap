@@ -10,6 +10,7 @@ import { isLinkActive, getTimeBasedDestination } from '../services/timeService.j
 import { hasFeature } from '../services/subscriptionService.js';
 import { sanitizeAlias, getPreviewUnlockToken } from '../utils/urlSecurity.js';
 import { bloomExists } from '../services/bloomFilterService.js';
+import { isBotRequest } from '../utils/botDetector.js';
 
 // Helper to escape HTML to prevent XSS
 const escapeHtml = (unsafe) => {
@@ -2220,6 +2221,129 @@ const getLimitReachedPage = () => `
 </html>
 `;
 
+// HTML page for anonymous redirect safety interstitial (anti-phishing window)
+const getAnonymousRedirectInterstitialPage = (destinationUrl, shortId, nonce) => {
+    let domain;
+    try {
+        domain = new URL(destinationUrl).hostname;
+    } catch {
+        domain = 'external destination';
+    }
+    const safeDestination = escapeHtml(destinationUrl);
+    const safeDomain = escapeHtml(domain);
+
+    const safeDestJson = JSON.stringify(destinationUrl).replace(/</g, '\\u003c');
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecting... - Link Snap</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="/favicon.ico">
+    <style nonce="${nonce || ''}">
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #090d16 0%, #0d1527 100%);
+            color: #fff;
+            padding: 20px;
+        }
+        .card {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 36px 32px;
+            max-width: 480px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #60a5fa;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 9999px;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        h1 { font-size: 20px; margin-bottom: 12px; font-weight: 600; color: #f1f5f9; }
+        p { font-size: 14px; color: #94a3b8; margin-bottom: 24px; line-height: 1.5; }
+        .dest-box {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 12px;
+            padding: 14px;
+            font-family: monospace;
+            font-size: 14px;
+            color: #38bdf8;
+            word-break: break-all;
+            margin-bottom: 24px;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            border: none;
+        }
+        .btn-primary {
+            background: #2563eb;
+            color: #fff;
+            margin-bottom: 12px;
+        }
+        .btn-primary:hover { background: #1d4ed8; }
+        .footer-note { font-size: 12px; color: #64748b; margin-top: 16px; }
+        .countdown { font-weight: bold; color: #38bdf8; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="badge">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Security Notice
+        </div>
+        <h1>Leaving Link Snap</h1>
+        <p>This anonymous link is redirecting you to an external destination. You will be automatically redirected in <span class="countdown" id="timer">3</span>s.</p>
+        <div class="dest-box">${safeDomain}</div>
+        <a id="proceedBtn" href="${safeDestination}" class="btn btn-primary">Proceed Immediately</a>
+        <div class="footer-note">Link verified by Link-Snap Safe Browsing</div>
+    </div>
+    <script nonce="${nonce || ''}">
+        let timeLeft = 3;
+        const timerEl = document.getElementById('timer');
+        const dest = ${safeDestJson};
+        const countdown = setInterval(() => {
+            timeLeft--;
+            if (timerEl) timerEl.textContent = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(countdown);
+                window.location.href = dest;
+            }
+        }, 1000);
+    </script>
+</body>
+</html>`;
+};
+
 const inflightRequests = new Map();
 
 export const redirectUrl = async (req, res, next) => {
@@ -2307,16 +2431,21 @@ export const redirectUrl = async (req, res, next) => {
                 return res.send(getPasswordEntryPage(shortId, cached.title, res.locals.nonce));
             }
 
-            // CHECK & INCREMENT USER USAGE (Atomic)
-            if (cached.ownerId) {
+            // Check if visitor is a known bot/crawler (Anti-EDoS & Quota Shield)
+            const isBot = isBotRequest(req);
+
+            // CHECK & INCREMENT USER USAGE (Atomic) - Only for legitimate non-bot visitors!
+            if (cached.ownerId && !isBot) {
                 const usageCheck = await checkAndIncrementClickUsage(cached.ownerId);
                 if (!usageCheck.allowed) {
                     return res.status(403).send(getLimitReachedPage());
                 }
             }
 
-            // Async: Update clicks in DB (buffered)
-            queueClickIncrement(cached._id);
+            // Async: Update clicks in DB (buffered) - only human clicks increment user count
+            if (!isBot) {
+                queueClickIncrement(cached._id);
+            }
 
             // Time-Based Redirect logic (Pro/Business feature)
             // Only apply if owner has time_redirects feature
@@ -2363,6 +2492,13 @@ export const redirectUrl = async (req, res, next) => {
                     const queryString = new URLSearchParams(req.query).toString();
                     finalUrl = `${targetUrl}${separator}${queryString}`;
                 }
+            }
+
+            // Zero-Day Phishing Interstitial for Anonymous Links
+            const isAnonymousLink = !cached.ownerId;
+            const isConfirmed = req.query.confirmed === '1';
+            if (isAnonymousLink && !isConfirmed && !isBot && !isInternalDomain(finalUrl)) {
+                return res.send(getAnonymousRedirectInterstitialPage(finalUrl, shortId, res.locals.nonce));
             }
 
             if (cached.timeRedirects?.rules?.length > 0 || cached.activeStartTime) {
@@ -2443,16 +2579,21 @@ export const redirectUrl = async (req, res, next) => {
             return res.send(getPasswordEntryPage(shortId, url.title, res.locals.nonce));
         }
 
-        // CHECK & INCREMENT USER USAGE (Atomic)
-        if (url.createdBy) {
+        // Check if visitor is a known bot/crawler (Anti-EDoS & Quota Shield)
+        const isBot = isBotRequest(req);
+
+        // CHECK & INCREMENT USER USAGE (Atomic) - Only for legitimate non-bot visitors!
+        if (url.createdBy && !isBot) {
             const usageCheck = await checkAndIncrementClickUsage(url.createdBy);
             if (!usageCheck.allowed) {
                 return res.status(403).send(getLimitReachedPage());
             }
         }
 
-        // Increment clicks (buffered)
-        queueClickIncrement(url._id);
+        // Increment clicks (buffered) - only human clicks increment user count
+        if (!isBot) {
+            queueClickIncrement(url._id);
+        }
 
         // Time-Based Redirect logic (Pro/Business feature)
         // Only apply if owner has time_redirects feature
@@ -2498,6 +2639,13 @@ export const redirectUrl = async (req, res, next) => {
                 const queryString = new URLSearchParams(req.query).toString();
                 finalUrl = `${targetUrl}${separator}${queryString}`;
             }
+        }
+
+        // Zero-Day Phishing Interstitial for Anonymous Links
+        const isAnonymousLink = !url.createdBy;
+        const isConfirmed = req.query.confirmed === '1';
+        if (isAnonymousLink && !isConfirmed && !isBot && !isInternalDomain(finalUrl)) {
+            return res.send(getAnonymousRedirectInterstitialPage(finalUrl, shortId, res.locals.nonce));
         }
 
         if (url.timeRedirects?.rules?.length > 0 || url.activeStartTime) {
