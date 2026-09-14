@@ -458,10 +458,13 @@ const PricingPage = () => {
             >
               <div className="relative w-full sm:w-72">
                 <input
+                  id="promo-code-input"
+                  name="promoCode"
                   type="text"
                   placeholder="Enter code (e.g. PROMO50)"
                   value={promoInput}
                   onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                  autoComplete="off"
                   className="w-full bg-gray-900/90 border border-purple-500/30 rounded-xl px-4 py-3.5 text-white placeholder-gray-500 font-mono text-sm focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 transition-all uppercase"
                 />
               </div>

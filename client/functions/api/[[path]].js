@@ -104,9 +104,6 @@ export async function onRequest(context) {
       responseHeaders.delete('access-control-allow-origin');
       responseHeaders.delete('access-control-allow-credentials');
     }
-    if (!responseHeaders.has('cross-origin-embedder-policy')) {
-      responseHeaders.set('cross-origin-embedder-policy', 'credentialless');
-    }
 
     // Preserve multiple Set-Cookie headers (Fetch Headers constructor folds them by default)
     if (typeof response.headers.getSetCookie === 'function') {

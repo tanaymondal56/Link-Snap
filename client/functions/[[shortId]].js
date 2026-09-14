@@ -12,9 +12,6 @@ export async function onRequest(context) {
     const assetHeaders = new Headers(assetRes.headers);
     assetHeaders.delete('access-control-allow-origin');
     assetHeaders.delete('access-control-allow-credentials');
-    if (!assetHeaders.has('cross-origin-embedder-policy')) {
-      assetHeaders.set('cross-origin-embedder-policy', 'credentialless');
-    }
     const hasNoBody = assetRes.status === 204 || assetRes.status === 304;
     return new Response(hasNoBody ? null : assetRes.body, {
       status: assetRes.status,
