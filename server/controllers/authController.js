@@ -1005,11 +1005,13 @@ const refreshAccessToken = async (req, res, next) => {
     // DBSC Session Cookie Binding Check on rotation:
     // Ensure the client session cookie is present and matches existingSession.dbscSessionId before allowing rotation.
     if (existingSession.dbscSessionId) {
-      const clientSessionId = req.cookies?.['__Host-session'] || req.cookies?.['dbsc_session'] || req.headers['sec-secure-session-id'] || req.headers['sec-session-id'];
-      if (existingSession.dbscEnforced === true && (!clientSessionId || clientSessionId !== existingSession.dbscSessionId)) {
+      const rawClientSessionId = req.cookies?.['__Secure-session'] || req.cookies?.['__Host-session'] || req.cookies?.['dbsc_session'] || req.headers['sec-secure-session-id'] || req.headers['sec-session-id'];
+      const clientSessionId = typeof rawClientSessionId === 'string' ? rawClientSessionId.replace(/^["']|["']$/g, '').trim() : rawClientSessionId;
+      const cleanDbscId = typeof existingSession.dbscSessionId === 'string' ? existingSession.dbscSessionId.replace(/^["']|["']$/g, '').trim() : existingSession.dbscSessionId;
+      if (existingSession.dbscEnforced === true && (!clientSessionId || clientSessionId !== cleanDbscId)) {
         clearAllAuthCookies(res);
         return res.status(403).json({ error: "DBSC binding failed: session cookie missing or mismatched on token refresh" });
-      } else if (clientSessionId && clientSessionId !== existingSession.dbscSessionId) {
+      } else if (clientSessionId && clientSessionId !== cleanDbscId) {
         clearAllAuthCookies(res);
         return res.status(403).json({ error: "DBSC binding failed: session cookie mismatched on token refresh" });
       }

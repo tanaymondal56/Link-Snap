@@ -22,14 +22,16 @@ const protect = async (req, res, next) => {
 
       // DBSC & Session Cookie Integrity Check.
       // 1. If dbscEnforced is true (hardware key registered), require the DBSC session ID to match.
-      // 2. Even if not yet enforced, if session cookies (__Host-session or dbsc_session) are present,
+      // 2. Even if not yet enforced, if session cookies (__Secure-session, __Host-session or dbsc_session) are present,
       // they MUST match the dbscSessionId embedded in the JWT access token to prevent session alteration.
       if (decoded.dbscSessionId) {
-        const clientSessionId = req.cookies?.['__Host-session'] || req.cookies?.['dbsc_session'] || req.headers['sec-secure-session-id'] || req.headers['sec-session-id'];
-        if (decoded.dbscEnforced === true && (!clientSessionId || clientSessionId !== decoded.dbscSessionId)) {
+        const rawClientSessionId = req.cookies?.['__Secure-session'] || req.cookies?.['__Host-session'] || req.cookies?.['dbsc_session'] || req.headers['sec-secure-session-id'] || req.headers['sec-session-id'];
+        const clientSessionId = typeof rawClientSessionId === 'string' ? rawClientSessionId.replace(/^["']|["']$/g, '').trim() : rawClientSessionId;
+        const cleanDecodedId = typeof decoded.dbscSessionId === 'string' ? decoded.dbscSessionId.replace(/^["']|["']$/g, '').trim() : decoded.dbscSessionId;
+        if (decoded.dbscEnforced === true && (!clientSessionId || clientSessionId !== cleanDecodedId)) {
           res.status(401);
           throw new Error('DBSC Binding Failed: Session cookie mismatch or missing');
-        } else if (clientSessionId && clientSessionId !== decoded.dbscSessionId) {
+        } else if (clientSessionId && clientSessionId !== cleanDecodedId) {
           res.status(401);
           throw new Error('DBSC Binding Failed: Session cookie mismatch or missing');
         }

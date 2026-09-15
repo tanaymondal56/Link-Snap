@@ -9,6 +9,37 @@ import { validateSession } from '../utils/sessionHelper.js';
 const router = express.Router();
 
 /**
+ * Robustly strips RFC 8941 Structured Field quotes ("...") and byte colons (:...:)
+ */
+const cleanHeaderValue = (val) => {
+  if (!val || typeof val !== 'string') return '';
+  const trimmed = val.trim();
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1).trim();
+  }
+  if (trimmed.startsWith(':') && trimmed.endsWith(':') && trimmed.length >= 2) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+};
+
+const extractSessionId = (req) => {
+  const rawId = req.headers["sec-secure-session-id"] ||
+                req.headers["sec-session-id"] ||
+                req.cookies?.['__Secure-session'] ||
+                req.cookies?.['__Host-session'] ||
+                req.cookies?.['dbsc_session'];
+  return cleanHeaderValue(rawId);
+};
+
+const extractProof = (req) => {
+  const raw = req.headers["secure-session-response"] ||
+              req.headers["sec-session-response"] ||
+              (req.body && typeof req.body === 'object' && (req.body.proof || req.body.response));
+  return cleanHeaderValue(raw);
+};
+
+/**
  * 1. DBSC REGISTRATION ENDPOINT
  * Handles POST /api/dbsc/registration
  * The browser posts its ES256 JWS proof containing the new hardware public key.
@@ -18,7 +49,7 @@ const router = express.Router();
  *  - The caller should then issue a NEW access token with dbscEnforced=true embedded
  */
 router.post('/registration', async (req, res) => {
-  const proofHeader = req.headers["secure-session-response"] || req.headers["sec-session-response"];
+  const proofHeader = extractProof(req);
 
   if (!proofHeader) {
     return res.status(400).json({ error: "Missing Secure-Session-Response header" });
@@ -44,16 +75,18 @@ router.post('/registration', async (req, res) => {
     jwt.verify(proofHeader, publicKeyPem, { algorithms: ["ES256", "RS256"] });
 
     // The browser sends the session ID via cookie or custom header
-    const dbscSessionId = req.headers["sec-secure-session-id"] || req.headers["sec-session-id"] || req.cookies?.['__Host-session'] || req.cookies?.['dbsc_session'];
+    const cleanDbscSessionId = extractSessionId(req);
     const jwtCookie = req.cookies?.['jwt'];
     
-    if (!dbscSessionId && !jwtCookie) {
+    if (!cleanDbscSessionId && !jwtCookie) {
       return res.status(400).json({ error: "Missing session identifier" });
     }
 
     let session;
-    if (dbscSessionId) {
-      session = await Session.findOne({ dbscSessionId });
+    if (cleanDbscSessionId) {
+      session = await Session.findOne({
+        $or: [{ dbscSessionId: cleanDbscSessionId }, { dbscSessionId: `"${cleanDbscSessionId}"` }]
+      });
     }
     if (!session && jwtCookie) {
       session = await validateSession(jwtCookie);
@@ -88,14 +121,10 @@ router.post('/registration', async (req, res) => {
     res.setHeader("Sec-Session-Response", termHeader);
     res.setHeader("Secure-Session-Response", termHeader);
 
-    // Pre-populate next challenge so Chrome has it ready for proactive/background refresh
+    // Pre-populate next challenge in DB so it is ready when Chromium triggers refresh
     const nextChallenge = crypto.randomBytes(32).toString("base64url");
     session.dbscChallenge = nextChallenge;
     await session.save();
-
-    const nextChalHeader = `"${nextChallenge}"; id="${session.dbscSessionId}"`;
-    res.setHeader("Sec-Session-Challenge", nextChalHeader);
-    res.setHeader("Secure-Session-Challenge", nextChalHeader);
 
     setDbscSessionCookies(res, session.dbscSessionId);
 
@@ -153,17 +182,19 @@ router.post('/registration', async (req, res) => {
  * instead of a fatal rejection, allowing Chromium to sign the new challenge without deleting the session from DevTools.
  */
 router.post('/refresh', async (req, res) => {
-  const dbscSessionId = req.headers["sec-secure-session-id"] || req.headers["sec-session-id"] || req.cookies?.['__Secure-session'] || req.cookies?.['__Host-session'] || req.cookies?.['dbsc_session'];
+  const cleanDbscSessionId = extractSessionId(req);
   const jwtCookie = req.cookies?.['jwt'];
-  const proofHeader = req.headers["secure-session-response"] || req.headers["sec-session-response"];
+  const proofHeader = extractProof(req);
 
-  if (!dbscSessionId && !jwtCookie) {
+  if (!cleanDbscSessionId && !jwtCookie) {
     return res.status(400).json({ error: "Missing session identifier" });
   }
 
   let session;
-  if (dbscSessionId) {
-    session = await Session.findOne({ dbscSessionId });
+  if (cleanDbscSessionId) {
+    session = await Session.findOne({
+      $or: [{ dbscSessionId: cleanDbscSessionId }, { dbscSessionId: `"${cleanDbscSessionId}"` }]
+    });
   }
   if (!session && jwtCookie) {
     session = await validateSession(jwtCookie);
@@ -172,7 +203,7 @@ router.post('/refresh', async (req, res) => {
   if (!session || !session.dbscPublicKeyJwk) {
     // Session not found or no DBSC key registered — issue a fresh challenge
     const newChallenge = crypto.randomBytes(32).toString("base64url");
-    const chalHeader = `"${newChallenge}"; id="${dbscSessionId || 'unknown'}"`;
+    const chalHeader = `"${newChallenge}"; id="${cleanDbscSessionId || 'unknown'}"`;
     res.setHeader("Sec-Session-Challenge", chalHeader);
     res.setHeader("Secure-Session-Challenge", chalHeader);
     return res.status(401).json({ error: "DBSC challenge required" });
