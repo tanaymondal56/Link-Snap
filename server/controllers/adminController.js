@@ -17,6 +17,9 @@ import { generateUserIdentity } from '../services/idService.js';
 import { scanPendingLinks, scanUncheckedLinks } from '../services/safeBrowsingService.js';
 import logger from '../utils/logger.js';
 import { getUserIP } from '../middleware/strictProxyGate.js';
+import { listJailedIPs, releaseIP, manualJailIP } from '../services/restrictedZoneService.js';
+import { formatPreferredIP } from '../utils/ipUtils.js';
+import ipaddr from 'ipaddr.js';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -1371,6 +1374,91 @@ export const getSystemEnvironment = async (req, res, next) => {
         };
 
         res.json(systemInfo);
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * @desc Get all active jailed / restricted IPs
+ * @route GET /api/admin/security/jailed-ips
+ * @access Admin
+ */
+export const getJailedIPs = async (req, res, next) => {
+    try {
+        const jailed = await listJailedIPs();
+        res.json({
+            success: true,
+            count: jailed.length,
+            jailedIPs: jailed,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * @desc Unjail an IP address
+ * @route POST /api/admin/security/unjail-ip
+ * @access Admin
+ */
+export const unjailIP = async (req, res, next) => {
+    try {
+        const { ip } = req.body;
+        if (!ip || typeof ip !== 'string' || !ipaddr.isValid(ip.trim().replace(/^::ffff:/, ''))) {
+            return res.status(400).json({ error: 'Valid IP address is required' });
+        }
+        const cleanIp = formatPreferredIP(ip);
+        const result = await releaseIP(cleanIp);
+        if (!result.success) {
+            return res.status(400).json({ error: 'Failed to release IP address' });
+        }
+        res.json({
+            success: true,
+            message: `IP ${cleanIp} successfully released from restricted zone.`,
+            result,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * @desc Manually jail / block an IP address
+ * @route POST /api/admin/security/jail-ip
+ * @access Admin
+ */
+export const manualJailIPHandler = async (req, res, next) => {
+    try {
+        const { ip, durationSeconds = 86400, reason = 'admin_manual_ban', status = 'blocked' } = req.body;
+        if (!ip || typeof ip !== 'string' || !ipaddr.isValid(ip.trim().replace(/^::ffff:/, ''))) {
+            return res.status(400).json({ error: 'Valid IP address is required' });
+        }
+
+        const validStatuses = ['restricted', 'quarantine', 'blocked'];
+        const normalizedStatus = String(status || 'blocked').toLowerCase();
+        if (!validStatuses.includes(normalizedStatus)) {
+            return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+        }
+
+        const parsedDuration = Number(durationSeconds);
+        if (isNaN(parsedDuration) || parsedDuration < 60 || parsedDuration > 2592000) {
+            return res.status(400).json({ error: 'durationSeconds must be between 60 and 2,592,000 (30 days)' });
+        }
+
+        const clampedDuration = Math.min(Math.max(60, Math.floor(parsedDuration)), 2592000);
+        const cleanIp = formatPreferredIP(ip);
+
+        try {
+            const entry = await manualJailIP(cleanIp, clampedDuration, String(reason || 'admin_manual_ban').slice(0, 100), normalizedStatus);
+            res.json({
+                success: true,
+                message: `IP ${cleanIp} successfully placed in ${normalizedStatus.toUpperCase()} for ${clampedDuration} seconds.`,
+                entry,
+            });
+        } catch (jailErr) {
+            return res.status(400).json({ error: jailErr.message });
+        }
     } catch (error) {
         next(error);
     }

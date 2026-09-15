@@ -11,6 +11,8 @@ import { hasFeature } from '../services/subscriptionService.js';
 import { sanitizeAlias, getPreviewUnlockToken } from '../utils/urlSecurity.js';
 import { bloomExists } from '../services/bloomFilterService.js';
 import { isBotRequest } from '../utils/botDetector.js';
+import { recordClickBurst } from '../services/restrictedZoneService.js';
+import { getUserIP } from '../middleware/strictProxyGate.js';
 
 // Helper to escape HTML to prevent XSS
 const escapeHtml = (unsafe) => {
@@ -2431,8 +2433,10 @@ export const redirectUrl = async (req, res, next) => {
                 return res.send(getPasswordEntryPage(shortId, cached.title, res.locals.nonce));
             }
 
-            // Check if visitor is a known bot/crawler (Anti-EDoS & Quota Shield)
-            const isBot = isBotRequest(req);
+            // Check if visitor is a known bot/crawler or burst clicker (Anti-EDoS & Quota Shield)
+            const clientIP = getUserIP(req);
+            const burstCheck = await recordClickBurst(clientIP, shortId);
+            const isBot = isBotRequest(req) || burstCheck.isBurst;
 
             // CHECK & INCREMENT USER USAGE (Atomic) - Only for legitimate non-bot visitors!
             if (cached.ownerId && !isBot) {
@@ -2579,8 +2583,10 @@ export const redirectUrl = async (req, res, next) => {
             return res.send(getPasswordEntryPage(shortId, url.title, res.locals.nonce));
         }
 
-        // Check if visitor is a known bot/crawler (Anti-EDoS & Quota Shield)
-        const isBot = isBotRequest(req);
+        // Check if visitor is a known bot/crawler or burst clicker (Anti-EDoS & Quota Shield)
+        const clientIP = getUserIP(req);
+        const burstCheck = await recordClickBurst(clientIP, shortId);
+        const isBot = isBotRequest(req) || burstCheck.isBurst;
 
         // CHECK & INCREMENT USER USAGE (Atomic) - Only for legitimate non-bot visitors!
         if (url.createdBy && !isBot) {

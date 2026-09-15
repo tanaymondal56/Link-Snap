@@ -34,6 +34,8 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
   const [prevOpen, setPrevOpen] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState('idle'); // idle | checking | available | taken | invalid | reserved
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const [honeypotTrap, setHoneypotTrap] = useState('');
+  const mountTsRef = useRef(0);
   const { user, login, register } = useAuth();
   const navigate = useNavigate();
 
@@ -70,6 +72,8 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
       setCompany('');
       setShowPassword(false);
       setUsernameStatus('idle');
+      setHoneypotTrap('');
+      mountTsRef.current = Date.now();
     } else if (!isOpen && prevOpen) {
       setPrevOpen(false);
     }
@@ -150,7 +154,10 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
     }
 
     setIsLoading(true);
-    const result = await login(identifier, password);
+    const result = await login(identifier, password, {
+      _hp_website: honeypotTrap,
+      _hp_ts: mountTsRef.current,
+    });
     setIsLoading(false);
 
     if (result.success) {
@@ -270,6 +277,8 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
       lastName: lastName.trim() || undefined,
       phone: phone.trim() || undefined,
       company: company.trim() || undefined,
+      _hp_website: honeypotTrap,
+      _hp_ts: mountTsRef.current,
     });
     setIsLoading(false);
 
@@ -358,6 +367,20 @@ const AuthModal = ({ isOpen, onClose, defaultTab = 'login', onSuccess }) => {
             onSubmit={activeTab === 'login' ? handleLogin : handleRegister}
             className="px-8 pb-8 space-y-4 overflow-y-auto custom-scrollbar"
           >
+            {/* Zero-Overhead Bot Honeypot Trap */}
+            <div style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', left: '-9999px', height: 0, overflow: 'hidden' }} aria-hidden="true" tabIndex={-1}>
+              <label htmlFor="auth_hp_website">Leave this blank</label>
+              <input
+                type="text"
+                id="auth_hp_website"
+                name="_hp_website"
+                value={honeypotTrap}
+                onChange={(e) => setHoneypotTrap(e.target.value)}
+                autoComplete="off"
+                tabIndex={-1}
+              />
+            </div>
+
             {/* Email / Username for Login, Email for Register */}
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">

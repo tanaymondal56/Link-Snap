@@ -95,6 +95,15 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
   const [url, setUrl] = useState('');
   const [customAlias, setCustomAlias] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [honeypotTrap, setHoneypotTrap] = useState('');
+  const mountTsRef = useRef(0);
+
+  useEffect(() => {
+    if (isOpen) {
+      mountTsRef.current = Date.now();
+      setHoneypotTrap('');
+    }
+  }, [isOpen]);
 
   // Expiration state
   const [expiresIn, setExpiresIn] = useState('never');
@@ -492,6 +501,10 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
         };
       }
 
+      // Attach bot protection tokens (Zero client overhead)
+      payload._hp_website = honeypotTrap;
+      payload._hp_ts = mountTsRef.current;
+
       const { data } = await api.post('/url/shorten', payload);
       clearDraft(); // Clear draft on successful creation
       onSuccess(data);
@@ -542,6 +555,20 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
         className="relative w-full max-w-2xl bg-gray-900 border border-gray-800 rounded-2xl shadow-xl max-h-[90dvh] flex flex-col overflow-hidden overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Zero-Overhead Honeypot Trap */}
+        <div style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', left: '-9999px', height: 0, overflow: 'hidden' }} aria-hidden="true" tabIndex={-1}>
+          <label htmlFor="create_link_hp_website">Leave this field blank</label>
+          <input
+            type="text"
+            id="create_link_hp_website"
+            name="_hp_website"
+            value={honeypotTrap}
+            onChange={(e) => setHoneypotTrap(e.target.value)}
+            autoComplete="off"
+            tabIndex={-1}
+          />
+        </div>
+
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-800 shrink-0">
           <div>

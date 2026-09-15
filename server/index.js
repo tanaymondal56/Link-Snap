@@ -25,6 +25,8 @@ import analyticsRoutes from './routes/analyticsRoutes.js';
 // This middleware ensures ALL requests come through authorized Azure proxy
 // Set PROXY_GATE_ENABLED=true in production, false for local development
 import { strictProxyGate, validateProxyGateConfig } from './middleware/strictProxyGate.js';
+import { restrictedZoneGate } from './middleware/restrictedZoneGate.js';
+import { formHoneypotGate } from './middleware/formHoneypot.js';
 // Conditional Admin Import
 // Ghost Mode: Admin routes are ONLY loaded if explicitly enabled
 let adminRoutes = null;
@@ -107,6 +109,14 @@ if (process.env.NODE_ENV === 'development') {
 // Bypasses: /health endpoint for load balancer probes
 // Toggle: PROXY_GATE_ENABLED=false for local development
 app.use(strictProxyGate);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RESTRICTED ZONE GATE - SECOND SECURITY LAYER (IP JAIL)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Intercepts traffic using the authoritative real user IP from Cloudflare.
+// Quarantines abusive clients, drops hard-jailed IPs (HTTP 403), and throttles
+// connections exhibiting rapid burst clicks or scraping anomalies.
+app.use(restrictedZoneGate);
 
 // Generate CSP Nonce (Lazy on-demand getter to avoid crypto.randomBytes overhead on pure JSON APIs)
 app.use((req, res, next) => {
@@ -457,6 +467,9 @@ app.use('/api', (req, res, next) => {
 
 // Frontend-Only Origin Enforcement Gate
 app.use('/api', frontendGate);
+
+// Zero-overhead Form Honeypot & Quick-Submit Speed Gate
+app.use('/api', formHoneypotGate());
 
 // Rate Limiting
 app.use('/api', apiLimiter);

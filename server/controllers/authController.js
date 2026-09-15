@@ -67,6 +67,7 @@ export const clearAllAuthCookies = (res) => {
   res.clearCookie('jwt', cookieOptions);
   res.clearCookie('access_token', cookieOptions);
   res.clearCookie('__Host-session', cookieOptions);
+  res.clearCookie('__Secure-session', cookieOptions);
   res.clearCookie('dbsc_session', cookieOptions);
   res.clearCookie('session', cookieOptions);
   res.clearCookie('session.sig', cookieOptions);
@@ -79,6 +80,12 @@ export const clearAllAuthCookies = (res) => {
 export const setDbscSessionCookies = (res, dbscSessionId) => {
   if (!dbscSessionId) return;
   res.cookie('__Host-session', dbscSessionId, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/'
+  });
+  res.cookie('__Secure-session', dbscSessionId, {
     httpOnly: true,
     secure: true,
     sameSite: 'lax',

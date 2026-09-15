@@ -88,6 +88,15 @@ router.post('/registration', async (req, res) => {
     res.setHeader("Sec-Session-Response", termHeader);
     res.setHeader("Secure-Session-Response", termHeader);
 
+    // Pre-populate next challenge so Chrome has it ready for proactive/background refresh
+    const nextChallenge = crypto.randomBytes(32).toString("base64url");
+    session.dbscChallenge = nextChallenge;
+    await session.save();
+
+    const nextChalHeader = `"${nextChallenge}"; id="${session.dbscSessionId}"`;
+    res.setHeader("Sec-Session-Challenge", nextChalHeader);
+    res.setHeader("Secure-Session-Challenge", nextChalHeader);
+
     setDbscSessionCookies(res, session.dbscSessionId);
 
     res.cookie('access_token', accessToken, {
@@ -109,12 +118,17 @@ router.post('/registration', async (req, res) => {
       credentials: [
         {
           type: "cookie",
-          name: "__Host-session",
+          name: "dbsc_session",
           attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
         },
         {
           type: "cookie",
-          name: "dbsc_session",
+          name: "__Secure-session",
+          attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
+        },
+        {
+          type: "cookie",
+          name: "__Host-session",
           attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
         }
       ]
@@ -126,19 +140,20 @@ router.post('/registration', async (req, res) => {
 });
 
 /**
- * 2. DBSC REFRESH ENDPOINT (Deferred Fetch)
+ * 2. DBSC REFRESH ENDPOINT (Deferred & Proactive Fetch)
  * Handles POST /api/dbsc/refresh
  * The browser pauses outgoing requests when a cookie is about to expire,
- * and calls this to prove possession of the hardware key.
+ * or refreshes in the background, to prove possession of the hardware key.
  *
  * TWO-PHASE flow:
- *  Phase 1 (no proof header): Issue a new challenge, store it in DB. Return 403 + Secure-Session-Challenge.
- *  Phase 2 (with proof header): Verify the JWS proof's jti matches the stored challenge. If valid, return 200.
+ *  Phase 1 (no proof header or expired challenge): Issue a new challenge, store it in DB. Return 401 + Sec-Session-Challenge.
+ *  Phase 2 (with proof header): Verify the JWS proof's jti matches the stored challenge. If valid, return 200 + credentials + next challenge.
  *
- * The stored challenge is single-use (cleared after verification) to prevent replay attacks.
+ * Non-fatal Challenge Recovery: If a challenge expires or mismatches, the server returns 401 with a new Sec-Session-Challenge
+ * instead of a fatal rejection, allowing Chromium to sign the new challenge without deleting the session from DevTools.
  */
 router.post('/refresh', async (req, res) => {
-  const dbscSessionId = req.headers["sec-secure-session-id"] || req.headers["sec-session-id"] || req.cookies?.['__Host-session'] || req.cookies?.['dbsc_session'];
+  const dbscSessionId = req.headers["sec-secure-session-id"] || req.headers["sec-session-id"] || req.cookies?.['__Secure-session'] || req.cookies?.['__Host-session'] || req.cookies?.['dbsc_session'];
   const jwtCookie = req.cookies?.['jwt'];
   const proofHeader = req.headers["secure-session-response"] || req.headers["sec-session-response"];
 
@@ -156,48 +171,56 @@ router.post('/refresh', async (req, res) => {
 
   if (!session || !session.dbscPublicKeyJwk) {
     // Session not found or no DBSC key registered — issue a fresh challenge
-    // Sec-Session-Challenge format per DBSC spec & Chromium parser: "<nonce>"; id="<id>"
-    // NOTE: The challenge string MUST be the primary RFC 8941 Item (do NOT put "challenge=" before it)
     const newChallenge = crypto.randomBytes(32).toString("base64url");
     const chalHeader = `"${newChallenge}"; id="${dbscSessionId || 'unknown'}"`;
     res.setHeader("Sec-Session-Challenge", chalHeader);
     res.setHeader("Secure-Session-Challenge", chalHeader);
-    return res.status(403).json({ error: "DBSC challenge required" });
+    return res.status(401).json({ error: "DBSC challenge required" });
   }
 
   if (!proofHeader) {
-    // Phase 1: Browser is initiating — issue and PERSIST the challenge (anti-replay)
-    // Sec-Session-Challenge format per DBSC spec & Chromium parser: "<base64url-nonce>"; id="<id>"
-    // NOTE: The challenge string MUST be the primary RFC 8941 Item (do NOT put "challenge=" before it)
+    // Phase 1: Browser is initiating refresh — issue and persist fresh challenge
     const newChallenge = crypto.randomBytes(32).toString("base64url");
     session.dbscChallenge = newChallenge;
     await session.save();
     const chalHeader = `"${newChallenge}"; id="${session.dbscSessionId}"`;
     res.setHeader("Sec-Session-Challenge", chalHeader);
     res.setHeader("Secure-Session-Challenge", chalHeader);
-    return res.status(403).json({ error: "DBSC challenge required" });
+    return res.status(401).json({ error: "DBSC challenge required" });
   }
 
   // Phase 2: Verify Proof of Possession
   try {
-    // Decode and verify the challenge JTI BEFORE signature to prevent replay attacks
     const decodedProof = jwt.decode(proofHeader, { complete: true });
     if (!decodedProof?.payload?.jti) {
+      const newChallenge = crypto.randomBytes(32).toString("base64url");
+      session.dbscChallenge = newChallenge;
+      await session.save();
+      const chalHeader = `"${newChallenge}"; id="${session.dbscSessionId}"`;
+      res.setHeader("Sec-Session-Challenge", chalHeader);
+      res.setHeader("Secure-Session-Challenge", chalHeader);
       return res.status(401).json({ error: "Invalid proof: missing jti claim" });
     }
 
-    // Verify the jti matches the stored (single-use) challenge
+    // If challenge missing or mismatched, issue a fresh challenge instead of fatal termination
     if (!session.dbscChallenge || decodedProof.payload.jti !== session.dbscChallenge) {
-      logger.warn(`[DBSC] Replay attack detected for session ${session.dbscSessionId}: jti mismatch`);
-      return res.status(401).json({ error: "Replay attack detected: challenge mismatch" });
+      logger.info(`[DBSC] Refresh challenge refresh needed for session ${session.dbscSessionId}`);
+      const newChallenge = crypto.randomBytes(32).toString("base64url");
+      session.dbscChallenge = newChallenge;
+      await session.save();
+      const chalHeader = `"${newChallenge}"; id="${session.dbscSessionId}"`;
+      res.setHeader("Sec-Session-Challenge", chalHeader);
+      res.setHeader("Secure-Session-Challenge", chalHeader);
+      return res.status(401).json({ error: "DBSC challenge required", challenge: newChallenge });
     }
 
-    // Now verify the cryptographic signature
+    // Verify cryptographic signature with the hardware public key
     const publicKeyPem = crypto.createPublicKey({ format: "jwk", key: session.dbscPublicKeyJwk }).export({ format: "pem", type: "spki" });
     jwt.verify(proofHeader, publicKeyPem, { algorithms: ["ES256", "RS256"] });
 
-    // Challenge consumed — clear it immediately (single-use)
-    session.dbscChallenge = null;
+    // Pre-populate the NEXT challenge so Chromium always has a fresh challenge ready
+    const nextChallenge = crypto.randomBytes(32).toString("base64url");
+    session.dbscChallenge = nextChallenge;
     session.dbscLastVerifiedAt = new Date();
     await session.save();
     setDbscSessionCookies(res, session.dbscSessionId);
@@ -206,7 +229,11 @@ router.post('/refresh', async (req, res) => {
     res.setHeader("Sec-Session-Response", termHeader);
     res.setHeader("Secure-Session-Response", termHeader);
 
-    // The token is valid. Return 200 OK with full session configuration to tell browser to unpause queued requests.
+    const nextChalHeader = `"${nextChallenge}"; id="${session.dbscSessionId}"`;
+    res.setHeader("Sec-Session-Challenge", nextChalHeader);
+    res.setHeader("Secure-Session-Challenge", nextChalHeader);
+
+    // Return 200 OK with full session configuration to tell browser to unpause queued requests
     return res.status(200).json({ 
       session_identifier: session.dbscSessionId,
       refresh_url: "/api/dbsc/refresh",
@@ -217,19 +244,30 @@ router.post('/refresh', async (req, res) => {
       credentials: [
         {
           type: "cookie",
-          name: "__Host-session",
+          name: "dbsc_session",
           attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
         },
         {
           type: "cookie",
-          name: "dbsc_session",
+          name: "__Secure-session",
+          attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
+        },
+        {
+          type: "cookie",
+          name: "__Host-session",
           attributes: "Secure; Path=/; SameSite=Lax; HttpOnly"
         }
       ]
     });
   } catch (err) {
     logger.error(`[DBSC Refresh Error] ${err.message}`);
-    return res.status(401).json({ error: "Invalid device signature", details: err.message, stack: err.stack });
+    const newChallenge = crypto.randomBytes(32).toString("base64url");
+    session.dbscChallenge = newChallenge;
+    await session.save();
+    const chalHeader = `"${newChallenge}"; id="${session.dbscSessionId}"`;
+    res.setHeader("Sec-Session-Challenge", chalHeader);
+    res.setHeader("Secure-Session-Challenge", chalHeader);
+    return res.status(401).json({ error: "Invalid device signature, new challenge issued" });
   }
 });
 

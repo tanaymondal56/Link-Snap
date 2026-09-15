@@ -1,23 +1,7 @@
 import { getRedisClient, isRedisConfigured, getRedisDriver } from '../config/redis.js';
 import { getUserIP } from './strictProxyGate.js';
 import logger from '../utils/logger.js';
-
-// IPs that bypass rate limiting
-const envAllowedIPs = process.env.RATE_LIMIT_WHITELIST_IPS
-  ? process.env.RATE_LIMIT_WHITELIST_IPS.split(',').map((ip) => ip.trim()).filter(Boolean)
-  : [];
-
-const WHITELIST_SET = new Set([
-  '127.0.0.1',
-  '::1',
-  ...envAllowedIPs.map((ip) => (ip.startsWith('::ffff:') ? ip.slice(7) : ip)),
-]);
-
-const isWhitelisted = (ip) => {
-  if (!ip) return false;
-  const normalized = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
-  return normalized.startsWith('127.') || normalized === '::1' || WHITELIST_SET.has(normalized);
-};
+import { isWhitelisted } from '../services/restrictedZoneService.js';
 
 // In-Memory fallback store when Redis is not available
 class InMemoryStore {

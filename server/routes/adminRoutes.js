@@ -2,7 +2,6 @@ import express from 'express';
 import { verifyToken } from '../middleware/authMiddleware.js';
 import { verifyAdmin } from '../middleware/verifyAdmin.js';
 import { ipWhitelist } from '../middleware/ipWhitelist.js';
-import { forgotPasswordLimiter } from '../middleware/rateLimiter.js';
 import {
     getSystemStats,
     getAllUsers,
@@ -25,7 +24,10 @@ import {
     exportFeedbackCSV,
     getUsernameHistory,
     triggerSafetyScan,
-    getSystemEnvironment
+    getSystemEnvironment,
+    getJailedIPs,
+    unjailIP,
+    manualJailIPHandler
 } from '../controllers/adminController.js';
 import { getAllLinks, updateLinkStatus, deleteLinkAdmin, overrideLinkSafety, rescanLinkSafety } from '../controllers/adminLinkController.js';
 import { 
@@ -88,7 +90,7 @@ router.delete('/links/:linkId', deleteLinkAdmin);
 router.get('/settings', getSettings);
 router.put('/settings', updateSettings);
 router.patch('/settings', updateSettings);  // Support partial updates
-router.post('/settings/test-email', forgotPasswordLimiter, testEmailConfiguration);
+router.post('/settings/test-email', testEmailConfiguration);
 router.post('/settings/scan', triggerSafetyScan);
 
 // Cache
@@ -125,5 +127,10 @@ router.get('/notifications/count', getUnreadCount);
 router.patch('/notifications/read', markAsRead);
 router.patch('/notifications/read-all', markAllAsRead);
 router.post('/notifications/test', createTestNotification);
+
+// Security & Restricted Zone (IP Jail) Management
+router.get('/security/jailed-ips', getJailedIPs);
+router.post('/security/unjail-ip', unjailIP);
+router.post('/security/jail-ip', manualJailIPHandler);
 
 export default router;

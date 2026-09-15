@@ -1,10 +1,11 @@
-import rateLimit from 'express-rate-limit';
+import baseRateLimit from 'express-rate-limit';
 import { getEffectiveTier } from '../services/subscriptionService.js';
 import { getUserIP } from './strictProxyGate.js';
 import RedisStore from 'rate-limit-redis';
 import { getRedisClient, getRedisDriver, isRedisConfigured, connectRedis } from '../config/redis.js';
 import ipaddr from 'ipaddr.js';
 import { LRUCache } from 'lru-cache';
+import { recordViolation, isWhitelisted } from '../services/restrictedZoneService.js';
 
 // Emergency in-memory fail-closed fallback store if Redis drops
 const localMemoryLimitStore = new LRUCache({
@@ -12,21 +13,38 @@ const localMemoryLimitStore = new LRUCache({
     ttl: 60 * 60 * 1000, // 1 hour default
 });
 
-// IPs that bypass rate limiting
-const envAllowedIPs = process.env.RATE_LIMIT_WHITELIST_IPS 
-    ? process.env.RATE_LIMIT_WHITELIST_IPS.split(',').map(ip => ip.trim()).filter(Boolean) 
-    : [];
+/**
+ * Enhanced rate limiter wrapper that hooks repeated 429 threshold breaches
+ * into the Restricted Zone / IP Jail service for automated strike escalation.
+ * 
+ * Flaw 1.1: Only limiters explicitly configured with `jailOnBreach: true` (e.g. security-critical
+ * auth/brute-force endpoints) will trigger IP Jail violations. Standard product quota limiters
+ * (link creation, username check, appeals) return 429 without jailing users.
+ */
+const rateLimit = (options = {}) => {
+    const { jailOnBreach = false, ...rateLimitOptions } = options;
+    const originalHandler = rateLimitOptions.handler;
 
-const WHITELIST_SET = new Set([
-    '127.0.0.1',
-    '::1',
-    ...envAllowedIPs.map(ip => (ip.startsWith('::ffff:') ? ip.slice(7) : ip))
-]);
+    rateLimitOptions.handler = (req, res, next, opts) => {
+        if (jailOnBreach) {
+            const ip = getUserIP(req);
+            const isGlobal = typeof rateLimitOptions.keyGenerator === 'function' && rateLimitOptions.keyGenerator(req) === 'global_register';
 
-const isWhitelisted = (ip) => {
-    if (!ip) return false;
-    const normalized = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
-    return normalized.startsWith('127.') || normalized === '::1' || WHITELIST_SET.has(normalized);
+            if (ip && !isWhitelisted(ip) && !isGlobal) {
+                recordViolation(ip, 'rate_limit_exceeded', {
+                    path: req.originalUrl,
+                    method: req.method,
+                }).catch(() => {});
+            }
+        }
+
+        if (originalHandler) {
+            return originalHandler(req, res, next, opts);
+        }
+        return res.status(rateLimitOptions.statusCode || 429).send(rateLimitOptions.message || 'Too many requests');
+    };
+
+    return baseRateLimit(rateLimitOptions);
 };
 
 /**
@@ -136,6 +154,7 @@ export const authLimiter = rateLimit({
     store: createRedisStore('auth'),
     keyGenerator: (req) => getUserIP(req),
     validate: { keyGeneratorIpFallback: false },
+    jailOnBreach: true,
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many login attempts from this IP, please try again after an hour' });
     },
@@ -264,6 +283,7 @@ export const verifyOtpLimiter = rateLimit({
     store: createRedisStore('otp'),
     keyGenerator: (req) => getUserIP(req),
     validate: { keyGeneratorIpFallback: false },
+    jailOnBreach: true,
     handler: (req, res) => {
         res.status(429).json({ message: 'Whoa there! Too many attempts. Please take a short break and try again in about 15 minutes. ☕' });
     },
@@ -276,6 +296,7 @@ export const forgotPasswordLimiter = rateLimit({
     store: createRedisStore('forgot'),
     keyGenerator: (req) => getUserIP(req),
     validate: { keyGeneratorIpFallback: false },
+    jailOnBreach: true,
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many password reset requests. Please try again in 15 minutes.' });
     },
@@ -288,6 +309,7 @@ export const resetPasswordLimiter = rateLimit({
     store: createRedisStore('reset'),
     keyGenerator: (req) => getUserIP(req),
     validate: { keyGeneratorIpFallback: false },
+    jailOnBreach: true,
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many reset attempts. Please try again in 15 minutes.' });
     },
@@ -300,6 +322,7 @@ export const passwordVerifyLimiter = rateLimit({
     store: createRedisStore('pwd_verify'),
     keyGenerator: (req) => getUserIP(req),
     validate: { keyGeneratorIpFallback: false },
+    jailOnBreach: true,
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many password attempts. Please try again in 15 minutes.' });
     },
@@ -503,6 +526,7 @@ export const biometricAuthLimiter = rateLimit({
     store: createRedisStore('biometric'),
     keyGenerator: (req) => getUserIP(req),
     validate: { keyGeneratorIpFallback: false },
+    jailOnBreach: true,
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many authentication attempts. Please try again later.' });
     },
@@ -519,6 +543,21 @@ export const passkeyHealthCheckLimiter = rateLimit({
     validate: { keyGeneratorIpFallback: false },
     handler: (req, res) => {
         res.status(429).json({ message: 'Too many passkey verification attempts. Please wait a moment.' });
+    },
+    skip: (req) => isWhitelisted(getUserIP(req)),
+});
+
+// ─── Login Failed Threshold Rate Limiting ────────────────────────────────────
+// Applied to failed credential attempts to trigger automated IP jail
+export const loginFailedThresholdLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5,
+    store: createRedisStore('login_failed'),
+    keyGenerator: (req) => getUserIP(req),
+    validate: { keyGeneratorIpFallback: false },
+    jailOnBreach: true,
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many failed login attempts from this IP. Please try again later.' });
     },
     skip: (req) => isWhitelisted(getUserIP(req)),
 });
