@@ -43,10 +43,12 @@ export default function TesterSandboxModal() {
   const [timeRemainingMs, setTimeRemainingMs] = useState(0);
   const lastSyncRef = useRef({ remainingMs: 0, timestamp: 0 });
 
-  // Multi-tap tracker for covert mobile trigger
+  // Multi-tap and gesture tracker for covert mobile trigger
   const tapsRef = useRef([]);
+  const longPressTimerRef = useRef(null);
+  const suppressClickUntilRef = useRef(0);
+  const singleTapTimerRef = useRef(null);
 
-  // Check if environment is beta or local
   // Check if environment is beta or local
   const isBetaOrLocal = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -117,14 +119,32 @@ export default function TesterSandboxModal() {
   // GHOST MODE COVERT TRIGGERS: Desktop & Mobile & Dev Console
   // ═══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
-    // 100% INERT on production: Do NOT attach any listeners outside beta/staging/local
+    // 100% INERT on production: Do NOT attach any listeners outside beta/local
     if (!isBetaOrLocal) {
       return;
     }
 
+    const attemptUnlock = (source = 'covert') => {
+      if (!isAuthorized) {
+        if (!user) {
+          showToast.warning(
+            'Please log in with an authorized Beta Tester or Admin account to access the Tester Sandbox.',
+            'Authentication Required'
+          );
+        } else {
+          showToast.error(
+            `Account (${user.email || user.username}) is not authorized as a beta tester. Please add it in Admin Console > Settings > Authorized Beta Testers.`,
+            'Tester Authorization Required'
+          );
+        }
+        return;
+      }
+
+      openModal();
+      showToast.info('Beta Tester Sandbox Unlocked', `Covert Access (${source})`);
+    };
+
     // 1. Desktop Covert Trigger:
-    // Support physical key code or key character for universal cross-platform layout support
-    // Shortcuts supported:
     // • Ctrl + Alt + T / Cmd + Option + T (Classic, 3 keys, no browser conflicts)
     // • Ctrl + Shift + X / Cmd + Shift + X (Developer standard, zero conflicts)
     // • Ctrl + Alt + Shift + T / Cmd + Option + Shift + T (Original 4-key combo)
@@ -149,38 +169,22 @@ export default function TesterSandboxModal() {
         e.preventDefault();
         e.stopPropagation();
 
-        if (!isAuthorized) {
-          if (!user) {
-            showToast.warning(
-              'Please log in with an authorized Beta Tester or Admin account to access the Tester Sandbox.',
-              'Authentication Required'
-            );
-          } else {
-            showToast.error(
-              `Account (${user.email || user.username}) is not authorized as a beta tester. Please add it in Admin Console > Settings > Authorized Beta Testers.`,
-              'Tester Authorization Required'
-            );
-          }
-          return;
-        }
-
         if (isOpen) {
           closeModal();
         } else {
-          openModal();
-          showToast.info('Tester Sandbox Unlocked', 'Covert Access');
+          attemptUnlock('Hotkey');
         }
       } else if (e.key === 'Escape' && isOpen) {
         closeModal();
       }
     };
 
-    // 2. Mobile Covert Trigger: 3 rapid taps within 1500ms on version, tier, or snapId badge
+    // 2. Mobile Covert Trigger: 3 rapid taps within 1500ms or 1-second long-press
     const handlePointerDown = (e) => {
       const target = e.target;
       if (!target) return;
 
-      const isCovertTarget =
+      const covertTarget =
         target.closest('[data-covert-trigger="tester"]') ||
         target.closest('a[href="/changelog"]') ||
         target.closest('[data-snapid]') ||
@@ -189,59 +193,96 @@ export default function TesterSandboxModal() {
           (/^v\d+\.\d+/i.test(target.innerText.trim()) ||
             /^SP-\d+/i.test(target.innerText.trim())));
 
-      if (!isCovertTarget) return;
+      if (!covertTarget) return;
+
+      // Start long-press timer (1.0 second hold)
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+      longPressTimerRef.current = setTimeout(() => {
+        suppressClickUntilRef.current = Date.now() + 1000;
+        tapsRef.current = [];
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate([40, 60, 40]);
+        }
+        attemptUnlock('Long Press');
+      }, 1000);
 
       const now = Date.now();
       const recentTaps = tapsRef.current.filter((t) => now - t < 1500);
       recentTaps.push(now);
       tapsRef.current = recentTaps;
 
-      if (recentTaps.length > 1) {
-        e.preventDefault();
+      // If user is rapidly tapping, suppress click on links so it doesn't navigate
+      if (recentTaps.length >= 2) {
+        suppressClickUntilRef.current = Date.now() + 800;
       }
 
       if (recentTaps.length >= 3) {
         tapsRef.current = [];
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+        if (singleTapTimerRef.current) {
+          clearTimeout(singleTapTimerRef.current);
+          singleTapTimerRef.current = null;
+        }
+        suppressClickUntilRef.current = Date.now() + 1000;
+
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate([30, 40, 30]);
+        }
+        attemptUnlock('3 Taps');
+      }
+    };
+
+    const handlePointerUpOrCancel = () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    };
+
+    // Capture phase click interceptor: Prevents <Link to="/changelog"> from redirecting during multi-tap or long-press!
+    const handleClickCapture = (e) => {
+      const target = e.target;
+      if (!target) return;
+
+      const isCovertOrChangelog =
+        target.closest('[data-covert-trigger="tester"]') ||
+        target.closest('a[href="/changelog"]');
+
+      if (!isCovertOrChangelog) return;
+
+      // 1. If long-press or rapid multi-tap is active, suppress click immediately!
+      if (Date.now() < suppressClickUntilRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      // 2. If clicked on changelog link, delay navigation slightly so multi-taps can be detected
+      const changelogLink = target.closest('a[href="/changelog"]');
+      if (changelogLink) {
         e.preventDefault();
         e.stopPropagation();
 
-        if (!isAuthorized) {
-          if (!user) {
-            showToast.warning(
-              'Please log in with an authorized Beta Tester or Admin account to access the Tester Sandbox.',
-              'Authentication Required'
-            );
-          } else {
-            showToast.error(
-              `Account (${user.email || user.username}) is not authorized as a beta tester.`,
-              'Tester Authorization Required'
-            );
-          }
-          return;
+        if (singleTapTimerRef.current) {
+          clearTimeout(singleTapTimerRef.current);
         }
 
-        openModal();
-        showToast.info('Beta Tester Sandbox Unlocked', 'Covert Access');
+        singleTapTimerRef.current = setTimeout(() => {
+          if (!isOpen && tapsRef.current.length < 2 && Date.now() >= suppressClickUntilRef.current) {
+            window.location.href = '/changelog';
+          }
+        }, 320);
       }
     };
 
     // 3. DevTools Console & Window Event Hook for direct testing
     window.__openTesterSandbox = () => {
-      if (!isAuthorized) {
-        if (!user) {
-          showToast.warning(
-            'Please log in with an authorized Beta Tester or Admin account.',
-            'Authentication Required'
-          );
-        } else {
-          showToast.error(
-            `Account (${user.email || user.username}) is not authorized as a beta tester.`,
-            'Tester Authorization Required'
-          );
-        }
-        return false;
-      }
-      openModal();
+      attemptUnlock('Console Hook');
       return true;
     };
 
@@ -251,12 +292,20 @@ export default function TesterSandboxModal() {
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('pointerup', handlePointerUpOrCancel);
+    window.addEventListener('pointercancel', handlePointerUpOrCancel);
+    window.addEventListener('click', handleClickCapture, { capture: true });
     window.addEventListener('linksnap:open-tester-sandbox', handleCustomTrigger);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown, { capture: true });
       window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointerup', handlePointerUpOrCancel);
+      window.removeEventListener('pointercancel', handlePointerUpOrCancel);
+      window.removeEventListener('click', handleClickCapture, { capture: true });
       window.removeEventListener('linksnap:open-tester-sandbox', handleCustomTrigger);
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+      if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
       delete window.__openTesterSandbox;
     };
   }, [isBetaOrLocal, isAuthorized, user, isOpen, openModal, closeModal]);

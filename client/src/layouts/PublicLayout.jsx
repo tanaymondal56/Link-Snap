@@ -207,7 +207,11 @@ const PublicLayout = () => {
         <div className="max-w-7xl mx-auto px-4 text-center text-gray-400 text-sm flex flex-col items-center gap-2">
           <div className="flex items-center gap-1">
             &copy; {new Date().getFullYear()}{' '}
-            <span className="group cursor-pointer">
+            <span
+              data-covert-trigger="tester"
+              style={{ touchAction: 'manipulation' }}
+              className="group cursor-pointer select-none"
+            >
               <span className="font-bold bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent inline group-hover:hidden">
                 Link Snap
               </span>
@@ -227,7 +231,11 @@ const PublicLayout = () => {
               <Sparkles size={12} />v{appVersion}
             </Link>{' '}
             •{' '}
-            <span className="text-gray-400">
+            <span
+              data-covert-trigger="tester"
+              style={{ touchAction: 'manipulation' }}
+              className="text-gray-400 cursor-pointer select-none"
+            >
               Made with ❤️ by <span className="font-semibold bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent">Tanay</span> ✨
             </span>
           </div>
