@@ -331,7 +331,7 @@ jobs:
         run: echo "date=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
       - name: Cache Trivy vulnerability DB
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/trivy
           key: trivy-db-${{ runner.os }}-${{ steps.date.outputs.date }}
@@ -443,7 +443,7 @@ jobs:
 
       - name: Cache kustomize binary
         id: kustomize-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.local/bin/kustomize
           key: kustomize-bin-v5.8.1-amd64
@@ -555,7 +555,7 @@ jobs:
 
       - name: Cache kustomize binary
         id: kustomize-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.local/bin/kustomize
           key: kustomize-bin-v5.8.1-amd64

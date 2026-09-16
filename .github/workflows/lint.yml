@@ -29,7 +29,7 @@ jobs:
           cache-dependency-path: client/package-lock.json
       - name: Cache client node_modules
         id: client-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: client/node_modules
           key: client-node-modules-${{ hashFiles('client/package-lock.json') }}
@@ -57,7 +57,7 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - name: Cache server node_modules
         id: server-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: server/node_modules
           key: server-node-modules-${{ hashFiles('server/package-lock.json') }}
@@ -83,7 +83,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Cache kubeconform binary
         id: kubeconform-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.local/bin/kubeconform
           key: kubeconform-bin-v0.8.0
@@ -93,7 +93,7 @@ jobs:
           curl -sL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz \
             | tar xz -C "$HOME/.local/bin"
       - name: Cache kubeconform schemas
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.kubeconform/cache
           key: kubeconform-schemas-${{ hashFiles('k8s/**/*.yaml') }}
@@ -101,7 +101,8 @@ jobs:
             kubeconform-schemas-
       - name: Validate manifests
         run: |
-          kubeconform -cache ~/.kubeconform/cache -strict -summary -ignore-missing-schemas k8s/
+          mkdir -p "$HOME/.kubeconform/cache"
+          kubeconform -cache "$HOME/.kubeconform/cache" -strict -summary -ignore-missing-schemas k8s/
 
   lint-workflows:
     name: Lint GitHub Actions Workflows
@@ -114,7 +115,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Cache actionlint binary
         id: actionlint-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.local/bin/actionlint
           key: actionlint-bin-v1.7.12
