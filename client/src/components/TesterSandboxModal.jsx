@@ -47,6 +47,7 @@ export default function TesterSandboxModal() {
   const tapsRef = useRef([]);
 
   // Check if environment is beta or local
+  // Check if environment is beta or local
   const isBetaOrLocal = useMemo(() => {
     if (typeof window === 'undefined') return false;
     const h = window.location.hostname.toLowerCase();
@@ -56,6 +57,9 @@ export default function TesterSandboxModal() {
       h === '127.0.0.1' ||
       h === '::1' ||
       h === '[::1]' ||
+      Boolean(h.match(/^192\.168\.\d{1,3}\.\d{1,3}$/)) ||
+      Boolean(h.match(/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) ||
+      Boolean(h.match(/^172\.(1[6-9]|2[0-9]|3[01])\.\d{1,3}\.\d{1,3}$/)) ||
       h === 'beta.lksnp.qzz.io' ||
       h === 'api-beta.lksnp.qzz.io' ||
       (h.endsWith('.lksnp.qzz.io') && (h.startsWith('beta.') || h.startsWith('api-beta.'))) ||
@@ -88,7 +92,7 @@ export default function TesterSandboxModal() {
       };
     } catch (err) {
       // Fail closed silently if 404 or unauthorized
-      if (err.response?.status !== 404) {
+      if (err.response?.status !== 404 && err.response?.status !== 403) {
         showToast.error('Failed to retrieve tester status');
       }
     } finally {
@@ -110,15 +114,20 @@ export default function TesterSandboxModal() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // GHOST MODE COVERT TRIGGERS: Desktop (Ctrl+Alt+Shift+T) & Mobile (5 rapid taps)
+  // GHOST MODE COVERT TRIGGERS: Desktop & Mobile & Dev Console
   // ═══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
-    // 100% INERT: Do NOT attach any listeners unless beta/local AND authorized
-    if (!isBetaOrLocal || !isAuthorized) {
+    // 100% INERT on production: Do NOT attach any listeners outside beta/staging/local
+    if (!isBetaOrLocal) {
       return;
     }
 
-    // 1. Desktop Covert Trigger: Ctrl + Alt + Shift + T (or Cmd + Option + Shift + T)
+    // 1. Desktop Covert Trigger:
+    // Support physical key code or key character for universal cross-platform layout support
+    // Shortcuts supported:
+    // • Ctrl + Alt + T / Cmd + Option + T (Classic, 3 keys, no browser conflicts)
+    // • Ctrl + Shift + X / Cmd + Shift + X (Developer standard, zero conflicts)
+    // • Ctrl + Alt + Shift + T / Cmd + Option + Shift + T (Original 4-key combo)
     const handleKeyDown = (e) => {
       // Ignore when user is typing inside text inputs or contentEditable
       if (
@@ -128,11 +137,33 @@ export default function TesterSandboxModal() {
         return;
       }
 
-      const isTKey = e.key === 't' || e.key === 'T';
-      const hasModifiers = (e.ctrlKey || e.metaKey) && e.altKey && e.shiftKey;
+      const isTKey = e.code === 'KeyT' || e.key?.toLowerCase() === 't';
+      const isXKey = e.code === 'KeyX' || e.key?.toLowerCase() === 'x';
+      const ctrlOrMeta = e.ctrlKey || e.metaKey;
 
-      if (hasModifiers && isTKey) {
+      const isCombo1 = ctrlOrMeta && e.altKey && !e.shiftKey && isTKey;
+      const isCombo2 = ctrlOrMeta && e.shiftKey && !e.altKey && isXKey;
+      const isCombo3 = ctrlOrMeta && e.altKey && e.shiftKey && isTKey;
+
+      if (isCombo1 || isCombo2 || isCombo3) {
         e.preventDefault();
+        e.stopPropagation();
+
+        if (!isAuthorized) {
+          if (!user) {
+            showToast.warning(
+              'Please log in with an authorized Beta Tester or Admin account to access the Tester Sandbox.',
+              'Authentication Required'
+            );
+          } else {
+            showToast.error(
+              `Account (${user.email || user.username}) is not authorized as a beta tester. Please add it in Admin Console > Settings > Authorized Beta Testers.`,
+              'Tester Authorization Required'
+            );
+          }
+          return;
+        }
+
         if (isOpen) {
           closeModal();
         } else {
@@ -144,7 +175,7 @@ export default function TesterSandboxModal() {
       }
     };
 
-    // 2. Mobile Covert Trigger: 5 rapid taps within 1500ms on version or snapId badge
+    // 2. Mobile Covert Trigger: 3 rapid taps within 1500ms on version, tier, or snapId badge
     const handlePointerDown = (e) => {
       const target = e.target;
       if (!target) return;
@@ -153,6 +184,7 @@ export default function TesterSandboxModal() {
         target.closest('[data-covert-trigger="tester"]') ||
         target.closest('a[href="/changelog"]') ||
         target.closest('[data-snapid]') ||
+        target.closest('.tier-badge') ||
         (typeof target.innerText === 'string' &&
           (/^v\d+\.\d+/i.test(target.innerText.trim()) ||
             /^SP-\d+/i.test(target.innerText.trim())));
@@ -160,32 +192,74 @@ export default function TesterSandboxModal() {
       if (!isCovertTarget) return;
 
       const now = Date.now();
-      // Keep taps within last 1500ms window
       const recentTaps = tapsRef.current.filter((t) => now - t < 1500);
       recentTaps.push(now);
       tapsRef.current = recentTaps;
 
-      // If user is rapidly tapping (more than 1 tap), prevent default to stop mobile zoom & link navigation
       if (recentTaps.length > 1) {
         e.preventDefault();
       }
 
-      if (recentTaps.length >= 5) {
+      if (recentTaps.length >= 3) {
         tapsRef.current = [];
         e.preventDefault();
+        e.stopPropagation();
+
+        if (!isAuthorized) {
+          if (!user) {
+            showToast.warning(
+              'Please log in with an authorized Beta Tester or Admin account to access the Tester Sandbox.',
+              'Authentication Required'
+            );
+          } else {
+            showToast.error(
+              `Account (${user.email || user.username}) is not authorized as a beta tester.`,
+              'Tester Authorization Required'
+            );
+          }
+          return;
+        }
+
         openModal();
         showToast.info('Beta Tester Sandbox Unlocked', 'Covert Access');
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    // 3. DevTools Console & Window Event Hook for direct testing
+    window.__openTesterSandbox = () => {
+      if (!isAuthorized) {
+        if (!user) {
+          showToast.warning(
+            'Please log in with an authorized Beta Tester or Admin account.',
+            'Authentication Required'
+          );
+        } else {
+          showToast.error(
+            `Account (${user.email || user.username}) is not authorized as a beta tester.`,
+            'Tester Authorization Required'
+          );
+        }
+        return false;
+      }
+      openModal();
+      return true;
+    };
+
+    const handleCustomTrigger = () => {
+      window.__openTesterSandbox?.();
+    };
+
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
     window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('linksnap:open-tester-sandbox', handleCustomTrigger);
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
       window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('linksnap:open-tester-sandbox', handleCustomTrigger);
+      delete window.__openTesterSandbox;
     };
-  }, [isBetaOrLocal, isAuthorized, isOpen, openModal, closeModal]);
+  }, [isBetaOrLocal, isAuthorized, user, isOpen, openModal, closeModal]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // REAL-TIME EXPIRATION COUNTDOWN TIMER (Ticks every second)

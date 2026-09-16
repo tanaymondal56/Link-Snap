@@ -30,6 +30,9 @@ const isBetaOrLocalHost = () => {
     h === '127.0.0.1' ||
     h === '::1' ||
     h === '[::1]' ||
+    Boolean(h.match(/^192\.168\.\d{1,3}\.\d{1,3}$/)) ||
+    Boolean(h.match(/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) ||
+    Boolean(h.match(/^172\.(1[6-9]|2[0-9]|3[01])\.\d{1,3}\.\d{1,3}$/)) ||
     h === 'beta.lksnp.qzz.io' ||
     h === 'api-beta.lksnp.qzz.io' ||
     (h.endsWith('.lksnp.qzz.io') && (h.startsWith('beta.') || h.startsWith('api-beta.'))) ||

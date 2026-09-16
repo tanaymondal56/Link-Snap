@@ -98,7 +98,10 @@ export const isBetaOrLocalEnvironment = (req) => {
 
   const isBetaClient =
     xForwardedHost === 'beta.lksnp.qzz.io' ||
-    (xForwardedHost.endsWith('.lksnp.qzz.io') && xForwardedHost.startsWith('beta.')) ||
+    (xForwardedHost.endsWith('.lksnp.qzz.io') && (
+      xForwardedHost.startsWith('beta.') ||
+      xForwardedHost.startsWith('api-beta.')
+    )) ||
     (xForwardedHost.endsWith('.pages.dev') && xForwardedHost.includes('beta'));
 
   // 1. Strict production check: if ANY host/origin points directly to production, reject immediately
@@ -110,7 +113,11 @@ export const isBetaOrLocalEnvironment = (req) => {
       return false;
     }
     // Also catch bare apex/subdomain without beta prefix
-    if ((host === 'lksnp.qzz.io' || host.endsWith('.lksnp.qzz.io')) && !host.startsWith('beta.') && !host.startsWith('api-beta.')) {
+    if (
+      (host === 'lksnp.qzz.io' || host.endsWith('.lksnp.qzz.io')) &&
+      !host.startsWith('beta.') &&
+      !host.startsWith('api-beta.')
+    ) {
       return false;
     }
     if (host.endsWith('link-snap.pages.dev') && !host.includes('beta')) {
@@ -135,7 +142,10 @@ export const isBetaOrLocalEnvironment = (req) => {
     return (
       host === 'beta.lksnp.qzz.io' ||
       host === 'api-beta.lksnp.qzz.io' ||
-      (host.endsWith('.lksnp.qzz.io') && (host.startsWith('beta.') || host.startsWith('api-beta.'))) ||
+      (host.endsWith('.lksnp.qzz.io') && (
+        host.startsWith('beta.') ||
+        host.startsWith('api-beta.')
+      )) ||
       (host.endsWith('.pages.dev') && host.includes('beta'))
     );
   });

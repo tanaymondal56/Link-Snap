@@ -291,6 +291,7 @@ const DashboardLayout = () => {
         <div className={cn('p-3 bg-black/20 transition-all duration-300', isCollapsed ? 'lg:px-2' : 'p-4')} style={{ borderTop: '1px solid var(--divider-color)' }}>
           <div
             ref={userCardRef}
+            data-covert-trigger="tester"
             className={cn(
               'flex items-center gap-3 py-2 mb-3 rounded-lg bg-white/5 transition-all',
               isCollapsed ? 'lg:justify-center lg:px-0 lg:w-12 lg:h-12 lg:mx-auto px-3' : 'px-3'
@@ -418,7 +419,10 @@ const DashboardLayout = () => {
           <div className="flex-1 px-4 flex items-center justify-end gap-3">
             {/* Tier Perk Status Pill */}
             {userTier !== 'free' && (
-              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-[var(--card-border)] text-xs font-semibold backdrop-blur-md shadow-sm transition-all hover:scale-105">
+              <div
+                data-covert-trigger="tester"
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-[var(--card-border)] text-xs font-semibold backdrop-blur-md shadow-sm transition-all hover:scale-105 cursor-pointer select-none"
+              >
                 <Sparkles className="w-3.5 h-3.5 text-[var(--stat-icon-color)]" />
                 <span className="bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(to right, var(--accent-from), var(--accent-to))` }}>
                   {userTier === 'pro' ? 'PRO UNLOCKED' : userTier === 'business' ? 'BUSINESS VIP' : 'ADMIN ACCESS'}

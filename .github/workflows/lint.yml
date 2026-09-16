@@ -1,11 +1,8 @@
 name: Lint
 
 on:
-  push:
-    branches-ignore: [ "master", "working" ]
-    paths-ignore:
-      - '**.md'
   workflow_call:
+  workflow_dispatch:
 
 concurrency:
   group: lint-${{ github.workflow }}-${{ github.ref }}
