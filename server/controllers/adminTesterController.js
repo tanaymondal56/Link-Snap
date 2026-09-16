@@ -12,10 +12,13 @@ import validator from 'validator';
  */
 export const listTesters = async (req, res) => {
   try {
-    const testers = await Tester.find()
+    const testers = await Tester.find({ isActive: true })
       .populate('addedBy', 'email username firstName lastName')
-      .sort({ createdAt: -1 })
+      .sort({ _id: -1 })
       .lean();
+
+    // Ensure strictly descending order by creation date
+    testers.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
     res.json({
       testers,

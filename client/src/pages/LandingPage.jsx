@@ -33,6 +33,7 @@ import { getShortUrl, getDisplayShortUrl } from '../utils/urlHelper';
 const LinkSuccessModal = lazy(() => import('../components/LinkSuccessModal'));
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { isFreeTier } from '../utils/subscriptionUtils';
+import { toInputDateTime } from '../utils/dateUtils';
 import { ProBadge } from '../components/subscription/PremiumField';
 import { usePremiumField } from '../hooks/usePremiumField';
 
@@ -152,9 +153,7 @@ const LandingPage = () => {
   const [showGuestWarning, setShowGuestWarning] = useState(false);
 
   useEffect(() => {
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    setCustomExpiresAtMin(now.toISOString().slice(0, 16));
+    setCustomExpiresAtMin(toInputDateTime(new Date()));
   }, []);
 
   // Check alias availability

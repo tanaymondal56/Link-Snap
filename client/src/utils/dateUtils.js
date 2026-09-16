@@ -5,6 +5,19 @@
  */
 export const formatDate = (dateValue) => {
   if (!dateValue) return '';
+
+  // Prevent UTC midnight rollback in timezones west of UTC (e.g. US EST/PST)
+  // When given a pure YYYY-MM-DD string, parse into local calendar parts
+  if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue.trim())) {
+    const [year, month, day] = dateValue.trim().split('-').map(Number);
+    const localDate = new Date(year, month - 1, day);
+    return new Intl.DateTimeFormat('default', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }).format(localDate);
+  }
+
   const date = new Date(dateValue);
   
   // Check if date is valid
@@ -44,6 +57,11 @@ export const formatDateTime = (dateValue) => {
  */
 export const toInputDate = (dateValue) => {
   if (!dateValue) return '';
+  // If already YYYY-MM-DD, return trimmed string to avoid UTC midnight date rollback
+  if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue.trim())) {
+    return dateValue.trim();
+  }
+
   const date = new Date(dateValue);
   if (isNaN(date.getTime())) return '';
 

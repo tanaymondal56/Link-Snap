@@ -60,6 +60,7 @@ const AdminSettings = () => {
       setTesters(data.testers || []);
     } catch (err) {
       console.error('Failed to load testers:', err);
+      showToast.error(err.response?.data?.message || 'Failed to load authorized testers');
     } finally {
       setTestersLoading(false);
     }
@@ -582,6 +583,12 @@ const AdminSettings = () => {
                       <tr>
                         <td colSpan={5} className="text-center py-8 text-gray-500">
                           No authorized testers configured yet. Add an email above to grant testing access.
+                        </td>
+                      </tr>
+                    ) : testers.filter(t => !testerSearch || t.email.toLowerCase().includes(testerSearch.toLowerCase()) || (t.notes && t.notes.toLowerCase().includes(testerSearch.toLowerCase()))).length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="text-center py-8 text-gray-500">
+                          No authorized testers match &quot;{testerSearch}&quot;.
                         </td>
                       </tr>
                     ) : (

@@ -27,7 +27,11 @@ const AnalyticsPage = () => {
     const fetchAnalytics = async () => {
       try {
         setLoading(true);
-        const response = await api.get(`/analytics/${shortId}`);
+        const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        const response = await api.get(`/analytics/${shortId}`, {
+          params: { tz: userTz },
+          headers: { 'x-timezone': userTz },
+        });
         setData(response.data);
       } catch (err) {
         console.error(err);

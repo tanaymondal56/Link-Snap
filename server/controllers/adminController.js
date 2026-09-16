@@ -1448,6 +1448,10 @@ export const manualJailIPHandler = async (req, res, next) => {
 
         const clampedDuration = Math.min(Math.max(60, Math.floor(parsedDuration)), 2592000);
         const cleanIp = formatPreferredIP(ip);
+        const currentIp = getUserIP(req);
+        if (cleanIp === currentIp) {
+            return res.status(400).json({ message: 'Cannot jail the active administrator connection IP' });
+        }
 
         try {
             const entry = await manualJailIP(cleanIp, clampedDuration, String(reason || 'admin_manual_ban').slice(0, 100), normalizedStatus);

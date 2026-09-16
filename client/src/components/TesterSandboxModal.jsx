@@ -26,10 +26,12 @@ const TEST_CODES = [
 ];
 
 export default function TesterSandboxModal() {
-  const { user, isTester, refreshUser } = useAuth();
+  const { user, setUser, isTester, refreshUser } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null); // 'redeem' | 'buy' | 'expire' | 'reset' | 'status'
+  const [verifiedAccess, setVerifiedAccess] = useState(false);
+  const isVerifyingRef = useRef(false);
 
   // Tester subscription status
   const [status, setStatus] = useState(null);
@@ -70,6 +72,7 @@ export default function TesterSandboxModal() {
   }, []);
 
   const isAuthorized = Boolean(
+    verifiedAccess ||
     isTester ||
     ['admin', 'master_admin', 'master'].includes(user?.role) ||
     user?.type === 'master'
@@ -92,24 +95,71 @@ export default function TesterSandboxModal() {
         remainingMs: initialRemaining,
         timestamp: Date.now(),
       };
+      setVerifiedAccess(true);
     } catch (err) {
-      // Fail closed silently if 404 or unauthorized
-      if (err.response?.status !== 404 && err.response?.status !== 403) {
-        showToast.error('Failed to retrieve tester status');
+      if (err.response?.status === 404 || err.response?.status === 403 || err.response?.status === 401) {
+        setVerifiedAccess(false);
+        setIsOpen(false);
+        setUser((prev) => (prev ? { ...prev, isTester: false } : prev));
+        return;
       }
+      showToast.error('Failed to retrieve tester status');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setUser]);
 
-  // Open modal handler with status refresh
-  const openModal = useCallback(() => {
-    setIsOpen(true);
-    fetchStatus();
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate([40, 50, 40]);
+  // Real-time live authorization check on every trigger attempt (No reload required)
+  const attemptUnlock = useCallback(async (source = 'covert') => {
+    // 1. Silent Ghost Mode: unauthenticated visitors receive zero feedback, toasts, or errors
+    if (!user) {
+      return;
     }
-  }, [fetchStatus]);
+
+    // 2. Concurrency protection against multiple rapid triggers
+    if (isVerifyingRef.current) {
+      return;
+    }
+
+    isVerifyingRef.current = true;
+    try {
+      // 3. Live real-time authorization check against backend on every trigger attempt
+      const { data } = await api.get('/tester/status');
+
+      // 4. Authorized: user is confirmed as active beta tester or admin RIGHT NOW
+      setStatus(data);
+      let initialRemaining = 0;
+      if (typeof data.timeRemainingMs === 'number') {
+        initialRemaining = Math.max(0, data.timeRemainingMs);
+      } else if (data.currentPeriodEnd) {
+        initialRemaining = Math.max(0, new Date(data.currentPeriodEnd).getTime() - Date.now());
+      }
+      setTimeRemainingMs(initialRemaining);
+      lastSyncRef.current = {
+        remainingMs: initialRemaining,
+        timestamp: Date.now(),
+      };
+
+      // Synchronize client auth state immediately without requiring a page reload
+      setVerifiedAccess(true);
+      setUser((prev) => (prev ? { ...prev, isTester: true } : prev));
+      setIsOpen(true);
+
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([40, 50, 40]);
+      }
+      showToast.info('Beta Tester Sandbox Unlocked', `Covert Access (${source})`);
+    } catch {
+      // 5. Unauthorized (404/403/401) or recently revoked:
+      setVerifiedAccess(false);
+      setIsOpen(false);
+      // Immediately revoke client auth state without requiring page reload
+      setUser((prev) => (prev ? { ...prev, isTester: false } : prev));
+      // Total Ghost Mode: ZERO toasts, ZERO strings, ZERO errors for non-testers / revoked accounts
+    } finally {
+      isVerifyingRef.current = false;
+    }
+  }, [user, setUser]);
 
   const closeModal = useCallback(() => {
     setIsOpen(false);
@@ -123,26 +173,6 @@ export default function TesterSandboxModal() {
     if (!isBetaOrLocal) {
       return;
     }
-
-    const attemptUnlock = (source = 'covert') => {
-      if (!isAuthorized) {
-        if (!user) {
-          showToast.warning(
-            'Please log in with an authorized Beta Tester or Admin account to access the Tester Sandbox.',
-            'Authentication Required'
-          );
-        } else {
-          showToast.error(
-            `Account (${user.email || user.username}) is not authorized as a beta tester. Please add it in Admin Console > Settings > Authorized Beta Testers.`,
-            'Tester Authorization Required'
-          );
-        }
-        return;
-      }
-
-      openModal();
-      showToast.info('Beta Tester Sandbox Unlocked', `Covert Access (${source})`);
-    };
 
     // 1. Desktop Covert Trigger:
     // • Ctrl + Alt + T / Cmd + Option + T (Classic, 3 keys, no browser conflicts)
@@ -308,7 +338,7 @@ export default function TesterSandboxModal() {
       if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
       delete window.__openTesterSandbox;
     };
-  }, [isBetaOrLocal, isAuthorized, user, isOpen, openModal, closeModal]);
+  }, [isBetaOrLocal, isOpen, closeModal, attemptUnlock]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // REAL-TIME EXPIRATION COUNTDOWN TIMER (Ticks every second)
@@ -374,6 +404,12 @@ export default function TesterSandboxModal() {
       await refreshUser(true);
       await fetchStatus();
     } catch (err) {
+      if (err.response?.status === 404 || err.response?.status === 403 || err.response?.status === 401) {
+        setVerifiedAccess(false);
+        setIsOpen(false);
+        setUser((prev) => (prev ? { ...prev, isTester: false } : prev));
+        return;
+      }
       showToast.error(err.response?.data?.message || 'Failed to redeem test code');
     } finally {
       setActionLoading(null);
@@ -391,6 +427,12 @@ export default function TesterSandboxModal() {
       await refreshUser(true);
       await fetchStatus();
     } catch (err) {
+      if (err.response?.status === 404 || err.response?.status === 403 || err.response?.status === 401) {
+        setVerifiedAccess(false);
+        setIsOpen(false);
+        setUser((prev) => (prev ? { ...prev, isTester: false } : prev));
+        return;
+      }
       showToast.error(err.response?.data?.message || 'Failed to simulate purchase');
     } finally {
       setActionLoading(null);
@@ -405,6 +447,12 @@ export default function TesterSandboxModal() {
       await refreshUser(true);
       await fetchStatus();
     } catch (err) {
+      if (err.response?.status === 404 || err.response?.status === 403 || err.response?.status === 401) {
+        setVerifiedAccess(false);
+        setIsOpen(false);
+        setUser((prev) => (prev ? { ...prev, isTester: false } : prev));
+        return;
+      }
       showToast.error(err.response?.data?.message || 'Failed to expire subscription');
     } finally {
       setActionLoading(null);
@@ -419,6 +467,12 @@ export default function TesterSandboxModal() {
       await refreshUser(true);
       await fetchStatus();
     } catch (err) {
+      if (err.response?.status === 404 || err.response?.status === 403 || err.response?.status === 401) {
+        setVerifiedAccess(false);
+        setIsOpen(false);
+        setUser((prev) => (prev ? { ...prev, isTester: false } : prev));
+        return;
+      }
       showToast.error(err.response?.data?.message || 'Failed to reset subscription');
     } finally {
       setActionLoading(null);

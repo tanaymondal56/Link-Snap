@@ -60,6 +60,7 @@ const ClickChart = ({ data }) => {
               color: '#fff',
             }}
             itemStyle={{ color: '#60a5fa' }}
+            labelFormatter={(label) => formatDate(label)}
           />
           <Area
             type="monotone"

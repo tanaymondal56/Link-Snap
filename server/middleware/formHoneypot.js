@@ -78,27 +78,42 @@ export const formHoneypotGate = (options = {}) => {
         const ts = req.body._hp_ts;
         if (ts !== undefined && ts !== null) {
             const submittedAt = Number(ts);
-            if (!isNaN(submittedAt)) {
-                const now = Date.now();
-                const elapsed = now - submittedAt;
+            if (isNaN(submittedAt)) {
+                return res.status(400).json({
+                    error: 'Invalid Submission',
+                    code: 'INVALID_TIMESTAMP',
+                    message: 'Security verification timestamp is invalid.',
+                });
+            }
 
-                if (elapsed >= 0 && elapsed < minTimeMs) {
-                    logger.warn(`[FormHoneypot] ⚡ Quick-submit bot detected from ${clientIP} on ${req.originalUrl} (${elapsed}ms < ${minTimeMs}ms)`);
+            const now = Date.now();
+            const elapsed = now - submittedAt;
 
-                    // Record Strike for rapid submit
-                    const jailResult = await recordViolation(clientIP, 'quick_submit', {
-                        elapsedMs: elapsed,
-                        thresholdMs: minTimeMs,
-                        path: req.originalUrl,
-                    });
+            if (elapsed < -5000) {
+                logger.warn(`[FormHoneypot] ⚠️ Future timestamp / clock tampering detected from ${clientIP} on ${req.originalUrl} (${elapsed}ms)`);
+                return res.status(400).json({
+                    error: 'Invalid Submission',
+                    code: 'INVALID_TIMESTAMP',
+                    message: 'Submission timestamp is invalid or from the future.',
+                });
+            }
 
-                    return res.status(429).json({
-                        error: 'Submission Too Fast',
-                        code: 'QUICK_SUBMIT_BLOCKED',
-                        message: 'Form was submitted unnaturally fast. Please slow down and try again.',
-                        retryAfter: jailResult?.durationSeconds || 60,
-                    });
-                }
+            if (elapsed >= 0 && elapsed < minTimeMs) {
+                logger.warn(`[FormHoneypot] ⚡ Quick-submit bot detected from ${clientIP} on ${req.originalUrl} (${elapsed}ms < ${minTimeMs}ms)`);
+
+                // Record Strike for rapid submit
+                const jailResult = await recordViolation(clientIP, 'quick_submit', {
+                    elapsedMs: elapsed,
+                    thresholdMs: minTimeMs,
+                    path: req.originalUrl,
+                });
+
+                return res.status(429).json({
+                    error: 'Submission Too Fast',
+                    code: 'QUICK_SUBMIT_BLOCKED',
+                    message: 'Form was submitted unnaturally fast. Please slow down and try again.',
+                    retryAfter: jailResult?.durationSeconds || 60,
+                });
             }
         } else if (requireTimestamp) {
             // Required timestamp missing from client request

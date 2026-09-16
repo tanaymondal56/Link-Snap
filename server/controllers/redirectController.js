@@ -1755,8 +1755,9 @@ const getInactiveLinkPage = () => `
 `;
 
 // HTML page for expired links
-const getExpiredLinkPage = (shortId, expiresAt) => {
-    const expiredDate = expiresAt ? new Date(expiresAt).toLocaleString() : '';
+const getExpiredLinkPage = (shortId, expiresAt, nonce = '') => {
+    const isoDate = expiresAt ? new Date(expiresAt).toISOString() : '';
+    const utcFallback = expiresAt ? new Date(expiresAt).toUTCString() : '';
     return `
 <!DOCTYPE html>
 <html lang="en">
@@ -1816,7 +1817,7 @@ const getExpiredLinkPage = (shortId, expiresAt) => {
                     <strong>Reason for Deactivation</strong><br>
                     This link was configured with an automatic expiration timer which has now reached its conclusion. Access to the destination URL is permanently disabled for this link.
                 </p>
-                ${expiredDate ? `<p style="font-size: 0.75rem; margin-top: 8px; color: #94a3b8;">Expiration Timestamp: ${expiredDate}</p>` : ''}
+                ${expiresAt ? `<p style="font-size: 0.75rem; margin-top: 8px; color: #94a3b8;">Expiration Timestamp: <span id="expiredDate">${utcFallback}</span></p>` : ''}
             </div>
             <div class="cta-section">
                 <a href="/" class="btn btn-primary">Go to Homepage</a>
@@ -1825,6 +1826,26 @@ const getExpiredLinkPage = (shortId, expiresAt) => {
             <p class="footer-text">Powered by <a href="/">Link Snap</a> — Fast, secure URL shortening</p>
         </div>
     </div>
+    ${isoDate ? `
+    <script data-cfasync="false"${nonce ? ` nonce="${nonce}"` : ''}>
+        (function() {
+            try {
+                var el = document.getElementById('expiredDate');
+                if (el) {
+                    var d = new Date('${isoDate}');
+                    el.textContent = d.toLocaleString(undefined, {
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        timeZoneName: 'short'
+                    });
+                }
+            } catch (e) {}
+        })();
+    </script>` : ''}
 </body>
 </html>
 `;
@@ -2410,7 +2431,7 @@ export const redirectUrl = async (req, res, next) => {
 
             // Check if link has expired
             if (cached.expiresAt && new Date() > new Date(cached.expiresAt)) {
-                return res.status(410).send(getExpiredLinkPage(shortId, cached.expiresAt));
+                return res.status(410).send(getExpiredLinkPage(shortId, cached.expiresAt, res.locals.nonce));
             }
 
             // Check if link safetyStatus is present; if legacy cached entry, load from DB
@@ -2468,7 +2489,9 @@ export const redirectUrl = async (req, res, next) => {
                 if (ownerSub && (ownerSub.role === 'admin' || hasFeature(ownerSub, 'time_redirects'))) {
                     const timeDestination = getTimeBasedDestination(cached.timeRedirects);
                     if (timeDestination) {
-                        trackVisit(cached._id, req, { deviceMatchType: 'time_redirect' });
+                        if (!isBot) {
+                            trackVisit(cached._id, req, { deviceMatchType: 'time_redirect' });
+                        }
                         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
                         return res.redirect(timeDestination);
                     }
@@ -2478,8 +2501,10 @@ export const redirectUrl = async (req, res, next) => {
             // Device-based redirect logic
             const { targetUrl, deviceMatchType } = getDeviceRedirectUrl(cached, req.headers['user-agent']);
 
-            // Async Analytics Tracking with device match type
-            trackVisit(cached._id, req, { deviceMatchType });
+            // Async Analytics Tracking with device match type - only for legitimate visitors
+            if (!isBot) {
+                trackVisit(cached._id, req, { deviceMatchType });
+            }
 
             // Preserve query parameters (UTM tags, etc.)
             let finalUrl = targetUrl;
@@ -2570,7 +2595,7 @@ export const redirectUrl = async (req, res, next) => {
 
         // Check if link has expired
         if (url.expiresAt && new Date() > new Date(url.expiresAt)) {
-            return res.status(410).send(getExpiredLinkPage(shortId, url.expiresAt));
+            return res.status(410).send(getExpiredLinkPage(shortId, url.expiresAt, res.locals.nonce));
         }
 
         // Check if link is malicious -> Intercept direct redirect with security warning page
@@ -2616,7 +2641,9 @@ export const redirectUrl = async (req, res, next) => {
                 if (ownerFull.role === 'admin' || hasFeature(ownerFull, 'time_redirects')) {
                     const timeDestination = getTimeBasedDestination(url.timeRedirects);
                     if (timeDestination) {
-                        trackVisit(url._id, req, { deviceMatchType: 'time_redirect' });
+                        if (!isBot) {
+                            trackVisit(url._id, req, { deviceMatchType: 'time_redirect' });
+                        }
                         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
                         return res.redirect(timeDestination);
                     }
@@ -2627,8 +2654,10 @@ export const redirectUrl = async (req, res, next) => {
         // Device-based redirect logic
         const { targetUrl, deviceMatchType } = getDeviceRedirectUrl(url, req.headers['user-agent']);
 
-        // Async Analytics Tracking with device match type
-        trackVisit(url._id, req, { deviceMatchType });
+        // Async Analytics Tracking with device match type - only for legitimate visitors
+        if (!isBot) {
+            trackVisit(url._id, req, { deviceMatchType });
+        }
 
         // Preserve query parameters (UTM tags, etc.)
         let finalUrl = targetUrl;
@@ -2713,7 +2742,7 @@ export const previewUrl = async (req, res) => {
 
         // Check if link has expired
         if (url.expiresAt && new Date() > new Date(url.expiresAt)) {
-            return res.status(410).send(getExpiredLinkPage(shortId, url.expiresAt));
+            return res.status(410).send(getExpiredLinkPage(shortId, url.expiresAt, res.locals.nonce));
         }
 
         // Check if link is password protected

@@ -2,7 +2,7 @@ import Analytics from '../models/Analytics.js';
 import Url from '../models/Url.js';
 import logger from '../utils/logger.js';
 import { TIERS, getEffectiveTier } from '../services/subscriptionService.js';
-import { redisGet, redisSet, redisDel } from '../config/redis.js';
+import { redisGet, redisSet, redisDel, redisScan } from '../config/redis.js';
 import zlib from 'node:zlib';
 import { promisify } from 'node:util';
 
@@ -48,9 +48,20 @@ export const getUrlAnalytics = async (req, res) => {
              retentionDate.setDate(retentionDate.getDate() - retentionDays);
         }
 
-        // 3. Check Redis cache — keyed by shortId + tier to prevent cross-tier data leaks
-        // Admin cache is separate (no retention limit) and user caches are per-tier.
-        const cacheKey = `ls:analytics:${url._id}:${tier}`;
+        // 3. Resolve user/client timezone for calendar date grouping
+        const requestedTz = req.query.tz || req.headers['x-timezone'] || 'UTC';
+        let validTz = 'UTC';
+        if (requestedTz && typeof requestedTz === 'string') {
+            try {
+                Intl.DateTimeFormat(undefined, { timeZone: requestedTz.trim() });
+                validTz = requestedTz.trim();
+            } catch {
+                validTz = 'UTC';
+            }
+        }
+
+        // 4. Check Redis cache — keyed by url._id + tier + timezone to prevent cross-tier and cross-tz data leaks
+        const cacheKey = `ls:analytics:${url._id}:${tier}:${encodeURIComponent(validTz)}`;
         let cached = await redisGet(cacheKey);
         
         // Handle decompression if payload was gzipped
@@ -79,7 +90,7 @@ export const getUrlAnalytics = async (req, res) => {
              return { $match: conditions };
         };
         
-        // 4. Aggregate Data — Single roundtrip $facet pipeline
+        // 5. Aggregate Data — Single roundtrip $facet pipeline with timezone-aware date bucketing
         const [aggregationResult] = await Analytics.aggregate([
             matchStage(),
             {
@@ -87,7 +98,7 @@ export const getUrlAnalytics = async (req, res) => {
                     clicksByDate: [
                         {
                             $group: {
-                                _id: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
+                                _id: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp", timezone: validTz } },
                                 count: { $sum: 1 }
                             }
                         },
@@ -153,13 +164,31 @@ export const getUrlAnalytics = async (req, res) => {
 /**
  * Invalidate cached analytics for a specific URL.
  * Called when a link is deleted or when an admin forces a refresh.
+ * Purges all keys matching ls:analytics:${urlId}:* across all tiers and timezones.
  */
 export const invalidateAnalyticsCache = async (urlId) => {
+    try {
+        let cursor = 0;
+        do {
+            const [nextCursor, keys] = await redisScan(cursor, `ls:analytics:${urlId}:*`, 100);
+            if (keys && keys.length > 0) {
+                await redisDel(...keys);
+            }
+            cursor = Number(nextCursor) === 0 ? 0 : nextCursor;
+        } while (cursor !== 0);
+    } catch (err) {
+        logger.error(`[Analytics] Failed to invalidate analytics cache for ${urlId}: ${err.message}`);
+    }
+
+    // Direct fallback deletion for standard UTC and legacy keys
     await redisDel(
+        `ls:analytics:${urlId}:free:UTC`,
+        `ls:analytics:${urlId}:pro:UTC`,
+        `ls:analytics:${urlId}:business:UTC`,
         `ls:analytics:${urlId}:free`,
         `ls:analytics:${urlId}:pro`,
-        `ls:analytics:${urlId}:business`,
-    );
+        `ls:analytics:${urlId}:business`
+    ).catch(() => {});
 };
 
 /**
@@ -170,16 +199,11 @@ export const invalidateUserAnalyticsCache = async (userId) => {
     try {
         const userUrls = await Url.find({ createdBy: userId }).select('_id').lean();
         if (!userUrls.length) return;
-        const keysToDel = userUrls.flatMap(u => [
-            `ls:analytics:${u._id}:free`,
-            `ls:analytics:${u._id}:pro`,
-            `ls:analytics:${u._id}:business`,
-        ]);
         
-        // Batch delete to avoid hitting Redis argument limits
-        const BATCH_SIZE = 500;
-        for (let i = 0; i < keysToDel.length; i += BATCH_SIZE) {
-            await redisDel(...keysToDel.slice(i, i + BATCH_SIZE));
+        // Purge analytics keys for each user URL using pattern deletion
+        const BATCH_SIZE = 50;
+        for (let i = 0; i < userUrls.length; i += BATCH_SIZE) {
+            await Promise.all(userUrls.slice(i, i + BATCH_SIZE).map(u => invalidateAnalyticsCache(u._id)));
         }
     } catch (err) {
         logger.error(`[Analytics] Failed to invalidate user cache: ${err.message}`);

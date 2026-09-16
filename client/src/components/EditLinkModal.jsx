@@ -30,6 +30,7 @@ import { ProBadge } from './subscription/PremiumField';
 import { usePremiumField } from '../hooks/usePremiumField';
 import DeviceTargetingSection from './DeviceTargetingSection';
 import TimeRoutingSection from './TimeRoutingSection';
+import { toInputDateTime } from '../utils/dateUtils';
 
 // Expiration presets for edit mode (includes 'keep' option)
 const EXPIRATION_OPTIONS = [
@@ -211,7 +212,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
       // Schedule Activation
       if (link.activeStartTime && new Date(link.activeStartTime) > new Date()) {
         setEnableSchedule(true);
-        setActiveStartTime(new Date(link.activeStartTime).toISOString().slice(0, 16));
+        setActiveStartTime(toInputDateTime(link.activeStartTime));
       } else {
         setEnableSchedule(false);
         setActiveStartTime('');
@@ -730,7 +731,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
                         }
                         setActiveStartTime(value);
                       }}
-                      min={new Date().toISOString().slice(0, 16)}
+                      min={toInputDateTime(new Date())}
                       className="w-full bg-white/5 border border-white/10 backdrop-blur-md shadow-inner shadow-black/20 rounded-lg px-3 py-2.5 text-white focus:border-blue-500 focus:outline-none text-base"
                     />
                     {activeStartTime && (
@@ -824,7 +825,7 @@ const EditLinkModal = ({ isOpen, onClose, onSuccess, link }) => {
                           }
                           setCustomExpiresAt(value);
                         }}
-                        min={new Date().toISOString().slice(0, 16)}
+                        min={toInputDateTime(new Date())}
                         className="w-full mt-2 bg-white/5 border border-white/10 backdrop-blur-md shadow-inner shadow-black/20 rounded-xl px-4 py-3 text-white focus:border-orange-500 focus:outline-none"
                       />
                     )}

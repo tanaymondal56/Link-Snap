@@ -36,6 +36,8 @@ const testerSchema = new mongoose.Schema(
   }
 );
 
+testerSchema.index({ isActive: 1, _id: -1 });
+
 const Tester = mongoose.model('Tester', testerSchema);
 
 export default Tester;

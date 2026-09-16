@@ -103,9 +103,10 @@ router.post('/registration', async (req, res) => {
     }
 
     // Cryptographically bind public key to this session and mark DBSC as enforced
+    const nextChallenge = crypto.randomBytes(32).toString("base64url");
     session.dbscPublicKeyJwk = jwk;
     session.dbscEnforced = true;  // From this point, authMiddleware enforces hardware binding
-    session.dbscChallenge = null; // Clear any pending challenge
+    session.dbscChallenge = nextChallenge; // Pre-populate next challenge in DB so it is ready when Chromium triggers refresh
     session.dbscLastVerifiedAt = new Date();
     await session.save();
 
@@ -120,11 +121,6 @@ router.post('/registration', async (req, res) => {
     const termHeader = `(continue); id="${session.dbscSessionId}"`;
     res.setHeader("Sec-Session-Response", termHeader);
     res.setHeader("Secure-Session-Response", termHeader);
-
-    // Pre-populate next challenge in DB so it is ready when Chromium triggers refresh
-    const nextChallenge = crypto.randomBytes(32).toString("base64url");
-    session.dbscChallenge = nextChallenge;
-    await session.save();
 
     setDbscSessionCookies(res, session.dbscSessionId);
 
@@ -251,9 +247,22 @@ router.post('/refresh', async (req, res) => {
 
     // Pre-populate the NEXT challenge so Chromium always has a fresh challenge ready
     const nextChallenge = crypto.randomBytes(32).toString("base64url");
-    session.dbscChallenge = nextChallenge;
-    session.dbscLastVerifiedAt = new Date();
-    await session.save();
+    const updatedSession = await Session.findOneAndUpdate(
+      {
+        _id: session._id,
+        dbscChallenge: decodedProof.payload.jti,
+      },
+      {
+        $set: {
+          dbscChallenge: nextChallenge,
+          dbscLastVerifiedAt: new Date(),
+        },
+      },
+      { new: true }
+    );
+    if (!updatedSession) {
+      return res.status(401).json({ error: "DBSC challenge already consumed" });
+    }
     setDbscSessionCookies(res, session.dbscSessionId);
 
     const termHeader = `(continue); id="${session.dbscSessionId}"`;
