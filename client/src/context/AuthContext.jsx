@@ -13,7 +13,7 @@ export const useAuth = () => useContext(AuthContext);
 // on every load instead of sitting in storage for a week.
 const CACHE_ALLOWED_FIELDS = [
   '_id', 'username', 'firstName', 'lastName', 'avatar',
-  'role', 'idTier', 'eliteId', 'snapId',
+  'role', 'idTier', 'eliteId', 'snapId', 'isTester',
 ];
 const sanitizeForCache = (u) => {
   if (!u || typeof u !== 'object') return null;
@@ -272,6 +272,12 @@ export const AuthProvider = ({ children }) => {
         subscription: data.subscription,
         linkUsage: data.linkUsage,
         clickUsage: data.clickUsage,
+        isTester:
+          data.isTester ??
+          Boolean(
+            ['admin', 'master_admin', 'master'].includes(data.role) ||
+            data.type === 'master'
+          ),
       };
       setUser(userData);
       showToast.success(
@@ -363,6 +369,12 @@ export const AuthProvider = ({ children }) => {
         subscription: data.subscription,
         linkUsage: data.linkUsage,
         clickUsage: data.clickUsage,
+        isTester:
+          data.isTester ??
+          Boolean(
+            ['admin', 'master_admin', 'master'].includes(data.role) ||
+            data.type === 'master'
+          ),
       };
       setUser(userData);
       showToast.success('Your account is ready!', 'Welcome');
@@ -416,7 +428,16 @@ export const AuthProvider = ({ children }) => {
         closeAuthModal,
         // Expose manual refresh — pass force=true to bypass throttle (e.g., after payment)
         refreshUser: (force) => checkAuth(force),
-        isAdmin: user?.role === 'admin' || user?.role === 'master_admin',
+        isAdmin:
+          user?.role === 'admin' ||
+          user?.role === 'master_admin' ||
+          user?.role === 'master' ||
+          user?.type === 'master',
+        isTester: Boolean(
+          user?.isTester ||
+          ['admin', 'master_admin', 'master'].includes(user?.role) ||
+          user?.type === 'master'
+        ),
       }}
     >
       {children}

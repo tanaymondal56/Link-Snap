@@ -21,6 +21,25 @@ const PostUpdateChoiceModal = lazy(() => import('./components/PostUpdateChoiceMo
 // Lazy load AdminLayout
 const LazyAdminLayout = lazy(() => import('./components/AdminLayout'));
 const CookieBanner = lazy(() => import('./components/CookieBanner'));
+const isBetaOrLocalHost = () => {
+  if (typeof window === 'undefined') return false;
+  const h = window.location.hostname.toLowerCase();
+  return (
+    import.meta.env.DEV ||
+    h === 'localhost' ||
+    h === '127.0.0.1' ||
+    h === '::1' ||
+    h === '[::1]' ||
+    h === 'beta.lksnp.qzz.io' ||
+    h === 'api-beta.lksnp.qzz.io' ||
+    (h.endsWith('.lksnp.qzz.io') && (h.startsWith('beta.') || h.startsWith('api-beta.'))) ||
+    (h.endsWith('.pages.dev') && h.includes('beta'))
+  );
+};
+
+const TesterSandboxModal = isBetaOrLocalHost()
+  ? lazy(() => import('./components/TesterSandboxModal'))
+  : null;
 
 // Initialize version cache on app load (non-blocking)
 initializeVersion();
@@ -327,6 +346,12 @@ function App() {
               <Suspense fallback={null}>
                 <CookieBanner />
               </Suspense>
+              {/* Beta Tester Sandbox Modal (Ghost Mode: inert unless beta/local & authorized tester) */}
+              {TesterSandboxModal && (
+                <Suspense fallback={null}>
+                  <TesterSandboxModal />
+                </Suspense>
+              )}
             </DialogProvider>
           </ConfirmDialogProvider>
         </ToastProvider>

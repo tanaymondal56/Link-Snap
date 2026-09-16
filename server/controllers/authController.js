@@ -23,6 +23,7 @@ import { bloomAdd } from '../services/bloomFilterService.js';
 import { getEffectiveTier } from '../services/subscriptionService.js';
 import { recordFailedAuthAttempt, recordSuccessfulAuthAttempt, recordUsernameCheck } from '../middleware/dualLayerAuthRateLimiter.js';
 import { getUserIP } from '../middleware/strictProxyGate.js';
+import { isUserAuthorizedTester } from '../middleware/testerMiddleware.js';
 
 const getSubscriptionResponse = (user) => {
   if (!user.subscription) return { tier: 'free', status: 'active' };
@@ -418,6 +419,7 @@ const registerUser = async (req, res, next) => {
       createdAt: user.createdAt,
       lastLoginAt: user.lastLoginAt,
       subscription: getSubscriptionResponse(user),
+      isTester: await isUserAuthorizedTester(user),
       linkUsage: user.linkUsage || { count: 0, hardCount: 0, resetAt: new Date() },
       clickUsage: user.clickUsage || { count: 0, resetAt: new Date() },
       requireVerification: false
@@ -579,6 +581,7 @@ const verifyOTP = async (req, res, next) => {
       lastName: user.lastName,
       role: user.role,
       subscription: getSubscriptionResponse(user),
+      isTester: await isUserAuthorizedTester(user),
       linkUsage: await resolveCurrentLinkUsage(user),
     });
 
@@ -667,6 +670,7 @@ const verifyEmail = async (req, res, next) => {
       lastName: user.lastName,
       role: user.role,
       subscription: getSubscriptionResponse(user),
+      isTester: await isUserAuthorizedTester(user),
       linkUsage: await resolveCurrentLinkUsage(user),
     });
   } catch (error) {
@@ -807,6 +811,7 @@ const loginUser = async (req, res, next) => {
           firstName: user.firstName,
           lastName: user.lastName,
           role: 'master_admin',
+          isTester: true,
           subscription: { tier: 'pro', status: 'active' },
           linkUsage: { count: 0, resetAt: new Date() },
         });
@@ -869,6 +874,7 @@ const loginUser = async (req, res, next) => {
         createdAt: user.createdAt,
         lastLoginAt: user.lastLoginAt,
         subscription: getSubscriptionResponse(user),
+        isTester: await isUserAuthorizedTester(user),
         linkUsage: await resolveCurrentLinkUsage(user),
         clickUsage: user.clickUsage || { count: 0, resetAt: new Date() },
       });
@@ -1046,6 +1052,7 @@ const refreshAccessToken = async (req, res, next) => {
           firstName: user.firstName,
           lastName: user.lastName,
           role,
+          isTester: role === 'master_admin' || role === 'admin' ? true : await isUserAuthorizedTester(user),
           subscription: getSubscriptionResponse(user),
           refreshRaced: true, // Client keeps its current refresh cookie
         });
@@ -1088,6 +1095,17 @@ const refreshAccessToken = async (req, res, next) => {
     let userDataResponse;
 
     if (role === 'master_admin') {
+      let masterSub = { tier: 'pro', status: 'active' };
+      try {
+        const mockKey = `ls:tester:mock_sub:${String(user.email || user._id).toLowerCase().trim()}`;
+        const mockSub = await redisGet(mockKey);
+        if (mockSub && typeof mockSub === 'object') {
+          masterSub = mockSub;
+        }
+      } catch {
+        // Fallback
+      }
+
       userDataResponse = {
         _id: user._id,
         username: user.username,
@@ -1095,10 +1113,11 @@ const refreshAccessToken = async (req, res, next) => {
         firstName: user.firstName,
         lastName: user.lastName,
         role: 'master_admin',
+        isTester: true,
         avatar: user.avatar,
         createdAt: user.createdAt,
         lastLoginAt: user.lastLoginAt,
-        subscription: { tier: 'pro', status: 'active' },
+        subscription: masterSub,
         linkUsage: { count: 0, resetAt: new Date() },
         clickUsage: { count: 0, resetAt: new Date() },
       };
@@ -1123,6 +1142,7 @@ const refreshAccessToken = async (req, res, next) => {
         createdAt: user.createdAt,
         lastLoginAt: user.lastLoginAt,
         subscription: getSubscriptionResponse(user),
+        isTester: role === 'admin' ? true : await isUserAuthorizedTester(user),
         linkUsage: await resolveCurrentLinkUsage(user),
         clickUsage: user.clickUsage || { count: 0, resetAt: new Date() },
       };
@@ -1158,6 +1178,17 @@ const getMe = async (req, res) => {
   }
 
   if (req.user.role === 'master_admin') {
+    let masterSub = req.user.subscription || { tier: 'pro', status: 'active' };
+    try {
+      const mockKey = `ls:tester:mock_sub:${String(req.user.email || req.user._id).toLowerCase().trim()}`;
+      const mockSub = await redisGet(mockKey);
+      if (mockSub && typeof mockSub === 'object') {
+        masterSub = mockSub;
+      }
+    } catch {
+      // Fallback
+    }
+
     // Simplified profile for Master Admin
     return res.status(200).json({
       _id: req.user._id,
@@ -1169,8 +1200,8 @@ const getMe = async (req, res) => {
       avatar: req.user.avatar,
       createdAt: req.user.createdAt,
       lastLoginAt: req.user.lastLoginAt,
-      // Mock data to satisfy frontend props
-      subscription: { tier: 'pro', status: 'active' }, // Give pro features
+      isTester: true,
+      subscription: masterSub,
       linkUsage: { count: 0, resetAt: new Date() },
       clickUsage: { count: 0, resetAt: new Date() },
     });
@@ -1197,6 +1228,7 @@ const getMe = async (req, res) => {
     lastLoginAt: req.user.lastLoginAt,
     // Subscription & Usage data for frontend
     subscription: getSubscriptionResponse(req.user),
+    isTester: req.user.role === 'admin' ? true : await isUserAuthorizedTester(req.user),
     linkUsage: await resolveCurrentLinkUsage(req.user),
     clickUsage: req.user.clickUsage || { count: 0, resetAt: new Date() },
   };

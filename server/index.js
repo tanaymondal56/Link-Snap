@@ -44,6 +44,12 @@ import webhookRoutes from './routes/webhookRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import razorpayRoutes from './routes/razorpayRoutes.js';
 import dbscRoutes from './routes/dbscRoutes.js';
+import testerRoutes from './routes/testerRoutes.js';
+// Conditional Dev Routes (strictly local development only)
+let devRoutes = null;
+if (process.env.NODE_ENV === 'development') {
+  devRoutes = (await import('./routes/devRoutes.js')).default;
+}
 import { flushAndStop } from './services/clickStatsService.js';
 import { stopDeviceAuthIntervals } from './controllers/deviceAuthController.js';
 import { flushAnalyticsAndStop } from './services/analyticsService.js';
@@ -498,6 +504,12 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/razorpay', razorpayRoutes);
 app.use('/api/bio', bioRoutes);
+app.use('/api/tester', testerRoutes);
+
+if (devRoutes) {
+  app.use('/api/dev', devRoutes);
+}
+
 // Short URL redirect routes (This must be after all API routes)
 app.use('/', redirectRoutes);
 

@@ -162,6 +162,7 @@ const userSchema = new mongoose.Schema({
     customerPortalUrl: String,
     updatePaymentUrl: String,
     lastWebhookTimestamp: Date,
+    isTest: { type: Boolean, default: false },
   },
 
   // Usage Tracking

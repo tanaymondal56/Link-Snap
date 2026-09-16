@@ -632,7 +632,12 @@ const SettingsPage = () => {
 
                     {profile?.snapId && (
                       <div className="flex items-center pl-0 h-5">
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-900/60 rounded border border-white/10 hover:border-blue-500/30 transition-colors group">
+                        <div
+                          data-covert-trigger="tester"
+                          data-snapid={profile.snapId}
+                          style={{ touchAction: 'manipulation' }}
+                          className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-900/60 rounded border border-white/10 hover:border-blue-500/30 transition-colors group cursor-pointer select-none"
+                        >
                           <span className="text-[10px] text-slate-500 font-bold tracking-wider">
                             ID
                           </span>

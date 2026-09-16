@@ -220,7 +220,9 @@ const PublicLayout = () => {
           <div className="text-xs text-gray-500">
             <Link
               to="/changelog"
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300 transition-all"
+              data-covert-trigger="tester"
+              style={{ touchAction: 'manipulation' }}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300 transition-all select-none"
             >
               <Sparkles size={12} />v{appVersion}
             </Link>{' '}

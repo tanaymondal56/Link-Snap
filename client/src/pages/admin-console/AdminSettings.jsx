@@ -10,6 +10,11 @@ import {
   Eye,
   EyeOff,
   Send,
+  FlaskConical,
+  UserPlus,
+  Trash2,
+  Search,
+  UserCheck,
 } from 'lucide-react';
 import BentoCard from '../../components/admin-console/ui/BentoCard';
 import api from '../../api/axios';
@@ -40,6 +45,65 @@ const AdminSettings = () => {
   const [testEmailAddress, setTestEmailAddress] = useState('');
   const [togglingVerification, setTogglingVerification] = useState(false);
 
+  // Authorized Beta Testers State
+  const [testers, setTesters] = useState([]);
+  const [testersLoading, setTestersLoading] = useState(true);
+  const [newTesterEmail, setNewTesterEmail] = useState('');
+  const [newTesterNotes, setNewTesterNotes] = useState('');
+  const [addingTester, setAddingTester] = useState(false);
+  const [testerSearch, setTesterSearch] = useState('');
+  const [deletingTesterId, setDeletingTesterId] = useState(null);
+
+  const fetchTesters = useCallback(async () => {
+    try {
+      const { data } = await api.get('/admin/testers');
+      setTesters(data.testers || []);
+    } catch (err) {
+      console.error('Failed to load testers:', err);
+    } finally {
+      setTestersLoading(false);
+    }
+  }, []);
+
+  const handleAddTester = async (e) => {
+    e.preventDefault();
+    if (!newTesterEmail.trim()) {
+      showToast.warning('Please enter a tester email');
+      return;
+    }
+    setAddingTester(true);
+    try {
+      await api.post('/admin/testers', {
+        email: newTesterEmail.trim(),
+        notes: newTesterNotes.trim(),
+      });
+      showToast.success('Beta tester authorized successfully');
+      setNewTesterEmail('');
+      setNewTesterNotes('');
+      fetchTesters();
+    } catch (err) {
+      showToast.error(err.response?.data?.message || 'Failed to add tester');
+    } finally {
+      setAddingTester(false);
+    }
+  };
+
+  const handleRemoveTester = async (id, email) => {
+    if (!window.confirm(`Remove ${email} from authorized beta testers?`)) {
+      return;
+    }
+    setDeletingTesterId(id);
+    try {
+      await api.delete(`/admin/testers/${id}`);
+      showToast.success('Tester removed');
+      setTesters((prev) => prev.filter((t) => t._id !== id));
+    } catch (err) {
+      showToast.error(err.response?.data?.message || 'Failed to remove tester');
+    } finally {
+      setDeletingTesterId(null);
+    }
+  };
+
   const fetchSettings = useCallback(async () => {
     try {
       const { data } = await api.get('/admin/settings');
@@ -67,7 +131,8 @@ const AdminSettings = () => {
     if (isAuthChecking) return;
 
     fetchSettings();
-  }, [isAuthChecking, fetchSettings]);
+    fetchTesters();
+  }, [isAuthChecking, fetchSettings, fetchTesters]);
 
   const handleToggleVerification = async () => {
     setTogglingVerification(true);
@@ -432,6 +497,136 @@ const AdminSettings = () => {
                 Send
               </button>
             </form>
+          </div>
+        </BentoCard>
+
+        {/* Authorized Beta Testers */}
+        <BentoCard title="Authorized Beta Testers" icon={FlaskConical} variant="default" className="col-span-1 lg:col-span-2">
+          <div className="mt-2 space-y-6">
+            <p className="text-sm text-gray-400">
+              Manage accounts authorized to unlock the covert beta testing sandbox, mock payment gateway, and rapid expiration features.
+            </p>
+
+            {/* Add Tester Form */}
+            <form onSubmit={handleAddTester} className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+              <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                <UserPlus size={16} className="text-blue-400" />
+                Authorize New Tester
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <input
+                  type="email"
+                  required
+                  placeholder="tester@example.com"
+                  value={newTesterEmail}
+                  onChange={(e) => setNewTesterEmail(e.target.value)}
+                  className="bg-gray-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 text-sm"
+                />
+                <input
+                  type="text"
+                  placeholder="Optional notes (e.g. QA engineer, external)"
+                  value={newTesterNotes}
+                  onChange={(e) => setNewTesterNotes(e.target.value)}
+                  className="bg-gray-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 text-sm"
+                />
+                <button
+                  type="submit"
+                  disabled={addingTester || !newTesterEmail.trim()}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
+                >
+                  {addingTester ? <RefreshCw className="animate-spin" size={16} /> : <UserCheck size={16} />}
+                  Add Tester
+                </button>
+              </div>
+            </form>
+
+            {/* Tester List / Search */}
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="relative w-full sm:w-72">
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
+                  <input
+                    type="text"
+                    placeholder="Search testers..."
+                    value={testerSearch}
+                    onChange={(e) => setTesterSearch(e.target.value)}
+                    className="w-full bg-gray-900/40 border border-white/10 rounded-xl pl-9 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
+                  />
+                </div>
+                <div className="text-xs text-gray-400 font-medium px-3 py-1.5 rounded-lg bg-white/5 border border-white/5 self-end sm:self-auto">
+                  {testers.filter(t => !testerSearch || t.email.toLowerCase().includes(testerSearch.toLowerCase()) || (t.notes && t.notes.toLowerCase().includes(testerSearch.toLowerCase()))).length} Authorized Testers
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto rounded-xl border border-white/10 bg-gray-900/30">
+                <table className="w-full text-left text-sm text-gray-300">
+                  <thead className="bg-white/5 text-xs uppercase text-gray-400 font-semibold border-b border-white/10">
+                    <tr>
+                      <th className="px-4 py-3">Tester Email</th>
+                      <th className="px-4 py-3">Authorized Date</th>
+                      <th className="px-4 py-3">Added By</th>
+                      <th className="px-4 py-3">Notes</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {testersLoading ? (
+                      <tr>
+                        <td colSpan={5} className="text-center py-8 text-gray-500">
+                          <RefreshCw className="animate-spin inline mr-2" size={18} />
+                          Loading testers...
+                        </td>
+                      </tr>
+                    ) : testers.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="text-center py-8 text-gray-500">
+                          No authorized testers configured yet. Add an email above to grant testing access.
+                        </td>
+                      </tr>
+                    ) : (
+                      testers
+                        .filter(t => !testerSearch || t.email.toLowerCase().includes(testerSearch.toLowerCase()) || (t.notes && t.notes.toLowerCase().includes(testerSearch.toLowerCase())))
+                        .map((t) => (
+                          <tr key={t._id} className="hover:bg-white/[0.02] transition-colors">
+                            <td className="px-4 py-3 font-medium text-white flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" />
+                              {t.email}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-gray-400">
+                              {new Date(t.createdAt).toLocaleDateString(undefined, {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                              })}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-gray-400">
+                              {t.addedBy?.email || t.addedBy?.username || 'Admin'}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-gray-400 max-w-xs truncate">
+                              {t.notes || '—'}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                onClick={() => handleRemoveTester(t._id, t.email)}
+                                disabled={deletingTesterId === t._id}
+                                className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors disabled:opacity-50"
+                                title="Remove Tester"
+                              >
+                                {deletingTesterId === t._id ? (
+                                  <RefreshCw className="animate-spin" size={15} />
+                                ) : (
+                                  <Trash2 size={15} />
+                                )}
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </BentoCard>
       </div>

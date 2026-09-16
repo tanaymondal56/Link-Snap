@@ -4,6 +4,11 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import viteCompression from 'vite-plugin-compression'
 import tailwindcss from '@tailwindcss/vite'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // ── guard against unreplaced %VITE_*% literals in index.html ────────────
 // Vite only substitutes %ENV% when the variable is defined; otherwise the raw
@@ -41,6 +46,22 @@ export default defineConfig(async ({ mode }) => {
   ] : []
 
   return {
+    resolve: {
+      alias: mode !== 'development' ? [
+        {
+          find: './components/DevCommandCenter',
+          replacement: path.resolve(__dirname, 'src/components/dev/DevStub.jsx'),
+        },
+        {
+          find: '@/components/DevCommandCenter',
+          replacement: path.resolve(__dirname, 'src/components/dev/DevStub.jsx'),
+        },
+        {
+          find: /components[/\\]DevCommandCenter(?:\.jsx)?$/,
+          replacement: path.resolve(__dirname, 'src/components/dev/DevStub.jsx'),
+        },
+      ] : [],
+    },
     plugins: [
       htmlEnvFallback(),
       tailwindcss(),

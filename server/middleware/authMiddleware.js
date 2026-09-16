@@ -46,8 +46,17 @@ const protect = async (req, res, next) => {
               throw new Error('Master Admin not found');
           }
           
-          // Inject mock subscription for Master Admin to enable Pro features
-          req.user.subscription = { tier: 'pro', status: 'active', plan: 'pro_annual' };
+          // Inject mock subscription for Master Admin (honors active beta sandbox testing state)
+          let mockSub = null;
+          try {
+            const mockKey = `ls:tester:mock_sub:${String(req.user.email || req.user._id).toLowerCase().trim()}`;
+            mockSub = await redisGet(mockKey);
+          } catch {
+            // Redis fallback
+          }
+          req.user.subscription = (mockSub && typeof mockSub === 'object')
+            ? mockSub
+            : { tier: 'pro', status: 'active', plan: 'pro_annual' };
       } else {
           // --- STANDARD USER LOOKUP ---
           const redis = getRedisClient();

@@ -246,14 +246,15 @@ export const hasFeature = (user, feature) => {
  * Get effective tier considering status and grace period
  */
 export const getEffectiveTier = (user) => {
-  const sub = user.subscription;
-  if (!sub || !['active', 'on_trial', 'past_due', 'cancelled'].includes(sub.status)) {
+  const sub = user?.subscription;
+  if (!sub || !['active', 'on_trial', 'past_due', 'cancelled', 'paused'].includes(sub.status)) {
     return 'free';
   }
   
-  // Check if active subscription has expired (with 24h grace period to cover webhook delays)
+  // Check if active subscription has expired (with 24h grace period to cover webhook delays, 0ms for test subscriptions)
   if (sub.status === 'active' && sub.currentPeriodEnd) {
-    const graceMs = 24 * 60 * 60 * 1000;
+    const isTest = sub.isTest === true || String(sub.variantId || '').startsWith('TEST-');
+    const graceMs = isTest ? 0 : 24 * 60 * 60 * 1000;
     if (new Date(sub.currentPeriodEnd).getTime() + graceMs <= Date.now()) {
       return 'free';
     }
@@ -302,10 +303,23 @@ export const processExpiredSubscriptions = async () => {
     const graceDays = parseInt(process.env.SUBSCRIPTION_GRACE_PERIOD_DAYS) || 7;
     const pastDueGraceMs = graceDays * 24 * 60 * 60 * 1000;
     
-    // Find all expired subscriptions across different statuses
+    // Find all expired subscriptions across different statuses (instant expiry for test subscriptions)
     const expiredUsers = await User.find({
       $or: [
-        { 'subscription.status': 'active', 'subscription.currentPeriodEnd': { $lt: new Date(now - graceMs) } },
+        {
+          'subscription.status': 'active',
+          $or: [
+            {
+              $or: [{ 'subscription.isTest': true }, { 'subscription.variantId': /^TEST-/ }],
+              'subscription.currentPeriodEnd': { $lt: new Date(now) }
+            },
+            {
+              'subscription.isTest': { $ne: true },
+              'subscription.variantId': { $not: /^TEST-/ },
+              'subscription.currentPeriodEnd': { $lt: new Date(now - graceMs) }
+            }
+          ]
+        },
         { 'subscription.status': 'past_due', 'subscription.currentPeriodEnd': { $lt: new Date(now - pastDueGraceMs) } },
         { 'subscription.status': { $in: ['cancelled', 'paused'] }, 'subscription.currentPeriodEnd': { $lt: new Date(now) } }
       ]

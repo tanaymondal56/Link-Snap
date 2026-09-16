@@ -34,11 +34,54 @@ const router = express.Router();
 router.use(devLimiter);
 
 // DOUBLE SECURITY: Failsafe middleware
-// Even if this file is loaded, strictly block access if not in development mode
+// Strictly limit access to local testing only. Rejects any non-development environment
+// and non-localhost hostnames with HTTP 404 Not Found (preserving Ghost Mode).
 router.use((req, res, next) => {
   if (process.env.NODE_ENV !== 'development') {
-    return res.status(403).json({ message: 'Dev routes are disabled in production' });
+    return res.status(404).json({ message: 'Not found' });
   }
+
+  const checkLocal = (val) => {
+    if (!val || typeof val !== 'string') return true;
+    for (const part of val.split(',')) {
+      let clean = part.trim();
+      if (!clean) continue;
+      if (clean.startsWith('http://') || clean.startsWith('https://')) {
+        try {
+          clean = new URL(clean).hostname;
+        } catch {
+          return false;
+        }
+      } else if (clean.startsWith('[') && clean.includes(']')) {
+        clean = clean.substring(1, clean.indexOf(']'));
+      } else {
+        clean = clean.split(':')[0];
+      }
+      clean = clean.toLowerCase();
+      const isLoopback =
+        clean === 'localhost' ||
+        clean === '127.0.0.1' ||
+        clean === '::1' ||
+        clean === '[::1]';
+      if (!isLoopback) return false;
+    }
+    return true;
+  };
+
+  const hostsToCheck = [
+    req.headers['host'],
+    req.headers['x-forwarded-host'],
+    req.headers['origin'],
+    req.headers['referer'],
+    req.hostname,
+  ];
+
+  for (const h of hostsToCheck) {
+    if (h && !checkLocal(h)) {
+      return res.status(404).json({ message: 'Not found' });
+    }
+  }
+
   next();
 });
 

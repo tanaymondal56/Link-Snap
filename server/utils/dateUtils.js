@@ -1,8 +1,13 @@
 export const calculateSubscriptionEndDate = (startDate, durationStr) => {
-  const date = new Date(startDate);
+  const date = startDate ? new Date(startDate) : new Date();
+  if (Number.isNaN(date.getTime())) {
+    date.setTime(Date.now());
+  }
   
+  const dStr = String(durationStr || '').trim().toLowerCase();
+
   // Handle lifetime immediately
-  if (durationStr === 'lifetime') {
+  if (dStr === 'lifetime') {
     date.setFullYear(date.getFullYear() + 100);
     return date;
   }
@@ -11,15 +16,23 @@ export const calculateSubscriptionEndDate = (startDate, durationStr) => {
   let monthsToAdd = 0;
   let yearsToAdd = 0;
 
-  // Handle custom days (e.g. '1_day', '7_days', '14_days', '29_days')
-  const daysMatch = String(durationStr).match(/^(\d+)_days?$/);
+  // Handle minute durations (e.g. '1_min', '5_mins', '1_minute', '5_minutes', '1m', '5m')
+  const minsMatch = dStr.match(/^(\d+)(?:_(?:min|minute)s?|m)$/);
+  if (minsMatch) {
+    const mins = parseInt(minsMatch[1], 10);
+    copy.setMinutes(copy.getMinutes() + mins);
+    return copy;
+  }
+
+  // Handle custom days (e.g. '1_day', '7_days', '14_days', '29_days', '1d', '30d')
+  const daysMatch = dStr.match(/^(\d+)(?:_days?|d)$/);
   if (daysMatch) {
     const days = parseInt(daysMatch[1], 10);
     copy.setDate(copy.getDate() + days);
     return copy;
   }
 
-  switch (durationStr) {
+  switch (dStr) {
     case '1_month': monthsToAdd = 1; break;
     case '3_months': monthsToAdd = 3; break;
     case '6_months': monthsToAdd = 6; break;

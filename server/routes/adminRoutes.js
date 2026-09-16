@@ -51,6 +51,11 @@ import {
     getUnreadCount,
     createTestNotification
 } from '../controllers/notificationController.js';
+import {
+    listTesters,
+    addTester,
+    removeTester
+} from '../controllers/adminTesterController.js';
 
 const router = express.Router();
 
@@ -132,5 +137,10 @@ router.post('/notifications/test', createTestNotification);
 router.get('/security/jailed-ips', getJailedIPs);
 router.post('/security/unjail-ip', unjailIP);
 router.post('/security/jail-ip', manualJailIPHandler);
+
+// Authorized Beta Testers Management
+router.get('/testers', listTesters);
+router.post('/testers', addTester);
+router.delete('/testers/:id', removeTester);
 
 export default router;

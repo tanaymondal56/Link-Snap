@@ -562,3 +562,21 @@ export const loginFailedThresholdLimiter = rateLimit({
     skip: (req) => isWhitelisted(getUserIP(req)),
 });
 
+// ─── Beta Tester Endpoint Rate Limiting ──────────────────────────────────────
+// Prevents rapid exhaustion or brute-forcing of test codes and mock purchases
+export const testerLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 30,
+    store: createRedisStore('tester'),
+    keyGenerator: (req) => `${req.user?._id || getUserIP(req)}`,
+    validate: { keyGeneratorIpFallback: false },
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many test requests. Please slow down.',
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many test requests. Please slow down.' });
+    },
+    skip: (req) => isWhitelisted(getUserIP(req)),
+});
+
+
