@@ -254,6 +254,10 @@ const LandingPage = () => {
       setShortUrl(getShortUrl(data.shortId));
       setCreatedLink(data);
 
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('link:created', { detail: data }));
+      }
+
       // Show success modal for all users (guests need to see expiry warning)
       setShowSuccessModal(true);
 

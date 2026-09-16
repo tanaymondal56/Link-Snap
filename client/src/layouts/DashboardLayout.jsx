@@ -445,7 +445,7 @@ const DashboardLayout = () => {
         <main id="main-content" className="flex-1 overflow-y-auto p-4 lg:p-8">
           <LazyPullToRefresh onRefresh={() => window.location.reload()}>
             <div className="max-w-6xl mx-auto min-h-[calc(100vh-8rem)] animate-fade-in">
-              <Outlet />
+              <Outlet context={{ onLinkCreated: handleLinkCreated }} />
             </div>
           </LazyPullToRefresh>
         </main>

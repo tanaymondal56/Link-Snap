@@ -204,28 +204,82 @@ const UserDashboard = () => {
     showToast.success('Links refreshed', 'Updated');
   };
 
-  // Handle new link created from modal
-  const handleLinkCreated = (newLink) => {
-    setLinks(prev => [newLink, ...prev]);
-    setCreatedLink(newLink);
-    
+  const recentAddedIdsRef = useRef(new Set());
+
+  // Optimistically and reactively apply new link to dashboard state
+  const applyNewLink = useCallback((newLink) => {
+    if (!newLink?._id) return;
+    if (recentAddedIdsRef.current.has(newLink._id)) return;
+    recentAddedIdsRef.current.add(newLink._id);
+    if (recentAddedIdsRef.current.size > 100) {
+      recentAddedIdsRef.current.clear();
+    }
+
+    setLinks((prev) => {
+      if (prev.some((l) => l._id === newLink._id)) return prev;
+      return [newLink, ...prev];
+    });
+    setTotalLinks((prev) => prev + 1);
+    setSearchTerm('');
+    setPage(1);
+
     // Sync usage stats with AuthContext
-    if (user) {
-      setUser(prev => ({
+    setUser((prev) => {
+      if (!prev) return prev;
+      return {
         ...prev,
         linkUsage: {
           ...prev.linkUsage,
           count: (prev.linkUsage?.count || 0) + 1,
-          hardCount: (prev.linkUsage?.hardCount || 0) + 1
-        }
-      }));
+          hardCount: (prev.linkUsage?.hardCount || 0) + 1,
+        },
+      };
+    });
+
+    // Update offline cache for page 1
+    const cached = getCachedLinks();
+    if (cached && Array.isArray(cached.links)) {
+      if (!cached.links.some((l) => l._id === newLink._id)) {
+        cacheLinks([newLink, ...cached.links]);
+      }
     }
+  }, [setUser]);
+
+  // Listen for global link:created events (e.g. from sidebar CreateLinkModal in DashboardLayout)
+  useEffect(() => {
+    const handleLinkCreatedEvent = (e) => {
+      const newLink = e.detail;
+      if (newLink) {
+        applyNewLink(newLink);
+      }
+    };
+
+    window.addEventListener('link:created', handleLinkCreatedEvent);
+    return () => {
+      window.removeEventListener('link:created', handleLinkCreatedEvent);
+    };
+  }, [applyNewLink]);
+
+  // Handle new link created from local modal
+  const handleLinkCreated = (newLink) => {
+    applyNewLink(newLink);
+    setCreatedLink(newLink);
     // Don't show toast here, the success modal will handle it
   };
 
   // Handle link updated from edit modal
   const handleLinkUpdated = (updatedLink) => {
-    setLinks(prev => prev.map((link) => (link._id === updatedLink._id ? updatedLink : link)));
+    setLinks((prev) => prev.map((link) => (link._id === updatedLink._id ? updatedLink : link)));
+
+    // Update offline cache
+    const cached = getCachedLinks();
+    if (cached && Array.isArray(cached.links)) {
+      cacheLinks(cached.links.map((l) => (l._id === updatedLink._id ? updatedLink : l)));
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('link:updated', { detail: updatedLink }));
+    }
     showToast.success('Link has been updated!', 'Changes Saved');
   };
 
@@ -241,19 +295,30 @@ const UserDashboard = () => {
 
     try {
       await api.delete(`/url/${id}`);
-      setLinks(prev => prev.filter((link) => link._id !== id));
-      
+      setLinks((prev) => prev.filter((link) => link._id !== id));
+      setTotalLinks((prev) => Math.max(0, prev - 1));
+
       // Sync usage stats with AuthContext (only decrement active count)
       if (user && user.linkUsage?.count > 0) {
-        setUser(prev => ({
+        setUser((prev) => ({
           ...prev,
           linkUsage: {
             ...prev.linkUsage,
-            count: prev.linkUsage.count - 1
-          }
+            count: prev.linkUsage.count - 1,
+          },
         }));
       }
-      
+
+      // Update offline cache
+      const cached = getCachedLinks();
+      if (cached && Array.isArray(cached.links)) {
+        cacheLinks(cached.links.filter((l) => l._id !== id));
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('link:deleted', { detail: { id } }));
+      }
+
       showToast.success('Link has been removed', 'Deleted');
     } catch (error) {
       console.error(error);

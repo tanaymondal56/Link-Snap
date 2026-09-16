@@ -92,6 +92,22 @@ const OverviewPage = () => {
     }
   }, [user, isAuthChecking, fetchOverviewData]);
 
+  // Reactively refresh overview metrics when links are created, updated, or deleted
+  useEffect(() => {
+    const refreshData = () => {
+      fetchOverviewData();
+    };
+
+    window.addEventListener('link:created', refreshData);
+    window.addEventListener('link:deleted', refreshData);
+    window.addEventListener('link:updated', refreshData);
+    return () => {
+      window.removeEventListener('link:created', refreshData);
+      window.removeEventListener('link:deleted', refreshData);
+      window.removeEventListener('link:updated', refreshData);
+    };
+  }, [fetchOverviewData]);
+
   const handleLinkCreated = (newLink) => {
     setCreatedLink(newLink);
     fetchOverviewData(); // Refresh stats

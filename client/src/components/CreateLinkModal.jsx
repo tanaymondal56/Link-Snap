@@ -507,6 +507,9 @@ const CreateLinkModal = ({ isOpen, onClose, onSuccess }) => {
 
       const { data } = await api.post('/url/shorten', payload);
       clearDraft(); // Clear draft on successful creation
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('link:created', { detail: data }));
+      }
       onSuccess(data);
       onClose();
     } catch (error) {
