@@ -114,7 +114,15 @@ export default defineConfig(async ({ mode }) => {
           cleanupOutdatedCaches: true,
           // Use network-first for HTML navigation requests
           runtimeCaching: []        },
-        includeAssets: ['favicon.svg', 'favicon-32x32.png', 'favicon-16x16.png', 'apple-touch-icon.png', 'robots.txt'],
+        includeAssets: [
+          'favicon.ico',
+          'favicon.svg',
+          'favicon-32x32.png',
+          'favicon-16x16.png',
+          'apple-touch-icon.png',
+          'apple-touch-icon-180x180.png',
+          'robots.txt',
+        ],
         manifest: {
           name: 'Link Snap',
           short_name: 'LinkSnap',
@@ -129,24 +137,27 @@ export default defineConfig(async ({ mode }) => {
           scope: '/',
           icons: [
             {
+              src: 'pwa-64x64.png',
+              sizes: '64x64',
+              type: 'image/png',
+            },
+            {
               src: 'pwa-192x192.png',
               sizes: '192x192',
               type: 'image/png',
-              purpose: 'any'
             },
             {
               src: 'pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
-              purpose: 'any'
             },
             {
-              src: 'pwa-512x512.png',
+              src: 'maskable-icon-512x512.png',
               sizes: '512x512',
               type: 'image/png',
-              purpose: 'maskable'
-            }
-          ]
+              purpose: 'maskable',
+            },
+          ],
         },
         devOptions: {
           enabled: false // Disable PWA in development to avoid caching issues

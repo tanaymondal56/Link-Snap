@@ -11,13 +11,16 @@
     "/favicon-16x16.png",
     "/favicon-32x32.png",
     "/apple-touch-icon.png",
+    "/apple-touch-icon-180x180.png",
     "/manifest.json",
     "/manifest.webmanifest",
     "/sw.js",
     "/robots.txt",
     "/sitemap.xml",
     "/og-image.png",
+    "/pwa-64x64.png",
     "/pwa-192x192.png",
-    "/pwa-512x512.png"
+    "/pwa-512x512.png",
+    "/maskable-icon-512x512.png"
   ]
 }

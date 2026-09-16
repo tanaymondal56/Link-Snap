@@ -32,7 +32,10 @@
 /favicon.*
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400
 
-/apple-touch-icon.png
+/apple-touch-icon*.png
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/maskable-icon-*.png
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400
 
 /pwa-*.png
