@@ -1,0 +1,61 @@
+# Version control
+.git
+.gitignore
+
+# CI/CD and agent workspace
+.github
+.agents
+.gemini
+
+# Dependencies and build outputs
+**/node_modules
+**/dist
+**/build
+**/.cache
+**/.vite
+
+# Environment files and credentials
+**/.env*
+!**/.env.example
+
+# Documentation, study notes, and planning documents
+*.md
+plans/
+Notes/
+study/
+audits-plan/
+
+# Infrastructure and separate deployment directories
+terraform/
+k8s/
+cf-pages/
+
+# OS and Editor metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+
+cf-pages/
+.agents/
+.agent/
+GEMINI.md
+DIRECTORY.md
+.gemini/
+.antigravity/
+Staging Test/
+DOCs/
+feature-list/
+feature-docs/
+plans/
+fix-needed/
+audits-plan/
+My-VM-Automation/
+Notes/
+testing/
+study/

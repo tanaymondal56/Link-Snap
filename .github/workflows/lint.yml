@@ -13,87 +13,118 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  NODE_OPTIONS: "--no-warnings"
+  NODE_OPTIONS: '--no-warnings'
 
 jobs:
   lint-client:
-    name: Lint Client
+    name: Lint & Audit Client
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v7
-    - name: Use Node.js
-      uses: actions/setup-node@v7
-      with:
-        node-version-file: '.nvmrc'
-        cache: 'npm'
-        cache-dependency-path: client/package-lock.json
-    - name: Install dependencies
-      working-directory: ./client
-      run: npm ci
-    - name: Run Lint
-      working-directory: ./client
-      run: npm run lint
-
+      - uses: actions/checkout@v7
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+      - name: Cache client node_modules
+        id: client-cache
+        uses: actions/cache@v4
+        with:
+          path: client/node_modules
+          key: client-node-modules-${{ hashFiles('client/package-lock.json') }}
+      - name: Install dependencies
+        if: steps.client-cache.outputs.cache-hit != 'true'
+        working-directory: ./client
+        run: npm ci
+      - name: Run Lint
+        working-directory: ./client
+        run: npm run lint
+      - name: Run NPM Audit
+        working-directory: ./client
+        run: npm audit --audit-level=low
 
   lint-server:
-    name: Lint Server
+    name: Lint & Audit Server
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v7
-    - name: Use Node.js
-      uses: actions/setup-node@v7
-      with:
-        node-version-file: '.nvmrc'
-        cache: 'npm'
-        cache-dependency-path: server/package-lock.json
-    - name: Install dependencies
-      working-directory: ./server
-      run: npm ci
-    - name: Run Lint
-      working-directory: ./server
-      run: npm run lint
-
-
-  audit-client:
-    name: Security Audit Client
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v7
-    - name: Run NPM Audit
-      working-directory: ./client
-      run: npm audit --audit-level=low
-
-  audit-server:
-    name: Security Audit Server
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v7
-    - name: Run NPM Audit
-      working-directory: ./server
-      run: npm audit --audit-level=low
+      - uses: actions/checkout@v7
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      - name: Cache server node_modules
+        id: server-cache
+        uses: actions/cache@v4
+        with:
+          path: server/node_modules
+          key: server-node-modules-${{ hashFiles('server/package-lock.json') }}
+      - name: Install dependencies
+        if: steps.server-cache.outputs.cache-hit != 'true'
+        working-directory: ./server
+        run: npm ci
+      - name: Run Lint
+        working-directory: ./server
+        run: npm run lint
+      - name: Run NPM Audit
+        working-directory: ./server
+        run: npm audit --audit-level=low
 
   validate-k8s:
     name: Validate K8s Manifests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Install kubeconform
+      - name: Ensure local bin in PATH
         run: |
-          curl -sL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
-            | tar xz && sudo mv kubeconform /usr/local/bin/
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Cache kubeconform binary
+        id: kubeconform-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/kubeconform
+          key: kubeconform-bin-v0.8.0
+      - name: Install kubeconform
+        if: steps.kubeconform-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C "$HOME/.local/bin"
+      - name: Cache kubeconform schemas
+        uses: actions/cache@v4
+        with:
+          path: ~/.kubeconform/cache
+          key: kubeconform-schemas-${{ hashFiles('k8s/**/*.yaml') }}
+          restore-keys: |
+            kubeconform-schemas-
       - name: Validate manifests
         run: |
-          kubeconform -strict -summary -ignore-missing-schemas k8s/
+          kubeconform -cache ~/.kubeconform/cache -strict -summary -ignore-missing-schemas k8s/
 
   lint-workflows:
     name: Lint GitHub Actions Workflows
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Run actionlint
+      - name: Ensure local bin in PATH
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Cache actionlint binary
+        id: actionlint-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/actionlint
+          key: actionlint-bin-v1.7.12
+      - name: Install actionlint
+        if: steps.actionlint-cache.outputs.cache-hit != 'true'
         run: |
           bash <(curl -sL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-          ./actionlint
+          mv ./actionlint "$HOME/.local/bin/actionlint"
+      - name: Run actionlint
+        run: actionlint
 
   lint-dockerfiles:
     name: Lint Dockerfiles

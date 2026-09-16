@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # ── Stage 1: Install dependencies ─────────────────────────────────────────────
-FROM node:24-alpine AS deps
+FROM --platform=$BUILDPLATFORM node:24-alpine AS deps
 
 WORKDIR /app
 

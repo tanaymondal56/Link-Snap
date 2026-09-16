@@ -9,8 +9,8 @@ on:
       - 'Notes/**'
       - 'study/**'
       - 'audits-plan/**'
-      - 'terraform/**'   # Infra-only edits don't need app image rebuilds
-      - 'cf-pages/**'    # Deploys separately to Cloudflare Pages
+      - 'terraform/**' # Infra-only edits don't need app image rebuilds
+      - 'cf-pages/**' # Deploys separately to Cloudflare Pages
       - '.gitignore'
       - '.dockerignore'
       - 'LICENSE'
@@ -136,7 +136,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write   # Fulcio OIDC — keyless cosign signing happens inline below
+      id-token: write # Fulcio OIDC — keyless cosign signing happens inline below
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'release' ||
@@ -156,6 +156,8 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
+        with:
+          cache-binary: true
 
       - name: Extract metadata (beta branch)
         id: meta
@@ -182,8 +184,8 @@ jobs:
           context: .
           file: client/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
-          provenance: true                                          # SLSA provenance attestation
-          sbom: true                                                # Generate SBOM alongside the build
+          provenance: true # SLSA provenance attestation
+          sbom: true # Generate SBOM alongside the build
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/arm64
@@ -200,7 +202,7 @@ jobs:
         uses: sigstore/cosign-installer@v4.1.0
 
       - name: Sign image with cosign (keyless)
-        if: github.event_name != 'pull_request'   # nothing is pushed on PRs
+        if: github.event_name != 'pull_request' # nothing is pushed on PRs
         run: |
           cosign sign --yes \
             "${{ needs.set-matrix.outputs.frontend_repo }}@${{ steps.build.outputs.digest }}"
@@ -212,7 +214,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write   # Fulcio OIDC — keyless cosign signing happens inline below
+      id-token: write # Fulcio OIDC — keyless cosign signing happens inline below
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'release' ||
@@ -232,6 +234,8 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
+        with:
+          cache-binary: true
 
       - name: Extract metadata
         id: meta
@@ -254,8 +258,8 @@ jobs:
           context: .
           file: server/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
-          provenance: true                                          # SLSA provenance attestation
-          sbom: true                                                # Generate SBOM alongside the build
+          provenance: true # SLSA provenance attestation
+          sbom: true # Generate SBOM alongside the build
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/arm64
@@ -268,7 +272,7 @@ jobs:
         uses: sigstore/cosign-installer@v4.1.0
 
       - name: Sign image with cosign (keyless)
-        if: github.event_name != 'pull_request'   # nothing is pushed on PRs
+        if: github.event_name != 'pull_request' # nothing is pushed on PRs
         run: |
           cosign sign --yes \
             "${{ needs.set-matrix.outputs.backend_repo }}@${{ steps.build.outputs.digest }}"
@@ -309,7 +313,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write   # SARIF upload — only this job needs it
+      security-events: write # SARIF upload — only this job needs it
     if: >
       github.event_name != 'pull_request' &&
       always() &&
@@ -322,17 +326,29 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Get current date for cache key
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Trivy vulnerability DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}-${{ steps.date.outputs.date }}
+          restore-keys: |
+            trivy-db-${{ runner.os }}-
+
       - name: Scan frontend image
         if: needs.build-frontend.result == 'success'
         uses: aquasecurity/trivy-action@master
         env:
           TRIVY_PLATFORM: linux/arm64
         with:
-          image-ref: "${{ needs.set-matrix.outputs.frontend_repo }}@${{ needs.build-frontend.outputs.image-digest }}"
-          format: "sarif"
-          output: "trivy-frontend.sarif"
-          severity: "CRITICAL,HIGH"
-          exit-code: "0"
+          image-ref: '${{ needs.set-matrix.outputs.frontend_repo }}@${{ needs.build-frontend.outputs.image-digest }}'
+          format: 'sarif'
+          output: 'trivy-frontend.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
 
       - name: Scan backend image
         if: needs.build-backend.result == 'success'
@@ -340,11 +356,11 @@ jobs:
         env:
           TRIVY_PLATFORM: linux/arm64
         with:
-          image-ref: "${{ needs.set-matrix.outputs.backend_repo }}@${{ needs.build-backend.outputs.image-digest }}"
-          format: "sarif"
-          output: "trivy-backend.sarif"
-          severity: "CRITICAL,HIGH"
-          exit-code: "0"
+          image-ref: '${{ needs.set-matrix.outputs.backend_repo }}@${{ needs.build-backend.outputs.image-digest }}'
+          format: 'sarif'
+          output: 'trivy-backend.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
 
       - name: Upload frontend Trivy results to GitHub Security tab
         if: always() && needs.build-frontend.result == 'success'
@@ -393,7 +409,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: "Guard: ensure KUBE_CONFIG is set"
+      - name: 'Guard: ensure KUBE_CONFIG is set'
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
@@ -403,7 +419,7 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v5
         with:
-          version: "v1.36.2"
+          version: 'v1.36.2'
 
       - name: Configure kubectl
         env:
@@ -420,17 +436,24 @@ jobs:
           echo "sha=sha-${SHA}" >> "$GITHUB_OUTPUT"
           echo "Deploying beta tag: sha-${SHA}"
 
+      - name: Ensure local bin in PATH
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache kustomize binary
+        id: kustomize-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/kustomize
+          key: kustomize-bin-v5.8.1-amd64
+
       - name: Install kustomize
+        if: steps.kustomize-cache.outputs.cache-hit != 'true'
         run: |
           KUSTOMIZE_VERSION=v5.8.1
-          ARCH=$(uname -m)
-          case "${ARCH}" in
-            x86_64) K_ARCH="amd64" ;;
-            aarch64|arm64) K_ARCH="arm64" ;;
-            *) K_ARCH="amd64" ;;
-          esac
-          curl -sSfL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_${K_ARCH}.tar.gz" \
-            | tar -xz -C /usr/local/bin
+          curl -sSfL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C "$HOME/.local/bin"
           kustomize version
 
       - name: Apply K8s Infrastructure (beta)
@@ -498,7 +521,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: "Guard: ensure KUBE_CONFIG is set"
+      - name: 'Guard: ensure KUBE_CONFIG is set'
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
@@ -508,7 +531,7 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v5
         with:
-          version: "v1.36.2"
+          version: 'v1.36.2'
 
       - name: Configure kubectl
         env:
@@ -525,17 +548,24 @@ jobs:
           echo "sha=sha-${SHA}" >> "$GITHUB_OUTPUT"
           echo "Deploying stable tag: sha-${SHA}"
 
+      - name: Ensure local bin in PATH
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache kustomize binary
+        id: kustomize-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/kustomize
+          key: kustomize-bin-v5.8.1-amd64
+
       - name: Install kustomize
+        if: steps.kustomize-cache.outputs.cache-hit != 'true'
         run: |
           KUSTOMIZE_VERSION=v5.8.1
-          ARCH=$(uname -m)
-          case "${ARCH}" in
-            x86_64) K_ARCH="amd64" ;;
-            aarch64|arm64) K_ARCH="arm64" ;;
-            *) K_ARCH="amd64" ;;
-          esac
-          curl -sSfL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_${K_ARCH}.tar.gz" \
-            | tar -xz -C /usr/local/bin
+          curl -sSfL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C "$HOME/.local/bin"
           kustomize version
 
       - name: Apply K8s Infrastructure (stable)
