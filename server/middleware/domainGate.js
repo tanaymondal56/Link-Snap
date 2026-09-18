@@ -1,4 +1,26 @@
+import crypto from 'node:crypto';
 import logger from '../utils/logger.js';
+
+/**
+ * Safely compare two strings in constant time to prevent timing attacks.
+ * Uses SHA-256 digest comparison so inputs are normalized to equal length buffers.
+ *
+ * @param {string} a
+ * @param {string} b
+ * @returns {boolean}
+ */
+const safeTimingCompare = (a, b) => {
+  if (typeof a !== 'string' || typeof b !== 'string' || !a || !b) {
+    return false;
+  }
+  try {
+    const hashA = crypto.createHash('sha256').update(a).digest();
+    const hashB = crypto.createHash('sha256').update(b).digest();
+    return crypto.timingSafeEqual(hashA, hashB);
+  } catch {
+    return false;
+  }
+};
 
 /**
  * Extracts normalized hostnames from various request headers
@@ -30,10 +52,15 @@ const extractHostnames = (req) => {
 
   const getHeader = (name) => {
     try {
-      if (typeof req.get === 'function') {
+      if (typeof req?.get === 'function') {
         return req.get(name);
       }
-      return req.headers?.[name];
+      if (!req?.headers) return undefined;
+      const lower = name.toLowerCase();
+      if (req.headers[lower] !== undefined) return req.headers[lower];
+      if (req.headers[name] !== undefined) return req.headers[name];
+      const matchKey = Object.keys(req.headers).find((k) => k.toLowerCase() === lower);
+      return matchKey ? req.headers[matchKey] : undefined;
     } catch {
       return undefined;
     }
@@ -43,7 +70,7 @@ const extractHostnames = (req) => {
   addHost(getHeader('host'));
   addHost(getHeader('origin'));
   addHost(getHeader('referer'));
-  if (req.hostname) {
+  if (req?.hostname) {
     addHost(req.hostname);
   }
 
@@ -61,11 +88,13 @@ const STRICT_PROD_HOSTS = new Set([
 /**
  * Checks if the request is executing within a local development or authorized beta domain.
  * Strictly forbids production domain requests.
- * 
+ *
  * @param {import('express').Request} req - Express request
  * @returns {boolean} True if environment is beta or local
  */
 export const isBetaOrLocalEnvironment = (req) => {
+  if (!req) return false;
+
   const hostnames = extractHostnames(req);
 
   const getHdr = (name) => {
@@ -73,16 +102,37 @@ export const isBetaOrLocalEnvironment = (req) => {
       if (typeof req?.get === 'function') {
         return req.get(name);
       }
-      return req?.headers?.[name];
+      if (!req?.headers) return undefined;
+      const lower = name.toLowerCase();
+      if (req.headers[lower] !== undefined) return req.headers[lower];
+      if (req.headers[name] !== undefined) return req.headers[name];
+      const matchKey = Object.keys(req.headers).find((k) => k.toLowerCase() === lower);
+      return matchKey ? req.headers[matchKey] : undefined;
     } catch {
       return undefined;
     }
   };
 
-  const isBffProxy =
-    (process.env.BFF_SECRET && getHdr('x-linksnap-bff-secret') === process.env.BFF_SECRET) ||
-    getHdr('x-linksnap-bff') === 'true' ||
-    Boolean(getHdr('cf-access-client-id'));
+  const bffSecret = process.env.BFF_SECRET;
+  const cfClientId = process.env.CF_CLIENT_ID || process.env.CF_ACCESS_CLIENT_ID;
+  const cfClientSecret = process.env.CF_CLIENT_SECRET || process.env.CF_ACCESS_CLIENT_SECRET;
+
+  const reqBffSecret = getHdr('x-linksnap-bff-secret');
+  const reqCfClientId = getHdr('cf-access-client-id');
+  const reqCfClientSecret = getHdr('cf-access-client-secret');
+
+  const isBffSecretValid = Boolean(bffSecret && safeTimingCompare(reqBffSecret, bffSecret));
+  const isCfAccessValid = Boolean(
+    cfClientId &&
+    safeTimingCompare(reqCfClientId, cfClientId) &&
+    (!cfClientSecret || safeTimingCompare(reqCfClientSecret, cfClientSecret))
+  );
+  // Cryptographically verify BFF_SECRET or Cloudflare Access Service Token;
+  // only fall back to plain x-linksnap-bff === 'true' when explicitly in development environment.
+  const isDevFallback =
+    process.env.NODE_ENV === 'development' && getHdr('x-linksnap-bff') === 'true';
+
+  const isBffProxy = isBffSecretValid || isCfAccessValid || isDevFallback;
   let xForwardedHost = (getHdr('x-forwarded-host') || '').split(',')[0].trim().toLowerCase();
   if (xForwardedHost.startsWith('http://') || xForwardedHost.startsWith('https://')) {
     try {
@@ -98,10 +148,8 @@ export const isBetaOrLocalEnvironment = (req) => {
 
   const isBetaClient =
     xForwardedHost === 'beta.lksnp.qzz.io' ||
-    (xForwardedHost.endsWith('.lksnp.qzz.io') && (
-      xForwardedHost.startsWith('beta.') ||
-      xForwardedHost.startsWith('api-beta.')
-    )) ||
+    (xForwardedHost.endsWith('.lksnp.qzz.io') &&
+      (xForwardedHost.startsWith('beta.') || xForwardedHost.startsWith('api-beta.'))) ||
     (xForwardedHost.endsWith('.pages.dev') && xForwardedHost.includes('beta'));
 
   // 1. Strict production check: if ANY host/origin points directly to production, reject immediately
@@ -142,10 +190,8 @@ export const isBetaOrLocalEnvironment = (req) => {
     return (
       host === 'beta.lksnp.qzz.io' ||
       host === 'api-beta.lksnp.qzz.io' ||
-      (host.endsWith('.lksnp.qzz.io') && (
-        host.startsWith('beta.') ||
-        host.startsWith('api-beta.')
-      )) ||
+      (host.endsWith('.lksnp.qzz.io') &&
+        (host.startsWith('beta.') || host.startsWith('api-beta.'))) ||
       (host.endsWith('.pages.dev') && host.includes('beta'))
     );
   });
@@ -189,7 +235,9 @@ export const isBetaOrLocalEnvironment = (req) => {
  */
 export const requireBetaOrLocal = (req, res, next) => {
   if (!isBetaOrLocalEnvironment(req)) {
-    logger.warn(`[DomainGate] Blocked non-beta/non-local request to: ${req.method} ${req.originalUrl || req.path}`);
+    logger.warn(
+      `[DomainGate] Blocked non-beta/non-local request to: ${req.method} ${req.originalUrl || req.path}`
+    );
     return res.status(404).json({ message: 'Not found' });
   }
 

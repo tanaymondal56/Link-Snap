@@ -324,8 +324,13 @@ export const updateUserStatus = async (req, res, next) => {
                     }
                 }
             );
-            // Invalidate both the auth user cache and the public bio cache
-            await redisDel(`ls:user:${user._id}`, `ls:bio:${user.username?.toLowerCase()}`);
+            // Invalidate auth user cache, public bio cache, and tester authorization/mock_sub caches
+            const userEmail = user.email ? user.email.toLowerCase().trim() : null;
+            await redisDel(
+                `ls:user:${user._id}`,
+                `ls:bio:${user.username?.toLowerCase()}`,
+                ...(userEmail ? [`ls:tester:${userEmail}`, `ls:tester:mock_sub:${userEmail}`] : [])
+            );
 
             // Log ban history
             await BanHistory.create({
@@ -354,8 +359,13 @@ export const updateUserStatus = async (req, res, next) => {
             }
             
             await User.findByIdAndUpdate(user._id, updateOps);
-            // Invalidate both the auth user cache and the public bio cache
-            await redisDel(`ls:user:${user._id}`, `ls:bio:${user.username?.toLowerCase()}`);
+            // Invalidate auth user cache, public bio cache, and tester authorization/mock_sub caches
+            const userEmail = user.email ? user.email.toLowerCase().trim() : null;
+            await redisDel(
+                `ls:user:${user._id}`,
+                `ls:bio:${user.username?.toLowerCase()}`,
+                ...(userEmail ? [`ls:tester:${userEmail}`, `ls:tester:mock_sub:${userEmail}`] : [])
+            );
 
             // Log unban history
             await BanHistory.create({
@@ -456,7 +466,13 @@ export const updateUserRole = async (req, res, next) => {
             { $set: { role: newRole } },
             { returnDocument: 'after' }
         );
-        if (updatedUser) await redisDel(`ls:user:${updatedUser._id}`);
+        if (updatedUser) {
+            const userEmail = updatedUser.email ? updatedUser.email.toLowerCase().trim() : null;
+            await redisDel(
+                `ls:user:${updatedUser._id}`,
+                ...(userEmail ? [`ls:tester:${userEmail}`, `ls:tester:mock_sub:${userEmail}`] : [])
+            );
+        }
 
         res.json({
             message: `User ${newRole === 'admin' ? 'promoted to admin' : 'demoted to user'}`,
@@ -532,9 +548,14 @@ export const deleteUser = async (req, res, next) => {
         // Delete all URLs (efficient single query)
         await Url.deleteMany({ createdBy: user._id });
 
-        // Delete the user
+        // Delete the user and invalidate auth, bio, and tester caches
+        const userEmail = user.email ? user.email.toLowerCase().trim() : null;
         await User.findByIdAndDelete(req.params.userId);
-        await redisDel(`ls:user:${req.params.userId}`, `ls:bio:${user.username?.toLowerCase()}`);
+        await redisDel(
+            `ls:user:${req.params.userId}`,
+            `ls:bio:${user.username?.toLowerCase()}`,
+            ...(userEmail ? [`ls:tester:${userEmail}`, `ls:tester:mock_sub:${userEmail}`] : [])
+        );
 
         res.json({ message: 'User and associated data removed' });
     } catch (error) {
@@ -927,7 +948,12 @@ export const respondToAppeal = async (req, res, next) => {
                         $set: { isActive: true, disableLinksOnBan: false },
                         $unset: { bannedAt: 1, bannedReason: 1, bannedUntil: 1, bannedBy: 1 }
                     });
-                    await redisDel(`ls:user:${user._id}`, `ls:bio:${user.username?.toLowerCase()}`);
+                    const userEmail = user.email ? user.email.toLowerCase().trim() : null;
+                    await redisDel(
+                        `ls:user:${user._id}`,
+                        `ls:bio:${user.username?.toLowerCase()}`,
+                        ...(userEmail ? [`ls:tester:${userEmail}`, `ls:tester:mock_sub:${userEmail}`] : [])
+                    );
 
                     // Log in ban history
                     await BanHistory.create({

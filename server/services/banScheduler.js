@@ -1,7 +1,7 @@
 import User from '../models/User.js';
 import BanHistory from '../models/BanHistory.js';
 import { getSettings } from '../utils/getSettings.js';
-import { getRedisClient } from '../config/redis.js';
+import { getRedisClient, redisDel } from '../config/redis.js';
 import Url from '../models/Url.js';
 import Changelog from '../models/Changelog.js';
 import { invalidateMultiple } from '../services/cacheService.js';
@@ -109,6 +109,13 @@ const processSingleUnban = async (user) => {
                 $set: { isActive: true, disableLinksOnBan: false },
                 $unset: { bannedAt: 1, bannedReason: 1, bannedUntil: 1, bannedBy: 1 }
             }
+        );
+        // Invalidate auth, bio, and tester caches
+        const userEmail = user.email ? user.email.toLowerCase().trim() : null;
+        await redisDel(
+            `ls:user:${user._id}`,
+            `ls:bio:${user.username?.toLowerCase()}`,
+            ...(userEmail ? [`ls:tester:${userEmail}`, `ls:tester:mock_sub:${userEmail}`] : [])
         );
 
         // Log in ban history

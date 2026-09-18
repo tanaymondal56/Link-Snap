@@ -13,16 +13,17 @@ import {
 
 const router = express.Router();
 
-// 3-Layer Watertight Protection:
+// 4-Layer Watertight Protection:
 // 1. requireBetaOrLocal: Rejects production domain (lksnp.qzz.io), allows beta / local only (404 Fail Closed)
 // 2. protect: Authenticates user session JWT
 // 3. requireTester: Authorizes admin or active beta tester (404 Fail Closed)
-router.use(requireBetaOrLocal, protect, requireTester);
+// 4. testerLimiter: Dedicated rate limit (30 requests / 15 mins) protecting all tester endpoints
+router.use(requireBetaOrLocal, protect, requireTester, testerLimiter);
 
 router.get('/status', getTesterStatus);
-router.post('/redeem', testerLimiter, redeemTesterCode);
-router.post('/simulate-buy', testerLimiter, simulateBuy);
-router.post('/expire-now', testerLimiter, expireNow);
-router.post('/reset', testerLimiter, resetSubscription);
+router.post('/redeem', redeemTesterCode);
+router.post('/simulate-buy', simulateBuy);
+router.post('/expire-now', expireNow);
+router.post('/reset', resetSubscription);
 
 export default router;
