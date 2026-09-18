@@ -21,12 +21,20 @@ class ErrorBoundary extends Component {
   componentDidMount() {
     window.addEventListener('online', this.handleNetworkOnline);
     window.addEventListener('offline', this.handleNetworkOffline);
+    window.addEventListener('popstate', this.handlePopState);
   }
 
   componentWillUnmount() {
     window.removeEventListener('online', this.handleNetworkOnline);
     window.removeEventListener('offline', this.handleNetworkOffline);
+    window.removeEventListener('popstate', this.handlePopState);
   }
+
+  handlePopState = () => {
+    if (this.state.hasError) {
+      this.setState({ hasError: false, error: null, errorInfo: null, isOffline: false });
+    }
+  };
 
   handleNetworkOnline = () => {
     this.setState({ isOffline: false });
@@ -38,6 +46,26 @@ class ErrorBoundary extends Component {
 
   handleNetworkOffline = () => {
     this.setState({ isOffline: true });
+  };
+
+  handleGoBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      window.history.back();
+    } else {
+      this.handleGoHome();
+    }
+  };
+
+  handleGoHome = () => {
+    this.setState({ hasError: false, error: null, errorInfo: null, isOffline: false });
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname !== '/') {
+        window.history.pushState(null, '', '/');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } else {
+        window.location.reload();
+      }
+    }
   };
 
   componentDidCatch(error, errorInfo) {
@@ -62,13 +90,18 @@ class ErrorBoundary extends Component {
       const lastReload = sessionStorage.getItem('chunk_error_reload_time');
       const now = Date.now();
       
-      if (!lastReload || now - parseInt(lastReload, 10) > 15000) {
+      if (!lastReload || now - parseInt(lastReload, 10) > 20000) {
         sessionStorage.setItem('chunk_error_reload_time', now.toString());
-        console.warn('Chunk load error detected. Automatically reloading to retrieve the latest version...');
-        // Clear SW cache safely without wiping auth tokens
-        this.handleClearCache();
+        console.warn('Chunk load error detected while online. Triggering reload to retrieve latest assets...');
+        // Request SW update without unregistering
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            registrations.forEach((reg) => reg.update().catch(() => {}));
+          }).catch(() => {});
+        }
+        window.location.reload();
       } else {
-        console.error('Chunk load error persisted. Cooldown active (last reload < 15s ago). Showing error screen to prevent refresh loop.');
+        console.error('Chunk load error persisted. Cooldown active. Showing error screen.');
       }
     }
   }
@@ -81,37 +114,21 @@ class ErrorBoundary extends Component {
     window.location.reload();
   };
 
-  handleGoHome = () => {
-    window.location.href = '/';
-  };
-
   handleClearCache = async () => {
     try {
-      // Clear service worker cache to pull fresh index.html & chunks
-      if ('caches' in window) {
-        const cacheNames = await caches.keys();
-        await Promise.all(cacheNames.map((name) => caches.delete(name)));
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        this.setState({ isOffline: true });
+        return;
       }
-
-      // Unregister service workers
+      // Request active service workers to update rather than killing them
       if ('serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map((reg) => reg.unregister()));
+        await Promise.all(registrations.map((reg) => reg.update().catch(() => {})));
       }
-
-      // DO NOT clear localStorage here - preserving auth tokens & bio settings!
-
-      // Only reload if we are actively online
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
-        window.location.reload();
-      } else {
-        this.setState({ isOffline: true });
-      }
+      window.location.reload();
     } catch (err) {
-      console.error('Failed to clear cache:', err);
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
-        window.location.reload();
-      }
+      console.error('Failed to update service worker:', err);
+      window.location.reload();
     }
   };
 
@@ -122,12 +139,14 @@ class ErrorBoundary extends Component {
         return (
           <OfflineRouteFallback
             onRetry={() => {
-              if (navigator.onLine) {
-                this.setState({ hasError: false, error: null, isOffline: false });
+              if (typeof navigator !== 'undefined' && navigator.onLine) {
+                window.location.reload();
               } else {
                 this.setState({ isOffline: true });
               }
             }}
+            onBack={this.handleGoBack}
+            onHome={this.handleGoHome}
           />
         );
       }

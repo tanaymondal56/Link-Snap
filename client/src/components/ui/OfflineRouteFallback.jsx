@@ -6,7 +6,7 @@ import { WifiOff, RefreshCw, Home, ArrowLeft } from 'lucide-react';
  * Rendered when a route or chunk fails to load due to network disconnection.
  * Automatically recovers when the browser fires the 'online' event.
  */
-export const OfflineRouteFallback = ({ onRetry }) => {
+export const OfflineRouteFallback = ({ onRetry, onBack, onHome }) => {
   const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
@@ -41,6 +41,33 @@ export const OfflineRouteFallback = ({ onRetry }) => {
       setTimeout(() => {
         setIsRetrying(false);
       }, 500);
+    }
+  };
+
+  const handleGoBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (typeof window !== 'undefined') {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.history.pushState(null, '', '/');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+    }
+  };
+
+  const handleReturnHome = (e) => {
+    if (e) e.preventDefault();
+    if (onHome) {
+      onHome();
+    } else if (typeof window !== 'undefined') {
+      if (window.location.pathname !== '/') {
+        window.history.pushState(null, '', '/');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } else {
+        window.location.reload();
+      }
     }
   };
 
@@ -86,29 +113,25 @@ export const OfflineRouteFallback = ({ onRetry }) => {
           </button>
 
           <button
-            onClick={() => {
-              if (window.history.length > 1) {
-                window.history.back();
-              } else {
-                window.location.href = '/';
-              }
-            }}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-white font-medium rounded-xl transition-all border border-gray-800 active:scale-95"
+            type="button"
+            onClick={handleGoBack}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-white font-medium rounded-xl transition-all border border-gray-800 active:scale-95 cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             Go Back
           </button>
         </div>
 
-        {/* Quick Nav to cached home */}
+        {/* Quick Nav to cached home via SPA navigation */}
         <div className="mt-6">
-          <a
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-400 transition-colors"
+          <button
+            type="button"
+            onClick={handleReturnHome}
+            className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-400 transition-colors cursor-pointer bg-transparent border-0"
           >
             <Home className="w-3.5 h-3.5" />
             Return to Link-Snap Home
-          </a>
+          </button>
         </div>
       </div>
     </div>

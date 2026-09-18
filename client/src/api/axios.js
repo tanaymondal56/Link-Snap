@@ -199,6 +199,8 @@ api.interceptors.response.use(
 // Dispatch global connection error event for PWA resilience
 const notifyConnectionError = (error) => {
   if (typeof window === 'undefined') return;
+  // If the device itself is offline, suppress server error modal (OfflineIndicator handles client offline state)
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return;
   if (axios.isCancel && axios.isCancel(error)) return;
   if (error?.config?.skipConnectionErrorModal) return;
   if (error?.config?.url?.includes('/health') || error?.config?.url?.includes('/ready')) return;

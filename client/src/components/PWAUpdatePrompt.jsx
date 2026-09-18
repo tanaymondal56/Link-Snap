@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useRegisterSW } from 'virtual:pwa-register/react';
 import { RefreshCw, Download, Sparkles, AlertCircle, FileText } from 'lucide-react';
 import { Link } from 'react-router';
 import { getStoredVersion, setStoredVersion, setShowChangelogAfterUpdate } from '../config/version';
@@ -8,19 +7,12 @@ import { useAppVersion } from '../hooks/useAppVersion';
 
 // Check if the app is running as an installed PWA (standalone mode)
 const isInstalledPWA = () => {
-  // Check display-mode media query (works on most browsers)
-  if (window.matchMedia('(display-mode: standalone)').matches) {
-    return true;
-  }
-  // Check for iOS standalone mode
-  if (window.navigator.standalone === true) {
-    return true;
-  }
-  // Check if launched from TWA (Trusted Web Activity) on Android
-  if (document.referrer.includes('android-app://')) {
-    return true;
-  }
-  return false;
+  if (typeof window === 'undefined') return false;
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true ||
+    document.referrer.includes('android-app://')
+  );
 };
 
 const PWAUpdatePrompt = () => {
@@ -34,45 +26,21 @@ const PWAUpdatePrompt = () => {
   const appVersion = useAppVersion();
   const newVersion = appVersion;
 
-  // Use prompt mode — needRefresh becomes true when a new SW is waiting
-  const {
-    needRefresh: [needRefresh],
-    updateServiceWorker,
-  } = useRegisterSW({
-    onRegistered(registration) {
-      if (registration) {
-        // Check for updates immediately
-        registration.update();
-
-        // Then check every 60 seconds
-        setInterval(() => {
-          registration.update();
-        }, 60 * 1000);
-      }
-    },
-    onNeedRefresh() {
-      // Only flag once — prevents stacked prompts when multiple SW
-      // versions install back-to-back before the user taps Update.
-      setSwNeedsRefresh(true);
-    },
-  });
-
   // Check for version mismatch (most reliable method)
   const hasVersionMismatch = currentVersion !== newVersion;
 
   // Show prompt when there's genuinely something new —
   // either the API reports a newer version OR the SW flagged a waiting worker.
   const shouldBlock =
-    (isPWA || isSimulated) && (hasVersionMismatch || needRefresh || swNeedsRefresh);
+    (isPWA || isSimulated) && (hasVersionMismatch || swNeedsRefresh);
 
   // After a successful reload the versions should match — clear leftover flags
   // so the prompt doesn't reappear for the same version.
   useEffect(() => {
-    if (!hasVersionMismatch && !needRefresh) {
-      setSwNeedsRefresh(false);
+    if (!hasVersionMismatch && !swNeedsRefresh) {
       sessionStorage.removeItem('pwa_update_available');
     }
-  }, [hasVersionMismatch, needRefresh]);
+  }, [hasVersionMismatch, swNeedsRefresh]);
 
   // Prevent keyboard shortcuts that might close overlay
   useEffect(() => {
@@ -89,6 +57,15 @@ const PWAUpdatePrompt = () => {
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
   }, [shouldBlock]);
+
+  // Listen for background SW refresh signal from pwa.js
+  useEffect(() => {
+    const handleNeedRefresh = () => {
+      setSwNeedsRefresh(true);
+    };
+    window.addEventListener('pwa-need-refresh', handleNeedRefresh);
+    return () => window.removeEventListener('pwa-need-refresh', handleNeedRefresh);
+  }, []);
 
   // Listen for manual simulation trigger from DevCommandCenter
   useEffect(() => {
@@ -113,15 +90,29 @@ const PWAUpdatePrompt = () => {
       // Update stored version to the new version
       setStoredVersion(appVersion);
 
-      // Try to update the service worker first
-      try {
-        await updateServiceWorker(true);
-      } catch {
-        // console.log('[PWA] SW update skipped, doing hard reload:', swError);
+      let reloaded = false;
+      const triggerReload = () => {
+        if (!reloaded) {
+          reloaded = true;
+          window.location.reload();
+        }
+      };
+
+      // Listen for the waiting SW to take control before reloading
+      if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('controllerchange', triggerReload, { once: true });
       }
 
-      // Force a hard reload to get the latest content
-      window.location.reload();
+      // Tell the waiting Service Worker to skipWaiting
+      try {
+        const { updateAppServiceWorker } = await import('../pwa');
+        await updateAppServiceWorker(true);
+      } catch {
+        triggerReload();
+      }
+
+      // Safety fallback: if no waiting worker claims controller within 2s, force reload
+      setTimeout(triggerReload, 2000);
     } catch (error) {
       console.error('Failed to update:', error);
       setIsUpdating(false);

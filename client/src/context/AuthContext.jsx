@@ -111,6 +111,14 @@ export const AuthProvider = ({ children }) => {
 
     const promise = new Promise((resolve) => {
       const executeCheck = async (retryCount) => {
+        // If device is offline, unblock UI immediately and preserve cached user state
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          setLoading(false);
+          setIsAuthChecking(false);
+          resolve();
+          return;
+        }
+
         // Secure Auth Load: Try to silent refresh immediately
         // This relies on the httpOnly cookie being present
         try {
@@ -236,6 +244,17 @@ export const AuthProvider = ({ children }) => {
       clearTimeout(timeoutId);
     };
   }, [checkAuth]);
+
+  // Re-verify auth when coming back online
+  useEffect(() => {
+    const handleOnline = () => {
+      checkAuth(true).catch(() => {});
+    };
+
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [checkAuth]);
+
 
   const openAuthModal = (tab = 'login') => {
     setAuthModal({ isOpen: true, tab });

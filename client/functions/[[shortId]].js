@@ -20,11 +20,22 @@ export async function onRequest(context) {
     });
   };
 
-  // 1. If it's the homepage or index.html, serve it directly from static assets.
-  // Other static assets (js, css, images) are already excluded in _routes.json
-  // and will bypass this function entirely.
-  if (url.pathname === '/' || url.pathname === '/index.html') {
-    return serveCleanAsset(request);
+  // 1. Static asset and root files guard:
+  // If request is for an asset, workbox script, service worker, or any file with an extension,
+  // serve directly from env.ASSETS. Never proxy static file requests to the shortlink backend.
+  const isStaticFile =
+    url.pathname.startsWith('/assets/') ||
+    url.pathname.startsWith('/workbox-') ||
+    url.pathname === '/sw.js' ||
+    /\.[a-zA-Z0-9]+$/.test(url.pathname);
+
+  if (url.pathname === '/' || url.pathname === '/index.html' || isStaticFile) {
+    const assetRes = await serveCleanAsset(request);
+    // If the asset exists, return it. If a static file is not found, return 404 (NEVER index.html)
+    if (assetRes.status !== 404 || !isStaticFile) {
+      return assetRes;
+    }
+    return new Response('Asset not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } });
   }
 
   const apiBase = env.API_BASE_URL || 'https://api.lksnp.qzz.io';
@@ -80,9 +91,9 @@ export async function onRequest(context) {
     redirect: 'manual', // IMPORTANT: We must NOT follow redirects! We want to pass the 302 back to the browser.
   });
 
-  // Explicit upstream timeout (30s)
+  // Explicit upstream timeout (12s for better mobile responsiveness before SPA fallback)
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
 
   try {
     const response = await fetch(upstreamRequest, { signal: controller.signal });
@@ -91,7 +102,10 @@ export async function onRequest(context) {
     // It's likely a React Router SPA path (e.g., /dashboard).
     // So we gracefully fallback to serving the React app's index.html.
     if (response.status === 404) {
-      const indexRequest = new Request(new URL('/', request.url), request);
+      const indexRequest = new Request(new URL('/', request.url), {
+        method: 'GET',
+        headers: { accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
+      });
       return serveCleanAsset(indexRequest);
     }
 
@@ -127,8 +141,12 @@ export async function onRequest(context) {
   } catch (err) {
     console.error('[Edge Router] Upstream fetch failed:', err.message);
 
-    // If backend is down, fallback to the React app so the dashboard still works
-    const indexRequest = new Request(new URL('/', request.url), request);
+    // If backend is down, fallback to the React app so the dashboard still works.
+    // Construct a clean GET request to avoid WinterCG "disturbed body" TypeError.
+    const indexRequest = new Request(new URL('/', request.url), {
+      method: 'GET',
+      headers: { accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
+    });
     return serveCleanAsset(indexRequest);
   } finally {
     clearTimeout(timeoutId);

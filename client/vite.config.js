@@ -94,6 +94,8 @@ export default defineConfig(async ({ mode }) => {
         // Use the hook/manual registration path only; avoid injected scripts that can trip CSP
         injectRegister: null,
         workbox: {
+          // Inline workbox runtime directly into sw.js so sw.js is self-contained without importScripts
+          inlineWorkboxRuntime: true,
           // Include index.html - required for navigateFallback to work
           globPatterns: ['**/*.{js,css,ico,png,svg,webp,html}'],
           // Don't cache API calls
@@ -102,18 +104,34 @@ export default defineConfig(async ({ mode }) => {
             /^\/api/,           // API routes
             /^\/__/,            // Internal routes
             /^\/quiz/,          // Secondary apps
-            /^\/(?!(login|register|dashboard|admin|admin-console|settings|pricing|changelog|roadmap|profile|appeals|verify|forgot|reset|redeem|bio|legal|u|easter|404)\b)[a-zA-Z0-9_-]{1,50}$/, // Short URL patterns
-            /^\/(?!(login|register|dashboard|admin|admin-console|settings|pricing|changelog|roadmap|profile|appeals|verify|forgot|reset|redeem|bio|legal|u|easter|404)\b)[a-zA-Z0-9_-]{1,50}\+$/, // Preview URL patterns
+            /^\/(?!(login|register|dashboard|admin|admin-console|settings|pricing|changelog|roadmap|profile|appeals|verify|forgot|reset|redeem|bio|legal|terms|privacy|cookies|account-suspended|u|easter|dev|teapot|404)\b)[a-zA-Z0-9_-]{1,50}$/, // Short URL patterns
+            /^\/(?!(login|register|dashboard|admin|admin-console|settings|pricing|changelog|roadmap|profile|appeals|verify|forgot|reset|redeem|bio|legal|terms|privacy|cookies|account-suspended|u|easter|dev|teapot|404)\b)[a-zA-Z0-9_-]{1,50}\+$/, // Preview URL patterns
           ],
           // IMPORTANT: Must be false for prompt mode!
           // skipWaiting:false means new SW waits until updateServiceWorker(true) is called
           skipWaiting: false,
-          // clientsClaim:false means old SW keeps control until page reload
-          clientsClaim: false,
+          // clientsClaim:true means activated SW immediately controls all clients for instant offline readiness
+          clientsClaim: true,
           // Force SW update when any precached file changes
           cleanupOutdatedCaches: true,
-          // Use network-first for HTML navigation requests
-          runtimeCaching: []        },
+          // Runtime caching for static assets & offline fallbacks
+          runtimeCaching: [
+            {
+              urlPattern: ({ request }) => request.destination === 'image',
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'images-cache',
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 30 * 24 * 60 * 60,
+                },
+              },
+            },
+          ],
+        },
         includeAssets: [
           'favicon.ico',
           'favicon.svg',
@@ -124,6 +142,11 @@ export default defineConfig(async ({ mode }) => {
           'robots.txt',
           'offline.html',
           '50x.html',
+          'pwa-64x64.png',
+          'pwa-192x192.png',
+          'pwa-512x512.png',
+          'maskable-icon-512x512.png',
+          'og-image.png',
         ],
         manifest: {
           name: 'Link Snap',

@@ -6,6 +6,7 @@
   ],
   "exclude": [
     "/assets/*",
+    "/workbox-*",
     "/favicon.ico",
     "/favicon.svg",
     "/favicon-16x16.png",
@@ -18,9 +19,15 @@
     "/robots.txt",
     "/sitemap.xml",
     "/og-image.png",
+    "/og-image.svg",
     "/pwa-64x64.png",
     "/pwa-192x192.png",
     "/pwa-512x512.png",
-    "/maskable-icon-512x512.png"
+    "/maskable-icon-512x512.png",
+    "/offline.html",
+    "/50x.html",
+    "/browserconfig.xml",
+    "/grid-pattern.svg",
+    "/vite.svg"
   ]
 }
