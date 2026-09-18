@@ -21,8 +21,10 @@ import api from '../../api/axios';
 import showToast from '../../utils/toastUtils';
 
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm } from '../../context/ConfirmContext';
 
 const AdminSettings = () => {
+  const confirm = useConfirm();
   const { isAuthChecking } = useAuth();
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState({
@@ -90,7 +92,14 @@ const AdminSettings = () => {
   };
 
   const handleRemoveTester = async (id, email) => {
-    if (!window.confirm(`Remove ${email} from authorized beta testers?`)) {
+    const confirmed = await confirm({
+      title: 'Remove Beta Tester?',
+      message: `Are you sure you want to remove ${email} from authorized beta testers?`,
+      variant: 'danger',
+      confirmText: 'Remove',
+      cancelText: 'Cancel',
+    });
+    if (!confirmed) {
       return;
     }
     setDeletingTesterId(id);

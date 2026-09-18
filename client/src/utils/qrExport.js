@@ -29,7 +29,9 @@ export const downloadSvgAsPngSync = (svgElement, filename, scale = 3) => {
     const link = document.createElement('a');
     link.href = pngUrl;
     link.download = filename;
+    document.body.appendChild(link);
     link.click();
+    link.remove();
   };
 
   img.onerror = () => {

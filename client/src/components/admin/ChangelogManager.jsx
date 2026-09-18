@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../../api/axios';
 import showToast from '../../utils/toastUtils';
+import copyToClipboard from '../../utils/clipboard';
 import { useConfirm } from '../../context/ConfirmContext';
 import {
   Plus,
@@ -457,12 +458,10 @@ const ChangelogManager = () => {
       markdown += `- ${typeEmoji} **${change.type.charAt(0).toUpperCase() + change.type.slice(1)}:** ${change.text}\n`;
     });
 
-    try {
-      await navigator.clipboard.writeText(markdown);
-      showToast.success('Copied to clipboard!');
-    } catch {
-      showToast.error('Failed to copy');
-    }
+    await copyToClipboard(markdown, {
+      showToast: true,
+      toastMessage: 'Copied to clipboard!',
+    });
   };
 
   // Bulk selection helpers

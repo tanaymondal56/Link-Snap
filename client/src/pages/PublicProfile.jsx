@@ -20,7 +20,8 @@ import {
 } from 'lucide-react';
 
 import LazyPullToRefresh from '../components/LazyPullToRefresh';
-import showToast from '../utils/toastUtils';
+import copyToClipboard from '../utils/clipboard';
+import { useShare } from '../hooks/useShare';
 import api from '../api/axios';
 import { useQrWorker } from '../hooks/useQrWorker';
 import { exportQrCode } from '../utils/qrExport';
@@ -266,11 +267,11 @@ export default function PublicProfile() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [linkQR, setLinkQR] = useState(null); // For per-link QR modal
   const [avatarError, setAvatarError] = useState(false);
   const { exportToPng } = useQrWorker();
+  const { share } = useShare();
 
   // Dynamic domain for short URL display
   const shortDomain = window.location.hostname;
@@ -283,6 +284,7 @@ export default function PublicProfile() {
         const { data } = await api.get(`/bio/${cleanUsername}`);
         setProfile(data);
       } catch (err) {
+        console.error('Error fetching bio profile:', err);
         if (err.response?.status === 404) {
           setError('Profile not found');
         } else {
@@ -307,16 +309,21 @@ export default function PublicProfile() {
     return () => document.removeEventListener('keydown', handleEscape);
   }, [showQR]);
 
+  const handleShareProfile = async () => {
+    const url = window.location.href;
+    const name = profile?.displayName || profile?.username || 'User';
+    await share({
+      url,
+      title: `${name} | Link-Snap`,
+      text: profile?.bio || `Check out ${name}'s links on Link-Snap!`,
+    });
+  };
+
   const handleCopyLink = async () => {
-    try {
-      const url = window.location.href;
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      showToast.success('Link copied!');
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      showToast.error('Failed to copy link');
-    }
+    await copyToClipboard(window.location.href, {
+      showToast: true,
+      toastMessage: 'Profile link copied!',
+    });
   };
 
   const handleDownloadQR = () => {
@@ -438,15 +445,11 @@ export default function PublicProfile() {
           {/* Header Actions */}
           <div className="flex justify-end gap-2 mb-8">
             <button
-              onClick={handleCopyLink}
+              onClick={handleShareProfile}
               className={`p-3 rounded-2xl ${theme.card} border transition-all hover:scale-105 active:scale-95`}
-              aria-label="Copy profile link"
+              aria-label="Share profile"
             >
-              {copied ? (
-                <Check className={`w-5 h-5 ${theme.text}`} />
-              ) : (
-                <Share2 className={`w-5 h-5 ${theme.text}`} />
-              )}
+              <Share2 className={`w-5 h-5 ${theme.text}`} />
             </button>
             <button
               onClick={() => setShowQR(!showQR)}
@@ -746,13 +749,11 @@ export default function PublicProfile() {
                 </button>
                 <button
                   onClick={async () => {
-                    try {
-                      const shortUrl = `${window.location.origin}/${linkQR.shortCode}`;
-                      await navigator.clipboard.writeText(shortUrl);
-                      showToast.success('Short URL copied!');
-                    } catch {
-                      showToast.error('Failed to copy');
-                    }
+                    const shortUrl = `${window.location.origin}/${linkQR.shortCode}`;
+                    await copyToClipboard(shortUrl, {
+                      showToast: true,
+                      toastMessage: 'Short URL copied!',
+                    });
                   }}
                   className={`px-4 py-3 rounded-xl ${theme.button} ${theme.buttonText} font-medium flex items-center justify-center gap-2`}
                 >

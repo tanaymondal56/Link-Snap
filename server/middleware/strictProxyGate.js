@@ -369,6 +369,7 @@ export const strictProxyGate = (req, res, next) => {
     // They are still accessible through the proxy, just don't require the secret header
     const publicApiPaths = [
         '/api/health',           // Health check endpoints for K8s liveness/readiness/startup probes
+        '/api/ready',            // K8s readiness probe
         '/api/changelog',        // Public changelog page
         '/api/roadmap',          // Public roadmap page
         '/api/feedback',         // Public feedback submission (POST)
@@ -397,7 +398,7 @@ export const strictProxyGate = (req, res, next) => {
     // - Load balancer health probes
     // - External monitoring services (UptimeRobot, etc.)
     // - Nginx upstream health checks
-    if (path === CONFIG.healthCheckPath && req.method === 'GET') {
+    if ((path === CONFIG.healthCheckPath || path === '/healthz' || path === '/ready') && (req.method === 'GET' || req.method === 'HEAD')) {
         return res.status(200).json({
             status: 'ok',
             timestamp: new Date().toISOString(),

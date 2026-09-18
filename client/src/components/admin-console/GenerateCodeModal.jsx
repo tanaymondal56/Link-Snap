@@ -15,6 +15,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import showToast from '../../utils/toastUtils';
+import copyToClipboard from '../../utils/clipboard';
 import api from '../../api/axios';
 import useScrollLock from '../../hooks/useScrollLock';
 
@@ -115,13 +116,7 @@ const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
 
       // Automatically copy shareable link to clipboard
       const shareUrl = `${window.location.origin}/redeem?code=${encodeURIComponent(data.code.code)}`;
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(shareUrl);
-        }
-      } catch {
-        // clipboard access restricted
-      }
+      await copyToClipboard(shareUrl, { showToast: false });
       showToast.success('Redeem code created & link copied!');
     } catch (error) {
       showToast.error(error.response?.data?.message || 'Failed to generate code');
@@ -184,12 +179,10 @@ const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
                   <button
                     type="button"
                     onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(generatedCode.code);
-                        showToast.success('Code copied!');
-                      } catch {
-                        showToast.error('Failed to copy code');
-                      }
+                      await copyToClipboard(generatedCode.code, {
+                        showToast: true,
+                        toastMessage: 'Code copied!',
+                      });
                     }}
                     className="flex items-center gap-1 px-2.5 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-lg border border-white/10 text-xs transition-colors"
                     title="Copy code"
@@ -211,13 +204,11 @@ const GenerateCodeModal = ({ isOpen, onClose, onCodeGenerated }) => {
                   <button
                     type="button"
                     onClick={async () => {
-                      try {
-                        const link = `${window.location.origin}/redeem?code=${encodeURIComponent(generatedCode.code)}`;
-                        await navigator.clipboard.writeText(link);
-                        showToast.success('Shareable link copied!');
-                      } catch {
-                        showToast.error('Failed to copy link');
-                      }
+                      const link = `${window.location.origin}/redeem?code=${encodeURIComponent(generatedCode.code)}`;
+                      await copyToClipboard(link, {
+                        showToast: true,
+                        toastMessage: 'Shareable link copied!',
+                      });
                     }}
                     className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition-colors shrink-0 shadow-md shadow-blue-600/20"
                     title="Copy shareable link"

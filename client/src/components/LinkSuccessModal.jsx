@@ -8,11 +8,12 @@ import {
   Sparkles,
   PartyPopper,
   Link as LinkIcon,
+  Share2,
 } from 'lucide-react';
 
 import { QRCodeSVG } from 'qrcode.react';
-
-import showToast from '../utils/toastUtils';
+import copyToClipboard from '../utils/clipboard';
+import { useShare } from '../hooks/useShare';
 import { getShortUrl, getDisplayShortUrl } from '../utils/urlHelper';
 import { useScrollLock } from '../hooks/useScrollLock';
 import { useQrWorker } from '../hooks/useQrWorker';
@@ -20,6 +21,7 @@ import { exportQrCode } from '../utils/qrExport';
 
 const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
   const [copiedId, setCopiedId] = useState(null);
+  const { share } = useShare();
 
   // Scroll Lock
   useScrollLock(isOpen);
@@ -30,11 +32,15 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
   const randomUrl = getShortUrl(linkData.shortId);
   const customUrl = linkData.customAlias ? getShortUrl(linkData.customAlias) : null;
 
-  const copyToClipboard = (url, id) => {
-    navigator.clipboard.writeText(url);
-    setCopiedId(id);
-    showToast.success('Link copied to clipboard!', 'Copied');
-    setTimeout(() => setCopiedId(null), 2000);
+  const handleCopy = async (url, id) => {
+    const success = await copyToClipboard(url, {
+      showToast: true,
+      toastMessage: 'Link copied to clipboard!',
+    });
+    if (success) {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
   };
 
 
@@ -110,7 +116,7 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
               {/* Action Buttons */}
               <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
                 <button
-                  onClick={() => copyToClipboard(customUrl || randomUrl, 'main')}
+                  onClick={() => handleCopy(customUrl || randomUrl, 'main')}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                     copiedId === 'main'
                       ? 'bg-green-500 text-white'
@@ -119,6 +125,19 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
                 >
                   {copiedId === 'main' ? <Check size={14} /> : <Copy size={14} />}
                   {copiedId === 'main' ? 'Copied!' : 'Copy'}
+                </button>
+                <button
+                  onClick={() =>
+                    share({
+                      title: linkData.customAlias || linkData.shortId,
+                      text: `Check out my short link: ${linkData.originalUrl}`,
+                      url: customUrl || randomUrl,
+                    })
+                  }
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                >
+                  <Share2 size={14} />
+                  Share
                 </button>
                 <a
                   href={customUrl || randomUrl}
@@ -158,7 +177,7 @@ const LinkSuccessModal = ({ isOpen, onClose, linkData }) => {
                   </p>
                 </div>
                 <button
-                  onClick={() => copyToClipboard(randomUrl, 'original')}
+                  onClick={() => handleCopy(randomUrl, 'original')}
                   className={`p-2 rounded-lg transition-colors shrink-0 ${
                     copiedId === 'original'
                       ? 'bg-green-500/20 text-green-400'

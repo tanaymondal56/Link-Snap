@@ -182,6 +182,7 @@ api.interceptors.response.use(
           processQueue(refreshError, null);
         } else {
           // Network error, server unavailable, or DBSC challenge in progress - keep token and let queue reject cleanly
+          notifyConnectionError(refreshError);
           processQueue(refreshError, null);
         }
         return Promise.reject(refreshError);
@@ -190,8 +191,40 @@ api.interceptors.response.use(
       }
     }
 
+    notifyConnectionError(error);
     return Promise.reject(error);
   }
 );
+
+// Dispatch global connection error event for PWA resilience
+const notifyConnectionError = (error) => {
+  if (typeof window === 'undefined') return;
+  if (axios.isCancel && axios.isCancel(error)) return;
+  if (error?.config?.skipConnectionErrorModal) return;
+  if (error?.config?.url?.includes('/health') || error?.config?.url?.includes('/ready')) return;
+
+  const isNetworkFail =
+    error?.code === 'ERR_NETWORK' ||
+    error?.code === 'ERR_CONNECTION_REFUSED' ||
+    error?.code === 'ECONNABORTED' ||
+    error?.code === 'ETIMEDOUT' ||
+    (!error?.response && Boolean(error?.request));
+
+  const status = error?.response?.status;
+  const isServerDowntime = status >= 502 && status <= 504;
+
+  if (isNetworkFail || isServerDowntime) {
+    window.dispatchEvent(
+      new CustomEvent('app:connection-error', {
+        detail: {
+          code: error?.code || (isServerDowntime ? 'SERVER_DOWN' : 'NETWORK_ERROR'),
+          status: status || null,
+          message: error?.message || 'Connection failed',
+          url: error?.config?.url || '',
+        },
+      })
+    );
+  }
+};
 
 export default api;

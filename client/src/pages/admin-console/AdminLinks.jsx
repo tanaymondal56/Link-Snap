@@ -31,15 +31,18 @@ import GlassTable from '../../components/admin-console/ui/GlassTable';
 import api from '../../api/axios';
 import { useConfirm } from '../../context/ConfirmContext';
 import showToast from '../../utils/toastUtils';
+import copyToClipboard from '../../utils/clipboard';
 import { Link } from 'react-router';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { Loader2 } from 'lucide-react';
 
 import { useAuth } from '../../context/AuthContext';
+import { useExternalLink } from '../../hooks/useExternalLink';
 
 const AdminLinks = () => {
   const { isAuthChecking } = useAuth();
   const confirm = useConfirm();
+  const { openExternalUrl } = useExternalLink();
   const [links, setLinks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -189,8 +192,10 @@ const AdminLinks = () => {
   };
 
   const handleCopy = (text, label = 'Text') => {
-    navigator.clipboard.writeText(text);
-    showToast.success(`${label} copied to clipboard`);
+    copyToClipboard(text, {
+      showToast: true,
+      toastMessage: `${label} copied to clipboard`,
+    });
   };
 
   // Compute stats
@@ -413,7 +418,7 @@ const AdminLinks = () => {
               <div className="pt-2 border-t border-white/5">
                 <div className="flex gap-2">
                   <button
-                    onClick={() => window.open(link.originalUrl, '_blank')}
+                    onClick={() => openExternalUrl(link.originalUrl)}
                     className="flex-1 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-medium text-gray-300"
                   >
                     Open

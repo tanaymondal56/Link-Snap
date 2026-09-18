@@ -20,6 +20,7 @@ import {
   Edit3,
   Sparkles,
   QrCode,
+  Share2,
   Ban,
   RefreshCw,
   Clock,
@@ -42,6 +43,8 @@ import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
 import { QRCodeSVG } from 'qrcode.react';
 import { getShortUrl, getDisplayShortUrl } from '../utils/urlHelper';
+import resilientCopy from '../utils/clipboard';
+import { useShare } from '../hooks/useShare';
 const CreateLinkModal = lazy(() => import('../components/CreateLinkModal'));
 const EditLinkModal = lazy(() => import('../components/EditLinkModal'));
 import LinkSuccessModal from '../components/LinkSuccessModal';
@@ -94,6 +97,7 @@ const UserDashboard = () => {
   // Scroll Lock for QR Modal
   useScrollLock(!!qrModalLink);
   const { exportToPng } = useQrWorker();
+  const { share } = useShare();
 
   // Filter links locally by search term
   const filteredLinks = useMemo(() => {
@@ -328,13 +332,13 @@ const UserDashboard = () => {
 
   const copyToClipboard = async (shortId) => {
     const shortUrl = getShortUrl(shortId);
-    try {
-      await navigator.clipboard.writeText(shortUrl);
+    const ok = await resilientCopy(shortUrl, {
+      showToast: true,
+      toastMessage: 'Link copied to clipboard!',
+    });
+    if (ok) {
       setCopiedId(shortId);
-      showToast.success('Link copied to clipboard!', 'Copied');
       setTimeout(() => setCopiedId(null), 2000);
-    } catch {
-      showToast.error('Failed to copy to clipboard', 'Error');
     }
   };
 
@@ -1297,8 +1301,7 @@ const UserDashboard = () => {
                                         <div className="flex gap-0.5 shrink-0">
                                           <button
                                             onClick={() => {
-                                              navigator.clipboard.writeText(rule.url);
-                                              showToast.success('Copied');
+                                              resilientCopy(rule.url, { showToast: true, toastMessage: 'Copied' });
                                             }}
                                             className="p-1 sm:p-1.5 bg-black/20 hover:bg-black/30 rounded transition-colors"
                                           >
@@ -1406,8 +1409,7 @@ const UserDashboard = () => {
                                     <div className="flex gap-0.5 shrink-0">
                                       <button
                                         onClick={() => {
-                                          navigator.clipboard.writeText(rule.destination);
-                                          showToast.success('Copied');
+                                          resilientCopy(rule.destination, { showToast: true, toastMessage: 'Copied' });
                                         }}
                                         className="p-1 sm:p-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded transition-colors"
                                       >
@@ -2017,13 +2019,15 @@ const UserDashboard = () => {
 
                       <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
                         <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(
-                              getShortUrl(qrModalLink.customAlias || qrModalLink.shortId)
+                          onClick={async () => {
+                            const ok = await resilientCopy(
+                              getShortUrl(qrModalLink.customAlias || qrModalLink.shortId),
+                              { showToast: true, toastMessage: 'Link copied!' }
                             );
-                            setCopiedId('primary-url');
-                            showToast.success('Link copied!', 'Copied');
-                            setTimeout(() => setCopiedId(null), 2000);
+                            if (ok) {
+                              setCopiedId('primary-url');
+                              setTimeout(() => setCopiedId(null), 2000);
+                            }
                           }}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                             copiedId === 'primary-url'
@@ -2033,6 +2037,19 @@ const UserDashboard = () => {
                         >
                           {copiedId === 'primary-url' ? <Check size={14} /> : <Copy size={14} />}
                           {copiedId === 'primary-url' ? 'Copied!' : 'Copy Link'}
+                        </button>
+                        <button
+                          onClick={() =>
+                            share({
+                              title: qrModalLink.title || qrModalLink.customAlias || qrModalLink.shortId,
+                              text: `Check out: ${qrModalLink.originalUrl}`,
+                              url: getShortUrl(qrModalLink.customAlias || qrModalLink.shortId),
+                            })
+                          }
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                        >
+                          <Share2 size={14} />
+                          Share
                         </button>
                         <button
                           onClick={() =>
@@ -2074,11 +2091,15 @@ const UserDashboard = () => {
 
                         <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-2">
                           <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(getShortUrl(qrModalLink.shortId));
-                              setCopiedId('secondary-url');
-                              showToast.success('Link copied!', 'Copied');
-                              setTimeout(() => setCopiedId(null), 2000);
+                            onClick={async () => {
+                              const ok = await resilientCopy(getShortUrl(qrModalLink.shortId), {
+                                showToast: true,
+                                toastMessage: 'Link copied!',
+                              });
+                              if (ok) {
+                                setCopiedId('secondary-url');
+                                setTimeout(() => setCopiedId(null), 2000);
+                              }
                             }}
                             className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-all ${
                               copiedId === 'secondary-url'

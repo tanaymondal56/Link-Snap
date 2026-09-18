@@ -122,6 +122,8 @@ export default defineConfig(async ({ mode }) => {
           'apple-touch-icon.png',
           'apple-touch-icon-180x180.png',
           'robots.txt',
+          'offline.html',
+          '50x.html',
         ],
         manifest: {
           name: 'Link Snap',

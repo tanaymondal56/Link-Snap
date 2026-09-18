@@ -29,6 +29,7 @@ import api from '../api/axios';
 import { hasUnseenChangelog, markChangelogAsSeen } from '../config/version';
 import { useAppVersion } from '../hooks/useAppVersion';
 import showToast from '../utils/toastUtils';
+import resilientCopy from '../utils/clipboard';
 import { getShortUrl, getDisplayShortUrl } from '../utils/urlHelper';
 const LinkSuccessModal = lazy(() => import('../components/LinkSuccessModal'));
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -307,11 +308,15 @@ const LandingPage = () => {
     setCreatedLink(null);
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(shortUrl);
-    setCopied(true);
-    showToast.success('Link copied to clipboard!', 'Copied');
-    setTimeout(() => setCopied(false), 2000);
+  const copyToClipboard = async () => {
+    const ok = await resilientCopy(shortUrl, {
+      showToast: true,
+      toastMessage: 'Link copied to clipboard!',
+    });
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const getAliasStatusIcon = () => {

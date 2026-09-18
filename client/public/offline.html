@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Offline — Link-Snap</title>
+  <meta name="theme-color" content="#030712" />
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #030712;
+      color: #f3f4f6;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 1.5rem;
+      overflow: hidden;
+      position: relative;
+    }
+    .glow-1 {
+      position: absolute;
+      top: -10%;
+      left: -10%;
+      width: 50vw;
+      height: 50vw;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
+      filter: blur(80px);
+      pointer-events: none;
+    }
+    .glow-2 {
+      position: absolute;
+      bottom: -10%;
+      right: -10%;
+      width: 50vw;
+      height: 50vw;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
+      filter: blur(80px);
+      pointer-events: none;
+    }
+    .card {
+      position: relative;
+      z-index: 10;
+      max-width: 420px;
+      width: 100%;
+      background: rgba(17, 24, 39, 0.8);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1.5rem;
+      padding: 2.25rem 1.75rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+    }
+    .icon-container {
+      width: 4rem;
+      height: 4rem;
+      margin: 0 auto 1.5rem;
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      border-radius: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fbbf24;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(31, 41, 55, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #fbbf24;
+      margin-bottom: 0.75rem;
+    }
+    .pulse-dot {
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background-color: #f59e0b;
+      animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+    @keyframes ping {
+      75%, 100% {
+        transform: scale(2);
+        opacity: 0;
+      }
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 0.5rem;
+    }
+    p {
+      color: #9ca3af;
+      font-size: 0.875rem;
+      line-height: 1.6;
+      margin-bottom: 1.75rem;
+    }
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    button.retry-btn {
+      width: 100%;
+      padding: 0.8rem 1.25rem;
+      border-radius: 0.875rem;
+      border: none;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: #ffffff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+      box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4);
+    }
+    button.retry-btn:hover {
+      background: linear-gradient(135deg, #2563eb, #4f46e5);
+      transform: translateY(-1px);
+    }
+    button.retry-btn:active {
+      transform: scale(0.98);
+    }
+    a.home-link {
+      display: inline-block;
+      color: #6b7280;
+      font-size: 0.8rem;
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+    a.home-link:hover {
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+  <div class="glow-1"></div>
+  <div class="glow-2"></div>
+
+  <div class="card">
+    <div class="icon-container">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="1" y1="1" x2="23" y2="23"></line>
+        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path>
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path>
+        <path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path>
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path>
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+        <line x1="12" y1="20" x2="12.01" y2="20"></line>
+      </svg>
+    </div>
+
+    <div class="badge">
+      <span class="pulse-dot"></span>
+      No Internet Connection
+    </div>
+
+    <h1>You're Offline</h1>
+    <p>Link-Snap is running in offline mode. Connect to the internet to access live link analytics, bio updates, and remote features.</p>
+
+    <div class="btn-group">
+      <button class="retry-btn" id="retryBtn" onclick="tryReconnect()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="refreshIcon">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <polyline points="1 20 1 14 7 14"></polyline>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </svg>
+        <span id="btnText">Try Reconnecting</span>
+      </button>
+      <a href="/" class="home-link">Return to Link-Snap Home</a>
+    </div>
+  </div>
+
+  <script>
+    function tryReconnect() {
+      const btn = document.getElementById('retryBtn');
+      const text = document.getElementById('btnText');
+      const icon = document.getElementById('refreshIcon');
+      btn.disabled = true;
+      text.textContent = 'Checking connection...';
+      icon.style.animation = 'spin 1s linear infinite';
+
+      fetch('/api/health', { method: 'HEAD', cache: 'no-store' })
+        .then(function(res) {
+          if (res && res.ok) {
+            window.location.reload();
+          } else {
+            throw new Error('Server not ready');
+          }
+        })
+        .catch(function() {
+          setTimeout(function() {
+            btn.disabled = false;
+            text.textContent = 'Try Reconnecting';
+            icon.style.animation = '';
+          }, 1000);
+        });
+    }
+
+    window.addEventListener('online', function() {
+      window.location.reload();
+    });
+  </script>
+</body>
+</html>

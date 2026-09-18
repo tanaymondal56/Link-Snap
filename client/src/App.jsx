@@ -9,18 +9,25 @@ import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/AuthContext';
 import ConfirmDialogProvider from './components/ui/ConfirmDialog';
 import DialogProvider from './components/ui/DialogProvider';
+import ShareModalProvider from './components/ui/ShareModal';
+import ExternalLinkProvider from './components/ui/ExternalLinkModal';
+import ConnectionErrorModal from './components/ui/ConnectionErrorModal';
 import OfflineIndicator from './components/OfflineIndicator';
 import { initializeVersion } from './config/version';
+import lazyWithRetry from './utils/lazyWithRetry';
+
+// Progressive dynamic import wrapper with retries for resilient PWA route loading
+const lazyRetry = (fn) => lazy(() => lazyWithRetry(fn));
 
 // Lazy load components
-const AuthModal = lazy(() => import('./components/AuthModal'));
-const DevCommandCenter = lazy(() => import('./components/DevCommandCenter'));
-const EasterEggs = lazy(() => import('./components/EasterEggs'));
-const PWAUpdatePrompt = lazy(() => import('./components/PWAUpdatePrompt'));
-const PostUpdateChoiceModal = lazy(() => import('./components/PostUpdateChoiceModal'));
+const AuthModal = lazyRetry(() => import('./components/AuthModal'));
+const DevCommandCenter = lazyRetry(() => import('./components/DevCommandCenter'));
+const EasterEggs = lazyRetry(() => import('./components/EasterEggs'));
+const PWAUpdatePrompt = lazyRetry(() => import('./components/PWAUpdatePrompt'));
+const PostUpdateChoiceModal = lazyRetry(() => import('./components/PostUpdateChoiceModal'));
 // Lazy load AdminLayout
-const LazyAdminLayout = lazy(() => import('./components/AdminLayout'));
-const CookieBanner = lazy(() => import('./components/CookieBanner'));
+const LazyAdminLayout = lazyRetry(() => import('./components/AdminLayout'));
+const CookieBanner = lazyRetry(() => import('./components/CookieBanner'));
 const isBetaOrLocalHost = () => {
   if (typeof window === 'undefined') return false;
   const h = window.location.hostname.toLowerCase();
@@ -41,50 +48,50 @@ const isBetaOrLocalHost = () => {
 };
 
 const TesterSandboxModal = isBetaOrLocalHost()
-  ? lazy(() => import('./components/TesterSandboxModal'))
+  ? lazyRetry(() => import('./components/TesterSandboxModal'))
   : null;
 
 // Initialize version cache on app load (non-blocking)
 initializeVersion();
 
 // Lazy Loaded Pages
-const LandingPage = lazy(() => import('./pages/LandingPage'));
-const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
-const VerifyOTP = lazy(() => import('./pages/VerifyOTP'));
-const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const LandingPage = lazyRetry(() => import('./pages/LandingPage'));
+const VerifyEmail = lazyRetry(() => import('./pages/VerifyEmail'));
+const VerifyOTP = lazyRetry(() => import('./pages/VerifyOTP'));
+const ForgotPassword = lazyRetry(() => import('./pages/ForgotPassword'));
 
 // Lazy load mobile-only components (don't bundle in main chunk for desktop)
-const InstallPrompt = lazy(() => import('./components/InstallPrompt'));
-const MobileBackButton = lazy(() => import('./components/MobileBackButton'));
-const ResetPassword = lazy(() => import('./pages/ResetPassword'));
-const AccountSuspended = lazy(() => import('./pages/AccountSuspended'));
-const Changelog = lazy(() => import('./pages/Changelog'));
-const Roadmap = lazy(() => import('./pages/Roadmap'));
-const OverviewPage = lazy(() => import('./pages/OverviewPage'));
-const UserDashboard = lazy(() => import('./pages/UserDashboard'));
-const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
-const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-const BioSettings = lazy(() => import('./pages/dashboard/BioSettings'));
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const InstallPrompt = lazyRetry(() => import('./components/InstallPrompt'));
+const MobileBackButton = lazyRetry(() => import('./components/MobileBackButton'));
+const ResetPassword = lazyRetry(() => import('./pages/ResetPassword'));
+const AccountSuspended = lazyRetry(() => import('./pages/AccountSuspended'));
+const Changelog = lazyRetry(() => import('./pages/Changelog'));
+const Roadmap = lazyRetry(() => import('./pages/Roadmap'));
+const OverviewPage = lazyRetry(() => import('./pages/OverviewPage'));
+const UserDashboard = lazyRetry(() => import('./pages/UserDashboard'));
+const AnalyticsPage = lazyRetry(() => import('./pages/AnalyticsPage'));
+const SettingsPage = lazyRetry(() => import('./pages/SettingsPage'));
+const BioSettings = lazyRetry(() => import('./pages/dashboard/BioSettings'));
+const AdminDashboard = lazyRetry(() => import('./pages/AdminDashboard'));
 
 // New Admin Console Pages
-const AdminConsoleLayout = lazy(() => import('./layouts/AdminConsoleLayout'));
-const AdminOverview = lazy(() => import('./pages/admin-console/AdminOverview'));
-const AdminUsers = lazy(() => import('./pages/admin-console/AdminUsers'));
-const AdminLinks = lazy(() => import('./pages/admin-console/AdminLinks'));
-const AdminFeedback = lazy(() => import('./pages/admin-console/AdminFeedback'));
-const AdminSettings = lazy(() => import('./pages/admin-console/AdminSettings'));
-const AdminMonitoring = lazy(() => import('./pages/admin-console/AdminMonitoring'));
-const AdminSubscriptions = lazy(() => import('./pages/admin-console/AdminSubscriptions'));
-const DeviceManagement = lazy(() => import('./pages/admin-console/DeviceManagement'));
-const ChangelogManager = lazy(() => import('./components/admin/ChangelogManager')); // Reusing existing
-const PricingPage = lazy(() => import('./pages/PricingPage'));
-const RedeemPage = lazy(() => import('./pages/RedeemPage'));
+const AdminConsoleLayout = lazyRetry(() => import('./layouts/AdminConsoleLayout'));
+const AdminOverview = lazyRetry(() => import('./pages/admin-console/AdminOverview'));
+const AdminUsers = lazyRetry(() => import('./pages/admin-console/AdminUsers'));
+const AdminLinks = lazyRetry(() => import('./pages/admin-console/AdminLinks'));
+const AdminFeedback = lazyRetry(() => import('./pages/admin-console/AdminFeedback'));
+const AdminSettings = lazyRetry(() => import('./pages/admin-console/AdminSettings'));
+const AdminMonitoring = lazyRetry(() => import('./pages/admin-console/AdminMonitoring'));
+const AdminSubscriptions = lazyRetry(() => import('./pages/admin-console/AdminSubscriptions'));
+const DeviceManagement = lazyRetry(() => import('./pages/admin-console/DeviceManagement'));
+const ChangelogManager = lazyRetry(() => import('./components/admin/ChangelogManager')); // Reusing existing
+const PricingPage = lazyRetry(() => import('./pages/PricingPage'));
+const RedeemPage = lazyRetry(() => import('./pages/RedeemPage'));
 
 // Legal Pages
-const TermsPage = lazy(() => import('./pages/legal/TermsPage'));
-const PrivacyPage = lazy(() => import('./pages/legal/PrivacyPage'));
-const CookiePage = lazy(() => import('./pages/legal/CookiePage'));
+const TermsPage = lazyRetry(() => import('./pages/legal/TermsPage'));
+const PrivacyPage = lazyRetry(() => import('./pages/legal/PrivacyPage'));
+const CookiePage = lazyRetry(() => import('./pages/legal/CookiePage'));
 
 // Easter Egg Pages
 const CreditsPage = lazy(() =>
@@ -314,9 +321,12 @@ function AppContent() {
 }
 
 function App() {
+  const hostname = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
   const enablePwaFeatures =
     import.meta.env.DEV ||
-    ['linksnap.centralindia.cloudapp.azure.com', 'lksnp.qzz.io'].includes(window.location.hostname);
+    ['linksnap.centralindia.cloudapp.azure.com', 'lksnp.qzz.io', 'beta.lksnp.qzz.io', 'localhost', '127.0.0.1'].includes(hostname) ||
+    hostname.endsWith('.lksnp.qzz.io') ||
+    hostname.endsWith('.pages.dev');
 
   return (
     <HelmetProvider>
@@ -324,37 +334,43 @@ function App() {
         <ToastProvider position="top-right" maxToasts={5}>
           <ConfirmDialogProvider>
             <DialogProvider>
-              <OfflineIndicator>
-                <AppContent />
-              </OfflineIndicator>
-              {/* PWA Update Prompt - shows when new version is available */}
-              {enablePwaFeatures && (
-                <Suspense fallback={null}>
-                  <PWAUpdatePrompt />
-                </Suspense>
-              )}
-              {/* Add to Home Screen Prompt - shows for mobile users (lazy loaded) */}
-              {enablePwaFeatures && (
-                <Suspense fallback={null}>
-                  <InstallPrompt />
-                </Suspense>
-              )}
-              {/* Mobile Back Button - shows in PWA mode for navigation (lazy loaded) */}
-              {enablePwaFeatures && (
-                <Suspense fallback={null}>
-                  <MobileBackButton />
-                </Suspense>
-              )}
-              {/* GDPR Cookie Consent Banner */}
-              <Suspense fallback={null}>
-                <CookieBanner />
-              </Suspense>
-              {/* Beta Tester Sandbox Modal (Ghost Mode: inert unless beta/local & authorized tester) */}
-              {TesterSandboxModal && (
-                <Suspense fallback={null}>
-                  <TesterSandboxModal />
-                </Suspense>
-              )}
+              <ShareModalProvider>
+                <ExternalLinkProvider>
+                  <OfflineIndicator>
+                    <AppContent />
+                  </OfflineIndicator>
+                  {/* Connection Lost / 502 / Server Down Custom Modal */}
+                  <ConnectionErrorModal />
+                  {/* PWA Update Prompt - shows when new version is available */}
+                  {enablePwaFeatures && (
+                    <Suspense fallback={null}>
+                      <PWAUpdatePrompt />
+                    </Suspense>
+                  )}
+                  {/* Add to Home Screen Prompt - shows for mobile users (lazy loaded) */}
+                  {enablePwaFeatures && (
+                    <Suspense fallback={null}>
+                      <InstallPrompt />
+                    </Suspense>
+                  )}
+                  {/* Mobile Back Button - shows in PWA mode for navigation (lazy loaded) */}
+                  {enablePwaFeatures && (
+                    <Suspense fallback={null}>
+                      <MobileBackButton />
+                    </Suspense>
+                  )}
+                  {/* GDPR Cookie Consent Banner */}
+                  <Suspense fallback={null}>
+                    <CookieBanner />
+                  </Suspense>
+                  {/* Beta Tester Sandbox Modal (Ghost Mode: inert unless beta/local & authorized tester) */}
+                  {TesterSandboxModal && (
+                    <Suspense fallback={null}>
+                      <TesterSandboxModal />
+                    </Suspense>
+                  )}
+                </ExternalLinkProvider>
+              </ShareModalProvider>
             </DialogProvider>
           </ConfirmDialogProvider>
         </ToastProvider>

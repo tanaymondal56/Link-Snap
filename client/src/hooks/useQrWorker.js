@@ -64,7 +64,9 @@ export const useQrWorker = () => {
             const a = document.createElement('a');
             a.href = url;
             a.download = e.data.filename;
+            document.body.appendChild(a);
             a.click();
+            a.remove();
             // Revoke after a short delay to ensure download starts
             setTimeout(() => URL.revokeObjectURL(url), 1000);
             resolve(true);

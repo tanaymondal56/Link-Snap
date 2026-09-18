@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import api from '../../api/axios';
 import showToast from '../../utils/toastUtils';
+import copyToClipboard from '../../utils/clipboard';
 import { formatDate, formatDuration } from '../../utils/dateUtils';
 import { formatPreferredIP } from '../../utils/ipUtils';
 import { useDialog } from '../../components/ui/DialogProvider';
@@ -157,45 +158,19 @@ const AdminSubscriptions = () => {
   const handleGenerateCode = () => setShowGenerateModal(true);
 
   const handleCopyCode = async (code) => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(code);
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = code;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-      showToast.success('Code copied!');
-    } catch {
-      showToast.error('Failed to copy code');
-    }
+    await copyToClipboard(code, {
+      showToast: true,
+      toastMessage: 'Code copied!',
+    });
   };
 
   const handleCopyRedeemLink = async (code) => {
-    try {
-      const origin = window.location.origin;
-      const link = `${origin}/redeem?code=${encodeURIComponent(code)}`;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(link);
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = link;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-      showToast.success('Redeem link copied!');
-    } catch {
-      showToast.error('Failed to copy redeem link');
-    }
+    const origin = window.location.origin;
+    const link = `${origin}/redeem?code=${encodeURIComponent(code)}`;
+    await copyToClipboard(link, {
+      showToast: true,
+      toastMessage: 'Redeem link copied!',
+    });
   };
 
   const handleDeactivateCode = async (codeId, codeString) => {

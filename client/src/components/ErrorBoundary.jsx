@@ -1,15 +1,44 @@
 import { Component } from 'react';
 import { RefreshCw, AlertTriangle, Home } from 'lucide-react';
+import OfflineRouteFallback from './ui/OfflineRouteFallback';
 
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
+    this.state = {
+      hasError: false,
+      error: null,
+      errorInfo: null,
+      isOffline: typeof navigator !== 'undefined' ? !navigator.onLine : false,
+    };
   }
 
   static getDerivedStateFromError(error) {
-    return { hasError: true, error };
+    const isOffline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+    return { hasError: true, error, isOffline };
   }
+
+  componentDidMount() {
+    window.addEventListener('online', this.handleNetworkOnline);
+    window.addEventListener('offline', this.handleNetworkOffline);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('online', this.handleNetworkOnline);
+    window.removeEventListener('offline', this.handleNetworkOffline);
+  }
+
+  handleNetworkOnline = () => {
+    this.setState({ isOffline: false });
+    // If the error was caused by an offline chunk load, auto-recover on reconnect
+    if (this.state.hasError) {
+      this.setState({ hasError: false, error: null, errorInfo: null });
+    }
+  };
+
+  handleNetworkOffline = () => {
+    this.setState({ isOffline: true });
+  };
 
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo });
@@ -23,13 +52,20 @@ class ErrorBoundary extends Component {
       error.message?.includes('Expected a JavaScript-or-Wasm module');
 
     if (isChunkError) {
+      // NEVER reload when offline! Reloading offline drops the PWA shell into the browser dinosaur page
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        console.warn('[ErrorBoundary] Chunk error while offline. Preserving PWA shell in offline state.');
+        this.setState({ isOffline: true });
+        return;
+      }
+
       const lastReload = sessionStorage.getItem('chunk_error_reload_time');
       const now = Date.now();
       
       if (!lastReload || now - parseInt(lastReload, 10) > 15000) {
         sessionStorage.setItem('chunk_error_reload_time', now.toString());
         console.warn('Chunk load error detected. Automatically reloading to retrieve the latest version...');
-        // Clear Sw cache just in case to ensure fresh index.html
+        // Clear SW cache safely without wiping auth tokens
         this.handleClearCache();
       } else {
         console.error('Chunk load error persisted. Cooldown active (last reload < 15s ago). Showing error screen to prevent refresh loop.');
@@ -38,6 +74,10 @@ class ErrorBoundary extends Component {
   }
 
   handleRefresh = () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      this.setState({ isOffline: true });
+      return;
+    }
     window.location.reload();
   };
 
@@ -47,7 +87,7 @@ class ErrorBoundary extends Component {
 
   handleClearCache = async () => {
     try {
-      // Clear service worker cache
+      // Clear service worker cache to pull fresh index.html & chunks
       if ('caches' in window) {
         const cacheNames = await caches.keys();
         await Promise.all(cacheNames.map((name) => caches.delete(name)));
@@ -59,19 +99,38 @@ class ErrorBoundary extends Component {
         await Promise.all(registrations.map((reg) => reg.unregister()));
       }
 
-      // Clear localStorage
-      localStorage.clear();
+      // DO NOT clear localStorage here - preserving auth tokens & bio settings!
 
-      // Reload the page
-      window.location.reload();
+      // Only reload if we are actively online
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        window.location.reload();
+      } else {
+        this.setState({ isOffline: true });
+      }
     } catch (err) {
       console.error('Failed to clear cache:', err);
-      window.location.reload();
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        window.location.reload();
+      }
     }
   };
 
   render() {
     if (this.state.hasError) {
+      // If offline, render our branded OfflineRouteFallback instead of the crash screen
+      if (this.state.isOffline || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+        return (
+          <OfflineRouteFallback
+            onRetry={() => {
+              if (navigator.onLine) {
+                this.setState({ hasError: false, error: null, isOffline: false });
+              } else {
+                this.setState({ isOffline: true });
+              }
+            }}
+          />
+        );
+      }
       return (
         <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
           {/* Background Effects */}

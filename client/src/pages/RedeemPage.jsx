@@ -5,9 +5,11 @@ import api from '../api/axios';
 import { Loader2, Gift, AlertTriangle, CheckCircle, ArrowRight, X, CreditCard, Calendar, Share2 } from 'lucide-react';
 import { formatDate, formatDuration } from '../utils/dateUtils';
 import showToast from '../utils/toastUtils';
+import { useShare } from '../hooks/useShare';
 import confetti from 'canvas-confetti';
 
 const RedeemPage = () => {
+  const { share } = useShare();
   const { code: pathCode } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -44,23 +46,11 @@ const RedeemPage = () => {
     if (!cleanCode) return;
     const origin = window.location.origin;
     const shareUrl = `${origin}/redeem?code=${encodeURIComponent(cleanCode)}`;
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(shareUrl);
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = shareUrl;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-      showToast.success('Redeem link copied to clipboard!');
-    } catch {
-      showToast.error('Failed to copy link');
-    }
+    await share({
+      url: shareUrl,
+      title: 'Redeem Link-Snap Code',
+      text: `Claim your Link-Snap subscription code: ${cleanCode}`,
+    });
   };
 
   useEffect(() => {

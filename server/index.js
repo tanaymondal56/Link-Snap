@@ -429,8 +429,8 @@ app.use(mongoSanitize);
 // Health Check Endpoints
 import { isConnected } from './config/db.js';
 
-// Basic health check - just confirms server is running
-app.get('/api/health', (req, res) => {
+// Basic health check - confirms server is running (also serves K8s /healthz liveness probe)
+app.get(['/api/health', '/api/healthz', '/health', '/healthz'], (req, res) => {
   res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -438,8 +438,8 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Deep health check - verifies database and Redis connectivity
-app.get('/api/health/deep', async (req, res) => {
+// Deep health check - verifies database and Redis connectivity (also serves K8s /ready readiness probe)
+app.get(['/api/health/deep', '/api/ready', '/ready'], async (req, res) => {
   const dbConnected = isConnected();
 
   // Real Redis ping — checkRedisConnection() returns false if not configured

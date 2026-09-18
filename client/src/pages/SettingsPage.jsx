@@ -44,6 +44,7 @@ import { formatDate } from '../utils/dateUtils';
 import { formatPreferredIP } from '../utils/ipUtils';
 import api from '../api/axios';
 import showToast from '../utils/toastUtils';
+import copyToClipboard from '../utils/clipboard';
 import { handleApiError } from '../utils/errorHandler';
 import IdBadge from '../components/ui/IdBadge';
 const SubscriptionCard = lazy(() => import('../components/subscription/SubscriptionCard'));
@@ -102,11 +103,15 @@ const SettingsPage = () => {
     }
   };
 
-  const handleCopySnapId = (id) => {
-    navigator.clipboard.writeText(id);
-    setCopiedSnapId(true);
-    showToast('Snap ID copied to clipboard', 'success');
-    setTimeout(() => setCopiedSnapId(false), 2000);
+  const handleCopySnapId = async (id) => {
+    const ok = await copyToClipboard(id, {
+      showToast: true,
+      toastMessage: 'Snap ID copied to clipboard',
+    });
+    if (ok) {
+      setCopiedSnapId(true);
+      setTimeout(() => setCopiedSnapId(false), 2000);
+    }
   };
 
   // Session state

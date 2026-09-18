@@ -37,6 +37,8 @@ import {
   Loader2
 } from 'lucide-react';
 import api from '../api/axios';
+import { useDialog } from './ui/DialogProvider';
+import resilientCopy from '../utils/clipboard';
 
 // Only render in development mode
 const isDev = import.meta.env.MODE === 'development' || import.meta.env.DEV;
@@ -47,6 +49,7 @@ const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/
 );
 
 const DevCommandCenter = () => {
+  const { prompt: promptDialog } = useDialog();
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -125,9 +128,9 @@ const DevCommandCenter = () => {
   // Commands - simplified and working
   const commands = useMemo(() => [
     // Quick Actions
-    { id: 'share-url', label: 'Copy Page URL', icon: Share2, action: () => { navigator.clipboard.writeText(window.location.href); showToast.success('URL copied!'); }, category: '⚡ Actions', keywords: 'copy link share' },
+    { id: 'share-url', label: 'Copy Page URL', icon: Share2, action: () => { resilientCopy(window.location.href, { showToast: true, toastMessage: 'URL copied!' }); }, category: '⚡ Actions', keywords: 'copy link share' },
     { id: 'create-link', label: 'Create New Link', icon: Link2, action: () => navigate('/dashboard'), category: '⚡ Actions', keywords: 'shorten url' },
-    { id: 'qr-code', label: 'Copy Page URL (QR)', icon: Share2, action: () => { navigator.clipboard.writeText(window.location.href); showToast.success('URL copied! Use any QR generator.'); }, category: '⚡ Actions', keywords: 'qrcode scan share' },
+    { id: 'qr-code', label: 'Copy Page URL (QR)', icon: Share2, action: () => { resilientCopy(window.location.href, { showToast: true, toastMessage: 'URL copied! Use any QR generator.' }); }, category: '⚡ Actions', keywords: 'qrcode scan share' },
     
     // Navigation
     { id: 'admin-console', label: 'Admin Console', icon: Shield, action: () => navigate('/admin-console'), category: '🧭 Navigate', keywords: 'admin panel' },
@@ -348,9 +351,16 @@ const DevCommandCenter = () => {
       label: 'Create Test Links (Custom)', 
       icon: Sparkles, 
       action: async () => {
-        const countStr = prompt('How many test links? (1-2000)', '50');
+        const countStr = await promptDialog({
+          title: 'Create Test Links',
+          message: 'How many test links would you like to generate? (1-2000)',
+          defaultValue: '50',
+          inputType: 'number',
+          confirmText: 'Generate',
+          cancelText: 'Cancel',
+        });
         if (!countStr) return;
-        const count = Math.min(Math.max(parseInt(countStr) || 1, 1), 2000);
+        const count = Math.min(Math.max(parseInt(countStr, 10) || 1, 1), 2000);
         const toastId = showToast.loading(`Creating ${count} test links...`);
         try {
           const { data } = await api.post('/dev/links', { count });
@@ -418,10 +428,10 @@ const DevCommandCenter = () => {
     { id: 'scroll-bottom', label: 'Scroll to Bottom', icon: CornerDownLeft, action: () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), category: '🔍 Debug', keywords: 'down' },
     
     // External
-    { id: 'api-health', label: 'API Health', icon: Server, action: () => window.open('/api/health', '_blank'), category: '🔗 Links', keywords: 'server status' },
-    { id: 'vite-server', label: 'Vite Server', icon: Zap, action: () => window.open('http://localhost:5173', '_blank'), category: '🔗 Links', keywords: 'frontend' },
-    { id: 'backend', label: 'Backend Server', icon: Server, action: () => window.open('http://localhost:5000', '_blank'), category: '🔗 Links', keywords: 'api' },
-    { id: 'github', label: 'GitHub', icon: ExternalLink, action: () => window.open('https://github.com/tanaymondal56/Link-Snap', '_blank'), category: '🔗 Links', keywords: 'repo code' },
+    { id: 'api-health', label: 'API Health', icon: Server, action: () => window.open('/api/health', '_blank', 'noopener,noreferrer'), category: '🔗 Links', keywords: 'server status' },
+    { id: 'vite-server', label: 'Vite Server', icon: Zap, action: () => window.open('http://localhost:5173', '_blank', 'noopener,noreferrer'), category: '🔗 Links', keywords: 'frontend' },
+    { id: 'backend', label: 'Backend Server', icon: Server, action: () => window.open('http://localhost:5000', '_blank', 'noopener,noreferrer'), category: '🔗 Links', keywords: 'api' },
+    { id: 'github', label: 'GitHub', icon: ExternalLink, action: () => window.open('https://github.com/tanaymondal56/Link-Snap', '_blank', 'noopener,noreferrer'), category: '🔗 Links', keywords: 'repo code' },
     
     // Help
     { 
@@ -522,7 +532,7 @@ const DevCommandCenter = () => {
       category: '🎨 Toast Demo', 
       keywords: 'notification demo all' 
     },
-  ], [navigate]);
+  ], [navigate, promptDialog]);
 
   // Add recent commands to top
   const commandsWithRecent = useMemo(() => {
@@ -913,7 +923,7 @@ const DevCommandCenter = () => {
               </div>
               <div className="flex items-center gap-2">
                 <button 
-                  onClick={() => { navigator.clipboard.writeText(logResult.content); showToast.success('Copied!'); }}
+                  onClick={() => { resilientCopy(logResult.content, { showToast: true, toastMessage: 'Copied!' }); }}
                   className="p-1.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white transition-colors"
                   title="Copy to clipboard"
                 >

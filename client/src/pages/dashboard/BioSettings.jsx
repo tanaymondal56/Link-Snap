@@ -23,6 +23,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import showToast from '../../utils/toastUtils';
+import copyToClipboard from '../../utils/clipboard';
+import { useShare } from '../../hooks/useShare';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 
@@ -89,6 +91,7 @@ import { getEffectiveTier } from '../../utils/subscriptionUtils';
 
 export default function BioSettings() {
   const { user, refreshUser } = useAuth();
+  const { share } = useShare();
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -270,13 +273,13 @@ export default function BioSettings() {
   };
 
   const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(profileUrl);
+    const ok = await copyToClipboard(profileUrl, {
+      showToast: true,
+      toastMessage: 'Link copied!',
+    });
+    if (ok) {
       setCopied(true);
-      showToast.success('Link copied!');
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      showToast.error('Failed to copy link');
     }
   };
 
@@ -384,6 +387,21 @@ export default function BioSettings() {
             >
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               Copy Link
+            </button>
+
+            {/* Share Link */}
+            <button
+              onClick={() =>
+                share({
+                  title: `${displayName || user?.username || 'Link-Snap'}'s Bio`,
+                  text: 'Check out my Link-in-Bio profile!',
+                  url: profileUrl,
+                })
+              }
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/40 border border-purple-500/30 text-purple-200 transition text-sm shadow-sm"
+            >
+              <Share2 className="w-4 h-4" />
+              Share
             </button>
 
             {/* Save Button */}

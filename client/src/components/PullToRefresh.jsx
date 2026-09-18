@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
+import showToast from '../utils/toastUtils';
 
 /**
  * PullToRefresh Component - PWA Native-like
@@ -167,8 +168,21 @@ const PullToRefresh = ({ children, onRefresh, disabled = false }) => {
     if (pullDistance >= THRESHOLD && onRefresh) {
       setIsRefreshing(true);
 
-      if ('vibrate' in navigator) {
-        navigator.vibrate(15);
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          navigator.vibrate(15);
+        } catch {
+          // Ignore vibration permission or iframe policy restrictions
+        }
+      }
+
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        showToast.info("You're offline. Reconnect to refresh data.");
+        setTimeout(() => {
+          setIsRefreshing(false);
+          setPullDistance(0);
+        }, 300);
+        return;
       }
 
       try {

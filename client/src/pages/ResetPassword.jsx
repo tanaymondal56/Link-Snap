@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import showToast from '../utils/toastUtils';
 import { handleApiError } from '../utils/errorHandler';
+import { readFromClipboard } from '../utils/clipboard';
 import { Loader, Lock, Eye, EyeOff, ArrowRight, ArrowLeft, ShieldCheck, Check, X, Clipboard } from 'lucide-react';
 
 const ResetPassword = () => {
@@ -46,7 +47,11 @@ const ResetPassword = () => {
 
   const handleClipboardPaste = async () => {
     try {
-      const text = await navigator.clipboard.readText();
+      const text = await readFromClipboard();
+      if (!text) {
+        showToast.error('Please allow clipboard permissions or paste manually');
+        return;
+      }
       const cleaned = text.replace(/\D/g, '').slice(0, 6);
       if (cleaned.length === 6) {
         const newOtp = cleaned.split('');

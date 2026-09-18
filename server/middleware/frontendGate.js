@@ -18,7 +18,7 @@ import { isBotRequest } from '../utils/botDetector.js';
 
 // Paths that bypass frontend verification (strictly scoped)
 const EXEMPT_PATHS = [
-    /^\/api\/health(?:\/deep)?$/,                               // K8s startup/liveness/readiness probes
+    /^\/(?:api\/)?(?:health(?:z|\/deep)?|ready)$/,             // K8s startup/liveness/readiness probes
     /^\/api\/webhooks(?:\/|$)/,                                  // Payment provider callbacks (Razorpay/LemonSqueezy)
     /^\/api\/analytics\/track(?:-bulk|\/[^/]+)?$/,              // Edge proxy click log mirror (validated by secret)
     /^\/api\/admin\/ip-check$/,                                 // Head probe for admin IP detection

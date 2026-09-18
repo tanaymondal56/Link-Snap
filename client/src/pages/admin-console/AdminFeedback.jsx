@@ -240,6 +240,7 @@ const AdminFeedback = () => {
       document.body.appendChild(link);
       link.click();
       link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
     } catch (error) {
       console.error('Export error:', error);
       showToast.error('Failed to export feedback');
