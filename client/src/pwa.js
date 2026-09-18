@@ -17,6 +17,24 @@ export const initPWA = () => {
       onNeedRefresh() {
         console.log('[PWA] New service worker ready, dispatching update notification');
         window.dispatchEvent(new CustomEvent('pwa-need-refresh'));
+
+        const isStandalone =
+          typeof window !== 'undefined' &&
+          (window.matchMedia('(display-mode: standalone)').matches ||
+           window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+           window.navigator.standalone === true ||
+           document.referrer.includes('android-app://'));
+
+        // If standard browser tab (not standalone installed PWA), auto-activate the waiting worker
+        // so that lazy chunk imports match the latest build assets without waiting for a manual prompt
+        if (!isStandalone && updateSWFn) {
+          console.log('[PWA] Standard browser mode detected - activating waiting service worker');
+          updateSWFn(false);
+        }
+      },
+      onNeedReload() {
+        console.log('[PWA] Service worker updated and controlling clients');
+        window.dispatchEvent(new CustomEvent('pwa-controller-changed'));
       },
       onOfflineReady() {
         console.log('[PWA] App precache complete - ready for offline usage');

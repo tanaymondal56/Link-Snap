@@ -62,7 +62,7 @@ class ErrorBoundary extends Component {
       if (window.location.pathname !== '/') {
         window.history.pushState(null, '', '/');
         window.dispatchEvent(new PopStateEvent('popstate'));
-      } else {
+      } else if (navigator.onLine) {
         window.location.reload();
       }
     }

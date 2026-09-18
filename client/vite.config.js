@@ -29,6 +29,16 @@ const htmlEnvFallback = () => ({
   },
 });
 
+// Cloudflare Rocket Loader strips/rewrites <script type="module"> tags unless data-cfasync="false"
+// is explicitly preserved on the final transformed output.
+const preserveCfAsync = () => ({
+  name: 'preserve-cfasync',
+  enforce: 'post',
+  transformIndexHtml(html) {
+    return html.replace(/<script\s+type="module"/g, '<script data-cfasync="false" type="module"');
+  },
+});
+
 // https://vite.dev/config/
 export default defineConfig(async ({ mode }) => {
   // Dev-only plugins loaded conditionally
@@ -64,6 +74,7 @@ export default defineConfig(async ({ mode }) => {
     },
     plugins: [
       htmlEnvFallback(),
+      preserveCfAsync(),
       tailwindcss(),
       react({
         // React Compiler (stable, React 19): auto-memoization at build time —
@@ -117,6 +128,25 @@ export default defineConfig(async ({ mode }) => {
           // Runtime caching for static assets & offline fallbacks
           runtimeCaching: [
             {
+              // Catch all script, style, and worker chunks (including hashed /assets/*.js chunks)
+              urlPattern: ({ request, url }) =>
+                request.destination === 'script' ||
+                request.destination === 'style' ||
+                request.destination === 'worker' ||
+                url.pathname.startsWith('/assets/'),
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'static-resources',
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+                expiration: {
+                  maxEntries: 250,
+                  maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+                },
+              },
+            },
+            {
               urlPattern: ({ request }) => request.destination === 'image',
               handler: 'CacheFirst',
               options: {
@@ -127,6 +157,20 @@ export default defineConfig(async ({ mode }) => {
                 expiration: {
                   maxEntries: 100,
                   maxAgeSeconds: 30 * 24 * 60 * 60,
+                },
+              },
+            },
+            {
+              urlPattern: ({ request }) => request.destination === 'font',
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'static-fonts',
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+                expiration: {
+                  maxEntries: 30,
+                  maxAgeSeconds: 365 * 24 * 60 * 60, // 1 year
                 },
               },
             },

@@ -5,11 +5,12 @@ import { Link } from 'react-router';
 import { getStoredVersion, setStoredVersion, setShowChangelogAfterUpdate } from '../config/version';
 import { useAppVersion } from '../hooks/useAppVersion';
 
-// Check if the app is running as an installed PWA (standalone mode)
+// Check if the app is running as an installed PWA (standalone mode or window-controls-overlay)
 const isInstalledPWA = () => {
   if (typeof window === 'undefined') return false;
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: window-controls-overlay)').matches ||
     window.navigator.standalone === true ||
     document.referrer.includes('android-app://')
   );

@@ -79,6 +79,11 @@ const setCachedVersion = (version) => {
  * @returns {Promise<string|null>} Version string or null if fetch fails
  */
 const fetchVersionFromAPI = async () => {
+    // If device is offline, return null immediately without making a doomed network request
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        return null;
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -189,6 +194,13 @@ const refreshVersionInBackground = () => {
             window.__versionRefreshInProgress = false;
         });
 };
+
+// Automatically refresh version when connection is restored
+if (typeof window !== 'undefined') {
+    window.addEventListener('online', () => {
+        refreshVersionInBackground();
+    });
+}
 
 /**
  * Initialize version on app load

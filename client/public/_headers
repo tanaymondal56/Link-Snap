@@ -55,6 +55,6 @@
   Cache-Control: public, max-age=0, must-revalidate
 
 /index.html
-  Cache-Control: no-cache, no-store, must-revalidate
+  Cache-Control: no-cache, must-revalidate
   ! Access-Control-Allow-Origin
   ! Access-Control-Allow-Credentials
