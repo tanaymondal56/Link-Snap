@@ -208,7 +208,7 @@ async function fetchLatestVersionFromDB() {
         const dotenv = serverRequire('dotenv');
         
         // Load environment variables
-        dotenv.config({ path: path.join(rootDir, 'server', '.env') });
+        dotenv.config({ path: path.join(rootDir, 'server', '.env'), quiet: true, fast: true });
         
         const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
         if (!mongoUri) {

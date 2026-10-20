@@ -9,7 +9,7 @@ import connectDB from '../config/db.js';
 // Robustly load .env from the server directory, regardless of where the script is run
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-dotenv.config({ path: join(__dirname, '../.env') });
+dotenv.config({ path: join(__dirname, '../.env'), quiet: true, fast: true });
 
 const registerUser = async () => {
     try {

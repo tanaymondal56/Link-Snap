@@ -103,10 +103,12 @@ export default defineConfig(async ({ mode }) => {
         // The new SW will wait until user clicks Update
         registerType: 'prompt',
         // Use the hook/manual registration path only; avoid injected scripts that can trip CSP
-        injectRegister: null,
+        injectRegister: false,
         workbox: {
           // Inline workbox runtime directly into sw.js so sw.js is self-contained without importScripts
           inlineWorkboxRuntime: true,
+          // Workbox 7 / vite-plugin-pwa 2.0.0 safeguard against asset size error
+          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           // Include index.html - required for navigateFallback to work
           globPatterns: ['**/*.{js,css,ico,png,svg,webp,html}'],
           // Don't cache API calls
@@ -193,14 +195,18 @@ export default defineConfig(async ({ mode }) => {
           'og-image.png',
         ],
         manifest: {
+          id: '/',
           name: 'Link Snap',
           short_name: 'LinkSnap',
           description: 'Advanced URL Shortener with Analytics',
           lang: 'en',
+          dir: 'ltr',
           theme_color: '#8b5cf6',
           background_color: '#030712', // gray-950 to match app
           display: 'standalone',
           display_override: ['window-controls-overlay', 'standalone'],
+          orientation: 'any',
+          categories: ['utilities', 'productivity'],
           launch_handler: { client_mode: 'focus-existing' },
           start_url: '/',
           scope: '/',

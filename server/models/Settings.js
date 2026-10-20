@@ -1,10 +1,10 @@
 import mongoose from 'mongoose';
 import crypto from 'node:crypto';
-import dotenv from 'dotenv';
+import '../config/env.js';
 
 // Ensure environment variables are loaded
 // This is needed because ES module imports are hoisted
-dotenv.config();
+
 
 // Encryption utilities for email password
 // ENCRYPTION_KEY must be EXACTLY 32 characters for AES-256-CBC

@@ -40,7 +40,7 @@ export const initPWA = () => {
         console.log('[PWA] App precache complete - ready for offline usage');
         window.dispatchEvent(new CustomEvent('pwa-offline-ready'));
       },
-      onRegistered(registration) {
+      onRegisteredSW(swScriptUrl, registration) {
         if (registration) {
           // Periodically check for updates every 60 seconds when online
           setInterval(() => {

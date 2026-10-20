@@ -7,7 +7,11 @@ import { fileURLToPath } from 'url';
 // Load environment variables
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, '../.env') });
+const serverEnv = path.join(__dirname, '../server/.env');
+const rootEnv = path.join(__dirname, '../.env');
+if (dotenv.config({ path: serverEnv, quiet: true, fast: true }).error) {
+  dotenv.config({ path: rootEnv, quiet: true, fast: true });
+}
 
 // Import Model (Late import to ensure env is loaded if needed)
 import MasterAdmin from '../server/models/MasterAdmin.js';

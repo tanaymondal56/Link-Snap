@@ -1,8 +1,8 @@
-import dotenv from 'dotenv';
+import '../config/env.js';
 import User from '../models/User.js';
 import connectDB from '../config/db.js';
 
-dotenv.config();
+
 
 const makeAdmin = async () => {
     try {
